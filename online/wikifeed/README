@@ -1,0 +1,8 @@
+
+Code which sets up an online feed from wikipedia to you. 
+
+These are at quite a preliminary stage.
+
+To work, first copy db_config.sample into db_config.local.
+
+Now, update the values defined in there 

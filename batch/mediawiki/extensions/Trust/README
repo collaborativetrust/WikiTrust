@@ -1,0 +1,5 @@
+
+Custom Coloring Extensions
+
+Trust3.php -- Does the coloring markup and revision tracking
+NotifyEdit -- Sends a UDP message to a specified server whenever a edit happens.

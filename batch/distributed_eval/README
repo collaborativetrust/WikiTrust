@@ -1,0 +1,48 @@
+In this directory are the scripts used to perform the distributed
+evaluation.
+
+Scripts:
+
+add_expr.py -- sets up an experiment. All files are automatically added to
+this experiment.
+
+Usage: add_expr.py "exp. name"
+
+add_files.py -- Adds files to the db, in preperation for an experiment
+
+Usage: add_files.py prefix suffix <start> <end> <padding>
+
+So, for example, python add_files.py foo bar 0 11 yes 
+
+Would add the following files to the DB:
+
+foo00bar
+foo01bar
+...
+foo09bar
+foo10bar
+
+Running the Distributed Analysis:
+
+This is predicated on having a large number of machines to run the eval process
+on.
+
+First, place the source files in a location accessable to all nodes.
+
+Next, Place the stats file and users file in a common location.
+
+Now, edit do_all_dist so that the top variables point to the correct files.
+Also, Update the paramiters as desired in this file.
+Also, make sure that the variables EVALWIKI and GRABER are set correctly.
+
+Now, all that is left to do is run the process. I reccomend doing it like this:
+
+$ nohup ssh issdm-17 "./distributed_eval/do_all_dist.sh 'experiment name'" &
+
+Replacing 'experiment name' with whatever experiment you added with add_expr.py
+
+And that's it!
+
+Repeat the above step as many times as you like. If there are no more files to
+process, the command will die immediatly. Otherwise, the command will continue
+trying to process files untill it runs out of files to process.

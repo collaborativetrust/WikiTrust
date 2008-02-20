@@ -1,0 +1,4 @@
+This directory contains the code that performs the batch computation
+of author reputations and text trust for the Wikipedia. 
+See the doc directory for more information. 
+
