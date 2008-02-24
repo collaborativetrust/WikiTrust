@@ -31,6 +31,7 @@ INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
 CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
+
 """
 
 # Pulls full info of revisions from the wikipedia api and puts it in a database
@@ -44,19 +45,17 @@ import gzip
 import time
 import re
 import xml.parsers.expat
+import ConfigParser
 
 ## Ian Pye <ipye@cs.ucsc.edu>
 
-# const globals
-USER = "wikiuser"
-PASS = "wikiword"
-DB = "wikitest"
-
+## Const Globals -- ?? how do I mark a variable immutable in python?
 WIKI_BASE = "http://en.wikipedia.org/w/api.php"
 REVS_TO_PULL = 20
 LOCK_FILE = "/tmp/mw_test_pull"
 SLEEP_TIME_SEC = 1
 MAX_TIMES_TRY = 10 ## how many times to try downloading content before giving up
+INI_FILE = "pull_revision.ini"
 
 # FileCache
 FILE_CACHE_ROOT = "/var/www/rev_text"
@@ -66,11 +65,6 @@ FILE_CACHE_PAGE_SIZE = 12
 FILE_CACHE_REV_SIZE = 12
 FILE_CACHE_EXTENSION = ".txt"
 REV_FLAGS = "utf-8,fs-cache"
-
-## init the DB
-connection = MySQLdb.connect(host="localhost",
-user=USER, passwd=PASS, db=DB )
-curs = connection.cursor()
 
 revs_added = 0
 
@@ -351,6 +345,16 @@ for o, a in opts:
   if o in ("-d"):
     deamon = True
     keep_going = True
+
+## parse the ini file
+ini_config = ConfigParser.ConfigParser()
+ini_config.readfp(open(INI_FILE))
+
+## init the DB
+connection = MySQLdb.connect(host=ini_config.get('db', 'host'),
+user=ini_config.get('db', 'user'), passwd=ini_config.get('db', 'pass') \
+    , db=ini_config.get('db', 'db') )
+curs = connection.cursor()
 
 ## make sure that we are the only pull_text running currently
 if os.path.exists(LOCK_FILE):

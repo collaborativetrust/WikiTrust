@@ -3,6 +3,22 @@ Code which sets up an online feed from wikipedia to you.
 
 These are at quite a preliminary stage.
 
-To work, first copy db_config.sample into db_config.local.
+To work, first copy pull_revision.ini.sample into pull_revision.ini and 
+update the values defined there.
 
-Now, update the values defined in there 
+CURRENT ISSUES:
+
+1) UserID is not pulled -- all userids are set to NULL 
+
+NOTES:
+
+To run:
+
+python pull_text.py -v (verbose) -d (run as deamon)
+
+python pull_revisions.py -v (verbose)
+
+These scripts assume the existance (and writablity) of the /tmp 
+directory.
+
+Additionally, mysql is a requirement.

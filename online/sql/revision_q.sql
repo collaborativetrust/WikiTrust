@@ -72,3 +72,9 @@ CREATE TABLE trust_text(
      old_text   mediumblob    ,
      old_flags  tinyblob                   
 );
+
+CREATE TABLE trust_users(
+  trust_user        int(5) unsigned PRIMARY KEY   ,
+  trust_user_text   varchar(255) NOT NULL     ,
+  addedon           timestamp NOT NULL DEFAULT now() 
+);

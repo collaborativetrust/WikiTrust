@@ -46,28 +46,21 @@ import re
 import time
 import StringIO
 import xml.parsers.expat
+import ConfigParser
 
 ## Ian Pye <ipye@cs.ucsc.edu>
 
-# const globals
-USER = "wikiuser"
-PASS = "wikiword"
-DB = "wikitest"
-
+## const globals
 WIKI_BASE = "http://en.wikipedia.org/w/api.php"
 NUM_TO_PULL = 500
 EPSILON_TO_STOP_AT = 100
 LOCK_FILE = "/tmp/mw_revision_pull"
 SLEEP_TIME_SEC = 1
 MAX_TIMES_TRY = 10
+INI_FILE = "pull_revision.ini"
 
 ## re to pull out the xml header
 patern = re.compile('<\?xml version="1.0" encoding="utf-8"\?>')
-
-## init the DB
-connection = MySQLdb.connect(host="localhost",
-user=USER, passwd=PASS, db=DB )
-curs = connection.cursor()
 
 revs_added = 0
 
@@ -144,7 +137,6 @@ def pull_revs():
       time.sleep(SLEEP_TIME_SEC)
       if verbose:
         print "Error fetching content"
-        PyErr_Print()
 
   ## Parse the results, and put the contents in the db                                    
   ## Callback functions defined above handle the rest                                     
@@ -179,6 +171,16 @@ for o, a in opts:
   if o in ("-v"):
     verbose = True
 
+## parse the ini file
+ini_config = ConfigParser.ConfigParser()
+ini_config.readfp(open(INI_FILE))
+
+## init the DB
+connection = MySQLdb.connect(host=ini_config.get('db', 'host'),
+user=ini_config.get('db', 'user'), passwd=ini_config.get('db', 'pass') \
+    , db=ini_config.get('db', 'db') )
+curs = connection.cursor()
+
 ## make sure that there is not another process going at the same time
 if os.path.exists(LOCK_FILE):
   if verbose:
@@ -200,6 +202,6 @@ parser.Parse("</START_XML_LIST>", True) ## keep the xml well formed
 # remove the lock file
 os.remove(LOCK_FILE)
 
-  ## and report
+## and report
 if verbose:  
   print "Pulling From: " + str(last_ux_timestamp) + ". Added " + str(revs_added) + " revisions"
