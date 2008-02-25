@@ -139,14 +139,14 @@ let do_more = ref true in
 while !do_more do 
   begin 
     if !n_pages_read >= !init_offset then begin 
-      Printf.printf "\nWriting chunk index %05d " !chunk_idx; 
+      Printf.printf "\nWriting chunk index %07d " !chunk_idx; 
       (* Opens the file for the chunk, and writes the preamble in it *)
-      f_name := !filename_prefix ^ (Printf.sprintf "%05d.xml" !chunk_idx);
+      f_name := !filename_prefix ^ (Printf.sprintf "%07d.xml" !chunk_idx);
       let fp = open_out !f_name in 
       f := Some fp; 
       output_string fp !preamble
     end else begin 
-      Printf.printf "\nSkipping chunk index %05d " !chunk_idx; 
+      Printf.printf "\nSkipping chunk index %07d " !chunk_idx; 
     end; 
     (* Now writes the specified number of pages in the file *)
     let pages_written = ref 0 in 
