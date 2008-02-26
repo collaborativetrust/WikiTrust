@@ -33,7 +33,7 @@
 
 CREATE TABLE trust_revision_q(
   revision int PRIMARY KEY,
-  status ENUM('added', 'downloading', 'downloaded', 'processing', 'processed') NOT NULL DEFAULT added,
+  status ENUM('added', 'downloading', 'downloaded', 'processing', 'processed') NOT NULL DEFAULT 'added',
   addedon timestamp NOT NULL DEFAULT now(),
   processedon timestamp
 );
