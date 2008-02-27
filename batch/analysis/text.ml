@@ -40,21 +40,47 @@ type word = string;;
 exception Illegal_separator
 exception Text_error
 
-(* This is the type of the returned tokenized string. *)
-type sep_t = Title_start of string (* sequence to start a title *)
-	     | Title_end of string (* sequence to end a title *)
+(* This is the type of the returned tokenized string.
+   The string is just that, the string.  After a revision is split
+   into a list of sep_t, concatenating all strings yields the original
+   text.  When a second argument, of type int, is present, it is the 
+   index of the word in the word array.  Note that the word may be 
+   "canonized" when put in the word array to make the system more
+   robust to tampering, so concatenating the word array does not 
+   yield the original text. *)
+type sep_t = Title_start of string * int (* sequence to start a title *)
+	     | Title_end of string * int (* sequence to end a title *)
 	     | Par_break of string (* paragraph break *)
-	     | Bullet of string (* sequence to do a bullet *)
-	     | Indent of string (* sequence to indent text *)
+	     | Bullet of string * int (* sequence to do a bullet *)
+	     | Indent of string * int (* sequence to indent text *)
 	     | Space of string  (* normal break string *)
 	     | Newline of string (* whitespace containing a \n *)
-	     | Armored_char of string (* armored xml tag *)
-	     | Table_line of string (* table tag that needs to be alone on a line *)
-	     | Table_cell of string (* table tag for cell start *)
-	     | Table_caption of string (* table caption *)
-	     | Tag of string * int (* contains the tag, and the ordinal of the tag *)
-	     | Word of string * int (* contains the word, and the ordinal of the word *)
+	     | Armored_char of string * int (* armored xml tag *)
+	     | Table_line of string * int (* table tag that needs to be alone on a line *)
+	     | Table_cell of string * int (* table tag for cell start *)
+	     | Table_caption of string * int (* table caption *)
+	     | Tag of string * int (* tag (link, stub, etc) *)
+	     | Word of string * int (* a word *)
 	     | Redirect of string * int (* redirect tag *)
+
+(* This type is used internally *)
+type piece_t =   WS_title_start of string
+	       | WS_title_end of string
+	       | WS_bullet of string
+	       | WS_par_break of string 
+	       | WS_indent of string
+	       | WS_space of string
+	       | WS_newline of string 
+	       | WS_table_line of string
+	       | WS_table_caption of string
+	       | WS_table_cell of string
+	       | TXT_tag of string
+	       | TXT_redirect of string
+	       | TXT_splittable of string 
+	       | TXT_armored_char of string 
+	       | TXT_word of string
+	       | INFO_trust of float (* all subsequent text has this trust *)
+	       | INFO_origin of int (* all subsequent text has this origin *)
 
 (* Regular expressions to separate words for reputation analysis *)
 (* This is the regexp used to split for reputation analysis *)
@@ -69,20 +95,20 @@ let in_word_regexp = Str.regexp ".*[a-zA-Z0-9]"
 let print_sep (s: sep_t) = 
   begin 
     match s with 
-      Title_start t -> Printf.printf "Title_start(%S) " t
-    | Title_end t -> Printf.printf "Title_end(%S) " t
-    | Par_break t -> Printf.printf "Par_break(%S) " t
-    | Bullet t -> Printf.printf "Bullet(%S) " t
-    | Indent t -> Printf.printf "Indent(%S) " t
+      Title_start (t, n) -> Printf.printf "Title_start(%S,%d) " t n
+    | Title_end (t, n) -> Printf.printf "Title_end(%S,%d) " t n
+    | Par_break t -> Printf.printf "Par_break(%S) " t 
+    | Bullet (t, n) -> Printf.printf "Bullet(%S,%d) " t n
+    | Indent (t, n) -> Printf.printf "Indent(%S,%d) " t n
     | Space t -> Printf.printf "Space(%S) " t
-    | Newline t -> Printf.printf "Newline(%S) " t
-    | Armored_char t -> Printf.printf "Armored_char(%S) " t
-    | Table_line t -> Printf.printf "Table_line(%S) " t
-    | Table_cell t -> Printf.printf "Table_cell(%S) " t
-    | Table_caption t -> Printf.printf "Table_caption(%S) " t
-    | Tag (t, j) -> Printf.printf "Tag(%S,%d) " t j
-    | Word (t, j) -> Printf.printf "Word(%S,%d) " t j
-    | Redirect (t, j) -> Printf.printf "Redirect(%S,%d) " t j
+    | Newline (t) -> Printf.printf "Newline(%S) " t 
+    | Armored_char (t, n) -> Printf.printf "Armored_char(%S,%d) " t n
+    | Table_line (t, n) -> Printf.printf "Table_line(%S,%d) " t n
+    | Table_cell (t, n) -> Printf.printf "Table_cell(%S,%d) " t n
+    | Table_caption (t, n) -> Printf.printf "Table_caption(%S,%d) " t n
+    | Tag (t, n) -> Printf.printf "Tag(%S,%d) " t n
+    | Word (t, n) -> Printf.printf "Word(%S,%d) " t n
+    | Redirect (t, n) -> Printf.printf "Redirect(%S,%d) " t n
   end
 
 let print_seps (sep_a: sep_t array) = 
@@ -108,17 +134,22 @@ let print_words_and_seps (w: word array) (s: sep_t array) =
   Printf.printf ("\n"); 
   print_seps s
 
+
+(* **************************************************************** *)
+(* Here start the functions that are used to split a wiki article in 
+   a list of words. *)
+
 (* **************************************************************** *)
 (* This function removes HTML comments. 
    This is much more of a pain that it should be, for two reasons. 
-   First, Wikipedians violate the markup language specification, and use HTML comments
+   First, people violate the markup language specification, and use HTML comments
    in front of tags that should come at the beginning of the line, such as in 
    <!-- This is an obnoxious comment before a table start -->{| ... 
-   Second, Wikipedians do not follow the W3C recommendation 
+   Second, people do not follow the W3C recommendation 
    http://www.w3.org/TR/html401/intro/sgmltut.html#h-3.2.4 that -- not be used inside
    an HTML comment, preventing the use of regexps to eliminate comments, as they 
    write things like: 
-   <!-- Look I can make beautiful arrow that no-one sees ------->
+   <!-- Look I can make a beautiful arrow that no-one sees ------->
    So I have to go through this.  Ah well. 
  *)
 let start_comment_r = Str.regexp "<!--"
@@ -157,50 +188,6 @@ let remove_html_comments (text: string) : string =
   end done; (* while loop *)
   !t
 
-(* **************************************************************** *)
-(* Splitting text into words, for reputation analysis *)
-
-(* This function uses stack space proportional to the number of words 
-   into which the text is split, but it is fast. It returns a word Vec, 
-   so that there is no overflow danger. *)
-let split_string_into_word_vec (text: string) : word Vec.t = 
-  (* Splits the text *)
-  let wl = Str.split sep_regexp text in 
-  (* filters out the empty words and the ones which do not
-     contain a number or letter *)
-  let f w = (
-    (String.length w) > 0 
-    && (Str.string_match in_word_regexp w 0)) in 
-  Vec.of_list (List.filter f wl)
-
-(* This function splits a Vec of strings into an array of words. 
-   The function takes care in the appropriate way of long strings, 
-   and processes concatenations n an optimal way. *)
-let split_into_words (text_v: string Vec.t) : word array = 
-  (* First, we generate a word Vec.t *)
-  let ve = Vec.empty in 
-  let vn l d r = Vec.concat (Vec.concat l (split_string_into_word_vec d)) r in 
-  let word_vect = Vec.visit_post ve vn text_v in 
-  (* Then, returns an array of the result *)
-  Vec.to_array word_vect
-
-
-(* **************************************************************** *)
-(* Splitting text into words and separators, used for text trust *)
-
-(* This type is used internally *)
-type piece_t =   WS_title_start of string
-	       | WS_title_end of string
-	       | WS_bullet of string
-	       | WS_par_break of string 
-	       | WS_indent of string
-	       | WS_table_line of string
-	       | WS_table_cell of string
-	       | WS_table_caption of string
-	       | TXT_tag of string
-	       | TXT_redirect of string
-	       | TXT_splittable of string 
-		 
 
 
 (* These are constructs with opening and closing tags, except for titles 
@@ -224,11 +211,17 @@ let end_tag_6_r  = Str.regexp "</\\([a-zA-Z1-9_]+\\) *>"
 let beg_tag_7  = "\\(&lt;[a-zA-Z1-9_]+\\)"
 let end_tag_7_r  = Str.regexp "&lt;/\\([a-zA-Z1-9_]+\\) *&gt;"
  *)
+let beg_trust_8 = "\\({{#t:\\)"
+let beg_trust_8_r = Str.regexp beg_trust_8
+let beg_origin_9 = "\\({{to:\\)"
+let beg_origin_9_r = Str.regexp beg_origin_9
+
 let tag_name_r = Str.regexp "[a-zA-Z1-9_]+"
 (* let single_close_r = Str.regexp "&gt;" *)
 (* Any of these openings *)
 let open_pattern = Str.regexp_case_fold
-  (beg_link_1 ^ "\\|" ^ beg_link_2 ^ "\\|" ^ beg_stub_3 ^ "\\|" ^ beg_link_5 ^ "\\|" ^ beg_tag_6 )
+  (beg_link_1 ^ "\\|" ^ beg_link_2 ^ "\\|" ^ beg_stub_3 ^ "\\|" ^ beg_link_5 ^ "\\|" ^ beg_tag_6 
+    ^ "\\|" ^ beg_trust_8 ^ "\\|" ^ beg_origin_9 )
 
 (* For matching *)
 (* These are the tags that close with ]] *)
@@ -238,10 +231,10 @@ let match_brbr_r = Str.regexp_case_fold (beg_link_1 ^ "\\|" ^ beg_link_5 ^ "\\|"
 (* These are openings or closures of tags that close with ].  Check that it is a single ] ! *)
 let match_br_r = Str.regexp (beg_link_2  ^ "\\|" ^ end_link_2)
 (* These are openings or closures of tags that close with }} *)
-let match_cbr_r = Str.regexp (beg_stub_3 ^ "\\|" ^ end_stub_3)
+let match_cbr_r = Str.regexp (beg_stub_3 ^ "\\|" ^ beg_trust_8 ^ "\\|" ^ beg_origin_9 ^ "\\|" ^ end_stub_3)
 
 let max_nested_tags = 20
-type token_t = LeftTok | OpenTag | RedirTok
+type token_t = LeftTok | OpenTag | RedirTok | TrustTok | OriginTok
 
 (* This function takes a piece_t Vec.t, and separates out the tags (see above regular expressions)
    into atomic pieces that won't be touched by coloring. *)
@@ -252,10 +245,10 @@ let separate_string_tags (pv: piece_t Vec.t) : piece_t Vec.t =
     | TXT_splittable text -> begin 
 	(* We accumulate in p the result of the first analysis. *)
 	let p = ref pp in 
-	(* First, searches in text for: 
-	   [[ [http: {{ {| <tagname ...> 
+	(* First, searches in text for an occurrence of an open_pattern 
+	   (such as [[ [http: {{ {| <tagname ...> )
 	   that signal the beginning of blocks.  It then puts the portion of text 
-	   matched in an TXT_tag, and what comes before as TXT_splittable. *)
+	   matched in an TXT_tag, or in an INFO tag, and it puts what comes before as TXT_splittable. *)
 	let start_search = ref 0 in (* i indicates where we start to search from *)
 	let start_pos = ref 0 in    (* start_pos indicates where the next unprocessed char of text is *)
 	let text_l = String.length text in 
@@ -281,7 +274,9 @@ let separate_string_tags (pv: piece_t Vec.t) : piece_t Vec.t =
 		 Note that in case of single tags, we are looking for both 
 		 openings and closings. *)
               let (closing_token_r, tag_kind) = 
-		if s = "[[" then (match_brbr_r, LeftTok)
+		if s = "{{#t:" then (match_cbr_r, TrustTok)
+		else if s = "{{to:" then (match_cbr_r, OriginTok) 
+		else if s = "[[" then (match_brbr_r, LeftTok)
 		else if s = "[http:" then (match_br_r, LeftTok)
 		else if s = "{{" then (match_cbr_r, LeftTok)
 		else if (String.uppercase s) = "#REDIRECT " then (match_brbr_r, RedirTok)
@@ -357,7 +352,7 @@ let separate_string_tags (pv: piece_t Vec.t) : piece_t Vec.t =
 		    end
 		  end (* case for a tag with matching closing tag *)
 		end (* OpenTag and OpenCodedTag *)
-	      | LeftTok | RedirTok -> begin 
+	      | LeftTok | RedirTok | TrustTok | OriginTok -> begin 
 		  (* Not a tag, looks for the closing token if any. Keeps track of the open/close deficit. *)
 		  (* Careful: Redirect comes with an initial imbalance of 0 *)
 		  let n_open = if tag_kind = LeftTok then ref 1 else ref 0 in 
@@ -390,8 +385,12 @@ let separate_string_tags (pv: piece_t Vec.t) : piece_t Vec.t =
 			      p := Vec.append (TXT_splittable piece_before) !p
 			    end; 
 			    let piece_atomic = String.sub text match_start_pos (end_closing - match_start_pos) in 
-			    let tag_atomic = 
-			      if tag_kind = LeftTok then TXT_tag piece_atomic else TXT_redirect piece_atomic 
+			    let tag_atomic = match tag_kind with 
+				LeftTok -> TXT_tag piece_atomic
+			      | RedirTok -> TXT_redirect piece_atomic
+			      | OpenTag -> raise Text_error (* we should not be here *)
+			      | TrustTok -> INFO_trust (float_of_string piece_atomic)
+			      | OriginTok -> INFO_origin (int_of_string piece_atomic) 
 			    in 
 			    p := Vec.append tag_atomic !p; 
 			    (* Begins from end_closing the rest of the analysis *)
@@ -446,8 +445,7 @@ let separate_titles (v: piece_t Vec.t) : piece_t Vec.t =
      w is where the result is accumulated. *)
   let f (d: piece_t) (w: piece_t Vec.t) : piece_t Vec.t = 
     match d with 
-      TXT_tag _ | TXT_redirect _ -> Vec.append d w
-    | TXT_splittable s -> begin 
+      TXT_splittable s -> begin 
         (* s is a splittable string.  Looks for titles in it *)
         let l = Str.full_split one_liner_r s in 
         (* Now, we process the list l, adding to w the results. *)
@@ -468,36 +466,42 @@ let separate_titles (v: piece_t Vec.t) : piece_t Vec.t =
         in (* end of function g *)
         List.fold_left g w l
       end
-    | _ -> raise Text_error
+    | _ -> Vec.append d w
   in (* end of function f *)
   Vec.fold f v Vec.empty
 
 (* Bullets *)
-let bullet_tag = "\\(\n\\*\\** *\\)"
+let bullet_tag = "\\(\n\\*+:? *\\)"
 let bullet_tag_r = Str.regexp bullet_tag
-let number_tag = "\\(\n##* *\\)"
+let number_tag = "\\(\n#+:? *\\)"
 let number_tag_r = Str.regexp number_tag
+let colon_tag = "\\(\n:+ *\\)"
+let colon_tag_r = Str.regexp colon_tag
 (* Indent *)
 let indent_tag = "\\(\n +\\)"
 let indent_tag_r = Str.regexp indent_tag
 (* Colon-indent *)
-let colon_tag = "\\(\n::* *\\)"
-let colon_tag_r = Str.regexp colon_tag
 (* Tables beginnings and ends.  Note that by reading these tags till the end of the line,
    we can ensure that any formatting instructions are not broken. *)
-let begin_table   = "\\(\n{|[^\n]*\\)"
+let begin_table   = "\\(\n{|[^\n]*\\)" (* The \n{| starts the tag.  After that there is formatting till \n *)
 let begin_table_r = Str.regexp begin_table
-let end_table     = "\\(\n|}\\)"
+let end_table     = "\\(\n|}\\)" (* An \n|} ends the table.  After that, go on as normal. *)
 let end_table_r   = Str.regexp end_table
-let new_row       = "\\(\n|-[^\n]*\\)"
+let new_row       = "\\(\n|-[^\n]*\\)" (* An \n|- starts a row. After that there is formatting till \n *) 
 let new_row_r     = Str.regexp new_row
-let table_caption = "\\(\n|\\+\\)"
+let table_caption = "\\(\n|\\+ *\\)" (* Captions are started by |+ ; this just captures the start *)
 let table_caption_r = Str.regexp table_caption
 
 (* Line start stuff *)
-let line_start_r = Str.regexp (bullet_tag ^ "\\|" ^ number_tag ^ "\\|" ^ indent_tag
-  ^ "\\|" ^ colon_tag 
-  ^ "\\|" ^ begin_table ^ "\\|" ^ end_table ^ "\\|" ^ new_row ^ "\\|" ^ table_caption)
+(* This goes into WS_bullet *)
+let line_start_r = Str.regexp (
+  bullet_tag ^ "\\|" ^ number_tag ^ "\\|" ^ colon_tag
+  (* This goes into WS_indent *)
+  ^ "\\|" ^ indent_tag
+  (* This goes into WS_table_line *)
+  ^ "\\|" ^ begin_table ^ "\\|" ^ end_table ^ "\\|" ^ new_row 
+  (* This goes into WS_table_caption *)
+  ^ "\\|" ^ table_caption)
 
 (* This function separates out the markup language used for indentation, and
    for bullet and enumeration lists. *)
@@ -517,7 +521,8 @@ let separate_line_tags (v: piece_t Vec.t) : piece_t Vec.t =
           | Str.Delim t -> begin
 	      (* We must distinguish which tag has been matched *)
 	      if (Str.string_match bullet_tag_r t 0) || 
-		(Str.string_match number_tag_r t 0) 
+		(Str.string_match number_tag_r t 0) || 
+		(Str.string_match colon_tag_r t 0)
 	      then Vec.append (WS_bullet t) ww
 	      else if (Str.string_match indent_tag_r t 0) 
 	      then Vec.append (WS_indent t) ww
@@ -548,7 +553,8 @@ let new_cell_r    = Str.regexp (new_cell_line ^ "\\|" ^ new_cell_cont)
 let format_mod_r  = Str.regexp format_mod
 
 (* This function separates out the table tags that occur inside a table, 
-   to ensure formatting is preserved. *)
+   to ensure formatting is preserved. 
+   For the format of tables, see http://en.wikipedia.org/wiki/Help:Table *)
 let separate_table_tags (v: piece_t Vec.t) : piece_t Vec.t = 
   (* The function f is folded on v, and does the job. 
      d is the piece that is to be analyzed. 
@@ -581,9 +587,10 @@ let separate_table_tags (v: piece_t Vec.t) : piece_t Vec.t =
 		p := Vec.append (TXT_splittable (String.sub s !start_pos (j - !start_pos))) !p; 
 		start_pos := j
 	      end; 
-	      (* Now we have to find the end of the cell beginning. 
-		 This is complicated by the existence of modifier cells tags, 
-		 so we search for those next. *)
+	      (* A cell can either begin via a simple || or \n| or \n!.  The cell start portion 
+		 goes on till a single | , if any: such a single | marks the end of the cell 
+		 format field. After the single |, if any, or after the ||, \n|, \n!, begins the 
+		 cell proper. *)
 	      if Str.string_match format_mod_r s j' then begin 
 		(* Yes, found a modifier *)
 		(* Finds the end of the match.  The -1 is to compensate for the regexp. *)
@@ -618,51 +625,52 @@ let nobreak_r = Str.regexp (whitespace ^ "\\|" ^ xml_entity)
 
 let lt_r = Str.regexp "<" 
 let gt_r = Str.regexp ">"
-(* This function produces the array of seps starting from the piece_t Vec.t, 
+(* This function splits the whitespace, 
    taking also care of the &lt; and &gt; substitution *)
-let separate_whitespace_make_seps (v: piece_t Vec.t) : sep_t Vec.t = 
+let separate_whitespace (v: piece_t Vec.t) : piece_t Vec.t = 
   (* The function rearm re-arms the < and > tags *)
   let rearm (s: string) = 
     let s' = Str.global_replace lt_r "&lt;" s in 
     Str.global_replace gt_r "&gt;" s' 
   in 
   (* The function f is folded over v *)
-  let f (d: piece_t) (sep_v: sep_t Vec.t) : sep_t Vec.t = 
+  let f (d: piece_t) (piece_v: piece_t Vec.t) : piece_t Vec.t = 
     match d with 
-      WS_title_start s -> Vec.append (Title_start (rearm s)) sep_v
-    | WS_title_end s -> Vec.append (Title_end (rearm s)) sep_v 
-    | WS_bullet s -> Vec.append (Bullet (rearm s)) sep_v
-    | WS_par_break s -> Vec.append (Par_break (rearm s)) sep_v
-    | WS_indent s -> Vec.append (Indent (rearm s)) sep_v
-    | WS_table_line s -> Vec.append (Table_line (rearm s)) sep_v
-    | WS_table_cell s -> Vec.append (Table_cell (rearm s)) sep_v
-    | WS_table_caption s -> Vec.append (Table_caption (rearm s)) sep_v 
-    | TXT_tag s -> Vec.append (Tag ((rearm s), 0)) sep_v
-    | TXT_redirect s -> Vec.append (Redirect ((rearm s), 0)) sep_v
+      WS_title_start s -> Vec.append (WS_title_start (rearm s)) piece_v
+    | WS_title_end s -> Vec.append (WS_title_end (rearm s)) piece_v 
+    | WS_bullet s -> Vec.append (WS_bullet (rearm s)) piece_v
+    | WS_par_break s -> Vec.append (WS_par_break (rearm s)) piece_v
+    | WS_indent s -> Vec.append (WS_indent (rearm s)) piece_v
+    | WS_table_line s -> Vec.append (WS_table_line (rearm s)) piece_v
+    | WS_table_cell s -> Vec.append (WS_table_cell (rearm s)) piece_v
+    | WS_table_caption s -> Vec.append (WS_table_caption (rearm s)) piece_v 
+    | TXT_tag s -> Vec.append (TXT_tag (rearm s)) piece_v
+    | TXT_redirect s -> Vec.append (TXT_redirect (rearm s)) piece_v
     | TXT_splittable s -> begin 
 	(* We need to split this text into units. *)
 	let l = Str.full_split nobreak_r s in 
 	(* g is left-folded over l *)
-	let g (vv: sep_t Vec.t) (el: Str.split_result) : sep_t Vec.t = 
+	let g (vv: piece_t Vec.t) (el: Str.split_result) : piece_t Vec.t = 
 	  match el with 
 	    Str.Delim t -> begin
 	      if Str.string_match inline_whitespace_r t 0
-	      then Vec.append (Space (rearm t)) vv
+	      then Vec.append (WS_space (rearm t)) vv
 	      else if Str.string_match line_break_whitespace_r t 0 
-	      then Vec.append (Newline (rearm t)) vv
+	      then Vec.append (WS_newline (rearm t)) vv
 	      else if Str.string_match xml_entity_r t 0
-	      then Vec.append (Armored_char (rearm t)) vv
+	      then Vec.append (TXT_armored_char  (rearm t)) vv
 	      else vv (* quotes are discarded *)
 	    end
-	  | Str.Text t -> Vec.append (Word ((rearm t), 0)) vv
-	in List.fold_left g sep_v l 
+	  | Str.Text t -> Vec.append (TXT_word (rearm t)) vv
+	in List.fold_left g piece_v l 
       end
+    | _ -> Vec.append d piece_v 
   in Vec.fold f v Vec.empty
 
 let a_lt_r = Str.regexp "&lt;"
 let a_gt_r = Str.regexp "&gt;"
 (* This function splits a string respecting the Wiki markup language. *)
-let split_string_preserving_markup (text: string) : sep_t Vec.t = 
+let split_string_preserving_markup (text: string) : piece_t Vec.t = 
   (* First, I replace &lt; and &gt; with < and >, otherwise, it's just too hard *)
   let text1  = Str.global_replace a_lt_r "<" text  in 
   let text2 = Str.global_replace a_gt_r ">" text1 in
@@ -674,81 +682,233 @@ let split_string_preserving_markup (text: string) : sep_t Vec.t =
   let p2 = separate_titles      p1 in 
   let p3 = separate_line_tags   p2 in 
   let p4 = separate_table_tags  p3 in
-  separate_whitespace_make_seps p4
+  separate_whitespace p4
+
+(* This function strips all whitespace from the end of a string. 
+   Believe it or not, I could not find an efficient way of doing this 
+   with regexps.
+   The function ONLY works if the string is not entirely whitespace!! 
+   (I can fix it but it would be less efficient) *)
+let strip_ws_end (s: string) : string = 
+  let i = ref ((String.length s) - 1) in 
+  while s.[!i] = ' ' || s.[!i] = '\t' || s.[!i] = '\n' do 
+    i := !i - 1
+  done;
+  String.sub s 0 (!i + 1)
+
+(* This function renormalizes the whitespace in a string, eliminating
+   front-end whitespace, and replacing each sequence of internal whitespace 
+   by a single space. *)
+let ws_r = Str.regexp "\\( \n\t\\)+"
+let normalize_ws (s: string) : string = 
+  let s' = Str.global_replace ws_r " " s in 
+  let n = String.length s' in 
+  if n = 0 
+  then s' 
+  else begin 
+    let start_idx = if s'.[0] = ' ' then 1 else 0 in 
+    let end_idx   = if s'.[n-1] = ' ' then n - 1 else n in 
+    String.sub s' start_idx (end_idx - start_idx) 
+  end
 
 
-(* This function splits a Vec.t of strings respecting the wiki markup language *)
-let split_into_words_and_seps (text_v: string Vec.t) 
-    : (word array) * (sep_t array) * (int array) = 
-  (* First, uses a visitor to construct a sep_t Vec.t called sep_v *)
+(* This function splits a Vec.t of strings respecting the wiki markup language.
+   It returns: 
+   - an array of words (excluding separators, such as white space, etc)
+   - an array of trust values of words (float) 
+   - an array of origins of words (int) 
+   - an array giving, for each word, its place in the sep array (int)
+   - the array of seps, where words, etc, have their position in the word array 
+     annotated. 
+*)
+let split_into_words_seps_and_info (text_v: string Vec.t) 
+    : (word array) * (float array) * (int array) * (int array) * (sep_t array) = 
+  (* First, uses a visitor to construct a piece_t Vec.t called piece_v *)
   let vn l d r = Vec.concat (Vec.concat l (split_string_preserving_markup d)) r in 
-  let sep_v' = Vec.visit_post Vec.empty vn text_v in 
+  let piece_v = Vec.visit_post Vec.empty vn text_v in 
 
-  (* Removes the first \n, so that redirects are not broken. 
-     This basically undoes the insertion of the first \n performed in Textbuf.cr . 
-     The insertion there is useful to recognize titles, etc, that start a page. *)
-  let sep_v = 
-    let strip_lf (s: string) : string = 
-      if String.length s > 0 
-      then Str.string_after s 1
-      else s
-    in 
-    if Vec.length sep_v' > 0 then begin 
-      let first_sep = Vec.get 0 sep_v' in 
-      match first_sep with 
-	Par_break _ | Newline _ -> Vec.remove 0 sep_v' 
-      | Title_start t    -> Vec.set 0 (Title_start    (strip_lf t)) sep_v'
-      | Title_end t      -> Vec.set 0 (Title_end      (strip_lf t)) sep_v'
-      | Bullet t         -> Vec.set 0 (Bullet         (strip_lf t)) sep_v'
-      | Indent t         -> Vec.set 0 (Indent         (strip_lf t)) sep_v'
-      | Space t          -> Vec.set 0 (Space          (strip_lf t)) sep_v'
-      | Armored_char t   -> Vec.set 0 (Armored_char   (strip_lf t)) sep_v'
-      | Table_line t     -> Vec.set 0 (Table_line     (strip_lf t)) sep_v'
-      | Table_cell t     -> Vec.set 0 (Table_cell     (strip_lf t)) sep_v'
-      | Table_caption t  -> Vec.set 0 (Table_caption  (strip_lf t)) sep_v'
-      | Tag (t, i)       -> Vec.set 0 (Tag            ((strip_lf t), i)) sep_v'
-      | Word (t, i)      -> Vec.set 0 (Word           ((strip_lf t), i)) sep_v'
-      | Redirect (t, i)  -> Vec.set 0 (Redirect       ((strip_lf t), i)) sep_v'
-    end else begin 
-      sep_v' 
-    end
+
+  (* From piece_v, makes: 
+     word_v : vector of words
+     word_trust_v : vector of word trusts 
+     word_origin_v : vector of word origins
+     word_index_v : vector of word indices in the sep array 
+     sep_v : vector of sep_t 
+     These vectors will subsequently be converted to arrays, and returned, but it is easier
+     to create them as vectors, as we don't have a bound for their size. *)
+  let origin = ref 0 in 
+  let trust = ref 0.0 in 
+  let word_idx = ref 0 in 
+  let sep_idx = ref 0 in 
+  let word_v = ref Vec.empty in 
+  let word_trust_v = ref Vec.empty in 
+  let word_origin_v = ref Vec.empty in 
+  let word_index_v = ref Vec.empty in 
+  let sep_v = ref Vec.empty in 
+  (* This function is iterated on the vector of piece_t *)
+  (* For each relevant string s, puts in word_v a "viword": a visible piece of text. 
+     The intent is to ensure that any change to a viword corresponds to a change
+     in the visible layout, and vice versa, any change in the visible layout must 
+     be caused by a viword change.  In this way, authors:
+     - cannot change things that are visible to the reputation system but not to 
+       other authors (it could allow them to gain reputation unjustifiably)
+     - cannot vandalize a page without getting some effect to their reputation. 
+   *)
+  let f (s: piece_t) = 
+    match s with 
+      WS_title_start s -> begin 
+	sep_v := Vec.append (Title_start (s, !word_idx)) !sep_v; 
+	(* for a title start, the viword is just s; no whitespace involved *)
+	word_v := Vec.append s !word_v; 
+	word_trust_v := Vec.append !trust !word_trust_v; 
+	word_origin_v := Vec.append !origin !word_origin_v; 
+	word_index_v := Vec.append !sep_idx !word_index_v; 
+	word_idx := !word_idx + 1;
+	sep_idx  := !sep_idx  + 1
+      end
+    | WS_title_end s -> begin 
+	sep_v := Vec.append (Title_end (s, !word_idx)) !sep_v; 
+	(* for a title end, the viword is obtained by removing whitespace and adding
+	   a '\n' for uniqueness *)
+	word_v := Vec.append ((strip_ws_end s) ^ "\n") !word_v; 
+	word_trust_v := Vec.append !trust !word_trust_v; 
+	word_origin_v := Vec.append !origin !word_origin_v; 
+	word_index_v := Vec.append !sep_idx !word_index_v; 
+	word_idx := !word_idx + 1;
+	sep_idx  := !sep_idx  + 1
+      end
+    | WS_bullet s -> begin 
+	sep_v := Vec.append (Bullet (s, !word_idx)) !sep_v; 
+	(* the viword is obtained by removing whitespace. *)
+	word_v := Vec.append (strip_ws_end s) !word_v; 
+	word_trust_v := Vec.append !trust !word_trust_v; 
+	word_origin_v := Vec.append !origin !word_origin_v; 
+	word_index_v := Vec.append !sep_idx !word_index_v; 
+	word_idx := !word_idx + 1;
+	sep_idx  := !sep_idx  + 1
+      end
+    | WS_par_break s -> begin 
+	(* this is a sep but no word *)
+	sep_v := Vec.append (Par_break s) !sep_v; 
+	sep_idx  := !sep_idx  + 1
+      end
+    | WS_indent s -> begin 
+	sep_v := Vec.append (Bullet (s, !word_idx)) !sep_v; 
+	(* the viword is just the original string s *)
+	word_v := Vec.append s !word_v; 
+	word_trust_v := Vec.append !trust !word_trust_v; 
+	word_origin_v := Vec.append !origin !word_origin_v; 
+	word_index_v := Vec.append !sep_idx !word_index_v; 
+	word_idx := !word_idx + 1;
+	sep_idx  := !sep_idx  + 1
+      end
+    | WS_space s -> begin 
+	(* this is a sep but no word *)
+	sep_v := Vec.append (Space s) !sep_v; 
+	sep_idx  := !sep_idx  + 1
+      end
+    | WS_newline s -> begin 
+	(* this is a sep but no word *)
+	sep_v := Vec.append (Newline s) !sep_v; 
+	sep_idx  := !sep_idx  + 1
+      end
+    | WS_table_line s -> begin 
+	sep_v := Vec.append (Table_line (s, !word_idx)) !sep_v; 
+	(* the viword is the original string s normalized for whitespace *)
+	word_v := Vec.append (normalize_ws s) !word_v; 
+	word_trust_v := Vec.append !trust !word_trust_v; 
+	word_origin_v := Vec.append !origin !word_origin_v; 
+	word_index_v := Vec.append !sep_idx !word_index_v; 
+	word_idx := !word_idx + 1;
+	sep_idx  := !sep_idx  + 1
+      end
+    | WS_table_caption s -> begin 
+	sep_v := Vec.append (Table_caption (s, !word_idx)) !sep_v; 
+	(* the viword is \n|+ *)
+	word_v := Vec.append "\n|+" !word_v; 
+	word_trust_v := Vec.append !trust !word_trust_v; 
+	word_origin_v := Vec.append !origin !word_origin_v; 
+	word_index_v := Vec.append !sep_idx !word_index_v; 
+	word_idx := !word_idx + 1;
+	sep_idx  := !sep_idx  + 1
+      end
+    | WS_table_cell s -> begin 
+	sep_v := Vec.append (Table_cell (s, !word_idx)) !sep_v; 
+	(* the viword is the original string s, with whitespace normalized *)
+	word_v := Vec.append (normalize_ws s) !word_v; 
+	word_trust_v := Vec.append !trust !word_trust_v; 
+	word_origin_v := Vec.append !origin !word_origin_v; 
+	word_index_v := Vec.append !sep_idx !word_index_v; 
+	word_idx := !word_idx + 1;
+	sep_idx  := !sep_idx  + 1
+      end
+    | TXT_tag s -> begin 
+	sep_v := Vec.append (Tag (s, !word_idx)) !sep_v; 
+	(* the viword is just the original string s, with whitespace normalized *)
+	word_v := Vec.append (normalize_ws s) !word_v; 
+	word_trust_v := Vec.append !trust !word_trust_v; 
+	word_origin_v := Vec.append !origin !word_origin_v; 
+	word_index_v := Vec.append !sep_idx !word_index_v; 
+	word_idx := !word_idx + 1;
+	sep_idx  := !sep_idx  + 1
+      end
+    | TXT_redirect s -> begin 
+	sep_v := Vec.append (Redirect (s, !word_idx)) !sep_v; 
+	(* the viword is just the original string s, with whitespace normalized *)
+	word_v := Vec.append (normalize_ws s) !word_v; 
+	word_trust_v := Vec.append !trust !word_trust_v; 
+	word_origin_v := Vec.append !origin !word_origin_v; 
+	word_index_v := Vec.append !sep_idx !word_index_v; 
+	word_idx := !word_idx + 1;
+	sep_idx  := !sep_idx  + 1
+      end
+    | TXT_armored_char s -> begin 
+	sep_v := Vec.append (Armored_char (s, !word_idx)) !sep_v; 
+	(* the viword is just the original string s *)
+	word_v := Vec.append s !word_v; 
+	word_trust_v := Vec.append !trust !word_trust_v; 
+	word_origin_v := Vec.append !origin !word_origin_v; 
+	word_index_v := Vec.append !sep_idx !word_index_v; 
+	word_idx := !word_idx + 1;
+	sep_idx  := !sep_idx  + 1
+      end
+    | TXT_word s -> begin 
+	sep_v := Vec.append (Word (s, !word_idx)) !sep_v; 
+	(* the viword is just the original string s *)
+	word_v := Vec.append s !word_v; 
+	word_trust_v := Vec.append !trust !word_trust_v; 
+	word_origin_v := Vec.append !origin !word_origin_v; 
+	word_index_v := Vec.append !sep_idx !word_index_v; 
+	word_idx := !word_idx + 1;
+	sep_idx  := !sep_idx  + 1
+      end
+	(* I store the new word trust *)
+    | INFO_trust x -> trust := x 
+	(* I store the new word origin *)
+    | INFO_origin k -> origin := k
+    | TXT_splittable _ -> ()
   in 
+  Vec.iter f piece_v; 
+  (* Creates the output *)
+  let word_a = Vec.to_array !word_v in 
+  let trust_a = Vec.to_array !word_trust_v in 
+  let origin_a = Vec.to_array !word_origin_v in 
+  let word_index_a = Vec.to_array !word_index_v in 
+  let sep_a = Vec.to_array !sep_v in 
+  (* And returns the whole *)
+  (word_a, trust_a, origin_a, word_index_a, sep_a);;
 
-  (* Converts sep_v to an array sep_a, fixing at the same time the word indices *)
-  let n = Vec.length sep_v in 
-  let sep_a = Array.make n (Title_start "") in 
-  let pos = ref 0 in 
-  (* The function f is iterated on sep_v *)
-  let f (i: int) (s: sep_t) = 
-    match s with 
-      Tag (t, j) -> begin 
-	sep_a.(i) <- Tag (t, !pos); 
-	pos := !pos + 1
-      end
-    | Word (t, j) -> begin 
-	sep_a.(i) <- Word (t, !pos); 
-	pos := !pos + 1
-      end
-    | Redirect (t, j) -> begin 
-	sep_a.(i) <- Redirect (t, !pos); 
-	pos := !pos + 1
-      end
-    | _ -> sep_a.(i) <- s
-  in Vec.iteri f sep_v; 
-  (* Now produces the word array *)
-  let word_a = Array.make !pos "" in 
-  (* It produces also the array that, from each word, sends to its element in sep_a *)
-  let word_sep_idx_a = Array.make !pos 0 in 
-  (* The function g is iterated on sep_v *)
-  let g (i: int) (s: sep_t) = 
-    match s with 
-      Tag (t, j) -> begin word_a.(j) <- t; word_sep_idx_a.(j) <- i end
-    | Word (t, j) -> begin word_a.(j) <- t; word_sep_idx_a.(j) <- i end
-    | Redirect (t, j) -> begin word_a.(j) <- t; word_sep_idx_a.(j) <- i end
-    | _ -> ()
-  in Array.iteri g sep_a; 
-  (* All done *)
-  (word_a, sep_a, word_sep_idx_a);;
+
+(* **************************************************************** *)
+(* Splitting text into words, for reputation analysis.
+   Unlike in previous versions of the code, this split is now 
+   entirely compatible with the one used for trust analysis, and it is 
+   consequently slower. *)
+
+let split_into_words (text_v: string Vec.t) : word array = 
+  (* First, we generate a word Vec.t *)
+  let (word_a, _, _, _, _) = split_into_words_seps_and_info text_v in 
+  word_a;;
 
 
 (* **************************************************************** *)
@@ -773,20 +933,17 @@ if false then begin
   let s15 = "\n{| <!--I can even put in junk here -->border=\"1\" cellpadding=\"5\" cellspacing=\"0\"\n|-\n! Column 1 || Column 2 || Column 3\n|-\n| rowspan=\"2\"| A\n| colspan=\"2\" align=\"center\"| B\n|-\n| C <!-- column 1 occupied by cell A -->\n| D \n|-\n| E\n| rowspan=\"2\" colspan=\"2\" align=\"center\"| F\n|- \n| G <!-- column 2+3 occupied by cell F -->\n|- \n| colspan=\"3\" align=\"center\"| H\n|}" in 
   let s16 = "\nThe kelvin (symbol:&nbsp;K) is the [[SI]] unit of temperature" in 
   let s17 = "\n&amp;nbsp; &lt;br&gt;gatto <br> pollo&lt;br&gt;gatto &lt;br&gt; gotto &lt;br/&gt;pollo &lt;br/&gt;pollo &lt;br&gt; pollo &lt;br/&gt;" in 
+  let s18 = "\n* Bullet \n*: cont \n::: ecco \n \n \n**:: non so \n##: fatto" in 
 
-  let l = [s0; s1; s2; s3; s4; s5; s6; s7; s8; s9; s10; s11; s12; s13; s14; s15; s16; s17] in
-  let e x = 
-    print_seps_vec (split_string_preserving_markup x); 
-    print_string "\n\n"; 
-    flush stdout 
-  in 
-  print_string "\n\n"; 
-  List.iter e l;
+  let l = [s0; s1; s2; s3; s4; s5; s6; s7; s8; s9; s10; s11; s12; s13; s14; s15; s16; s17; s18] in
 
   let f x = 
     let x_v = Vec.singleton x in 
-    let (_, sa, _) = split_into_words_and_seps x_v in 
-    print_seps sa; 
+    let (word_v, _, _, _, sep_v) = split_into_words_seps_and_info x_v in 
+    let g s = Printf.printf "%S " s in 
+    Array.iter g word_v; 
+    print_string "\n\n"; 
+    print_seps sep_v; 
     print_string "\n\n"; 
     flush stdout 
   in 

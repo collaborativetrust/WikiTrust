@@ -39,27 +39,27 @@ type word = string
 
 type sep_t =
     (** The type of word tokens *)
-    Title_start of string
+    Title_start of string * int
       (** start sequence for a title *)
-  | Title_end of string
+  | Title_end of string * int
       (** end sequence for a title *)
   | Par_break of string
       (** paragraph break sequence *)
-  | Bullet of string
+  | Bullet of string * int
       (** bullet sequence *)
-  | Indent of string
+  | Indent of string * int
       (** indentation sequence *)
   | Space of string
       (** normal whitespace, without a newline *)
   | Newline of string 
       (** whitespace containing a newline char *)
-  | Armored_char of string 
+  | Armored_char of string * int 
       (** Armored char such as &nbsp; *)
-  | Table_line of string 
+  | Table_line of string * int 
       (** table tag that needs to be alone on a line *)
-  | Table_cell of string 
+  | Table_cell of string * int 
       (** table tag that signals the start of a cell *)
-  | Table_caption of string 
+  | Table_caption of string * int 
       (** table tag for the caption *)
   | Tag of string * int
       (** tag, along with the position in the word array *)
@@ -72,10 +72,16 @@ val split_into_words : string Vec.t -> word array
   (** [split_into_words sv] splits a Vec of strings [sv] into an array of words.
       Used for reputation analysis. *)
 
-val split_into_words_and_seps : string Vec.t -> ((word array) * (sep_t array) * (int array))
-  (** [split_into_words_and_seps sv] splits a Vec of strings [sv] into an array of words, 
-      and into an array of word+separators, as well as in an array that gives, for each
-      word, the position in the array of separators. *)
+val split_into_words_seps_and_info : 
+  string Vec.t -> ((word array) * (float array) * (int array) * (int array) * (sep_t array))
+  (** [split_into_words_and_seps sv] splits a Vec of strings [sv] into:
+   - an array of words (excluding separators, such as white space, etc)
+   - an array of trust values of words (float) 
+   - an array of origins of words (int) 
+   - an array giving, for each word, its place in the sep array (int)
+   - the array of seps, where words, etc, have their position in the word array 
+     annotated. 
+*)
 
 val print_words : word array -> unit
   (** [print_words wa] prints the words in the word array [wa]. *)

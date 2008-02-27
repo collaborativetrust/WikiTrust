@@ -111,15 +111,26 @@ class page
       let n_section = ref 0 in 
       for i = 0 to n_seps - 1 do begin
 	match seps.(i) with 
-          (* Syntax breaks *)
-          Text.Title_start _ | Text.Title_end _ | Text.Par_break _ | Text.Bullet _ 
-        | Text.Table_cell _ | Text.Table_line _ | Text.Table_caption _ -> 
+          (* Syntax breaks, no word increase *)
+	  Text.Par_break _ -> 
 	    n_section := !n_section + 1
-	  (* Words *)
-	| Text.Tag (_, k) | Text.Word (_, k) | Text.Redirect (_, k) -> 
+          (* Syntax break before, word increase *)
+	| Text.Title_start (_, k) | Text.Bullet (_, k) | Text.Table_cell (_, k) 
+	| Text.Table_line (_, k) | Text.Table_caption (_,k) | Text.Indent (_, k) -> begin 
+	    n_section := !n_section + 1; 
 	    section_of_word.(k) <- !n_section
-          (* Rest *)
-	| _ -> ()
+	  end
+          (* Syntax break after, word increase *)
+	| Text.Title_end (_, k) -> begin 
+	    section_of_word.(k) <- !n_section;
+	    n_section := !n_section + 1
+	  end
+	  (* No syntax break, word increase *)
+	| Text.Tag (_, k) | Text.Word (_, k) | Text.Redirect (_, k) 
+	| Text.Armored_char (_, k) -> 
+	    section_of_word.(k) <- !n_section
+          (* No syntax break, no word increase *)
+	| Text.Space _ | Text.Newline _ -> ()
       end done; 
 
       (* [spread_look n] marks the array looked_at so that all the syntactic unit 

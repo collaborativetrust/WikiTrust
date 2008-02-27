@@ -287,7 +287,7 @@ class trust_revision
   (comment: string)
   (text_init: string Vec.t) (* Text of the revision, still to be split into words *)
   =
-  let (t, s, swi) = Text.split_into_words_and_seps text_init in 
+  let (t, _, _, swi, s) = Text.split_into_words_seps_and_info text_init in 
 
   object (self)
     inherit revision id page_id timestamp time contributor user_id ip_addr username is_minor comment text_init 
@@ -331,12 +331,11 @@ class trust_revision
       (* This function f is iterated on the array *)
       let f (s: Text.sep_t) : unit = 
         match s with 
-	  Text.Title_start t | Text.Title_end t | Text.Par_break t
-        | Text.Bullet t | Text.Indent t | Text.Space t | Text.Newline t
-	| Text.Armored_char t | Text.Table_line t | Text.Table_cell t 
-	| Text.Table_caption t -> 
-            output_string trust_file t
-        | Text.Tag (t, i) | Text.Redirect (t, i) | Text.Word (t, i) -> 
+	  Text.Title_start (t, _) | Text.Title_end (t, _) | Text.Par_break t
+        | Text.Bullet (t, _) | Text.Indent (t, _) | Text.Space t | Text.Newline t
+	| Text.Armored_char (t, _) | Text.Table_line (t, _) | Text.Table_cell (t, _)
+	| Text.Table_caption (t, _) 
+        | Text.Tag (t, _) | Text.Redirect (t, _) | Text.Word (t, _) -> 
 	    output_string trust_file t
       in
       Array.iter f seps;
@@ -370,36 +369,45 @@ class trust_revision
       Printf.fprintf trust_file "<comment>%s</comment>\n" comment;
       Printf.fprintf trust_file "<text xml:space=\"preserve\">";
       (* Now we must write the text of the revision *)
+      (* word_idx contains the number of the word we are processing *)
       let word_idx = ref 0 in 
       (* This function f is iterated on the array *)
       let f (s: Text.sep_t) : unit = 
         match s with 
-          (* Things that must be followed by the color *)
-          Text.Title_start t | Text.Bullet t | Text.Indent t | Text.Newline t 
-	| Text.Table_cell t | Text.Table_caption t -> 
-            output_string trust_file t; print_next_color !word_idx
-          (* Things that are not followed by the color *)
-        | Text.Space t | Text.Par_break t | Text.Title_end t 
-	| Text.Table_line t | Text.Armored_char t -> 
+          (* Things that must be followed by the color, and increase the word index *)
+          Text.Title_start (t, i) | Text.Bullet (t, i) | Text.Indent (t, i) 
+	| Text.Table_cell (t, i) | Text.Table_caption (t, i) -> begin 
+	    output_string trust_file t; 
+	    word_idx := i + 1;
+	    print_next_color (i + 1)
+	  end
+	    (* Things that must be followed by the color *)
+	| Text.Newline t -> begin 
+	    output_string trust_file t; 
+	    print_next_color !word_idx
+	  end
+            (* Things that are not followed by the color and do not increase the word index *)
+        | Text.Space t | Text.Par_break t -> 
             output_string trust_file t
-          (* Things that are preceded by the color, and increase the word index *)
+	    (* Things that are not followed by the color, and increase the word index *)
+	| Text.Title_end (t, i) | Text.Table_line (t, i) 
+	| Text.Redirect (t, i) | Text.Armored_char (t, i) -> begin 
+	    output_string trust_file t; 
+	    word_idx := i + 1
+	  end
+          (* Things that are preceded and followed by the color, and increase the word index *)
         | Text.Tag (t, i) -> begin 
-            print_next_color !word_idx; 
+            print_next_color i;
             output_string trust_file t; 
-            word_idx := !word_idx + 1;
-            print_next_color !word_idx 
-          end
-	  (* Things that increase the word index *)
-        | Text.Redirect (t, i) -> begin 
-            output_string trust_file t; 
-            word_idx := !word_idx + 1
+            word_idx := i + 1;
+            print_next_color (i + 1) 
           end
           (* Things that may be preceded by the color, if the color has changed. *)
         | Text.Word (t, i) -> begin 
-            let c = next_word_color !word_idx in 
-            if c <> !curr_color then print_next_color !word_idx; 
+            let c = next_word_color i in 
+            if c <> !curr_color then print_next_color i; 
             output_string trust_file t; 
-            word_idx := !word_idx + 1
+            word_idx := i + 1
           end
       in
       Array.iter f seps;
@@ -449,34 +457,42 @@ class trust_revision
       (* This function f is iterated on the array *)
       let f (s: Text.sep_t) : unit = 
         match s with 
-          (* Things that must be followed by the color *)
-          Text.Title_start t | Text.Bullet t | Text.Indent t | Text.Newline t 
-	| Text.Table_cell t | Text.Table_caption t -> 
-            output_string trust_file t; print_next_color !word_idx; print_next_origin !word_idx; 
-          (* Things that are not followed by the color *)
-        | Text.Space t | Text.Par_break t | Text.Title_end t 
-	| Text.Table_line t | Text.Armored_char t -> 
+          (* Things that must be followed by the color, and increase the word index *)
+          Text.Title_start (t, i) | Text.Bullet (t, i) | Text.Indent (t, i) 
+	| Text.Table_cell (t, i) | Text.Table_caption (t, i) -> begin 
+	    output_string trust_file t; 
+	    word_idx := i + 1;
+	    print_next_color (i + 1); print_next_origin (i + 1)
+	  end
+	    (* Things that must be followed by the color *)
+	| Text.Newline t -> begin 
+	    output_string trust_file t; 
+	    print_next_color !word_idx; print_next_origin !word_idx
+	  end
+            (* Things that are not followed by the color and do not increase the word index *)
+        | Text.Space t | Text.Par_break t -> 
             output_string trust_file t
-          (* Things that are preceded by the color, and increase the word index *)
+	    (* Things that are not followed by the color, and increase the word index *)
+	| Text.Title_end (t, i) | Text.Table_line (t, i) 
+	| Text.Redirect (t, i) | Text.Armored_char (t, i) -> begin 
+	    output_string trust_file t; 
+	    word_idx := i + 1
+	  end
+          (* Things that are preceded and followed by the color, and increase the word index *)
         | Text.Tag (t, i) -> begin 
-            print_next_color !word_idx; 
+            print_next_color i; print_next_origin i; 
             output_string trust_file t; 
-            word_idx := !word_idx + 1;
-            print_next_color !word_idx; print_next_origin !word_idx;  
-          end
-	  (* Things that increase the word index *)
-        | Text.Redirect (t, i) -> begin 
-            output_string trust_file t; 
-            word_idx := !word_idx + 1
+            word_idx := i + 1;
+            print_next_color (i + 1); print_next_origin (i + 1)
           end
           (* Things that may be preceded by the color, if the color has changed. *)
         | Text.Word (t, i) -> begin 
-            let c = next_word_color !word_idx in 
-            if c <> !curr_color then print_next_color !word_idx; 
-            let o = next_word_origin !word_idx in 
-            if o <> !curr_origin then print_next_origin !word_idx; 
+            let c = next_word_color i in 
+            if c <> !curr_color then print_next_color i; 
+            let o = next_word_origin i in 
+            if o <> !curr_origin then print_next_origin i; 
             output_string trust_file t; 
-            word_idx := !word_idx + 1
+            word_idx := i + 1
           end
       in
       Array.iter f seps;
