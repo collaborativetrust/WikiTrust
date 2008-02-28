@@ -198,7 +198,7 @@ class page
             let rev1_t = rev1#get_words in 
             let rev1_l = Array.length (rev1_t) in 
             let edits  = Chdiff.edit_diff rev1_t rev2_t rev2_i in 
-            let d      = Chdiff.edit_distance edits (max rev1_l rev2_l) in 
+            let d      = Editlist.edit_distance edits (max rev1_l rev2_l) in 
             dist.(i) <- d
 
         | None -> () (* cache is not full, not a problem *)

@@ -120,16 +120,14 @@ class page
       let credit_text_temp = Array.make max_n_judges 0 in 
       (* Now, goes over medit_l, and fills in new_chunks_attr_a properly, as well as the credits. *)
       let rec f = function 
-          Chdiff.Mins (word_idx, chunk_idx, l) -> begin 
+          Editlist.Mins (word_idx, l) -> begin 
             (* This is text added in the current version *)
-            if chunk_idx = 0 then begin 
-              new_rev#inc_created_text l; 
-              for i = word_idx to word_idx + l - 1 do begin
-                new_chunks_attr_a.(0).(i) <- absolute_idx
-              end done
-            end else raise Ins_text_in_deleted_chunk
+            new_rev#inc_created_text l; 
+            for i = word_idx to word_idx + l - 1 do begin
+              new_chunks_attr_a.(0).(i) <- absolute_idx
+            end done
           end
-        | Chdiff.Mmov (src_word_idx, src_chunk_idx, dst_word_idx, dst_chunk_idx, l) -> begin 
+        | Editlist.Mmov (src_word_idx, src_chunk_idx, dst_word_idx, dst_chunk_idx, l) -> begin 
             if dst_chunk_idx = 0 then begin 
               (* This is live text.  Copies the attribute, and gives credit. *)
               for i = 0 to l - 1 do begin 
@@ -146,7 +144,7 @@ class page
               done
             end
           end
-        | Chdiff.Mdel (word_idx, chunk_idx, l) -> ()
+        | Editlist.Mdel (word_idx, chunk_idx, l) -> ()
       in 
       List.iter f medit_l; 
 
@@ -154,7 +152,7 @@ class page
       if false then begin 
         Printf.printf "\n****************************************************************\n";
         Printf.printf "\nRevision id: %d" rid; 
-        Chdiff.print_mdiff medit_l; 
+        Editlist.print_mdiff medit_l; 
         if false then begin 
           Array.iter (function x -> begin 
                         Printf.printf "\n"; 
@@ -240,7 +238,7 @@ class page
            If rev1 is the revision before rev2, there is no choice *)
         if be_precise || rev1_idx + 1 = rev2_idx then begin 
           let edits  = Chdiff.edit_diff rev1_t rev2_t rev2_i in 
-          let d      = Chdiff.edit_distance edits (max rev1_l rev2_l) in 
+          let d      = Editlist.edit_distance edits (max rev1_l rev2_l) in 
           rev1#set_distance (Vec.setappend 0.0 d i rev1#get_distance);
           rev1#set_editlist (Vec.setappend [] edits i rev1#get_editlist)
         end else begin 
@@ -252,8 +250,8 @@ class page
             let revm = Vec.get revm_idx revs in 
             let revm_e = Vec.get (rev2_idx - revm_idx) revm#get_editlist in 
             let forw_e = Vec.get (revm_idx - rev1_idx) rev1#get_editlist in 
-            let zip_e = Chdiff.zip_edit_lists revm_e forw_e in 
-            let (c1, c2) = Chdiff.diff_cover zip_e in 
+            let zip_e = Compute_edlist.zip_edit_lists revm_e forw_e in 
+            let (c1, c2) = Compute_edlist.diff_cover zip_e in 
             (* Computes the amount of uncovered text *)
             let unc1 = rev1_l - c1 in 
             let unc2 = rev2_l - c2 in 
@@ -275,27 +273,27 @@ class page
             let revm_e = Vec.get (rev2_idx - !best_middle_idx) revm#get_editlist in 
             let forw_e = Vec.get (!best_middle_idx - rev1_idx) rev1#get_editlist in 
             (* ... and computes the distance via zipping. *)
-            let edits = Chdiff.edit_diff_using_zipped_edits rev1_t rev2_t forw_e revm_e in 
-            let d = Chdiff.edit_distance edits (max rev1_l rev2_l) in 
+            let edits = Compute_edlist.edit_diff_using_zipped_edits rev1_t rev2_t forw_e revm_e in 
+            let d = Editlist.edit_distance edits (max rev1_l rev2_l) in 
             rev1#set_distance (Vec.setappend 0.0 d i rev1#get_distance);
             rev1#set_editlist (Vec.setappend [] edits i rev1#get_editlist);
 
             (* Evaluates the error if so asked *)
             if eval_zip_error then begin 
               let edits' = Chdiff.edit_diff rev1_t rev2_t rev2_i in 
-              let d'     = Chdiff.edit_distance edits' (max rev1_l rev2_l) in 
+              let d'     = Editlist.edit_distance edits' (max rev1_l rev2_l) in 
               let err    = ((d +. 1.) /. (d' +. 1.)) in 
               Printf.printf "\nPrecision: %7.5f d_real: %6.1f d_zip: %6.1f" err d' d;
               (* If the error is large, redoes the critical step, so we can go in with a debugger *)
               if err > max_zip_error then begin 
                 Printf.printf "\nRev1 id: %d Rev2 id: %d" rev1#get_id rev2#get_id; 
                 Printf.printf "\n================================================================\n"; 
-                Chdiff.print_diff edits;
+                Editlist.print_diff edits;
                 Printf.printf "\n----------------------------------------------------------------\n";
-                Chdiff.print_diff edits';
+                Editlist.print_diff edits';
                 Printf.printf "\n================================================================\n"; 
                 (* This is so I can use the debugger *)
-                ignore (Chdiff.edit_diff_using_zipped_edits rev1_t rev2_t forw_e revm_e)
+                ignore (Compute_edlist.edit_diff_using_zipped_edits rev1_t rev2_t forw_e revm_e)
               end
             end
 
@@ -303,7 +301,7 @@ class page
             (* Nothing suitable found, uses the brute-force approach of computing 
 	       the edit distance from direct text comparison. ¯*)
             let edits   = Chdiff.edit_diff rev1_t rev2_t rev2_i in 
-            let d = Chdiff.edit_distance edits (max rev1_l rev2_l) in 
+            let d = Editlist.edit_distance edits (max rev1_l rev2_l) in 
             rev1#set_distance (Vec.setappend 0.0 d i rev1#get_distance);
             rev1#set_editlist (Vec.setappend [] edits i rev1#get_editlist);
             if eval_zip_error then Printf.printf "\nPrecision: nonzip"

@@ -74,7 +74,7 @@ OCAMLOPT_FLAGS=$(INCLUDES)
 # Evalwiki does the batch evaluation
 
 OUR_EVALWIKI_OBJS = text.cmo textbuf.cmo prioq.cmo \
-	coda.cmo chdiff.cmo timeconv.cmo \
+	coda.cmo editlist.cmo chdiff.cmo compute_edlist.cmo timeconv.cmo \
 	eval_constants.cmo rephist.cmo revision.cmo prune_analysis.cmo \
 	linear_analysis.cmo circbuf_analysis.cmo reputation_analysis.cmo \
 	trust_analysis.cmo trust_local_color_analysis.cmo \
@@ -83,7 +83,7 @@ OUR_EVALWIKI_OBJS = text.cmo textbuf.cmo prioq.cmo \
 	page_factory.cmo do_eval.cmo evalwiki.cmo
 
 OUR_OPT_EVALWIKI_OBJS = text.cmx textbuf.cmx prioq.cmx \
-	coda.cmx chdiff.cmx timeconv.cmx \
+	coda.cmx editlist.cmx chdiff.cmx compute_edlist.cmx timeconv.cmx \
 	eval_constants.cmx revision.cmx rephist.cmx prune_analysis.cmx \
 	linear_analysis.cmx circbuf_analysis.cmx reputation_analysis.cmx \
 	trust_analysis.cmx trust_local_color_analysis.cmx \

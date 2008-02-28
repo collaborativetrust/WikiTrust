@@ -253,7 +253,7 @@ class page
           let rev1_t = revs.(rev1_idx)#get_words in 
           let rev1_l = Array.length (rev1_t) in 
           let edits  = Chdiff.edit_diff rev1_t rev2_t rev2_i in 
-          let d      = Chdiff.edit_distance edits (max rev1_l rev2_l) in 
+          let d      = Editlist.edit_distance edits (max rev1_l rev2_l) in 
           dist.(rev1_idx).(rev2_idx - rev1_idx - 1) <- d
         done
       done; 
