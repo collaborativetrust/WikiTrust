@@ -233,4 +233,12 @@ class trust_revision :
     method print_words_and_seps : unit
     method set_word_origin : int array -> unit
     method set_word_trust : float array -> unit
+    (* private *)  method output_rev_preamble : out_channel -> unit
+    (* private *)  method output_rev_text : bool -> out_channel -> unit
   end
+
+(** [produce_annotated_markup seps word_trust word_origin trust_is_float include_origin out_buf]
+    produces the annotated text of the revision, with trust, and puts it into the Buffer.t 
+    [out_buf]. *)
+val produce_annotated_markup : 
+  (Text.sep_t array) -> (float array) -> (int array) -> bool -> bool -> Buffer.t

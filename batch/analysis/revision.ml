@@ -271,7 +271,104 @@ class reputation_revision
   end (* reputation_revision *)
 
 
-(** This is a version of a revision object used for author reputation evaluation *)
+(** These are methods used to output the revision text, annotated with trust or trust and origin.
+    These methods are used also by the on-line implementation, hence they do not belong to a specific 
+    class. *)
+
+let produce_annotated_markup 
+  (seps: Text.sep_t array) (* the revision text *)
+  (word_trust: float array) (* the revision word trust *)
+  (word_origin: int array) (* the revision word origin *)
+  (trust_is_float: bool) (* flag indicating whether trust values have to be written out as floating-point *)
+  (include_origin: bool) (* flag indicating whether we have to include also word origin *)
+  : Buffer.t = 
+  let out_buf = Buffer.create 1000 in 
+  let curr_color = ref 0 in 
+  let curr_origin = ref (-1) in 
+  (* approximates a float to an int *)
+  let approx x = int_of_float (x +. 0.5) in 
+  (* Gives me the reputation of the next word, if there is one *)
+  let n_words = Array.length word_trust in 
+  let next_word_color i = begin 
+    if i < n_words 
+    then word_trust.(i) 
+    else if n_words > 0 
+    then word_trust.(n_words - 1)
+    else 0.0 (* No trust for empty pages. *) 
+  end
+  in 
+  let next_word_origin i = begin 
+    if i < n_words 
+    then word_origin.(i) 
+    else if n_words > 0 
+    then word_origin.(n_words - 1)
+    else 0 (* No trust for empty pages. *) 
+  end
+  in 
+  let print_next_color i = begin 
+    let c = next_word_color i in 
+    if trust_is_float 
+    then Printf.bprintf out_buf "{{#t:%f}}" c
+    else Printf.bprintf out_buf "{{#t:%d}}" (approx c); 
+    curr_color := approx c 
+  end 
+  in 
+  let print_next_origin i = begin 
+    let c = next_word_origin i in 
+    Printf.bprintf out_buf "{{to:%d}}" c; 
+    curr_origin := c 
+  end
+  in 
+  (* We write the text of the revision *)
+  let word_idx = ref 0 in 
+  (* This function f is iterated on the array *)
+  let f (s: Text.sep_t) : unit = 
+    match s with 
+      (* Things that must be followed by the color, and increase the word index *)
+      Text.Title_start (t, i) | Text.Bullet (t, i) | Text.Indent (t, i) 
+    | Text.Table_cell (t, i) | Text.Table_caption (t, i) -> begin 
+	Buffer.add_string out_buf t; 
+	word_idx := i + 1;
+	print_next_color (i + 1); if include_origin then print_next_origin (i + 1)
+      end
+	(* Things that must be followed by the color *)
+    | Text.Newline t -> begin 
+	Buffer.add_string out_buf t; 
+	print_next_color !word_idx; if include_origin then print_next_origin !word_idx
+      end
+        (* Things that are not followed by the color and do not increase the word index *)
+    | Text.Space t | Text.Par_break t -> 
+        Buffer.add_string out_buf t
+	  (* Things that are not followed by the color, and increase the word index *)
+    | Text.Title_end (t, i) | Text.Table_line (t, i) 
+    | Text.Redirect (t, i) | Text.Armored_char (t, i) -> begin 
+	Buffer.add_string out_buf t; 
+	word_idx := i + 1
+      end
+        (* Things that are preceded and followed by the color, and increase the word index *)
+    | Text.Tag (t, i) -> begin 
+        print_next_color i; if include_origin then print_next_origin i; 
+        Buffer.add_string out_buf t; 
+        word_idx := i + 1;
+        print_next_color (i + 1); if include_origin then print_next_origin (i + 1)
+      end
+        (* Things that may be preceded by the color, if the color has changed. *)
+    | Text.Word (t, i) -> begin 
+        let c = approx (next_word_color i) in 
+        if c <> !curr_color || trust_is_float then print_next_color i; 
+        if include_origin then begin 
+	  let o = next_word_origin i in 
+          if o <> !curr_origin then print_next_origin i
+	end; 
+        Buffer.add_string out_buf t; 
+        word_idx := i + 1
+      end
+  in
+  Array.iter f seps;
+  out_buf;;
+
+
+(** This is a version of a revision object used for author reputation and text trust evaluation *)
 class trust_revision 
   (id: int) (* revision id *)
   (page_id: int) (* page id *)
@@ -315,18 +412,20 @@ class trust_revision
     method print_words_and_seps : unit = begin 
       Text.print_words_and_seps words seps;
       print_newline (); 
-      end
+    end
 
-    method output_revision trust_file = 
-      (** This method is used to output the revision to an output file. *)
+    method output_rev_preamble trust_file = 
       (* prints standard stuff *)
       Printf.fprintf trust_file "<revision>\n<id>%d</id>\n" id; 
       Printf.fprintf trust_file "<timestamp>%s</timestamp>\n" timestamp;
       Printf.fprintf trust_file "<contributor>\n%s</contributor>\n" contributor;
       if is_minor then Printf.fprintf trust_file "<minor />\n";
       Printf.fprintf trust_file "<comment>%s</comment>\n" comment;
-      Printf.fprintf trust_file "<text xml:space=\"preserve\">";
-      (* Now we must write the text of the revision *)
+      Printf.fprintf trust_file "<text xml:space=\"preserve\">"
+
+    method output_revision trust_file = 
+      (** This method is used to output the revision to an output file. *)
+      self#output_rev_preamble trust_file; 
       (* This function f is iterated on the array *)
       let f (s: Text.sep_t) : unit = 
         match s with 
@@ -341,161 +440,18 @@ class trust_revision
       output_string trust_file "</text>\n</revision>\n"
 
 
-    method output_trust_revision trust_file = 
+    method output_rev_text (include_origin: bool) trust_file = 
       (** This method is used to output the colorized version of a 
           revision to an output file. *)
-      let curr_color = ref 0 in 
-      (* approximates a float to an int *)
-      let approx x = int_of_float (x +. 0.5) in 
-      (* Gives me the reputation of the next word, if there is one *)
-      let n_words = Array.length words in 
-      let next_word_color i = approx (if i < n_words 
-                                      then word_trust.(i) 
-                                      else if n_words > 0 
-                                      then word_trust.(n_words - 1)
-                                      else 0.0) (* No trust for empty pages. *) 
-      in 
-      let print_next_color i = 
-        let c = next_word_color i in 
-        Printf.fprintf trust_file "{{#t:%d}}" c; 
-        curr_color := c 
-      in 
-      (* prints standard stuff *)
-      Printf.fprintf trust_file "<revision>\n<id>%d</id>\n" id; 
-      Printf.fprintf trust_file "<timestamp>%s</timestamp>\n" timestamp;
-      Printf.fprintf trust_file "<contributor>\n%s</contributor>\n" contributor;
-      if is_minor then Printf.fprintf trust_file "<minor />\n";
-      Printf.fprintf trust_file "<comment>%s</comment>\n" comment;
-      Printf.fprintf trust_file "<text xml:space=\"preserve\">";
+      self#output_rev_preamble trust_file; 
       (* Now we must write the text of the revision *)
-      (* word_idx contains the number of the word we are processing *)
-      let word_idx = ref 0 in 
-      (* This function f is iterated on the array *)
-      let f (s: Text.sep_t) : unit = 
-        match s with 
-          (* Things that must be followed by the color, and increase the word index *)
-          Text.Title_start (t, i) | Text.Bullet (t, i) | Text.Indent (t, i) 
-	| Text.Table_cell (t, i) | Text.Table_caption (t, i) -> begin 
-	    output_string trust_file t; 
-	    word_idx := i + 1;
-	    print_next_color (i + 1)
-	  end
-	    (* Things that must be followed by the color *)
-	| Text.Newline t -> begin 
-	    output_string trust_file t; 
-	    print_next_color !word_idx
-	  end
-            (* Things that are not followed by the color and do not increase the word index *)
-        | Text.Space t | Text.Par_break t -> 
-            output_string trust_file t
-	    (* Things that are not followed by the color, and increase the word index *)
-	| Text.Title_end (t, i) | Text.Table_line (t, i) 
-	| Text.Redirect (t, i) | Text.Armored_char (t, i) -> begin 
-	    output_string trust_file t; 
-	    word_idx := i + 1
-	  end
-          (* Things that are preceded and followed by the color, and increase the word index *)
-        | Text.Tag (t, i) -> begin 
-            print_next_color i;
-            output_string trust_file t; 
-            word_idx := i + 1;
-            print_next_color (i + 1) 
-          end
-          (* Things that may be preceded by the color, if the color has changed. *)
-        | Text.Word (t, i) -> begin 
-            let c = next_word_color i in 
-            if c <> !curr_color then print_next_color i; 
-            output_string trust_file t; 
-            word_idx := i + 1
-          end
-      in
-      Array.iter f seps;
+      Buffer.output_buffer trust_file
+        (produce_annotated_markup seps word_trust word_origin false include_origin);
       output_string trust_file "</text>\n</revision>\n"
 
+    method output_trust_revision = self#output_rev_text false
 
-    method output_trust_origin_revision trust_file = 
-      (** This method is used to output the colorized version of a 
-          revision to an output file. *)
-      let curr_color = ref 0 in 
-      let curr_origin = ref (-1) in 
-      (* approximates a float to an int *)
-      let approx x = int_of_float (x +. 0.5) in 
-      (* Gives me the reputation of the next word, if there is one *)
-      let n_words = Array.length words in 
-      let next_word_color i = approx (if i < n_words 
-                                      then word_trust.(i) 
-                                      else if n_words > 0 
-                                      then word_trust.(n_words - 1)
-                                      else 0.0) (* No trust for empty pages. *) 
-      in 
-      let next_word_origin i = if i < n_words 
-                               then word_origin.(i) 
-                               else if n_words > 0 
-                               then word_origin.(n_words - 1)
-                               else 0 (* No trust for empty pages. *) 
-      in 
-      let print_next_color i = 
-        let c = next_word_color i in 
-        Printf.fprintf trust_file "{{#t:%d}}" c; 
-        curr_color := c 
-      in 
-      let print_next_origin i = 
-        let c = next_word_origin i in 
-        Printf.fprintf trust_file "{{to:%d}}" c; 
-        curr_origin := c 
-      in 
-      (* prints standard stuff *)
-      Printf.fprintf trust_file "<revision>\n<id>%d</id>\n" id; 
-      Printf.fprintf trust_file "<timestamp>%s</timestamp>\n" timestamp;
-      Printf.fprintf trust_file "<contributor>\n%s</contributor>\n" contributor;
-      if is_minor then Printf.fprintf trust_file "<minor />\n";
-      Printf.fprintf trust_file "<comment>%s</comment>\n" comment;
-      Printf.fprintf trust_file "<text xml:space=\"preserve\">";
-      (* Now we must write the text of the revision *)
-      let word_idx = ref 0 in 
-      (* This function f is iterated on the array *)
-      let f (s: Text.sep_t) : unit = 
-        match s with 
-          (* Things that must be followed by the color, and increase the word index *)
-          Text.Title_start (t, i) | Text.Bullet (t, i) | Text.Indent (t, i) 
-	| Text.Table_cell (t, i) | Text.Table_caption (t, i) -> begin 
-	    output_string trust_file t; 
-	    word_idx := i + 1;
-	    print_next_color (i + 1); print_next_origin (i + 1)
-	  end
-	    (* Things that must be followed by the color *)
-	| Text.Newline t -> begin 
-	    output_string trust_file t; 
-	    print_next_color !word_idx; print_next_origin !word_idx
-	  end
-            (* Things that are not followed by the color and do not increase the word index *)
-        | Text.Space t | Text.Par_break t -> 
-            output_string trust_file t
-	    (* Things that are not followed by the color, and increase the word index *)
-	| Text.Title_end (t, i) | Text.Table_line (t, i) 
-	| Text.Redirect (t, i) | Text.Armored_char (t, i) -> begin 
-	    output_string trust_file t; 
-	    word_idx := i + 1
-	  end
-          (* Things that are preceded and followed by the color, and increase the word index *)
-        | Text.Tag (t, i) -> begin 
-            print_next_color i; print_next_origin i; 
-            output_string trust_file t; 
-            word_idx := i + 1;
-            print_next_color (i + 1); print_next_origin (i + 1)
-          end
-          (* Things that may be preceded by the color, if the color has changed. *)
-        | Text.Word (t, i) -> begin 
-            let c = next_word_color i in 
-            if c <> !curr_color then print_next_color i; 
-            let o = next_word_origin i in 
-            if o <> !curr_origin then print_next_origin i; 
-            output_string trust_file t; 
-            word_idx := i + 1
-          end
-      in
-      Array.iter f seps;
-      output_string trust_file "</text>\n</revision>\n"
-            
+    method output_trust_origin_revision = self#output_rev_text true 
+
   end (* revision object *)
 
