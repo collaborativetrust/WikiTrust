@@ -37,6 +37,9 @@ POSSIBILITY OF SUCH DAMAGE.
    This module is responsible for coloring a revision according to trust, and 
    for computing the effect of the revision on author reputations. *)
 
+(** Number of past revisions to try to analyze *)
+
+
 let eval (rev_id: int) : unit = 
 (*
   Procedure to be followed: 
@@ -67,7 +70,4 @@ let eval (rev_id: int) : unit =
   - Store trust values, origin, deleted chunks, and edit lists back into the db.
 
  *)
-
-
-
- *)
+ (* 
