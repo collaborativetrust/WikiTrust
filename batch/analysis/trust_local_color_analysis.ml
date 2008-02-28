@@ -86,7 +86,7 @@ class page
         is that this one takes into account syntactical units to spread the trust. *)
     method private compute_word_trust 
       (new_chunks_a: word array array) 
-      (medit_l: Chdiff.medit list) 
+      (medit_l: Editlist.medit list) 
       (rep_float: float)
       (rev: Revision.trust_revision) : float array array =
 
@@ -182,11 +182,9 @@ class page
 	  (* The previous block is in a different sectional unit.  Checks whether it is an insert. *)
 	  let rec is_moved = function 
 	      [] -> true
-	    | Chdiff.Mins (word_idx, chunk_idx, l) :: rest -> 
-		if chunk_idx = 0 && word_idx + l = n 
-		then l < 2 
-		else is_moved rest
-	    | Chdiff.Mmov (src_word_idx, src_chunk_idx, dst_word_idx, dst_chunk_idx, l) :: rest -> 
+	    | Editlist.Mins (word_idx, l) :: rest -> 
+		if word_idx + l = n then l < 2 else is_moved rest
+	    | Editlist.Mmov (src_word_idx, src_chunk_idx, dst_word_idx, dst_chunk_idx, l) :: rest -> 
 		if dst_chunk_idx = 0 && dst_word_idx + l = n 
 		then true 
 		else is_moved rest
@@ -207,11 +205,11 @@ class page
 	  (* The previous block is in a different sectional unit.  Checks whether it is an insert. *)
 	  let rec is_moved = function 
 	      [] -> true
-	    | Chdiff.Mins (word_idx, chunk_idx, l) :: rest -> 
-		if chunk_idx = 0 && word_idx - 1 = n 
+	    | Editlist.Mins (word_idx, l) :: rest -> 
+		if word_idx - 1 = n 
 		then l < 2 (* it is an insert *)
 		else is_moved rest
-	    | Chdiff.Mmov (src_word_idx, src_chunk_idx, dst_word_idx, dst_chunk_idx, l) :: rest -> 
+	    | Editlist.Mmov (src_word_idx, src_chunk_idx, dst_word_idx, dst_chunk_idx, l) :: rest -> 
 		if dst_chunk_idx = 0 && dst_word_idx - 1 = n 
 		then true 
 		else is_moved rest
@@ -228,22 +226,20 @@ class page
 
       (* Now, goes over medit_l via f, and fills in new_chunks_trust_a properly. *)
       let f = function 
-          Chdiff.Mins (word_idx, chunk_idx, l) -> begin 
+          Editlist.Mins (word_idx, l) -> begin 
             (* This is text added in the current version *)
-            if chunk_idx = 0 then begin 
-              (* Credits the reputation range for the current text *)
-              for i = word_idx to word_idx + l - 1 do begin
-                new_chunks_trust_a.(0).(i) <- new_text_trust;
-                looked_at.(i) <- true; 
-              end done;
-              (* One generally looks in the whole syntactic unit where one is editing *)
-	      if spread_look_to_section then begin 
-		spread_look word_idx;
-		spread_look (word_idx + l - 1)
-	      end
-            end else raise Ins_text_in_deleted_chunk
+            (* Credits the reputation range for the current text *)
+            for i = word_idx to word_idx + l - 1 do begin
+              new_chunks_trust_a.(0).(i) <- new_text_trust;
+              looked_at.(i) <- true; 
+            end done;
+            (* One generally looks in the whole syntactic unit where one is editing *)
+	    if spread_look_to_section then begin 
+	      spread_look word_idx;
+	      spread_look (word_idx + l - 1)
+	    end
           end
-        | Chdiff.Mmov (src_word_idx, src_chunk_idx, dst_word_idx, dst_chunk_idx, l) -> begin 
+        | Editlist.Mmov (src_word_idx, src_chunk_idx, dst_word_idx, dst_chunk_idx, l) -> begin 
 
 	    (* Checks whether the text is live in the new version *)
             if dst_chunk_idx = 0 then begin 
@@ -335,7 +331,7 @@ class page
             end
           end
 
-        | Chdiff.Mdel _ -> ()
+        | Editlist.Mdel _ -> ()
       in 
       List.iter f medit_l;
       

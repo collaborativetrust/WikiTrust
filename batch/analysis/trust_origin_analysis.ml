@@ -72,7 +72,7 @@ class page
    (** Tracks word origin *)
     method private compute_origin
       (new_chunks_a: word array array) 
-      (medit_l: Chdiff.medit list) 
+      (medit_l: Editlist.medit list) 
       (rev: Revision.trust_revision) : int array array =
 
       let f x = Array.make (Array.length x) 0 in 
@@ -81,12 +81,12 @@ class page
 
       (* Now, goes over medit_l, and fills in new_chunks_origin_a properly. *)
       let f = function 
-	  Chdiff.Mins (word_idx, chunk_idx, l) -> begin 
+	  Editlist.Mins (word_idx, l) -> begin 
 	    for i = word_idx to word_idx + l - 1 do
-	      new_chunks_origin_a.(chunk_idx).(i) <- revid
+	      new_chunks_origin_a.(0).(i) <- revid
 	    done
 	  end
-	| Chdiff.Mmov (src_word_idx, src_chunk_idx, dst_word_idx, dst_chunk_idx, l) -> begin 
+	| Editlist.Mmov (src_word_idx, src_chunk_idx, dst_word_idx, dst_chunk_idx, l) -> begin 
 	    for i = 0 to l - 1 do
 	      new_chunks_origin_a.(dst_chunk_idx).(dst_word_idx + i) <- 
 		chunks_origin_a.(src_chunk_idx).(src_word_idx + i)

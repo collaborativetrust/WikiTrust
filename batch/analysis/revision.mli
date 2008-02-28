@@ -168,14 +168,14 @@ class reputation_revision :
     val mutable created_text : int
     val dist : float array
     val mutable distance : float Vec.t
-    val mutable editlist : Chdiff.edit list Vec.t
+    val mutable editlist : Editlist.edit list Vec.t
     val is_anon : bool
     val mutable n_text_judge_revisions : int
     val mutable total_life_text : int
     val words : Text.word array
     method get_created_text : int
     method get_distance : float Vec.t
-    method get_editlist : Chdiff.edit list Vec.t
+    method get_editlist : Editlist.edit list Vec.t
     method get_id : int
     method get_ip : string
     method get_is_anon : bool
@@ -193,7 +193,7 @@ class reputation_revision :
     method print_words : unit
     method set_created_text : int -> unit
     method set_distance : float Vec.t -> unit
-    method set_editlist : Chdiff.edit list Vec.t -> unit
+    method set_editlist : Editlist.edit list Vec.t -> unit
   end
 class trust_revision :
   int ->

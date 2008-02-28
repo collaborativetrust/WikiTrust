@@ -33,7 +33,6 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
-
 type word = string 
 
 (** This is the class used to represent revisions.  It is then extended 
@@ -251,11 +250,11 @@ class reputation_revision
     val mutable distance: float Vec.t = Vec.empty 
       (* This Vec stores, in fashion similar to distance above, 
          the edit list to go from one version to the other *)
-    val mutable editlist: Chdiff.edit list Vec.t = Vec.empty 
+    val mutable editlist: Editlist.edit list Vec.t = Vec.empty 
     method get_distance: float Vec.t = distance
     method set_distance (v: float Vec.t) : unit = distance <- v
-    method get_editlist: Chdiff.edit list Vec.t = editlist
-    method set_editlist (l: Chdiff.edit list Vec.t) = editlist <- l 
+    method get_editlist: Editlist.edit list Vec.t = editlist
+    method set_editlist (l: Editlist.edit list Vec.t) = editlist <- l 
 
     (* Output method *)
     method print_text_life out_file =

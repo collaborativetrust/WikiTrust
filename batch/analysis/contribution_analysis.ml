@@ -102,18 +102,16 @@ class page
       let new_chunks_attr_a = Array.map f new_chunks_a in 
       (* Now, goes over medit_l, and fills in new_chunks_attr_a properly, as well as the credits. *)
       let rec f = function 
-          Chdiff.Mins (word_idx, chunk_idx, l) -> begin 
+          Editlist.Mins (word_idx, l) -> begin 
             (* This is text added in the current version *)
-            if chunk_idx = 0 then begin 
-              (* Credits the reputation range for the current text *)
-              rep_credit.(rep) <- rep_credit.(rep) + l; 
-              rep_new_words.(rep) <- rep_new_words.(rep) + l;
-              for i = word_idx to word_idx + l - 1 do begin
-                new_chunks_attr_a.(0).(i) <- rep
-              end done
-            end else raise Ins_text_in_deleted_chunk
+            (* Credits the reputation range for the current text *)
+            rep_credit.(rep) <- rep_credit.(rep) + l; 
+            rep_new_words.(rep) <- rep_new_words.(rep) + l;
+            for i = word_idx to word_idx + l - 1 do begin
+              new_chunks_attr_a.(0).(i) <- rep
+            end done
           end
-        | Chdiff.Mmov (src_word_idx, src_chunk_idx, dst_word_idx, dst_chunk_idx, l) -> begin 
+        | Editlist.Mmov (src_word_idx, src_chunk_idx, dst_word_idx, dst_chunk_idx, l) -> begin 
             if dst_chunk_idx = 0 then begin 
               (* This is live text.  Copies the attribute, and gives credit. *)
               for i = 0 to l - 1 do begin 
@@ -129,7 +127,7 @@ class page
               done
             end
           end
-        | Chdiff.Mdel (word_idx, chunk_idx, l) -> ()
+        | Editlist.Mdel (word_idx, chunk_idx, l) -> ()
       in 
       List.iter f medit_l; 
       (* Now, replaces chunks_attr_a with new_chunks_attr_a for the next iteration *)

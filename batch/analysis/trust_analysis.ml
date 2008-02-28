@@ -89,7 +89,7 @@ class page
 	[rep_float] is the reputation of the author of the new revision. *)
     method private compute_word_trust 
       (new_chunks_a: word array array) 
-      (medit_l: Chdiff.medit list) 
+      (medit_l: Editlist.medit list) 
       (rep_float: float) 
       (rev: Revision.trust_revision) : float array array =
       let f x = Array.make (Array.length x) 0.0 in 
@@ -98,18 +98,16 @@ class page
       let new_live_len = Array.length new_chunks_a.(0) in 
       (* Now, goes over medit_l, and fills in new_chunks_trust_a properly. *)
       let f = function 
-	  Chdiff.Mins (word_idx, chunk_idx, l) -> begin 
+	  Editlist.Mins (word_idx, l) -> begin 
             (* This is text added in the current version *)
-            if chunk_idx = 0 then begin 
-              (* Computes the reputation of the newly inserted text *)
-              let text_rep = rep_float *. trust_coeff_lends_rep in 
-              (* Credits the reputation range for the current text *)
-              for i = word_idx to word_idx + l - 1 do begin
-		new_chunks_trust_a.(0).(i) <- text_rep 
-              end done
-            end else raise Ins_text_in_deleted_chunk
+            (* Computes the reputation of the newly inserted text *)
+            let text_rep = rep_float *. trust_coeff_lends_rep in 
+            (* Credits the reputation range for the current text *)
+            for i = word_idx to word_idx + l - 1 do begin
+	      new_chunks_trust_a.(0).(i) <- text_rep 
+            end done
 	  end
-	| Chdiff.Mmov (src_word_idx, src_chunk_idx, dst_word_idx, dst_chunk_idx, l) -> begin 
+	| Editlist.Mmov (src_word_idx, src_chunk_idx, dst_word_idx, dst_chunk_idx, l) -> begin 
             for i = 0 to l - 1 do begin 
               (* a is the old reputation of the word *)
               let a = chunks_trust_a.(src_chunk_idx).(src_word_idx + i) in 
@@ -179,7 +177,7 @@ class page
               new_chunks_trust_a.(dst_chunk_idx).(dst_word_idx + i) <- a'
             end done 
 	  end
-	| Chdiff.Mdel _ -> ()
+	| Editlist.Mdel _ -> ()
       in 
       List.iter f medit_l; 
       new_chunks_trust_a
@@ -191,16 +189,16 @@ class page
     method private compute_word_longevity 
 	(chunks_longevity_a: int array array) 
 	(new_chunks_a: word array array) 
-	(medit_l: Chdiff.medit list) 
+	(medit_l: Editlist.medit list) 
 	(rep_float: float) : int array array = 
       let f x = Array.make (Array.length x) 0 in 
       let new_chunks_longevity_a = Array.map f new_chunks_a in 
       (* Now, goes over medit_l, and fills in new_chunks_longevity_a properly. *)
       let f = function 
-	  Chdiff.Mdel _ | Chdiff.Mins _ -> ()
+	  Editlist.Mdel _ | Editlist.Mins _ -> ()
             (* For Mins, this is text added in the current version, and as we fill 
 	       the array with 0's initially, we don't need to do anything. *)
-	| Chdiff.Mmov (src_word_idx, src_chunk_idx, dst_word_idx, dst_chunk_idx, l) -> begin 
+	| Editlist.Mmov (src_word_idx, src_chunk_idx, dst_word_idx, dst_chunk_idx, l) -> begin 
             for i = 0 to l - 1 do begin 
               (* a is the old longevity of the word *)
               let a = chunks_longevity_a.(src_chunk_idx).(src_word_idx + i) in 
