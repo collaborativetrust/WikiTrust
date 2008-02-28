@@ -66,7 +66,7 @@ POSSIBILITY OF SUCH DAMAGE.
         1     ;; page id, an integer identifying the page
         Title: "Alessandro Manzoni" ;; an Ocaml-escaped string containing the page title. 
 
-   TextInc 1030872359 PageId: 8179 rev0: 101832 uid0: 0 rev1: 334539 uid1: 0 text: 49 left: 47 n01: 3 t01: 16191768
+   TextInc 1030872359 PageId: 8179 rev0: 101832 uid0: 0 uname0: "Joe Black" rev1: 334539 uid1: 0 uname1: "God" text: 49 left: 47 n01: 3 t01: 16191768
 
 	This line contains the information necessary to compute the increment of reputation of user 
 	uid0 caused by uid1 still leaving, in its revision, some of the text that was introduced by 
@@ -77,8 +77,10 @@ POSSIBILITY OF SUCH DAMAGE.
 	PageId: 1  ;; the page id is 1. 
 	rev0: 29479 ;; the revision where the text was introduced has id 29479.
 	uid0: 0 ;; the user who did revision 29479 is the user 0 (in this case, the anonymous user).
+        uname0: "Joe Black" ;; the user name for uid0
 	rev1: 47128 ;; the revision where we are measuring how much text is left is the revision 47128.
 	uid1: 23 ;; the user who provides the comments is the user with id 23.
+        uname1: "God" ;; the user name for uid1
 	text: 846 ;; amount of original text: in revision 29479, 846 words were introduced. 
 	left: 855 ;; amount of residual text: in revision 47128, 855 words are left of the contribution done in 29479. 
                      (evidently, in this case some words have been duplicated; duplicated words are still attributed to 
@@ -87,7 +89,7 @@ POSSIBILITY OF SUCH DAMAGE.
                   after rev0 was rev1.
         t01: 16191768 ;; The intervening time between rev0 and rev1. 
 
-   TextLife 1073107958 PageId: 1 rev0: 29479 uid0: 0 NJudges: 9 NewText: 846 Life: 7665
+   TextLife 1073107958 PageId: 1 rev0: 29479 uid0: 0 uname0: "Joe Black" NJudges: 9 NewText: 846 Life: 7665
 
         This line summarizes the longevity of the text introduced at a particular revision. 
 
@@ -96,11 +98,12 @@ POSSIBILITY OF SUCH DAMAGE.
 	PageId: 1  ;; the page id is 1. 
 	rev0: 29479 ;; The revision where the text was introduced is the 29479.
 	uid0: 0 ;; The revision was done by user 0 (the anonymous one in this case).
+        uname0: "Joe Black" ;; the user name for uid0
 	NJudges: 9 ;; 9 other users then reviewed the page, and are judging the longevity of the edit done at revision 29479.
 	NewText: 846 ;;  amount of original text: in revision 29479, 846 words were introduced.
 	Life: 7665 ;; 7665 words of the text introduced at version 29479 appeared in the next 9 revisions.
 
-   EditInc 1030871979 PageId: 8179 rev0: 101832 uid0: 0 rev1: 187662 uid1: 30 rev2: 187665 uid2: 83 d01: 1.50 d02: 5.50 d12: 4.00 n01: 1 n12: 1 t01: 10016956 t12: 6174432
+   EditInc 1030871979 PageId: 8179 rev0: 101832 uid0: 0 uname0: "Joe Black" rev1: 187662 uid1: 30 uname1: "God" rev2: 187665 uid2: 83 uname2: "Trinity" d01: 1.50 d02: 5.50 d12: 4.00 n01: 1 n12: 1 t01: 10016956 t12: 6174432
 
 	This line is used to compute an increment (positive or negative) to the reputation of the author of a revision, 
 	according to how much the edits are still present at a later revision. 
@@ -110,11 +113,14 @@ POSSIBILITY OF SUCH DAMAGE.
 	PageId: 1 ;; the page id is 1.
 	rev0: 47102 ;; the revision where the edit was made.
 	uid0: 7 ;; the user who did revision 47102 is the user 7.
+        uname0: "Joe Black" ;; the user name for uid0
 	rev1: 47136 ;; the revision that acts as the "judge" is the later revision 47136.
 	uid1: 24 ;; the user who is judging the quality of the edit is user 24.
+        uname1: "God" ;; the user name for uid1
 	rev2: 187665 ;; A revision that came after rev1. Potentially there can be more than one revision that came after
                 rev1. We will have one line for each such revision as long as uid2 is different from uid1.
 	uid2: 83 ;; The author of revision rev2.
+        uname2: "Trinity" ;; the user name for uid2
 	d01: 2035 ;; The distance between the revision preceding 47102 and 47136 is 2053.
 	d02: 1962 ;; The distance between revision 47102 and 47136 is 1962.
 	d12: 71.50 ;; The distance between the revision preceding 47102 and 47102 is 71.50.  This is how much user 7 has changed. 
@@ -132,6 +138,7 @@ POSSIBILITY OF SUCH DAMAGE.
 	PageId: 1 ;; the page id.
 	rev0: 47136 ;; the revision where the edit was made.
 	uid0: 24 ;; the user who did the revision is user 24.
+        uname0: Tintin1107 ;; the name of user 24
 	NJudges: 4 ;; the contribution of user 24 has been judged by 4 subsequent users.
 	Delta: 3.52 ;; this is how much change user 24 has done (not much in this case).
 	AvgSpecQ: -0.06902 ;; this is the "edit longevity" of the edit by user 24.  Here it is negative, denoting
@@ -172,7 +179,7 @@ let read_data
               (* Now we must figure out which line l is *)
               if (String.sub l 0 7) = "EditInc" then 
 		begin
-                  let make_t t p r0 u0 r1 u1 r2 u2 b a d n1 n2 t1 t2=
+                  let make_t t p r0 u0 un0 r1 u1 un1 r2 u2 un2 b a d n1 n2 t1 t2=
 		    if t < !last_time then begin
 		      if not !last_time_warned then begin
 			last_time_warned := true;
@@ -186,10 +193,13 @@ let read_data
 		      edit_inc_page_id = p;
 		      edit_inc_rev0 = r0;
 		      edit_inc_uid0 = u0;
+                      edit_inc_uname0 = un0;
 		      edit_inc_rev1 = r1;
 		      edit_inc_uid1 = u1;
+                      edit_inc_uname1 = un1;
 		      edit_inc_rev2 = r2;
 		      edit_inc_uid2 = u2;
+                      edit_inc_uname2 = un2;
 		      edit_inc_d01 = b;
 		      edit_inc_d02 = a;
 		      edit_inc_d12 = d;
@@ -199,12 +209,12 @@ let read_data
 		      edit_inc_t12 = t2;
                     }
                   in
-                  let x = Scanf.sscanf l "EditInc %f PageId: %d rev0: %d uid0: %d rev1: %d uid1: %d rev2: %d uid2: %d d01: %f d02: %f d12: %f n01: %d n12: %d t01: %f t12: %f" make_t in
+                  let x = Scanf.sscanf l "EditInc %f PageId: %d rev0: %d uid0: %d uname0: %S rev1: %d uid1: %d uname1: %S rev2: %d uid2: %d uname2: %S d01: %f d02: %f d12: %f n01: %d n12: %d t01: %f t12: %f" make_t in
                     consumer x
 		end
               else if (String.sub l 0 7) = "TextInc" then 
 		begin
-                  let make_t t p jr ju r u nt q n1 t1 = 
+                  let make_t t p jr ju jn r u n nt q n1 t1 = 
 		    if t < !last_time then begin
 		      if not !last_time_warned then begin
 			last_time_warned := true;
@@ -218,20 +228,22 @@ let read_data
 		      text_inc_page_id = p; 
 		      text_inc_rev0 = jr;
 		      text_inc_uid0 = ju;
+                      text_inc_uname0 = jn;
 		      text_inc_rev1 = r;
 		      text_inc_uid1 = u;
+                      text_inc_uname1 = n;
 		      text_inc_orig_text = nt; 
 		      text_inc_seen_text = q;
 		      text_inc_n01 = n1;
 		      text_inc_t01 = t1;
                     }
                   in 
-                  let x = Scanf.sscanf l "TextInc %f PageId: %d rev0: %d uid0: %d rev1: %d uid1: %d text: %d left: %d n01: %d t01: %f" make_t in 
+                  let x = Scanf.sscanf l "TextInc %f PageId: %d rev0: %d uid0: %d uname0: %S rev1: %d uid1: %d uname1: %S text: %d left: %d n01: %d t01: %f" make_t in 
                   consumer x
 		end
               else if (String.sub l 0 8) = "TextLife" then 
 		begin
-                  let make_t t p jr ju nj nt tl = 
+                  let make_t t p jr ju jn nj nt tl = 
 		    if t < !last_time then begin
 		      if not !last_time_warned then begin
 			last_time_warned := true;
@@ -270,19 +282,20 @@ let read_data
 		      text_life_time = t; 
 		      text_life_page_id = p; 
 		      text_life_rev0 = jr;
-		      text_life_uid0 = ju; 
+		      text_life_uid0 = ju;
+                      text_life_uname0 = jn;
 		      text_life_n_judges = nj; 
 		      text_life_new_text = nt; 
 		      text_life_text_life = tl; 
 		      text_life_text_decay = compute tl nj nt;
                     }
                   in 
-                  let x = Scanf.sscanf l "TextLife %f PageId: %d rev0: %d uid0: %d NJudges: %d NewText: %d Life: %d" make_t in 
+                  let x = Scanf.sscanf l "TextLife %f PageId: %d rev0: %d uid0: %d uname0: %S NJudges: %d NewText: %d Life: %d" make_t in 
                   consumer x
 		end
               else if (String.sub l 0 8) = "EditLife" then 
 		begin
-                  let make_t t p jr ju nj d q = 
+                  let make_t t p jr ju jn nj d q = 
 		    if t < !last_time then begin
 		      if not !last_time_warned then begin
 			last_time_warned := true;
@@ -296,12 +309,13 @@ let read_data
 		      edit_life_page_id = p; 
 		      edit_life_rev0 = jr; 
                       edit_life_uid0 = ju;
+                      edit_life_uname0 = jn;
                       edit_life_n_judges = nj; 
                       edit_life_delta = d;
                       edit_life_avg_specq = q;
                     }
                   in 
-                  let x = Scanf.sscanf l "EditLife %f PageId: %d rev0: %d uid0: %d NJudges: %d Delta: %f AvgSpecQ: %f" make_t in 
+                  let x = Scanf.sscanf l "EditLife %f PageId: %d rev0: %d uid0: %d uname0: %S NJudges: %d Delta: %f AvgSpecQ: %f" make_t in 
                   consumer x
 		end
             end; (* if length > 7 *)

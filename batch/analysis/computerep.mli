@@ -48,9 +48,12 @@ class users :
     method get_count : int -> float
     method get_rep : int -> float
     method get_users : (int, Evaltypes.user_data_t) Hashtbl.t
+    method get_contrib : int -> float
     method get_weight : int -> float
     method inc_count : int -> Rephist.RepHistory.key -> unit
     method inc_rep : int -> float -> Rephist.RepHistory.key -> unit
+    method inc_contrib : int -> string -> float -> float -> bool -> unit
+    method print_contributions : out_channel -> bool -> unit
   end
 class rep :
   Evaltypes.params_t ->
@@ -62,9 +65,10 @@ class rep :
   bool ->
   bool ->
   bool ->
+  bool ->
   out_channel -> 
   object
     method add_data : Evaltypes.wiki_data_t -> unit
-    method compute_stats : out_channel -> Evaltypes.stats_t * Evaltypes.stats_t
+    method compute_stats : out_channel option -> out_channel -> Evaltypes.stats_t * Evaltypes.stats_t
     method get_users : (int, Evaltypes.user_data_t) Hashtbl.t
   end
