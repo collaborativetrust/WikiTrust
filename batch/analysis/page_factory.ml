@@ -249,15 +249,22 @@ class page_factory
 	  n_text_judging n_edit_judging !equate_anons
       | Contribution_analysis -> new Contribution_analysis.page id title out_file rep_histories
 	  !equate_anons
+      (* Trust_color does not also do the origin *)
       | Trust_color -> new Trust_analysis.page id title xml_file rep_histories
 	  trust_coeff_lends_rep trust_coeff_read_all trust_coeff_cut_rep_radius trust_coeff_kill_decrease
-	    n_rev_to_output !equate_anons
-      | Trust_syntactregion_color -> new Trust_local_color_analysis.page id title xml_file rep_histories
+	  n_rev_to_output !equate_anons 
+      | Trust_syntactregion_color -> begin
+	  if !do_origin 
+	  then new Trust_origin_analysis.page id title xml_file rep_histories
+	    trust_coeff_lends_rep trust_coeff_read_all trust_coeff_read_part trust_coeff_part_radius 
+	    trust_coeff_cut_rep_radius trust_coeff_kill_decrease n_rev_to_output !equate_anons 
+	  else new Trust_local_color_analysis.page id title xml_file rep_histories
 	    trust_coeff_lends_rep trust_coeff_read_all trust_coeff_read_part trust_coeff_part_radius 
 	    trust_coeff_cut_rep_radius trust_coeff_kill_decrease n_rev_to_output !equate_anons
+	end
       | Trust_and_origin -> new Trust_origin_analysis.page id title xml_file rep_histories
 	  trust_coeff_lends_rep trust_coeff_read_all trust_coeff_read_part trust_coeff_part_radius 
-	    trust_coeff_cut_rep_radius trust_coeff_kill_decrease n_rev_to_output !equate_anons
+	    trust_coeff_cut_rep_radius trust_coeff_kill_decrease n_rev_to_output !equate_anons 
       | Revcount_analysis -> begin 
 	  let n = page_seq_number in 
 	  page_seq_number <- n + 1; 
