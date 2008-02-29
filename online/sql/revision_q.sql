@@ -33,7 +33,7 @@
 
 CREATE TABLE trust_revision_q(
   revision int PRIMARY KEY,
-  status ENUM('added', 'downloading', 'downloaded', 'processing', 'processed') NOT NULL DEFAULT added,
+  status ENUM('added', 'downloading', 'downloaded', 'processing', 'processed') NOT NULL DEFAULT 'added',
   addedon timestamp NOT NULL DEFAULT now(),
   processedon timestamp
 );
@@ -71,4 +71,10 @@ CREATE TABLE trust_text(
      old_id     int(8) unsigned PRIMARY KEY,
      old_text   mediumblob    ,
      old_flags  tinyblob                   
+);
+
+CREATE TABLE trust_users(
+  trust_user        int(5) unsigned PRIMARY KEY   ,
+  trust_user_text   varchar(255) NOT NULL     ,
+  addedon           timestamp NOT NULL DEFAULT now() 
 );
