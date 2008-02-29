@@ -110,15 +110,13 @@ class users
     method inc_contrib (uid: int) (un: string) (delta: float) (longevity: float) (include_anons: bool) : unit = 
       if (uid <> 0 || include_anons) then 
         begin
-          (* We update contributions only to existing users *)
-          if Hashtbl.mem tbl uid then 
-            begin
+          if Hashtbl.mem tbl uid then begin
+	    (* Existing user *)
               let u = Hashtbl.find tbl uid in 
 	        if debug then Printf.printf "Uid %d rep: %f " uid u.rep; 
                 u.contrib <- u.contrib +. (delta *. longevity);
             end
-          else 
-            begin
+          else begin
               (* New user *)
               let u = {
                 uname = un;
