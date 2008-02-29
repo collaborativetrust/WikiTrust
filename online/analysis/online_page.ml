@@ -199,7 +199,9 @@ class page
 	      let revid_j = rev_j#get_id in 
 	      db#write_edit_diff revid_j revid_i (Hashtbl.find edit_list (j, i)) 
 	    end done
-	  end done
+	  end done;
+	  (* Now they are up to date *)
+	  db#write_text_split_version page_id current_version
 
 	end (* Recomputation of all edit lists *)
       end (* If there is only one revision *)
