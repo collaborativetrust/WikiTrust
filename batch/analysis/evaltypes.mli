@@ -38,10 +38,13 @@ type edit_inc_t = {
   edit_inc_page_id: int; 
   edit_inc_rev0: int; 
   edit_inc_uid0: int; 
+  edit_inc_uname0: string;
   edit_inc_rev1: int; 
   edit_inc_uid1: int; 
+  edit_inc_uname1: string;
   edit_inc_rev2: int; 
   edit_inc_uid2: int; 
+  edit_inc_uname2: string;
   edit_inc_d01: float;
   edit_inc_d02: float;
   edit_inc_d12: float;
@@ -56,6 +59,7 @@ type edit_life_t = {
   edit_life_page_id: int; 
   edit_life_rev0: int; 
   edit_life_uid0: int; 
+  edit_life_uname0: string;
   edit_life_n_judges: int;  (* n. of judging revisions *)
   edit_life_delta: float;  (* how much change went on *)
   edit_life_avg_specq: float; (* specific quality of edit *)
@@ -66,8 +70,10 @@ type text_inc_t = {
   text_inc_page_id: int; 
   text_inc_rev0: int; 
   text_inc_uid0: int; 
+  text_inc_uname0: string;
   text_inc_rev1: int; 
   text_inc_uid1: int; 
+  text_inc_uname1: string;
   text_inc_orig_text: int; 
   text_inc_seen_text: int; 
   text_inc_n01: int;
@@ -79,6 +85,7 @@ type text_life_t = {
   text_life_page_id: int; 
   text_life_rev0: int; 
   text_life_uid0: int; 
+  text_life_uname0: string;
   text_life_n_judges: int;
   text_life_new_text: int;
   text_life_text_life: int;
@@ -90,6 +97,7 @@ type wiki_data_t =
   | EditLife of edit_life_t
   | TextInc of text_inc_t
   | TextLife of text_life_t
+
 type params_t = {
   rep_scaling : float;
   punish_factor : float;
@@ -98,13 +106,18 @@ type params_t = {
   length_exponent : float;
   edit_leniency : float;
 }
+
 type time_intv_t = { start_time : float; end_time : float; }
+
 type user_data_t = {
+  mutable uname : string;
   mutable rep : float;
+  mutable contrib: float;
   mutable cnt : float;
   mutable rep_bin : int;
   mutable rep_history : int Rephist.RepHistory.t;
 }
+
 type stats_t = {
   stat_mutual_info : float;
   stat_entropy_good_bad : float;

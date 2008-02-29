@@ -61,6 +61,11 @@ class revision
     method get_ip : string = ip_addr 
     method get_page_id : int = page_id
     method get_user_id : int = user_id
+    method get_user_name : string = 
+      if is_anon then
+        ip_addr
+      else
+        username
     method get_is_anon : bool = is_anon
 
   end (* revision object *)
@@ -142,11 +147,12 @@ class cirlin_revision
     method print_text_life out_file =
       let n_judges = self#get_n_text_judge_revisions in 
       if n_judges > 0 then 
-        Printf.fprintf out_file "\nTextLife %10.0f PageId: %d JudgedRev: %d JudgedUid: %d NJudges: %d NewText: %d Life: %d"
+        Printf.fprintf out_file "\nTextLife %10.0f PageId: %d JudgedRev: %d JudgedUid: %d JudgedUname: %S NJudges: %d NewText: %d Life: %d"
           self#get_time
           self#get_page_id
           self#get_id
           self#get_user_id
+          self#get_user_name
           n_judges
           self#get_created_text
           self#get_total_life_text
@@ -260,11 +266,12 @@ class reputation_revision
     method print_text_life out_file =
       let n_judges = self#get_n_text_judge_revisions in 
       if n_judges > 0 then 
-        Printf.fprintf out_file "\nTextLife %10.0f PageId: %d rev0: %d uid0: %d NJudges: %d NewText: %d Life: %d"
+        Printf.fprintf out_file "\nTextLife %10.0f PageId: %d rev0: %d uid0: %d uname0: %S NJudges: %d NewText: %d Life: %d"
           self#get_time
           self#get_page_id
           self#get_id
           self#get_user_id
+          self#get_user_name
           n_judges
           self#get_created_text
           self#get_total_life_text

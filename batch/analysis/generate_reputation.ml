@@ -46,6 +46,7 @@ let do_monthly = ref false
 let do_cumulative = ref false 
 let do_firstcut = ref false
 let gen_exact_rep = ref false
+let user_contrib_order_asc = ref false
 let time_intv = ref {
   start_time = 0.0; 
   end_time = Timeconv.time_to_float 2020 10 30 0 0 0; 
@@ -54,6 +55,8 @@ let time_intv = ref {
 let user_file = ref None
 let set_file_name (s: string) = stream_name := s
 let set_user_file s = user_file := Some (open_out s)
+let user_contrib_file = ref None
+let set_user_contrib_file s = user_contrib_file := Some (open_out s)
 
 let set_end_time (s: string) = 
   let f = float_of_string s in 
@@ -80,6 +83,10 @@ let command_line_format = [("-end", Arg.String (set_end_time),
                             "Include anonymous users in statistics");
 			   ("-firstcut", Arg.Set (do_firstcut),
 			    "Change the reputation algorithm to compute reputations as in our first release");
+			   ("-u_contrib", Arg.String set_user_contrib_file,
+			    "<contrib_file>: produce a file with user contribution data");
+                           ("-u_contrib_order_asc", Arg.Set (user_contrib_order_asc),
+                            "Ascending order of user contributions (default: descending)");
 			   ("-gen_exact_rep", Arg.Set (gen_exact_rep),
 			    "Generate an extra column in the user reputation file with exact reputation values")]
 
@@ -100,7 +107,7 @@ let all_time_intv = {
 };;
 
 (* This is the reputation evaluator *)
-let r = new Computerep.rep params !include_anon all_time_intv !time_intv !user_file !do_monthly !do_cumulative !do_firstcut !gen_exact_rep stdout;;
+let r = new Computerep.rep params !include_anon all_time_intv !time_intv !user_file !do_monthly !do_cumulative !do_firstcut !gen_exact_rep !user_contrib_order_asc stdout;;
 
 (* Reads the data *)
 let stream = if !stream_name = "" 
@@ -110,5 +117,4 @@ in
 ignore (Wikidata.read_data stream r#add_data None);;
 
 (* And prints the results *)
-r#compute_stats stdout;;
-
+r#compute_stats !user_contrib_file stdout;;
