@@ -38,9 +38,9 @@ POSSIBILITY OF SUCH DAMAGE.
    for computing the effect of the revision on author reputations. *)
 
 (** Number of past revisions to try to analyze *)
+let n_past_revisions_to_consider = 12
 
-
-let eval (rev_id: int) : unit = 
+let eval (rev_id: int) (page_id: int): unit = 
 (*
   Procedure to be followed: 
 
@@ -70,4 +70,7 @@ let eval (rev_id: int) : unit =
   - Store trust values, origin, deleted chunks, and edit lists back into the db.
 
  *)
- (* 
+  (* First, we make a page object, through which we will access the database. *)
+  let p = new Online_page.page page_id in 
+  (* Now, I must build a Vec of past revisions. *)
+  let revs = build_rev_vec p n_past_revisions_to_consider in 

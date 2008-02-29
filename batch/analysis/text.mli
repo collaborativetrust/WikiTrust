@@ -33,6 +33,8 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
+(** Version number of the code *)
+val version: string
 
 type word = string
 (** The type of words *)

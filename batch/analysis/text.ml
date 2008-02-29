@@ -33,6 +33,9 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
+(** This is the version of this file.  It is very important that, 
+    if the way we split text in word changes, we change this as well. *)
+let version = "1.0"
 
 (** Here are some convenience operations on text *)
 
