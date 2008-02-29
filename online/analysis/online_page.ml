@@ -40,6 +40,7 @@ open Eval_constants;;
     in this file. *)
 
 class page 
+  (db: Online_db.db) 
   (page_id: int) = 
   
   object (self) 
@@ -156,7 +157,7 @@ class page
 	   into words, so we need to check them, and in case, rebuild them. 
 	   Gets the current version of the code. *)
 	let current_version = Text.version in 
-	let used_version = Db.read_text_split_version page_id in 
+	let used_version = db#read_text_split_version page_id in 
 	(* If the current version of text splitting is equal to the old one, 
 	   then we just need to do the distances from the most recent page. *)
 	if current_version = used_version then begin 
@@ -168,7 +169,7 @@ class page
 	    for j = i + 1 to n_revs - 1 do begin 
 	      let rev_j = Vec.get j revs in 
 	      let revid_j = rev_j#get_id in 
-	      let edl = Db.read_edit_diff revid_j revid_i in 
+	      let edl = db#read_edit_diff revid_j revid_i in 
 	      Hashtbl.add edit_list (j, i) edl
 	    end done
 	  end done; 
@@ -183,7 +184,7 @@ class page
 	  for j = 1 to n_revs - 1 do begin 
 	    let rev_j = Vec.get j revs in 
 	    let revid_j = rev_j#get_id in 
-	    Db.write_edit_diff revid_j revid_0 (Hashtbl.find edit_list (j, 0))
+	    db#write_edit_diff revid_j revid_0 (Hashtbl.find edit_list (j, 0))
 	  end done
 
 	end else begin 
@@ -196,7 +197,7 @@ class page
 	    for j = nrevs - 1 downto i + 1 do begin 
 	      let rev_j = Vec.get j revs in 
 	      let revid_j = rev_j#get_id in 
-	      Db.write_edit_diff revid_j revid_i (Hashtbl.find edit_list (j, i)) 
+	      db#write_edit_diff revid_j revid_i (Hashtbl.find edit_list (j, i)) 
 	    end done
 	  end done
 
