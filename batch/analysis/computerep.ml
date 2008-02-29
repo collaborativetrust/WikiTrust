@@ -85,11 +85,13 @@ class users
             begin
               (* New user *)
               let u = {
+                uname = "PlaceHolder";
 		rep = initial_reputation; 
+                contrib = 0.0;
 		cnt = 0.0; 
 		rep_bin = 0; 
 		rep_history = RepHistory.empty } in 
-              u.rep <- max 0.0 (min max_rep (u.rep +. (q /. rep_scaling)));
+                u.rep <- max 0.0 (min max_rep (u.rep +. (q /. rep_scaling)));
 	      match user_history_file with 
 		None -> ()
 	      | Some f -> begin 
@@ -105,6 +107,28 @@ class users
             end
         end
 
+    method inc_contrib (uid: int) (un: string) (delta: float) (longevity: float) (include_anons: bool) : unit = 
+      if (uid <> 0 || include_anons) then 
+        begin
+          if Hashtbl.mem tbl uid then begin
+	    (* Existing user *)
+              let u = Hashtbl.find tbl uid in 
+	        if debug then Printf.printf "Uid %d rep: %f " uid u.rep; 
+                u.contrib <- u.contrib +. (delta *. longevity);
+            end
+          else begin
+              (* New user *)
+              let u = {
+                uname = un;
+		rep = initial_reputation; 
+                contrib = delta *. longevity;
+		cnt = 0.0; 
+		rep_bin = 0; 
+		rep_history = RepHistory.empty } in 
+                Hashtbl.add tbl uid u; 
+            end
+        end
+
     method inc_count (uid: int) (timestamp: float) : unit = 
       if uid <> 0 then 
         begin
@@ -116,8 +140,14 @@ class users
           else 
             begin
               (* New user *)
-              let u = {rep = 0.0; cnt = 1.0; rep_bin = 0; rep_history = RepHistory.empty} in 
-              Hashtbl.add tbl uid u
+              let u = {
+                uname = "PlaceHolder";
+                rep = 0.0; 
+                contrib = 0.0; 
+                cnt = 1.0; 
+                rep_bin = 0; 
+                rep_history = RepHistory.empty } in 
+                Hashtbl.add tbl uid u
             end
         end
 
@@ -133,6 +163,20 @@ class users
             end
           else
             initial_reputation
+        end
+
+    method get_contrib (uid: int) : float =
+      if uid = 0 
+      then 0.0
+      else
+        begin
+          if Hashtbl.mem tbl uid then 
+            begin
+              let u = Hashtbl.find tbl uid in 
+              u.contrib
+            end
+          else
+            0.0
         end
 
     method get_weight (uid: int) : float = 
@@ -155,6 +199,38 @@ class users
       
     method get_users : (int, Evaltypes.user_data_t) Hashtbl.t = tbl
 
+    method print_contributions (out_ch: out_channel) (order_asc: bool) : unit =
+      let vec_of_users = ref Vec.empty in
+      let insert_user uid u =
+        let inserted = ref false in
+        let index = ref 0 in
+          while not !inserted do
+            try
+              let (id, v) = Vec.get !index !vec_of_users in
+                if order_asc then begin
+                  if v.contrib >= u.contrib then begin
+                    vec_of_users := Vec.insert !index (uid, u) !vec_of_users;
+                    inserted := true;
+                  end
+                end else begin
+                  if v.contrib < u.contrib then begin
+                    vec_of_users := Vec.insert !index (uid, u) !vec_of_users;
+                    inserted := true;
+                  end
+                end;
+                index := !index + 1
+            with Vec.Vec_index_out_of_bounds -> 
+              vec_of_users := Vec.insert !index (uid, u) !vec_of_users;
+              inserted := true;
+          done
+      in
+        Hashtbl.iter insert_user tbl;
+        let write_contrib (uid, v) =
+          Printf.fprintf out_ch "Uid %d    Name %S    Reputation %f    Contribution %f\n" 
+            uid v.uname v.rep v.contrib
+        in
+          Vec.iter write_contrib !vec_of_users
+
   end (* class users *)
 
 class rep 
@@ -167,6 +243,7 @@ class rep
   (do_cumulative_months: bool) (* True if the monthly statistics have to be cumulative *)
   (do_firstcut: bool) (* True if we want to compute reputations as we did in our first release *)
   (gen_exact_rep: bool) (* True if we want to create an extra column in the user history file with exact rep values *)
+  (user_contrib_order_asc: bool) (* The order in which we write out author contributions *)
   (output_channel: out_channel) (* Used to print automated stuff like monthly stats *)
   =
 object (self)
@@ -187,25 +264,27 @@ object (self)
       match datum with 
 	EditLife e -> begin
           let uid = e.edit_life_uid0 in 
-          if (uid <> 0 || include_anons) 
-	    && e.edit_life_delta > 0. 
-            && e.edit_life_time >= rep_intv.start_time
-            && e.edit_life_time <= rep_intv.end_time
-          then begin
-	    if debug then begin 
-	      Printf.printf "EditLife T: %f rep_weight: %f data_weight: %f spec_q: %f\n" 
-		e.edit_life_time
-		(user_data#get_weight uid)
-		(e.edit_life_delta *. (float_of_int e.edit_life_n_judges))
-		(normalize e.edit_life_avg_specq) (* debug *)
-	    end; 
-	    stat_edit#add_event 
-	      e.edit_life_time 
-	      (user_data#get_weight uid)
-	      (e.edit_life_delta *. (float_of_int e.edit_life_n_judges))
-	      (normalize e.edit_life_avg_specq)
-	  end;
-	  e.edit_life_time
+          let uname = e.edit_life_uname0 in
+            if (uid <> 0 || include_anons) 
+	      && e.edit_life_delta > 0. 
+              && e.edit_life_time >= rep_intv.start_time
+              && e.edit_life_time <= rep_intv.end_time
+            then begin
+	      if debug then begin 
+	        Printf.printf "EditLife T: %f rep_weight: %f data_weight: %f spec_q: %f\n" 
+		  e.edit_life_time
+		  (user_data#get_weight uid)
+		  (e.edit_life_delta *. (float_of_int e.edit_life_n_judges))
+		  (normalize e.edit_life_avg_specq) (* debug *)
+	      end; 
+	      stat_edit#add_event 
+	        e.edit_life_time 
+	        (user_data#get_weight uid)
+	        (e.edit_life_delta *. (float_of_int e.edit_life_n_judges))
+	        (normalize e.edit_life_avg_specq);
+              user_data#inc_contrib uid uname e.edit_life_delta e.edit_life_avg_specq include_anons
+	    end;
+	    e.edit_life_time
 	end
       | TextLife t -> begin 
           let uid = t.text_life_uid0 in 
@@ -300,7 +379,12 @@ object (self)
 
 
   (* This method computes the statistics, and returns the edit_stats * text_stats *)
-  method compute_stats (out_ch: out_channel) : stats_t * stats_t = 
+  method compute_stats (contrib_out_ch: out_channel option) (out_ch: out_channel) : stats_t * stats_t = 
+    begin
+      match contrib_out_ch with
+          Some f -> user_data#print_contributions f user_contrib_order_asc
+        | None -> ()
+    end;
     Printf.fprintf out_ch "\nEdit Stats:\n"; 
     let edit_s = stat_edit#compute_stats false out_ch in 
     Printf.fprintf out_ch "\nText Stats:\n";

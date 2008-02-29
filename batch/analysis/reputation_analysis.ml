@@ -96,6 +96,7 @@ class page
       let max_n_judges = min rev_idx n_text_judging in 
       let new_rev = Vec.get rev_idx revs in 
       let uid = new_rev#get_user_id in 
+      let uname = new_rev#get_user_name in
       let rid = new_rev#get_id in 
       let new_time = new_rev#get_time in 
       (* the absolute index of the newest revision *)
@@ -176,6 +177,7 @@ class page
       for i = 0 to max_n_judges - 1 do begin 
         let other = Vec.get (rev_idx - i - 1) revs in 
         let other_uid = other#get_user_id in 
+        let other_uname = other#get_user_name in
 	let other_time = other#get_time in 
         let seen_text = credit_text_temp.(i) in 
         if Revision.different_author equate_anons new_rev other then 
@@ -185,9 +187,9 @@ class page
             other#inc_n_text_judge_revisions;
             (* prints out the credit line *)
             if not eval_zip_error then 
-              Printf.fprintf out_file "\nTextInc %10.0f PageId: %d rev0: %d uid0: %d rev1: %d uid1: %d text: %d left: %d n01: %d t01: %d"
-                new_time id 
-                other#get_id other_uid rid uid
+              Printf.fprintf out_file "\nTextInc %10.0f PageId: %d rev0: %d uid0: %d uname0: %S rev1: %d uid1: %d uname1: %S text: %d left: %d n01: %d t01: %d"
+                new_time id
+                other#get_id other_uid other_uname rid uid uname
                 other#get_created_text seen_text
 		(* Difference in n. of revisions and intervening time *)
 		(i + 1) (int_of_float (new_time -. other_time))
@@ -323,6 +325,7 @@ class page
       let max_idx = min n_edit_judging ((Vec.length revs) - 1) in 
       let rev0 = Vec.get 0 revs in 
       let uid0 = rev0#get_user_id in 
+      let uname0 = rev0#get_user_name in
       let rid0 = rev0#get_id in 
       let dist0 = rev0#get_distance in 
       let time0 = rev0#get_time in 
@@ -335,6 +338,7 @@ class page
           if d01 > 0. then begin 
             let rev1 = Vec.get rev1_idx revs in 
             let uid1 = rev1#get_user_id in 
+            let uname1 = rev1#get_user_name in
             let rid1 = rev1#get_id in 
             let time1 = rev1#get_time in 
             let dist1 = rev1#get_distance in 
@@ -342,6 +346,7 @@ class page
               (* Again, check for different authors *)
               let rev2 = Vec.get rev2_idx revs in 
               let uid2 = rev2#get_user_id in 
+              let uname2 = rev2#get_user_name in
               if Revision.different_author equate_anons rev1 rev2 then begin 
                 (* Ok, we have a valid distance triple *)
                 let d12 = Vec.get (rev2_idx - rev1_idx) dist1 in 
@@ -351,11 +356,11 @@ class page
                 
                 (* Prints out the edit inc *)
                 if not eval_zip_error then 
-                  Printf.fprintf out_file "\nEditInc %10.0f PageId: %d rev0: %d uid0: %d rev1: %d uid1: %d rev2: %d uid2: %d d01: %7.2f d02: %7.2f d12: %7.2f n01: %d n12: %d t01: %d t12: %d"
+                  Printf.fprintf out_file "\nEditInc %10.0f PageId: %d rev0: %d uid0: %d uname0: %S rev1: %d uid1: %d uname1: %S rev2: %d uid2: %d uname2: %S d01: %7.2f d02: %7.2f d12: %7.2f n01: %d n12: %d t01: %d t12: %d"
 		    (* time and page id *)
                     time2 id 
 		    (* revision and user ids *)
-                    rid0 uid0 rid1 uid1 rid2 uid2
+                    rid0 uid0 uname0 rid1 uid1 uname1 rid2 uid2 uname2
 		    (* word distances *)
                     d01 d02 d12
                     (* distances between revisions in n. of revisions *)
@@ -376,8 +381,8 @@ class page
             if 1 = rev1_idx && !n_judges_1 > 0 then begin 
               let avg_qual = !tot_qual_1 /. (float_of_int !n_judges_1) in 
               if not eval_zip_error then 
-                Printf.fprintf out_file "\nEditLife %10.0f PageId: %d rev0: %d uid0: %d NJudges: %d Delta: %7.2f AvgSpecQ: %6.5f"
-                  time1 id rid1 uid1 !n_judges_1 d01 avg_qual
+                Printf.fprintf out_file "\nEditLife %10.0f PageId: %d rev0: %d uid0: %d uname0: %S NJudges: %d Delta: %7.2f AvgSpecQ: %6.5f"
+                  time1 id rid1 uid1 uname1 !n_judges_1 d01 avg_qual
             end
           end
         end

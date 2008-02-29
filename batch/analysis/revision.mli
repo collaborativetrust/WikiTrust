@@ -55,6 +55,7 @@ class revision :
     method get_page_id : int
     method get_time : float
     method get_user_id : int
+    method get_user_name : string
   end
 val different_author :
   bool ->
@@ -82,6 +83,7 @@ class plain_revision :
     method get_page_id : int
     method get_time : float
     method get_user_id : int
+    method get_user_name : string
     method get_words : Text.word array
     method print_words : unit
   end
@@ -116,6 +118,7 @@ class cirlin_revision :
     method get_time : float
     method get_total_life_text : int
     method get_user_id : int
+    method get_user_name : string
     method get_words : Text.word array
     method inc_created_text : int -> unit
     method inc_n_text_judge_revisions : unit
@@ -145,6 +148,7 @@ class write_only_revision :
     method get_page_id : int
     method get_time : float
     method get_user_id : int
+    method get_user_name : string
     method get_words : Text.word array
     method print_words : unit
     method get_size : int
@@ -185,6 +189,7 @@ class reputation_revision :
     method get_time : float
     method get_total_life_text : int
     method get_user_id : int
+    method get_user_name : string
     method get_words : Text.word array
     method inc_created_text : int -> unit
     method inc_n_text_judge_revisions : unit
@@ -223,6 +228,7 @@ class trust_revision :
     method get_seps : Text.sep_t array
     method get_time : float
     method get_user_id : int
+    method get_user_name : string
     method get_word_origin : int array
     method get_word_trust : float array
     method get_words : Text.word array
