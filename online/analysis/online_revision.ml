@@ -50,7 +50,7 @@ class revision
   let (t, _, _, swi, s) = Text.split_into_words_seps_and_info text_init in 
 
   object (self)
-    inherit revision id page_id timestamp time contributor user_id ip_addr username is_minor comment text_init 
+    inherit Revision.revision id page_id timestamp time contributor user_id ip_addr username is_minor comment text_init 
 
     val words : word array = t 
     val seps  : Text.sep_t array = s

@@ -58,7 +58,7 @@ class page
     (** [init_revs n] initializes an array consisting of [n] past revisions, 
 	if they can be found in the db, or less. *)
     method init_revs (n: int) : unit = 
-      let db_p = new Db_page.page page_id in 
+      let db_p = new Db_page.page db page_id in 
       let i = ref n in 
       while !i > 0 do begin 
 	match db_p#get_latest_rev with 
@@ -207,3 +207,15 @@ class page
       end (* If there is only one revision *)
 
 
+    (** This method computes the trust of the revision 0, given that the edit distances from 
+	previous revisions are known. 
+	The method is as follows: it compares the newest revision 0 with both the preceding one, 
+	1, and with the closest to 0 in edit distance, if different from 1. 
+	The trust is then computed as the maximum of the two figures. *)
+    method compute_trust : unit = 
+      let n_revs = Vec.length revs in 
+      let rev = Vec.get 0 revs in 
+      let rev_id = rev#get_id in 
+      let uid = rev#get_user_id in 
+      (* Gets the author reputation from the db *)
+      let rep_float = Rep.weight (db#get_rep uid) in 

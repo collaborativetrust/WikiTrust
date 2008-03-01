@@ -42,11 +42,15 @@ class db :
 
   object
 
-    (** [read_text_split_version page_id] reads the version of Text.ml that has 
-	been used to split a revision in words, and returns it. *)
+    (** [read_text_split_version page_id] given a [page_id] returns a 
+	string associated with the page in the db.  The string 
+	represents the version of Text.ml that has 
+	been used to split a revision in words. *)
     method read_text_split_version : int -> string
 
-    (** [write_text_split_version page_id] writes the version of Text.ml that has 
+    (** [write_text_split_version page_id s] writes to the db 
+	a string [s] associated with a page [page_id].  The string
+	represents the version of Text.ml that has 
 	been used to split a revision in words, and returns it. *)
     method read_text_split_version : int -> string -> unit 
 
@@ -57,6 +61,19 @@ class db :
     (** [write_edit_diff revid1 revid2 elist] writes to the database the edit list 
 	[elist] from the (live) text of revision [revid1] to revision [revid2]. *)
     method write_edit_diff : int -> int -> (Editlist.edit list) -> unit
+
+    (** [get_rep uid] gets the reputation of user [uid], from a table 
+	relating user ids to their reputation *)
+    method get_rep : int -> float
+
+    (** [set_rep uid r] sets, in the table relating user ids to reputations, 
+	the reputation of user [uid] to be equal to [r]. *)
+    method set_rep : int -> float -> unit
+
+    (** [set_rep_hist uid t r0 r1] writes, in a table with keys user_id, time, 
+	and reputation, that at time [t] the reputation of user [uid] went from
+	[r0] to [r1]. *)
+    method set_rep_hist : int -> float -> float -> float -> unit
 
   end
 
