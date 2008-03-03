@@ -52,12 +52,13 @@ import ConfigParser
 
 ## const globals
 WIKI_BASE = "http://en.wikipedia.org/w/api.php"
-NUM_TO_PULL = 500
+NUM_TO_PULL = 200
 EPSILON_TO_STOP_AT = 100
 LOCK_FILE = "/tmp/mw_revision_pull"
 SLEEP_TIME_SEC = 1
 MAX_TIMES_TRY = 10
-INI_FILE = "pull_revision.ini"
+BASE_DIR = "/home/ipye/dev/wikifeed/"                                                     
+INI_FILE = BASE_DIR + "pull_revision.ini"
 
 ## re to pull out the xml header
 patern = re.compile('<\?xml version="1.0" encoding="utf-8"\?>')
@@ -88,7 +89,7 @@ num_revs = 0
 
 ## TODO -> convert this into a UTC timestamp for portability
 sql_get_last_timestamp = "SELECT UNIX_TIMESTAMP(addedon) FROM trust_revision_q \
-                          WHERE NOT processedon ORDER BY addedon DESC LIMIT 1"
+                          ORDER BY addedon DESC LIMIT 1"
 
 def pull_revs():                                                                                            
   global last_ux_timestamp
@@ -132,10 +133,11 @@ def pull_revs():
 
       f.close()                                                                               
       break
-    except:                                                                                              
+    except StandardError, inst:
       num_times_tried_http += 1
       time.sleep(SLEEP_TIME_SEC)
       if verbose:
+        print inst
         print "Error fetching content"
 
   ## Parse the results, and put the contents in the db                                    
@@ -144,8 +146,9 @@ def pull_revs():
   clean_content = patern.sub( '', clean_content, count=1)
   try:
     parser.Parse(clean_content)  
-  except:
+  except StandardError, inst:
     if verbose:
+      print inst
       print "Error parsing content"
     return -1
 
