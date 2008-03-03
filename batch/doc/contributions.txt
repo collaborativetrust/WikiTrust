@@ -1,0 +1,63 @@
+Uid 0    Name "81.5.13.196"    Reputation 0.100000    Contribution 752.291015
+Uid 691327    Name "Steve Hart"    Reputation 0.046173    Contribution 295.654868
+Uid 6549    Name "IZAK"    Reputation 0.080473    Contribution 248.024130
+Uid 1753473    Name "Amoruso"    Reputation 0.000000    Contribution 216.980820
+Uid 21013    Name "Raul654"    Reputation 0.032445    Contribution 203.508360
+Uid 83678    Name "Gadykozma"    Reputation 0.135334    Contribution 146.091396
+Uid 140535    Name "Uffish"    Reputation 0.089116    Contribution 45.801100
+Uid 220976    Name "Klonimus"    Reputation 0.168548    Contribution 39.263660
+Uid 725898    Name "J.smith"    Reputation 0.579505    Contribution 35.727095
+Uid 70    Name "Zundark"    Reputation 1.389570    Contribution 27.950400
+Uid 733501    Name "Yevgeny Kats"    Reputation 0.000000    Contribution 24.519980
+Uid 584    Name "Danny"    Reputation 1.009274    Contribution 23.843545
+Uid 27761    Name "Alrasheedan"    Reputation 1.027340    Contribution 9.489220
+Uid 773241    Name "Gni"    Reputation 0.000000    Contribution 9.227190
+Uid 76027    Name "Jayjg"    Reputation 0.079440    Contribution 8.534665
+Uid 75561    Name "D6"    Reputation 0.019950    Contribution 8.315589
+Uid 824547    Name "Shilonite"    Reputation 0.508049    Contribution 8.100000
+Uid 64    Name "Uriyan"    Reputation 0.027440    Contribution 6.111035
+Uid 107928    Name "Darwinek"    Reputation 0.017433    Contribution 5.727300
+Uid 13040    Name "Rebecca"    Reputation 0.214148    Contribution 5.090635
+Uid 477460    Name "Eskimbot"    Reputation 0.334060    Contribution 4.493500
+Uid 557364    Name "Moshe Constantine Hassan Al-Silverburg"    Reputation 0.129216    Contribution 4.423410
+Uid 675164    Name "Israelbeach"    Reputation 3.482552    Contribution 4.136385
+Uid 75287    Name "Kingal86"    Reputation 0.046552    Contribution 4.000010
+Uid 607252    Name "Shuki"    Reputation 1.689798    Contribution 3.409090
+Uid 21375    Name "Olathe"    Reputation 0.123130    Contribution 2.181810
+Uid 271058    Name "YurikBot"    Reputation 0.098680    Contribution 2.002150
+Uid 1007106    Name "JLCA"    Reputation 0.004371    Contribution 2.000000
+Uid 975372    Name "IvanLanin"    Reputation 0.006624    Contribution 2.000000
+Uid 297415    Name "Itamar"    Reputation 0.933259    Contribution 2.000000
+Uid 620581    Name "Chlewbot"    Reputation 0.006624    Contribution 2.000000
+Uid 70246    Name "Jewbacca"    Reputation 0.663242    Contribution 1.909080
+Uid 230605    Name "Ian Pitchford"    Reputation 0.100594    Contribution 1.828430
+Uid 105180    Name "Palmiro"    Reputation 0.065663    Contribution 1.500000
+Uid 174808    Name "Bkwillwm"    Reputation 0.015068    Contribution 1.227270
+Uid 186638    Name "Stefanomione"    Reputation 0.044047    Contribution 1.000000
+Uid 273698    Name "Alma Pater"    Reputation 0.104371    Contribution 1.000000
+Uid 289860    Name "Dkostic"    Reputation 0.033373    Contribution 1.000000
+Uid 332420    Name "Emersoni"    Reputation 0.051081    Contribution 0.996750
+Uid 169705    Name "Isarig"    Reputation 0.008449    Contribution 0.928580
+Uid 152352    Name "Tintin1107"    Reputation 0.013858    Contribution 0.797940
+Uid 10379    Name "GCarty"    Reputation 1.648783    Contribution 0.755329
+Uid 733731    Name "Petergee1"    Reputation 0.023974    Contribution 0.727270
+Uid 12316    Name "Uriber"    Reputation 0.107402    Contribution 0.681800
+Uid 16924    Name "Maximus Rex"    Reputation 0.021515    Contribution 0.636360
+Uid 294742    Name "Theelf29"    Reputation 0.018253    Contribution 0.500000
+Uid 150809    Name "TrueGnu"    Reputation 0.065929    Contribution 0.500000
+Uid 527862    Name "Bluebot"    Reputation 0.004371    Contribution 0.500000
+Uid 958590    Name "JoeBot"    Reputation 0.012445    Contribution 0.497650
+Uid 35683    Name "Wile E. Heresiarch"    Reputation 0.187098    Contribution 0.354435
+Uid 31749    Name "Gidonb"    Reputation 0.021554    Contribution 0.346680
+Uid 86995    Name "Altmany"    Reputation 0.004371    Contribution 0.272730
+Uid 2    Name "AxelBoldt"    Reputation 0.084017    Contribution 0.227275
+Uid 3123    Name "BL"    Reputation 0.049493    Contribution 0.181815
+Uid 29678    Name "Mirv"    Reputation 0.018133    Contribution 0.141615
+Uid 921929    Name "Daniel tzvi"    Reputation 0.000564    Contribution -0.500000
+Uid 42395    Name "MathKnight"    Reputation 0.129744    Contribution -0.577560
+Uid 261302    Name "Schuldy"    Reputation 0.483956    Contribution -0.863640
+Uid 172235    Name "-Ril-"    Reputation 0.044568    Contribution -1.045440
+Uid 18776    Name "Zero0000"    Reputation 0.000000    Contribution -1.062500
+Uid 512363    Name "Dhall10067"    Reputation 0.435665    Contribution -8.513510
+Uid 101935    Name "Cmdrjameson"    Reputation 0.473249    Contribution -8.954440
+Uid 121439    Name "Dr Zen"    Reputation 0.214992    Contribution -9.151560
