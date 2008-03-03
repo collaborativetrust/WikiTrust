@@ -34,6 +34,7 @@ POSSIBILITY OF SUCH DAMAGE.
  *)
 
 open Eval_constants;;
+open Online_types;;
 
 (** This is a class representing a page, or article, at a high level. 
     Most of the functions implementing an online edit are implemented 
@@ -48,10 +49,14 @@ class page
     val revs: Online_revision.revision Vec.t = Vec.empty 
     (** These are the edit lists.  The position (i, j) is the edit list 
 	between versions i (source, left) and j (dest, right) of the 
-	revisions in revs. *)
-    val edit_list : ((int, int), Editlist.edit) Hashtbl.t
+	revisions in revs. 
+        The content of the hash table contains an entry (n, m, el), where:
+        - n is the length of the left text
+        - m is the length of the right text
+        - el is the edit list. *)
+    val edit_list : ((int * int), (int * int * Editlist.edit)) Hashtbl.t
     (** These are the edit distances, indexed as above. *)
-    val edit_dist : ((int, int), int) Hashtbl.t
+    val edit_dist : ((int * int), float) Hashtbl.t
     (** This is the revision of text.ml used to split strings *)
     val mutable text_split_version : string = "" *)
 
@@ -95,7 +100,7 @@ class page
         if rev1_idx - 1 = rev2_idx then begin 
           let edits  = Chdiff.edit_diff rev1_t rev2_t rev2_i in 
           let d      = Editlist.edit_distance edits (max rev1_l rev2_l) in 
-	  Hashtbl.add edit_list (rev1_idx, rev2_idx) edits;
+	  Hashtbl.add edit_list (rev1_idx, rev2_idx) (rev1_l, rev2_l, edits);
 	  Hashtbl.add edit_dist (rev1_idx, rev2_idx) d
         end else begin 
           (* We will choose the intermediary which gives the best coverage *)
@@ -104,8 +109,8 @@ class page
           let best_coverage   = ref (rev1_l + rev2_l + 1) in 
           for revm_idx = rev2_idx + 1 to rev1_idx - 1 do begin 
             let revm = Vec.get revm_idx revs in 
-            let revm_e = Hashtbl.find edit_list (revm_idx, rev2_idx) in 
-	    let forw_e = Hashtbl.find edit_list (rev1_idx, revm_idx) in 
+            let (_, _, revm_e) = Hashtbl.find edit_list (revm_idx, rev2_idx) in 
+	    let (_, _, forw_e) = Hashtbl.find edit_list (rev1_idx, revm_idx) in 
 	    (* Computes a zipped edit list from rev1 to rev2 *)
             let zip_e = Compute_edlist.zip_edit_lists revm_e forw_e in 
             let (c1, c2) = Compute_edlist.diff_cover zip_e in 
@@ -126,19 +131,19 @@ class page
           if !best_middle_idx > -1 then begin 
 	    (* It has found some suitable zipping; uses it. *)
             let revm = Vec.get !best_middle_idx revs in 
-            let revm_e = Hashtbl.find edit_list (revm_idx, rev2_idx) in 
-	    let forw_e = Hashtbl.find edit_list (rev1_idx, revm_idx) in 
+            let (_, _, revm_e) = Hashtbl.find edit_list (revm_idx, rev2_idx) in 
+	    let (_, _, forw_e) = Hashtbl.find edit_list (rev1_idx, revm_idx) in 
             (* computes the distance via zipping. *)
             let edits = Compute_edlist.edit_diff_using_zipped_edits rev1_t rev2_t forw_e revm_e in 
             let d = Editlist.edit_distance edits (max rev1_l rev2_l) in 
-	    Hashtbl.add edit_list (rev1_idx, rev2_idx) edits;
+	    Hashtbl.add edit_list (rev1_idx, rev2_idx) (rev1_l, rev2_l, edits);
 	    Hashtbl.add edit_dist (rev1_idx, rev2_idx) d
           end else begin 
             (* Nothing suitable found, uses the brute-force approach of computing 
 	       the edit distance from direct text comparison. ¯*)
             let edits   = Chdiff.edit_diff rev1_t rev2_t rev2_i in 
             let d = Editlist.edit_distance edits (max rev1_l rev2_l) in 
-	    Hashtbl.add edit_list (rev1_idx, rev2_idx) edits;
+	    Hashtbl.add edit_list (rev1_idx, rev2_idx) (rev1_l, rev2_l, edits);
 	    Hashtbl.add edit_dist (rev1_idx, rev2_idx) d
           end
         end (* Tries to use zipping. *)
@@ -166,11 +171,13 @@ class page
 	  for i = 1 to n_revs - 2 do begin 
 	    let rev_i = Vec.get i revs in 
 	    let revid_i = rev_i#get_id in 
+	    let rev_i_l = Array.length (rev_i#get_words) in 
 	    for j = i + 1 to n_revs - 1 do begin 
 	      let rev_j = Vec.get j revs in 
 	      let revid_j = rev_j#get_id in 
 	      let edl = db#read_edit_diff revid_j revid_i in 
-	      Hashtbl.add edit_list (j, i) edl
+	      let rev_j_l = Array.length (rev_j#get_words) in 
+	      Hashtbl.add edit_list (j, i) (rev_i_l, rev_j_l, edl)
 	    end done
 	  end done; 
 	  (* This method computes the edit list for position k of the table, 
@@ -184,7 +191,8 @@ class page
 	  for j = 1 to n_revs - 1 do begin 
 	    let rev_j = Vec.get j revs in 
 	    let revid_j = rev_j#get_id in 
-	    db#write_edit_diff revid_j revid_0 (Hashtbl.find edit_list (j, 0))
+	    let (_, _, el) = Hashtbl.find edit_list (j, 0) in 
+	    db#write_edit_diff revid_j revid_0 el 
 	  end done
 
 	end else begin 
@@ -197,7 +205,8 @@ class page
 	    for j = nrevs - 1 downto i + 1 do begin 
 	      let rev_j = Vec.get j revs in 
 	      let revid_j = rev_j#get_id in 
-	      db#write_edit_diff revid_j revid_i (Hashtbl.find edit_list (j, i)) 
+	      let el = Hashtbl.find edit_list (j, i) in 
+	      db#write_edit_diff revid_j revid_i el
 	    end done
 	  end done;
 	  (* Now they are up to date *)
@@ -217,5 +226,79 @@ class page
       let rev = Vec.get 0 revs in 
       let rev_id = rev#get_id in 
       let uid = rev#get_user_id in 
+      let rev_t = rev#get_words in 
+      let rev_l = Array.length rev_t in 
+      let rev_seps = rev#get_seps in 
       (* Gets the author reputation from the db *)
       let rep_float = Rep.weight (db#get_rep uid) in 
+      (* Now we proceed by cases, depending on whether this is the first revision of the 
+	 page, or whether there have been revisions before. *)
+      if n_revs = 1 then begin 
+
+	(* It's the first revision.  Then all trust is simply inherited from the 
+	   author's reputation.  The revision trust will consist of only one chunk, 
+	   with the trust as computed. *)
+	let new_text_trust = rep_float *. trust_coeff_lends_rep in 
+	let chunk_0_trust = Array.make rev_l new_text_trust in 
+	let chunk_0_origin = Array.make rev_l rev_id in 
+	(* Produces the live chunk, consisting of the text of the revision, annotated
+	   with trust and origin information *)
+	let chunk_0 = Revision.produce_annotated_markup rev_seps chunk_0_trust chunk_0_origin true true in 
+	(* And writes it out to the db *)
+	db#write_colored_markup rev_id chunk0; 
+	db#write_dead_page_chunks page_id []
+
+      end else begin 
+
+	(* There is at least one past revision. *)
+	(* I check whether the closest revision to the latest one is 
+	   (a) the previous revision, or
+	   (b) one of the revisions even before (indicating a reversion, 
+	       essentially). *)
+	let d_prev = Hashtbl.get edit_dist (1, 0) in 
+	let close_idx = ref 1 in 
+	let closest_d = ref d_prev in 
+	for i = 2 to n_revs do begin 
+	  let d = Hashtbl.get edit_dist (i, 0) in  
+	  (* We consider a revision to be a better candidate than the immediately preceding 
+	     revision as the source of the most recent revision if it is less than 3 times 
+	     closer than the current one. *) 
+	  if d < d_prev /. 3. && d < closest_d then begin
+	    close_idx := i; 
+	    closest_d := d
+	  end
+	end done; 
+
+	if !close_idx = 1 then begin 
+
+	  (* The most recent revision was most likely obtained by editing the immediately 
+	     preceding revision.  Computes word trust as usual. *)
+
+
+
+	  let new_chunks_trust_a = self#compute_word_trust new_chunks_a medit_l rep_float rev in 
+
+	  Compute_trust.compute_trust_chunks chunks_trust_a new_chunks_a rev#get_seps medit_l rep_float 
+	    trust_coeff_lends_rep trust_coeff_kill_decrease trust_coeff_cut_rep_radius 
+	    trust_coeff_read_all trust_coeff_read_part local_decay_coeff
+
+	  
+
+
+	end else begin 
+	  (* The most recent revision was most likely obtained by editing a revision k that 
+	     precedes the immediately preceding one. 
+	     Computes the trust that would result from these two edits: 1 -> 0, and k -> 0, 
+	     and assigns to each word the maximum trust that any of these two methods compute. 
+	     Also takes care of setting the deleted chuncks correctly (see comments later). *)
+
+
+
+	end (* which version is closer to the current one *)
+      end (* There is at least one past revision *)
+
+
+
+	
+	
+	

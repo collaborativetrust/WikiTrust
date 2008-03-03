@@ -225,8 +225,8 @@ class page
          between revisions. Data relative to the previous revision
          is stored in the instance fields chunks_a and chunks_attr_a *)
       let (new_chunks_a, medit_l) = Chdiff.text_tracking chunks_a new_wl in 
-      (* Constructs new_chunks_attr_a, which contains the reputation range of the 
-         author of each word in the text. *)
+      (* Constructs new_chunks_trust_a, which contains the trust of each word 
+	 in the text (both live text, and dead text). *)
       let rep_float = float_of_int rep in 
       let new_chunks_trust_a = self#compute_word_trust new_chunks_a medit_l rep_float rev in 
       (* Now, replaces chunks_trust_a and chunks_a for the next iteration *)

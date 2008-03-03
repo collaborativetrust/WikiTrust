@@ -75,5 +75,34 @@ class db :
 	[r0] to [r1]. *)
     method set_rep_hist : int -> float -> float -> float -> unit
 
+    (** [write_colored_markup rev_id markup] writes, in a table with columns by 
+	(revision id, string), that the string [markup] is associated with the 
+	revision with id [rev_id]. 
+	The [markup] represents the main text of the revision, annotated with trust 
+	and origin information; it is what the "colored revisions" of our 
+	batch demo are. 
+	When visitors want the "colored" version of a wiki page, it is this chunk 
+	they want to see.  Therefore, it is very important that this chunk is 
+	easy and efficient to read.  A filesystem implementation, for small wikis, 
+	may be highly advisable. *)
+    method write_colored_markup : int -> string -> unit 
+
+    (** [read_colored_markup rev_id] reads the text markup of a revision with id
+	[rev_id].  The markup is the text of the revision, annontated with trust
+	and origin information. *)
+    method read_colored_markup : int -> string
+
+    (** [write_dead_page_chunks page_id chunk_list] writes, in a table indexed by 
+	(page id, string list) that the page with id [page_id] is associated 
+	with the "dead" strings of text [chunk1], [chunk2], ..., where
+	[chunk_list = [chunk1, chunk2, ...] ]. 
+	The chunk_list contains text that used to be present in the article, but has 
+	been deleted; the database records its existence. *)
+    method write_dead_page_chunks : int -> Online_types.chunk_t list -> unit
+
+    (** [read_dead_page_chunks page_id] returns the list of dead chunks associated
+	with the page [page_id]. *)
+    method read_dead_page_chunks : int -> Online_types.chunk_t list
+
   end
 
