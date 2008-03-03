@@ -169,3 +169,32 @@ Then, load the wiki:
 
 And hope that it all went well. 
 
+EXTRACTING AUTHOR CONTRIBUTIONS
+===============================
+
+This feature can be used to extract author contributions as the weighted
+average of the longevity of edits, weighted by the quantity of such edits.
+This can be done from the statistics extracted through evalwiki. The 
+following command can be used for this purpose -
+
+./generate_reputation [-a] -u_contrib <filename> [-u_contrib_order_asc]
+ <statistics_filename>
+
+The -u_contrib <filename> notifies generate_reputation that we would like
+to extract author contributions, by default in descending order into the
+file named <filename>. 
+
+The parameter -a is optional, which when present will include anonymous
+users in the analysis.
+
+The parameter -u_contrib_order_asc is optional, which when present
+changes the order in which authors are listed in the contributions file
+from being descending to ascending.
+
+The final parameter <statistics_filename> is the name of the file with
+statistics extracted from wiki pages using evalwiki.
+
+A file called contributions.txt resides in the same directory as this
+README file and contains an example of the file extracted with author
+names and contributions. The file was generated from a small sample
+statistics file and includes anonymous authors.
