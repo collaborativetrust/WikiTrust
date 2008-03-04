@@ -192,7 +192,18 @@ changes the order in which authors are listed in the contributions file
 from being descending to ascending.
 
 The final parameter <statistics_filename> is the name of the file with
-statistics extracted from wiki pages using evalwiki.
+statistics extracted from the wiki pages. These statistics can be 
+extracted using evalwiki as follows -
+
+./evalwiki -d <dest_dirname> -compute_stats <wiki_filename>
+
+Here, the -d is used to specify <dest_dirname> as the directory in which 
+we would like to evalwiki to place the extracted statistics file.
+
+The -compute_stats switch instructs evalwiki to extract statistics.
+
+The <wiki_filename> is the name of the file that contains the wiki data.
+This can be either the wiki data xml file or a gzipped version of it.
 
 A file called contributions.txt resides in the same directory as this
 README file and contains an example of the file extracted with author
