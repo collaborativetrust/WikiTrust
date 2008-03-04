@@ -114,7 +114,7 @@ let stream = if !stream_name = ""
   then stdin 
   else open_in !stream_name 
 in 
-ignore (Wikidata.read_data !include_anon stream r#add_data None);;
+ignore (Wikidata.read_data stream r#add_data None);;
 
 (* And prints the results *)
 r#compute_stats !user_contrib_file stdout;;
