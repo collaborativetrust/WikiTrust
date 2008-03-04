@@ -43,6 +43,7 @@ import signal, os
 import StringIO
 import gzip
 import time
+import random
 import re
 import xml.parsers.expat
 import ConfigParser
@@ -55,16 +56,19 @@ REVS_TO_PULL = 20
 LOCK_FILE = "/tmp/mw_test_pull"
 SLEEP_TIME_SEC = 1
 MAX_TIMES_TRY = 10 ## how many times to try downloading content before giving up
-INI_FILE = "pull_revision.ini"
+BASE_DIR = "/home/ipye/dev/wikifeed/"
+INI_FILE = BASE_DIR + "pull_revision.ini"
 
 # FileCache
-FILE_CACHE_ROOT = "/var/www/rev_text"
+FILE_CACHE_ROOT = "/bigspace/cluster/rev_text_2"
 CHARS_PER_CACHE_FILE = 3
 FILE_CACHE_DIR_SEP = "/"
 FILE_CACHE_PAGE_SIZE = 12
 FILE_CACHE_REV_SIZE = 12
 FILE_CACHE_EXTENSION = ".txt"
-REV_FLAGS = "utf-8,fs-cache"
+REV_FLAGS = "utf-8,fs_cache"
+DB_PREFIX = ""
+DB_TIMESTAMP_FORMAT = "%Y%m%d%H%i%s"
 
 revs_added = 0
 
@@ -114,6 +118,8 @@ def put_file_content(page_dir, revision_id, contents):
 ## parser callbacks -- TOTO Fix user ID
 def save_data():
   global REV_FLAGS
+  global DB_PREFIX
+  global DB_TIMESTAMP_FORMAT
   global current_rev_id
   global current_page_id
   global current_revs
@@ -122,24 +128,33 @@ def save_data():
   global num_revs
   global verbose
 
+  page_restrict = 0
+  page_random = 0.0
+
   if verbose:
     print "Saving page " + current_page_id + ", with " + str(len(current_revs)) + " Revisions.";
   ## first, see if we need to add the page
-  curs.execute("SELECT page_id FROM trust_page WHERE page_id = %s", (page_data["pageid"]))
+  curs.execute("SELECT page_id FROM " + DB_PREFIX + "page WHERE page_id = %s", (page_data["pageid"]))
   data = curs.fetchall()
   if len(data) <= 0:
     num_pages += 1
-    curs.execute("INSERT INTO trust_page (page_id, page_namespace, page_title, \
-                  page_touched, page_latest, page_counter, page_len) \
+    page_random = random.random() 
+    curs.execute("INSERT INTO " + DB_PREFIX + "page (page_id, page_namespace, page_title, \
+                  page_touched, page_latest, page_counter, page_len, page_restrictions, \
+                  page_random) \
                   VALUES \
-                  (%s, %s, %s, %s, %s, %s, %s) ", \
+                  (%s, %s, %s, \
+                  date_format(%s, %s), \
+                  %s, %s, %s, %s, %s) ", \
                   (page_data["pageid"], page_data["ns"], page_data["title"].encode('utf-8') \
-                  , page_data["touched"][:19] \
-                  , page_data["lastrevid"], page_data["counter"], page_data["length"] ))
-  
+                  , page_data["touched"][:19], DB_TIMESTAMP_FORMAT \
+                  , page_data["lastrevid"], page_data["counter"], page_data["length"],
+                  page_restrict, page_random))
+    connection.commit()              
+      
   ## now, insert the revs, as needed
   for rev in current_revs:
-    curs.execute("SELECT rev_id FROM trust_revision WHERE rev_id = %s", (rev["revid"]))
+    curs.execute("SELECT rev_id FROM " + DB_PREFIX + "revision WHERE rev_id = %s", (rev["revid"]))
     data = curs.fetchall()
     if len(data) <= 0:
       num_revs += 1
@@ -156,18 +171,19 @@ def save_data():
         user = rev["user"] 
       if rev.has_key("comment"):
         comment=rev["comment"]
-      curs.execute("INSERT INTO trust_revision (rev_id, rev_page, rev_text_id, rev_comment, rev_user \
+      foo = curs.execute("INSERT INTO " + DB_PREFIX + "revision (rev_id, rev_page, rev_text_id, rev_comment, rev_user \
                     ,rev_user_text,rev_timestamp,rev_len) \
                     VALUES \
-                    (%s, %s, %s, %s, %s, %s, %s, %s)", \
+                    (%s, %s, %s, %s, %s, %s, date_format(%s, %s), %s)", \
                     (rev["revid"], current_page_id,  rev["revid"] \
                     , comment.encode('utf-8'), userid, user.encode('utf-8'), \
-                    timestamp[:19], 
+                    timestamp[:19], \
+                    DB_TIMESTAMP_FORMAT,\
                     size) \
                     )
 
       ## finally, insert the text
-      curs.execute("INSERT INTO trust_text (old_id, old_text, old_flags) VALUES \
+      curs.execute("INSERT INTO " + DB_PREFIX + "text (old_id, old_text, old_flags) VALUES \
                     (%s, %s, %s)",\
                     (rev["revid"], "", REV_FLAGS))
       ## and send the text to the FS
@@ -175,9 +191,10 @@ def save_data():
       if not page_dir == "":
         put_file_content(page_dir, rev["revid"], rev["content"]);
 
-      ## last but not least, mark the revision as being processed
-      curs.execute("UPDATE trust_revision_q SET status = 'downloaded' WHERE revision = %s",
-                  rev["revid"])
+    ## last but not least, mark the revision as being processed
+    curs.execute("UPDATE trust_revision_q SET status = 'downloaded' WHERE revision = %s",
+                rev["revid"])
+    connection.commit()            
   return
 
 def handle_page(attrs):
@@ -297,11 +314,12 @@ def pull_text():
 
       f.close() ## in any event, close the file
       break
-    except:
+    except StandardError, inst:
       num_times_tried_http += 1
       ## question -- should I raise the exception again here?
       if num_times_tried_http >= MAX_TIMES_TRY:
         if verbose:
+          print inst
           print "Giving up fetching with error"
           return -1
       if verbose:
@@ -314,8 +332,9 @@ def pull_text():
 
   try:
     parser.Parse(clean_content)  
-  except:
+  except StandardError, inst:
     if verbose:
+      print inst
       print "Error parsing content"
     return -1
   return num_revs

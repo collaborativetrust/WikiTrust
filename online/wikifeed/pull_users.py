@@ -57,7 +57,8 @@ EPSILON_TO_STOP_AT = 100
 LOCK_FILE = "/tmp/mw_user_pull"
 SLEEP_TIME_SEC = 1
 MAX_TIMES_TRY = 1
-INI_FILE = "pull_revision.ini"
+BASE_DIR = "/home/ipye/dev/wikifeed/"
+INI_FILE = BASE_DIR + "pull_revision.ini"
 
 ## re to pull out the xml header
 patern = re.compile('\<mediawiki(.)*?xml:lang="en"\>')

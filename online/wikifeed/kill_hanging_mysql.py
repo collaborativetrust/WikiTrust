@@ -55,6 +55,8 @@ INI_FILE = BASE_DIR + "pull_revision.ini"
 KILL_TASK_DESCRIPTION = "Copying to tmp table on disk"
 DESCRIPTION_INDEX = 6
 THREAD_ID_INDEX = 0
+TIME_INDEX = 5
+KILL_TIME = 4000 ## ~1 hour
 
 ## Usage method
 def usage():
@@ -79,6 +81,11 @@ def kill_threads():
       if verbose:
         print str(data[row][THREAD_ID_INDEX]) + " - " + data[row][DESCRIPTION_INDEX]
       curs.execute(sql_kill_thread, (data[row][THREAD_ID_INDEX]))  
+      num_killed += 1
+    elif data[row][TIME_INDEX] > KILL_TIME:
+      if verbose:
+        print str(data[row][THREAD_ID_INDEX]) + " - " + data[row][TIME_INDEX]
+      curs.execute(sql_kill_thread, (data[row][THREAD_ID_INDEX]))
       num_killed += 1
   return num_killed
 
