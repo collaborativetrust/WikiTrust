@@ -216,6 +216,31 @@ class page
       end (* If there is only one revision *)
 
 
+    (** Gets a list of dead chunks coming from the disk, and translates them into 
+	arrays, leaving position 0 free for the current revision. *)
+    method (* private *) chunks_to_array (chunk_l: chunk_t list) : 
+      (word array array, float array array, int array array, int array, float array) = 
+      let n_els = 1 + List.length chunk_l in 
+      let chunks_a = Array.make n_els (Array.make 0 "") in 
+      let trust_a  = Array.make n_els (Array.make 0 0.) in 
+      let origin_a = Array.make n_els (Array.make 0 0)  in 
+      let age_a    = Array.make n_els 0  in 
+      let time_a   = Array.make n_els 0. in 
+      (* Fills the arrays one by one *)
+      let i = ref 0 in 
+      (* This function is iterated on the list *)
+      let f (c: chunk_t) : unit = begin
+	i := !i + 1; 
+	chunks_a.(!i) <- c.text; 
+	trust_a.(!i)  <- c.trust; 
+	origin_a.(!i) <- c.origin; 
+	age_a.(!i)    <- c.n_del_revisions; 
+	time_a.(!i)   <- c.timestamp
+      end in 
+      List.iter f chunk_l; 
+      (chunks_a, trust_a, origin_a, age_a, time_a)
+
+
     (** This method computes the trust of the revision 0, given that the edit distances from 
 	previous revisions are known. 
 	The method is as follows: it compares the newest revision 0 with both the preceding one, 
@@ -251,6 +276,16 @@ class page
       end else begin 
 
 	(* There is at least one past revision. *)
+
+	(* Gets the data for the latest revision, to then do trust computation. *)
+	let rev0 = Vec.get 0 revs in 
+	let new_wl = rev0#get_words in 
+	(* Reads from disk the deleted chunks list from the page *)
+	let del_chunks_list = db#read_dead_page_chunks page_id in 
+	(* And makes the arrays of deleted chunks of words, trust, and origin, 
+	   leaving position 0 free, for the live page. *)
+	let (chunks_a, trust_a, origin_a, age_a, timestamp_a) = self#chunks_to_array del_chunks_list in 
+
 	(* I check whether the closest revision to the latest one is 
 	   (a) the previous revision, or
 	   (b) one of the revisions even before (indicating a reversion, 
@@ -273,8 +308,18 @@ class page
 
 	  (* The most recent revision was most likely obtained by editing the immediately 
 	     preceding revision.  Computes word trust as usual. *)
+	  let (_, _, medit_l) = Hashtbl.find edit_list (1, 0) in 
+	  let rev1 = Vec.get 1 revs in 
+
+	  (* Calls the function that analyzes the difference 
+             between revisions 1 --> 0. Data relative to the previous revision
+             is stored in the instance fields chunks_a and chunks_attr_a *)
+	  let (new_chunks_a, medit_l) = Chdiff.text_tracking chunks_a new_wl in 
 
 
+	  let new_chunks_a = 
+
+	  let chunks_trust_a = rev1#get_trust in 
 
 	  let new_chunks_trust_a = self#compute_word_trust new_chunks_a medit_l rep_float rev in 
 
