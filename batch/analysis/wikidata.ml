@@ -153,6 +153,7 @@ open Evaltypes;;
 (** Reads the wiki data from a file.  Can be used from stdin or from a file. 
     Returns a list of comments, from newest to oldest (suitable for fold_right) *)
 let read_data 
+    (include_anon: bool) (* Include anonymous user domains in calculating reputation *)
     (f: in_channel) (* File to be read *)
     (consumer: wiki_data_t -> unit) (* data consumer *)
     (page_titles: string Vec.t option) (* array of page titles, to be built *)
@@ -166,6 +167,14 @@ let read_data
   (* To check that the file is sorted *)
   let last_time = ref 0. in 
   let last_time_warned = ref false in 
+  let uid (user_id: int) (username: string) : int =
+    if (user_id = 0 && include_anon) then
+      try
+	-(int_of_string(String.sub username 0 (String.index username '.')))
+      with _ -> 0
+    else
+      user_id
+  in
   begin
     try
       while true do
@@ -192,13 +201,13 @@ let read_data
 		      edit_inc_time = t; 
 		      edit_inc_page_id = p;
 		      edit_inc_rev0 = r0;
-		      edit_inc_uid0 = u0;
+		      edit_inc_uid0 = uid u0 un0;
                       edit_inc_uname0 = un0;
 		      edit_inc_rev1 = r1;
-		      edit_inc_uid1 = u1;
+		      edit_inc_uid1 = uid u1 un1;
                       edit_inc_uname1 = un1;
 		      edit_inc_rev2 = r2;
-		      edit_inc_uid2 = u2;
+		      edit_inc_uid2 = uid u2 un2;
                       edit_inc_uname2 = un2;
 		      edit_inc_d01 = b;
 		      edit_inc_d02 = a;
@@ -227,10 +236,10 @@ let read_data
 		      text_inc_time = t; 
 		      text_inc_page_id = p; 
 		      text_inc_rev0 = jr;
-		      text_inc_uid0 = ju;
+		      text_inc_uid0 = uid ju jn;
                       text_inc_uname0 = jn;
 		      text_inc_rev1 = r;
-		      text_inc_uid1 = u;
+		      text_inc_uid1 = uid u n;
                       text_inc_uname1 = n;
 		      text_inc_orig_text = nt; 
 		      text_inc_seen_text = q;
@@ -282,7 +291,7 @@ let read_data
 		      text_life_time = t; 
 		      text_life_page_id = p; 
 		      text_life_rev0 = jr;
-		      text_life_uid0 = ju;
+		      text_life_uid0 = uid ju jn;
                       text_life_uname0 = jn;
 		      text_life_n_judges = nj; 
 		      text_life_new_text = nt; 
@@ -308,7 +317,7 @@ let read_data
 		      edit_life_time = t;
 		      edit_life_page_id = p; 
 		      edit_life_rev0 = jr; 
-                      edit_life_uid0 = ju;
+                      edit_life_uid0 = uid ju jn;
                       edit_life_uname0 = jn;
                       edit_life_n_judges = nj; 
                       edit_life_delta = d;

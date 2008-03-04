@@ -34,4 +34,4 @@ POSSIBILITY OF SUCH DAMAGE.
  *)
 
 
-val read_data : in_channel -> (Evaltypes.wiki_data_t -> unit) -> (string Vec.t option) -> (string Vec.t option)
+val read_data : bool -> in_channel -> (Evaltypes.wiki_data_t -> unit) -> (string Vec.t option) -> (string Vec.t option)

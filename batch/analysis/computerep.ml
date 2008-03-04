@@ -85,7 +85,7 @@ class users
             begin
               (* New user *)
               let u = {
-                uname = "PlaceHolder";
+                uname = "";
 		rep = initial_reputation; 
                 contrib = 0.0;
 		cnt = 0.0; 
@@ -141,7 +141,7 @@ class users
             begin
               (* New user *)
               let u = {
-                uname = "PlaceHolder";
+                uname = "";
                 rep = 0.0; 
                 contrib = 0.0; 
                 cnt = 1.0; 
@@ -310,8 +310,8 @@ object (self)
 	end
       | EditInc e -> begin 
           let uid = e.edit_inc_uid0 in 
-          (* increments only non-anonymos, if delta > 0, 
-             and if it is in the time range *)
+          (* increments non-anonymous users or anonymous user domains, 
+	     if delta > 0, and if it is in the time range *)
           if uid <> 0 
 	    && e.edit_inc_d12 > 0.
             && e.edit_inc_time >= rep_intv.start_time
