@@ -61,3 +61,13 @@ val compute_trust_chunks :
   (* trust_coeff_read_part *) float ->
   (* trust_coeff_local_decay *) float -> 
   float array array 
+
+(** [compute_origin chunks_origin_a new_chunks_a medit_l revid] computes the origin of 
+    the text in the chunks [new_chunks_a], belonging to a revision with id [revid]. 
+    [medit_l] is the edit list explaining the change from previous to current revision. *)
+val compute_origin :
+  (* chunks_origin_a *) int array array ->
+  (* new_chunks_a *) word array array ->
+  (* medit_l *) Editlist.medit list ->
+  (* revid *) int ->
+  int array array
