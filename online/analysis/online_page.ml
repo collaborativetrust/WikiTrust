@@ -48,7 +48,7 @@ class page
     (** This is the Vec of existing revisions for the page *)
     val revs: Online_revision.revision Vec.t = Vec.empty 
     (** These are the edit lists.  The position (i, j) is the edit list 
-	between versions i (source, left) and j (dest, right) of the 
+	between revision id i (source, left) and revision id j (dest, right) of the 
 	revisions in revs. 
         The content of the hash table contains an entry (n, m, el), where:
         - n is the length of the left text
@@ -83,6 +83,7 @@ class page
       (* For uniform nicknames *)
       let rev2_idx = last_rev_idx in 
       let rev2 = Vec.get rev2_idx revs in 
+      let rev2_id = rev2#get_id in 
       (* gets text etc of last version *) 
       let rev2_t = rev2#get_words in 
       let rev2_l = Array.length (rev2_t) in 
@@ -90,7 +91,8 @@ class page
       (* Now it determines the edit list of rev2 from those at rev2_idx +1, ...+2,
 	 and so forth. *)
       for rev1_idx = rev2_idx + 1 to last_idx do begin 
-        let rev1 = Vec.get rev1_idx revs in 
+        let rev1 = Vec.get rev1_idx revs in
+	let rev1_id = rev1#get_id in 
         let rev1_t = rev1#get_words in 
         let rev1_l = Array.length (rev1_t) in 
 
@@ -100,8 +102,8 @@ class page
         if rev1_idx - 1 = rev2_idx then begin 
           let edits  = Chdiff.edit_diff rev1_t rev2_t rev2_i in 
           let d      = Editlist.edit_distance edits (max rev1_l rev2_l) in 
-	  Hashtbl.add edit_list (rev1_idx, rev2_idx) (rev1_l, rev2_l, edits);
-	  Hashtbl.add edit_dist (rev1_idx, rev2_idx) d
+	  Hashtbl.add edit_list (rev1_id, rev2_id) (rev1_l, rev2_l, edits);
+	  Hashtbl.add edit_dist (rev1_id, rev2_id) d
         end else begin 
           (* We will choose the intermediary which gives the best coverage *)
           let best_middle_idx = ref (-1) in 
@@ -109,8 +111,9 @@ class page
           let best_coverage   = ref (rev1_l + rev2_l + 1) in 
           for revm_idx = rev2_idx + 1 to rev1_idx - 1 do begin 
             let revm = Vec.get revm_idx revs in 
-            let (_, _, revm_e) = Hashtbl.find edit_list (revm_idx, rev2_idx) in 
-	    let (_, _, forw_e) = Hashtbl.find edit_list (rev1_idx, revm_idx) in 
+	    let revm_id = revm#get_id in 
+            let (_, _, revm_e) = Hashtbl.find edit_list (revm_id, rev2_id) in 
+	    let (_, _, forw_e) = Hashtbl.find edit_list (rev1_id, revm_id) in 
 	    (* Computes a zipped edit list from rev1 to rev2 *)
             let zip_e = Compute_edlist.zip_edit_lists revm_e forw_e in 
             let (c1, c2) = Compute_edlist.diff_cover zip_e in 
@@ -131,20 +134,20 @@ class page
           if !best_middle_idx > -1 then begin 
 	    (* It has found some suitable zipping; uses it. *)
             let revm = Vec.get !best_middle_idx revs in 
-            let (_, _, revm_e) = Hashtbl.find edit_list (revm_idx, rev2_idx) in 
-	    let (_, _, forw_e) = Hashtbl.find edit_list (rev1_idx, revm_idx) in 
+            let (_, _, revm_e) = Hashtbl.find edit_list (revm_id, rev2_id) in 
+	    let (_, _, forw_e) = Hashtbl.find edit_list (rev1_id, revm_id) in 
             (* computes the distance via zipping. *)
             let edits = Compute_edlist.edit_diff_using_zipped_edits rev1_t rev2_t forw_e revm_e in 
             let d = Editlist.edit_distance edits (max rev1_l rev2_l) in 
-	    Hashtbl.add edit_list (rev1_idx, rev2_idx) (rev1_l, rev2_l, edits);
-	    Hashtbl.add edit_dist (rev1_idx, rev2_idx) d
+	    Hashtbl.add edit_list (rev1_id, rev2_id) (rev1_l, rev2_l, edits);
+	    Hashtbl.add edit_dist (rev1_id, rev2_id) d
           end else begin 
             (* Nothing suitable found, uses the brute-force approach of computing 
 	       the edit distance from direct text comparison. ¯*)
             let edits   = Chdiff.edit_diff rev1_t rev2_t rev2_i in 
             let d = Editlist.edit_distance edits (max rev1_l rev2_l) in 
-	    Hashtbl.add edit_list (rev1_idx, rev2_idx) (rev1_l, rev2_l, edits);
-	    Hashtbl.add edit_dist (rev1_idx, rev2_idx) d
+	    Hashtbl.add edit_list (rev1_id, rev2_id) (rev1_l, rev2_l, edits);
+	    Hashtbl.add edit_dist (rev1_id, rev2_id) d
           end
         end (* Tries to use zipping. *)
       end (* for rev1_idx: for all previous revisions in the array *)
@@ -177,7 +180,9 @@ class page
 	      let revid_j = rev_j#get_id in 
 	      let edl = db#read_edit_diff revid_j revid_i in 
 	      let rev_j_l = Array.length (rev_j#get_words) in 
-	      Hashtbl.add edit_list (j, i) (rev_i_l, rev_j_l, edl)
+	      let d = Editlist.edit_distance edl (max rev_i_l rev_j_l) in 
+	      Hashtbl.add edit_list (revid_j, revid_i) (rev_i_l, rev_j_l, edl); 
+	      Hashtbl.add edit_dist (revid_j, revid_i) d
 	    end done
 	  end done; 
 	  (* This method computes the edit list for position k of the table, 
@@ -191,7 +196,7 @@ class page
 	  for j = 1 to n_revs - 1 do begin 
 	    let rev_j = Vec.get j revs in 
 	    let revid_j = rev_j#get_id in 
-	    let (_, _, el) = Hashtbl.find edit_list (j, 0) in 
+	    let (_, _, el) = Hashtbl.find edit_list (revid_j, revid_0) in 
 	    db#write_edit_diff revid_j revid_0 el 
 	  end done
 
@@ -205,7 +210,7 @@ class page
 	    for j = nrevs - 1 downto i + 1 do begin 
 	      let rev_j = Vec.get j revs in 
 	      let revid_j = rev_j#get_id in 
-	      let el = Hashtbl.find edit_list (j, i) in 
+	      let el = Hashtbl.find edit_list (revid_j, revid_i) in 
 	      db#write_edit_diff revid_j revid_i el
 	    end done
 	  end done;
@@ -218,7 +223,7 @@ class page
 
     (** Gets a list of dead chunks coming from the disk, and translates them into 
 	arrays, leaving position 0 free for the current revision. *)
-    method (* private *) chunks_to_array (chunk_l: chunk_t list) : 
+    method (* private *) chunks_to_array (chunk_l: chunk_t list) :
       (word array array, float array array, int array array, int array, float array) = 
       let n_els = 1 + List.length chunk_l in 
       let chunks_a = Array.make n_els (Array.make 0 "") in 
@@ -279,6 +284,9 @@ class page
 
 	(* Gets the data for the latest revision, to then do trust computation. *)
 	let rev0 = Vec.get 0 revs in 
+	let rev1 = Vec.get 1 revs in 
+	let rev0_id = rev0#get_id in 
+	let rev1_id = rev1#get_id in 
 	let new_wl = rev0#get_words in 
 	(* Reads from disk the deleted chunks list from the page *)
 	let del_chunks_list = db#read_dead_page_chunks page_id in 
@@ -290,11 +298,13 @@ class page
 	   (a) the previous revision, or
 	   (b) one of the revisions even before (indicating a reversion, 
 	       essentially). *)
-	let d_prev = Hashtbl.get edit_dist (1, 0) in 
+	let d_prev = Hashtbl.find edit_dist (rev1_id, rev0_id) in 
 	let close_idx = ref 1 in 
 	let closest_d = ref d_prev in 
 	for i = 2 to n_revs do begin 
-	  let d = Hashtbl.get edit_dist (i, 0) in  
+	  let revi = Vec.get i revs in 
+	  let revi_id = revi#get_id in 
+	  let d = Hashtbl.find edit_dist (revi_id, rev0_id) in  
 	  (* We consider a revision to be a better candidate than the immediately preceding 
 	     revision as the source of the most recent revision if it is less than 3 times 
 	     closer than the current one. *) 
@@ -308,25 +318,43 @@ class page
 
 	  (* The most recent revision was most likely obtained by editing the immediately 
 	     preceding revision.  Computes word trust as usual. *)
-	  let (_, _, medit_l) = Hashtbl.find edit_list (1, 0) in 
-	  let rev1 = Vec.get 1 revs in 
-
+	  let (_, _, medit_l) = Hashtbl.find edit_list (rev1_id, rev0_id) in 
+	  (* Builds list of chunks of previous revision for comparison *)
+	  chunks_a.(0) <- rev1#get_words; 
+	  trust_a.(0)  <- rev1#get_trust;
+	  origin_a.(0) <- rev1#get_origin;
 	  (* Calls the function that analyzes the difference 
-             between revisions 1 --> 0. Data relative to the previous revision
-             is stored in the instance fields chunks_a and chunks_attr_a *)
+             between revisions rev1_id --> rev0_id. Data relative to the previous revision
+             is stored in the instance fields chunks_a *)
 	  let (new_chunks_a, medit_l) = Chdiff.text_tracking chunks_a new_wl in 
-
-
-	  let new_chunks_a = 
-
-	  let chunks_trust_a = rev1#get_trust in 
-
-	  let new_chunks_trust_a = self#compute_word_trust new_chunks_a medit_l rep_float rev in 
-
-	  Compute_trust.compute_trust_chunks chunks_trust_a new_chunks_a rev#get_seps medit_l rep_float 
-	    trust_coeff_lends_rep trust_coeff_kill_decrease trust_coeff_cut_rep_radius 
-	    trust_coeff_read_all trust_coeff_read_part local_decay_coeff
-
+	  (* Calls the function that computes the trust of the newest revision. *)
+	  (* If the author is the same, we do not increase the reputation of exisiting text, 
+	     to thwart a trivial attack. *)
+	  let (c_read_all, c_read_part) = 
+	    if rev0#get_uid = rev1#get_uid 
+	    then (0., 0.) 
+	    else (trust_coeff_read_all, trust_coeff_read_part)
+	  in 
+	  let new_trust_a = Compute_trust.compute_trust_chunks 
+	    trust_a 
+	    new_chunks_a 
+	    rev0#get_seps 
+	    medit_l 
+	    rep_float 
+	    trust_coeff_lends_rep 
+	    trust_coeff_kill_decrease 
+	    trust_coeff_cut_rep_radius 
+	    c_read_all
+	    c_read_part
+	    local_decay_coeff 
+	  in 
+	  (* Computes the origin of the new text *)
+	  let new_origin_a = Compute_trust.compute_origin origin_a new_chunks_a medit_l rev0_id in 
+	  
+	  (* ---qui--- I have to: 
+	     - select the deleted chunks to write to disk, and write them 
+	     - write the new colored revision 
+	   *)
 	  
 
 

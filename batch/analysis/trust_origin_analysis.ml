@@ -74,29 +74,8 @@ class page
       (new_chunks_a: word array array) 
       (medit_l: Editlist.medit list) 
       (rev: Revision.trust_revision) : int array array =
+      Compute_trust.compute_origin chunks_origin_a new_chunks_a medit_l rev#get_id
 
-      let f x = Array.make (Array.length x) 0 in 
-      let new_chunks_origin_a = Array.map f new_chunks_a in 
-      let revid = rev#get_id in 
-
-      (* Now, goes over medit_l, and fills in new_chunks_origin_a properly. *)
-      let f = function 
-	  Editlist.Mins (word_idx, l) -> begin 
-	    for i = word_idx to word_idx + l - 1 do
-	      new_chunks_origin_a.(0).(i) <- revid
-	    done
-	  end
-	| Editlist.Mmov (src_word_idx, src_chunk_idx, dst_word_idx, dst_chunk_idx, l) -> begin 
-	    for i = 0 to l - 1 do
-	      new_chunks_origin_a.(dst_chunk_idx).(dst_word_idx + i) <- 
-		chunks_origin_a.(src_chunk_idx).(src_word_idx + i)
-	    done
-	  end
-
-	| _ -> ()
-      in 
-      List.iter f medit_l; 
-      new_chunks_origin_a
 
     (** This method evaluates the trust of the words of a new revision, 
         as well as their origin. *)

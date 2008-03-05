@@ -104,5 +104,25 @@ class db :
 	with the page [page_id]. *)
     method read_dead_page_chunks : int -> Online_types.chunk_t list
 
+    (** The database should contain a table about user to user feedback, as follows: 
+	(revid1, userid1, revid2, userid2, timestamp, q), where: 
+	- revid1, userid1 is the judge revision
+	- revid2, userid2 is the judged revision
+	- timestamp is the time of the judgement
+	- q is the reputation increase quantity (can be negative). 
+
+	Make sure this table is widely indexed, as we may like to use it for data
+	analysis.  Note that I can get userid1 and userid2 via joins, but I believe it 
+	is more efficient to have such fields already in the table.  Otherwise, we need 
+	too many accesses every time a new revision is made. 
+
+	[write_feedback revid1 userid1, revid2, userid2, timestamp, q] adds one such tuple 
+	to the db. *)
+    method write_feedback : int -> int -> int -> int -> float -> float -> unit
+
+    (** [read_feedback_by revid1] reads from the db all the (revid2, userid2,  timestamp, q) that 
+	have been caused by the revision with id [revid1]. *)
+    method read_feedback_by int -> (int * int * float * float)
+
   end
 

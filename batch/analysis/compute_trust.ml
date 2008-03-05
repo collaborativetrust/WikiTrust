@@ -340,3 +340,36 @@ let compute_trust_chunks
   
   (* Returns the new trust *)
   new_chunks_trust_a
+
+
+(** [compute_origin chunks_origin_a new_chunks_a medit_l revid] computes the origin of 
+    the text in the chunks [new_chunks_a], belonging to a revision with id [revid]. 
+    [medit_l] is the edit list explaining the change from previous to current revision. *)
+let compute_origin
+    (chunks_origin_a: int array array) 
+    (new_chunks_a: word array array) 
+    (medit_l: Editlist.medit list) 
+    (revid: int) : int array array =
+  
+  let f x = Array.make (Array.length x) 0 in 
+  let new_chunks_origin_a = Array.map f new_chunks_a in 
+  
+  (* Now, goes over medit_l, and fills in new_chunks_origin_a properly. *)
+  let f = function 
+      Editlist.Mins (word_idx, l) -> begin 
+	for i = word_idx to word_idx + l - 1 do
+	  new_chunks_origin_a.(0).(i) <- revid
+	done
+      end
+    | Editlist.Mmov (src_word_idx, src_chunk_idx, dst_word_idx, dst_chunk_idx, l) -> begin 
+	for i = 0 to l - 1 do
+	  new_chunks_origin_a.(dst_chunk_idx).(dst_word_idx + i) <- 
+	    chunks_origin_a.(src_chunk_idx).(src_word_idx + i)
+	done
+      end
+	
+    | _ -> ()
+  in 
+  List.iter f medit_l; 
+  new_chunks_origin_a
+    
