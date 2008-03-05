@@ -315,7 +315,7 @@ let produce_annotated_markup
   let print_next_color i = begin 
     let c = next_word_color i in 
     if trust_is_float 
-    then Printf.bprintf out_buf "{{#t:%f}}" c
+    then Printf.bprintf out_buf "{{#t:%.2f}}" c
     else Printf.bprintf out_buf "{{#t:%d}}" (approx c); 
     curr_color := approx c 
   end 

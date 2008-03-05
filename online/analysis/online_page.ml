@@ -246,6 +246,73 @@ class page
       (chunks_a, trust_a, origin_a, age_a, time_a)
 
 
+    (** This method computes the list of dead chunks, updating appropriately their age and 
+	count, and selects the ones that are not too old. 
+	[compute_dead_chunk_list new_chunks_a new_trust_a new_origin_a original_chunk_l 
+	previous_time current_time medit_l] computes
+	[(live_chunk, live_trust, live_origin, chunk_l)]. 
+        [previous_time] is the time of the revision preceding the one whose list of dead chunks is being computed; 
+	[current_time] is the current time. *)
+    method (* private *) compute_dead_chunk_list 
+      (new_chunks_a: word array array)
+      (new_trust_a: float array array) 
+      (new_origin_a: int array array)
+      (original_chunk_l: chunk_t list)
+      (previous_time: float)
+      (current_time: float)
+      (medit_l: Editlist.medit list) 
+	: chunk_t list = 
+      (* First of all, makes a Vec of chunk_t, and copies there the information. *)
+      let chunk_v = ref Vec.empty in 
+      for i = 1 to Array.length (new_chunks_a) - 1 do begin 
+	let c = {
+	  timestamp = 0.; (* we will fix this later *)
+	  n_del_revisions = 0; (* we will fix this later *)
+	  text = new_chunks_a.(i); 
+	  trust = new_trust_a.(i); 
+	  origin = new_origin_a.(i); 
+	} in 
+	chunk_v := Vec.append c !chunk_v
+      end done; 
+      let original_chunk_a = Array.of_list original_chunk_l in 
+      (* Then, uses medit_l to update the age and timestamp information *)
+      (* This function f will be iterated on the medit_l *)
+      let f = function 
+	  Mins (_, _) -> ()
+	| Mdel (_, _, _) -> ()
+	| Mmov (_, src_idx, _, dst_idx, _) -> begin 
+	    (* if the destination is a dead chunk *)
+	    if dst_idx > 0 then begin 
+	      (* The (dst_idx - 1) is because in the destination, the live chunk is not 
+		 present.  Similarly for the source. *)
+	      let c = Vec.get (dst_idx - 1) chunk_v in 
+	      (* Was the source a live chunk? *)
+	      if src_idx = 0 then begin 
+		(* yes, it was live *)
+		c.timestamp <- previous_time; 
+		c.n_del_revisions <- 1; 
+	      end else begin 
+		(* no it was dead *)
+		c.timestamp <- original_chunk_a.(src_idx - 1).timestamp; 
+		c.n_del_revisions <- original_chunk_a.(src_idx - 1).n_del_revisions + 1
+	      end
+	    end (* if destination was a dead chunk *)
+	  end (* Mmov case *)
+      in (* def of f *)
+      List.iter f medit_l; 
+      (* Ok, now the fields of chunk_v are set correctly. 
+	 It filters chunk_v, removing old versions. *)
+      (* The function p is the filter *)
+      let p (c: chunk_t) : bool = 
+	(current_time - c.timestamp < max_age_del_chunk)
+	||
+	(c.n_del_revisions < max_n_revs_del_chunk) 
+      in 
+      let chunk_v' = Vec.filter p chunk_v in 
+      (* Finally, makes a list of these chunks *)
+      Vec.to_list chunk_v'
+
+
     (** This method computes the trust of the revision 0, given that the edit distances from 
 	previous revisions are known. 
 	The method is as follows: it compares the newest revision 0 with both the preceding one, 
@@ -314,28 +381,59 @@ class page
 	  end
 	end done; 
 
-	if !close_idx = 1 then begin 
+	(* Compute the trust due to the change from revision idx 1 --> 0: 
+	   we have to do this in any case. *)
+	(* Builds list of chunks of previous revision for comparison *)
+	chunks_a.(0) <- rev1#get_words; 
+	trust_a.(0)  <- rev1#get_trust;
+	(* Calls the function that analyzes the difference 
+           between revisions rev1_id --> rev0_id. Data relative to the previous revision
+           is stored in the instance fields chunks_a *)
+	let (new_chunks_10_a, medit_10_l) = Chdiff.text_tracking chunks_a new_wl in 
+	(* Calls the function that computes the trust of the newest revision. *)
+	(* If the author is the same, we do not increase the reputation of exisiting text, 
+	   to thwart a trivial attack. *)
+	let (c_read_all, c_read_part) = 
+	  if rev0#get_uid = rev1#get_uid 
+	  then (0., 0.) 
+	  else (trust_coeff_read_all, trust_coeff_read_part)
+	in 
+	let new_trust_10_a = Compute_trust.compute_trust_chunks 
+	  trust_a 
+	  new_chunks_a 
+	  rev0#get_seps 
+	  medit_l 
+	  rep_float 
+	  trust_coeff_lends_rep 
+	  trust_coeff_kill_decrease 
+	  trust_coeff_cut_rep_radius 
+	  c_read_all
+	  c_read_part
+	  local_decay_coeff 
+	in 
 
-	  (* The most recent revision was most likely obtained by editing the immediately 
-	     preceding revision.  Computes word trust as usual. *)
-	  let (_, _, medit_l) = Hashtbl.find edit_list (rev1_id, rev0_id) in 
-	  (* Builds list of chunks of previous revision for comparison *)
-	  chunks_a.(0) <- rev1#get_words; 
-	  trust_a.(0)  <- rev1#get_trust;
-	  origin_a.(0) <- rev1#get_origin;
+ 	if !close_idx > 1 then begin 
+	  (* The most recent revision was most likely obtained by editing a revision k that 
+	     precedes the immediately preceding one. 
+	     Computes the trust that would result from that edit, 
+	     and assigns to each word the maximum trust that either this edit, or the edit 1 --> 0, 
+	     would have computed. *)
+	  let rev2 = Vec.get !close_idx revs in 
+	  chunks_a.(0) <- rev2#get_words; 
+	  trust_a.(0)  <- rev2#get_trust;
 	  (* Calls the function that analyzes the difference 
              between revisions rev1_id --> rev0_id. Data relative to the previous revision
              is stored in the instance fields chunks_a *)
-	  let (new_chunks_a, medit_l) = Chdiff.text_tracking chunks_a new_wl in 
+	  let (new_chunks_20_a, medit_20_l) = Chdiff.text_tracking chunks_a new_wl in 
 	  (* Calls the function that computes the trust of the newest revision. *)
 	  (* If the author is the same, we do not increase the reputation of exisiting text, 
 	     to thwart a trivial attack. *)
 	  let (c_read_all, c_read_part) = 
-	    if rev0#get_uid = rev1#get_uid 
+	    if rev0#get_uid = rev2#get_uid 
 	    then (0., 0.) 
 	    else (trust_coeff_read_all, trust_coeff_read_part)
 	  in 
-	  let new_trust_a = Compute_trust.compute_trust_chunks 
+	  let new_trust_20_a = Compute_trust.compute_trust_chunks 
 	    trust_a 
 	    new_chunks_a 
 	    rev0#get_seps 
@@ -347,31 +445,30 @@ class page
 	    c_read_all
 	    c_read_part
 	    local_decay_coeff 
-	  in 
-	  (* Computes the origin of the new text *)
-	  let new_origin_a = Compute_trust.compute_origin origin_a new_chunks_a medit_l rev0_id in 
-	  
-	  (* ---qui--- I have to: 
-	     - select the deleted chunks to write to disk, and write them 
-	     - write the new colored revision 
-	   *)
-	  
+	  in
+	  (* The trust of each word is the max of the trust under both edits *)
+	  for i = 0 to Array.length (new_trust_10_a.(0)) do begin 
+	    new_trust_10_a.(0).(i) <- max new_trust_10_a.(0).(i) new_trust_20_a.(0).(i)
+	  end done
+	end; (* The closest version was not the immediately preceding one. *)
 
+	(* Computes the origin of the new text; for this, we use the immediately preceding revision. *)
+	origin_a.(0) <- rev1#get_origin;
+	let new_origin_10_a = Compute_trust.compute_origin origin_a new_chunks_10_a medit_l rev0_id in 
+	(* Computes the list of deleted chunks with extended information (also age, timestamp), 
+	   and the information for the live text *)
+	let (live_chunk, live_trust, live_origin, chunk_l) = 
+	  self#compute_dead_chunk_list new_chunks_10_a new_trust_10_a new_origin_10_a del_chunks_list medit_l 
+	in 
+	(* Writes the revision to disk *)
+	let buf = Revision.produce_annotated_markup rev0#get_seps live_trust live_origin true true in 
+	db#write_colored_markup rev0_id (Buffer.contents buf); 
+	db#write_dead_page_chunks page_id chunk_l;
+	(* Ok, there is nothing more here to do, except compute the text increments. *)
 
-	end else begin 
-	  (* The most recent revision was most likely obtained by editing a revision k that 
-	     precedes the immediately preceding one. 
-	     Computes the trust that would result from these two edits: 1 -> 0, and k -> 0, 
-	     and assigns to each word the maximum trust that any of these two methods compute. 
-	     Also takes care of setting the deleted chuncks correctly (see comments later). *)
-
-
-
-	end (* which version is closer to the current one *)
       end (* There is at least one past revision *)
 
-
-
-	
-	
-	
+(* To do, in general: 
+   - reputation processing 
+   - output the (user, revid) to (user, revid) reputation inc lines
+   - output the lines for the stats file *)
