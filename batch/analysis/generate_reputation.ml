@@ -47,6 +47,8 @@ let do_cumulative = ref false
 let do_firstcut = ref false
 let gen_exact_rep = ref false
 let user_contrib_order_asc = ref false
+let include_domains = ref false
+let ip_nbytes = ref 0
 let time_intv = ref {
   start_time = 0.0; 
   end_time = Timeconv.time_to_float 2020 10 30 0 0 0; 
@@ -57,6 +59,13 @@ let set_file_name (s: string) = stream_name := s
 let set_user_file s = user_file := Some (open_out s)
 let user_contrib_file = ref None
 let set_user_contrib_file s = user_contrib_file := Some (open_out s)
+
+let set_ip_nbytes i = 
+  if (i < 1 || i > 4) then begin
+    Printf.printf "The range for -ip_nbytes is [1, 4]. %d is out of bounds\n" i; 
+    flush stdout;
+    exit 0;
+  end else ip_nbytes := i
 
 let set_end_time (s: string) = 
   let f = float_of_string s in 
@@ -83,6 +92,10 @@ let command_line_format = [("-end", Arg.String (set_end_time),
                             "Include anonymous users in statistics");
 			   ("-firstcut", Arg.Set (do_firstcut),
 			    "Change the reputation algorithm to compute reputations as in our first release");
+			   ("-domains", Arg.Set include_domains,
+			    "Include user domains for anonymous users in computing reputation");
+			   ("-ip_nbytes", Arg.Int set_ip_nbytes, 
+			    "<n>: generate user ids using the first n bytes of their ip address. n should be in [1,4]");
 			   ("-u_contrib", Arg.String set_user_contrib_file,
 			    "<contrib_file>: produce a file with user contribution data");
                            ("-u_contrib_order_asc", Arg.Set (user_contrib_order_asc),
@@ -107,14 +120,14 @@ let all_time_intv = {
 };;
 
 (* This is the reputation evaluator *)
-let r = new Computerep.rep params !include_anon all_time_intv !time_intv !user_file !do_monthly !do_cumulative !do_firstcut !gen_exact_rep !user_contrib_order_asc stdout;;
+let r = new Computerep.rep params !include_anon all_time_intv !time_intv !user_file !do_monthly !do_cumulative !do_firstcut !gen_exact_rep !user_contrib_order_asc !include_domains !ip_nbytes stdout;;
 
 (* Reads the data *)
 let stream = if !stream_name = "" 
   then stdin 
   else open_in !stream_name 
 in 
-ignore (Wikidata.read_data !include_anon stream r#add_data None);;
+ignore (Wikidata.read_data stream r#add_data None);;
 
 (* And prints the results *)
 r#compute_stats !user_contrib_file stdout;;
