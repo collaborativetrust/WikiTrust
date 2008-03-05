@@ -49,88 +49,111 @@ class users
   (rep_scaling: float) 
   (max_rep: float)
   (gen_exact_rep: bool)
+  (include_domains: bool)
+  (ip_nbytes: int)
   (user_history_file: out_channel option) 
   =
   object (self)
     val tbl = Hashtbl.create 1000 
 
-    method inc_rep (uid: int) (q: float) (timestamp: float) : unit = 
-      if uid <> 0 then 
-        begin
-          if Hashtbl.mem tbl uid then 
-            begin
-              let u = Hashtbl.find tbl uid in 
-	      if debug then Printf.printf "Uid %d rep: %f " uid u.rep; 
-	      if debug then Printf.printf "inc: %f\n" (q /. rep_scaling);
-              u.rep <- max 0.0 (min max_rep (u.rep +. (q /. rep_scaling)));
-	      match user_history_file with 
-		None -> ()
-	      | Some f -> begin 
-		  let new_weight = log (1.0 +. (max 0.0 u.rep)) in 
-		  if new_weight > (float_of_int u.rep_bin) +. 1.2 
-		    || new_weight < (float_of_int u.rep_bin) -. 0.2 
-		    || gen_exact_rep
-		  then (* must write out the change in reputation *)
-		    let new_bin = int_of_float new_weight in 
-		      if gen_exact_rep then
-			Printf.fprintf f "%f %7d %2d %2d %f\n" timestamp uid u.rep_bin new_bin u.rep
-		      else
-			Printf.fprintf f "%f %7d %2d %2d\n" timestamp uid u.rep_bin new_bin;
-		      u.rep_bin <- new_bin 
-		end;
-	      if uid = single_debug_id && single_debug then 
-		Printf.printf "Rep of %d: %f\n" uid u.rep
-            end
-          else 
-            begin
-              (* New user *)
-              let u = {
-                uname = "PlaceHolder";
-		rep = initial_reputation; 
-                contrib = 0.0;
-		cnt = 0.0; 
-		rep_bin = 0; 
-		rep_history = RepHistory.empty } in 
-                u.rep <- max 0.0 (min max_rep (u.rep +. (q /. rep_scaling)));
-	      match user_history_file with 
-		None -> ()
-	      | Some f -> begin 
-		  let new_weight = log (1.0 +. (max 0.0 u.rep)) in 
-		  let new_bin = int_of_float new_weight in 
-		    if gen_exact_rep then
-		      Printf.fprintf f "%f %7d %2d %2d %f\n" timestamp uid (-1) new_bin u.rep
-		    else
-		      Printf.fprintf f "%f %7d %2d %2d\n" timestamp uid (-1) new_bin;
-		    u.rep_bin <- new_bin 
-		end;
-              Hashtbl.add tbl uid u; 
-            end
-        end
+    (* This method, when called for anonymous users returns a user id generated
+       from the user ip address, if we want to include user domains in computing
+       reputation. It simply returns the user id passed in input, otherwise *)
 
-    method inc_contrib (uid: int) (un: string) (delta: float) (longevity: float) (include_anons: bool) : unit = 
-      if (uid <> 0 || include_anons) then 
+    method private generate_user_id (uid: int) (ip_addr: string) : int =
+      if (uid = 0 && include_domains) then begin
+	let domain = ref 0 in
+	let rec accumulate (i: int) (bytes: string list) : int =
+	  if (i > 0) then begin
+	    try
+	      domain := !domain lsl 8;
+	      domain := !domain lor int_of_string(List.hd bytes);
+	      accumulate (i - 1) (List.tl bytes)
+	    with _ -> !domain
+	  end else !domain
+	in
+	  -(accumulate ip_nbytes (Str.split (Str.regexp_string ".") ip_addr))
+      end else uid
+
+    method inc_rep (uid: int) (username: string) (q: float) (timestamp: Rephist.RepHistory.key) : unit = 
+      if (uid <> 0 || include_domains) then 
         begin
-          if Hashtbl.mem tbl uid then begin
-	    (* Existing user *)
-              let u = Hashtbl.find tbl uid in 
-	        if debug then Printf.printf "Uid %d rep: %f " uid u.rep; 
+	  let user_id = self#generate_user_id uid username in
+	    if Hashtbl.mem tbl user_id then 
+              begin
+		let u = Hashtbl.find tbl user_id in 
+		  if debug then Printf.printf "Uid %d rep: %f " user_id u.rep; 
+		  if debug then Printf.printf "inc: %f\n" (q /. rep_scaling);
+		  u.rep <- max 0.0 (min max_rep (u.rep +. (q /. rep_scaling)));
+		  match user_history_file with 
+		      None -> ()
+		    | Some f -> begin 
+			let new_weight = log (1.0 +. (max 0.0 u.rep)) in 
+			  if new_weight > (float_of_int u.rep_bin) +. 1.2 
+			    || new_weight < (float_of_int u.rep_bin) -. 0.2 
+			    || gen_exact_rep
+			  then (* must write out the change in reputation *)
+			    let new_bin = int_of_float new_weight in 
+			      if gen_exact_rep then
+				Printf.fprintf f "%f %7d %2d %2d %f\n" timestamp user_id u.rep_bin new_bin u.rep
+			      else
+				Printf.fprintf f "%f %7d %2d %2d\n" timestamp user_id u.rep_bin new_bin;
+			      u.rep_bin <- new_bin 
+		      end;
+			if user_id = single_debug_id && single_debug then 
+			  Printf.printf "Rep of %d: %f\n" user_id u.rep
+              end
+            else 
+              begin
+		(* New user *)
+		let u = {
+                  uname = username;
+		  rep = initial_reputation; 
+                  contrib = 0.0;
+		  cnt = 0.0; 
+		  rep_bin = 0; 
+		  rep_history = RepHistory.empty } in 
+                  u.rep <- max 0.0 (min max_rep (u.rep +. (q /. rep_scaling)));
+		  match user_history_file with 
+		      None -> ()
+		    | Some f -> begin 
+			let new_weight = log (1.0 +. (max 0.0 u.rep)) in 
+			let new_bin = int_of_float new_weight in 
+			  if gen_exact_rep then
+			    Printf.fprintf f "%f %7d %2d %2d %f\n" timestamp user_id (-1) new_bin u.rep
+			  else
+			    Printf.fprintf f "%f %7d %2d %2d\n" timestamp user_id (-1) new_bin;
+			  u.rep_bin <- new_bin 
+		      end;
+			Hashtbl.add tbl user_id u; 
+              end
+        end
+	  
+    method inc_contrib (uid: int) (username: string) (delta: float) (longevity: float) (include_anons: bool) : unit = 
+      if (uid <> 0 || include_anons || include_domains) then 
+        begin
+	  let user_id = self#generate_user_id uid username in
+            if Hashtbl.mem tbl user_id then begin
+	      (* Existing user *)
+              let u = Hashtbl.find tbl user_id in 
+	        if debug then Printf.printf "Uid %d rep: %f " user_id u.rep; 
                 u.contrib <- u.contrib +. (delta *. longevity);
             end
           else begin
               (* New user *)
               let u = {
-                uname = un;
+                uname = username;
 		rep = initial_reputation; 
                 contrib = delta *. longevity;
 		cnt = 0.0; 
 		rep_bin = 0; 
 		rep_history = RepHistory.empty } in 
-                Hashtbl.add tbl uid u; 
+                Hashtbl.add tbl user_id u; 
             end
         end
 
     method inc_count (uid: int) (timestamp: float) : unit = 
-      if uid <> 0 then 
+      if (uid <> 0 || include_domains) then 
         begin
           if Hashtbl.mem tbl uid then 
             begin
@@ -244,11 +267,13 @@ class rep
   (do_firstcut: bool) (* True if we want to compute reputations as we did in our first release *)
   (gen_exact_rep: bool) (* True if we want to create an extra column in the user history file with exact rep values *)
   (user_contrib_order_asc: bool) (* The order in which we write out author contributions *)
+  (include_domains: bool) (* Indicates that we want to extract reputation for anonymous user domains *)
+  (ip_nbytes: int) (* the number of bytes to use from the user ip address *)
   (output_channel: out_channel) (* Used to print automated stuff like monthly stats *)
   =
 object (self)
   (* This is the object keeping track of all users *)
-  val user_data = new users params.rep_scaling params.max_rep gen_exact_rep user_history_file
+  val user_data = new users params.rep_scaling params.max_rep gen_exact_rep include_domains ip_nbytes user_history_file
     (* These are for computing the statistics on the fly *)
   val mutable stat_text = new Computestats.stats params eval_intv
   val mutable stat_edit = new Computestats.stats params eval_intv
@@ -265,7 +290,7 @@ object (self)
 	EditLife e -> begin
           let uid = e.edit_life_uid0 in 
           let uname = e.edit_life_uname0 in
-            if (uid <> 0 || include_anons) 
+            if (uid <> 0 || include_anons || include_domains) 
 	      && e.edit_life_delta > 0. 
               && e.edit_life_time >= rep_intv.start_time
               && e.edit_life_time <= rep_intv.end_time
@@ -288,7 +313,7 @@ object (self)
 	end
       | TextLife t -> begin 
           let uid = t.text_life_uid0 in 
-          if (uid <> 0 || include_anons)
+          if (uid <> 0 || include_anons || include_domains)
             && t.text_life_time >= rep_intv.start_time
             && t.text_life_time <= rep_intv.end_time 
 	    && t.text_life_new_text > 0 
@@ -310,9 +335,10 @@ object (self)
 	end
       | EditInc e -> begin 
           let uid = e.edit_inc_uid0 in 
-          (* increments only non-anonymos, if delta > 0, 
-             and if it is in the time range *)
-          if uid <> 0 
+	  let uname = e.edit_inc_uname0 in
+          (* increments non-anonymous users or anonymous user domains, 
+	     if delta > 0, and if it is in the time range *)
+          if (uid <> 0 || include_domains)
 	    && e.edit_inc_d12 > 0.
             && e.edit_inc_time >= rep_intv.start_time
             && e.edit_inc_time <= rep_intv.end_time
@@ -331,13 +357,14 @@ object (self)
               let judge_w = user_data#get_weight e.edit_inc_uid1 in 
               let q2 = q1 *. judge_w *. (1.0 -. params.text_vs_edit_weight) in 
 	      if debug then Printf.printf "EditInc Uid %d q %f\n" uid q2; (* debug *)
-              user_data#inc_rep uid q2 e.edit_inc_time
+              user_data#inc_rep uid uname q2 e.edit_inc_time
             end;
 	  e.edit_inc_time 
       end
     | TextInc t -> begin 
         let uid = t.text_inc_uid0 in 
-        if uid <> 0 
+	let uname = t.text_inc_uname0 in
+        if (uid <> 0 || include_domains)
 	  && t.text_inc_orig_text > 0
 	  && t.text_inc_seen_text > 0
           && t.text_inc_time >= rep_intv.start_time
@@ -353,7 +380,7 @@ object (self)
             let judge_w = user_data#get_weight t.text_inc_uid1 in 
             let q = merit *. judge_w *. params.text_vs_edit_weight in 
 	    if debug then Printf.printf "TextInc Uid %d q %f\n" uid q; (* debug *)
-            user_data#inc_rep uid q t.text_inc_time
+            user_data#inc_rep uid uname q t.text_inc_time
           end;
 	t.text_inc_time
       end

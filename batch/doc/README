@@ -104,8 +104,24 @@ You need to do this for all articles at once.
 With this, you can produce a history of user reputations over the
 Wikipedia; I will assume that this will be called 
 
-rep-histories/ enwiki-20070206-rel1.0-users
+rep-histories/enwiki-20070206-rel1.0-users
 
+If users are anonymous, the reputation of their domains can be computed 
+using the following additional commands to generate_reputation -
+
+-domains
+
+The parameter -domains will ensure that anonymous user domains is included
+in the computation of reputations. In such cases, a unique user id is
+generated from their domain ip addresses.
+
+-ip_nbytes <n>
+
+The parameter -ip_nbytes can be used to specify the number of bytes [1, 4]
+that should be used to generate the unique user ids. For instance, the 
+address 172.162.56.61, with -ip_nbytes set to 1, will generate as user id
+-172, whereas the same address with -ip_nbytes set to 3, will generate
+a user id -11313720.
 
 COLORING A WIKI ACCORDING TO TRUST: 
 ==================================
@@ -209,3 +225,4 @@ A file called contributions.txt resides in the same directory as this
 README file and contains an example of the file extracted with author
 names and contributions. The file was generated from a small sample
 statistics file and includes anonymous authors.
+
