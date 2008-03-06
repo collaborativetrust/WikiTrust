@@ -60,97 +60,34 @@ class page
     (** This is the revision of text.ml used to split strings *)
     val mutable text_split_version : string = "" *)
 
-    (** [init_revs n] initializes an array consisting of [n] past revisions, 
-	if they can be found in the db, or less. *)
-    method init_revs (n: int) : unit = 
+    (** [read_revs n] initializes an array consisting of [n] past revisions, 
+	if they can be found in the db, or less. 
+	The newest revision is the latest in the db; for this revision, we also know the
+	deleted chunks. 
+	After this revision, we keep only the latest among consecuive revisions by the same author. 
+     *)
+    method read_revs (n: int) : unit = 
       let db_p = new Db_page.page db page_id in 
-      let i = ref n in 
-      while !i > 0 do begin 
-	match db_p#get_latest_rev with 
-	  None -> i := 0 
-	| Some r -> begin 
-	    Vec.append r revs;
-	    i := !i - 1
+      (* Puts the first revision first *)
+      match db_p#get_latest_rev with 
+	None -> ()
+      | Some r -> begin 
+	  Vec.append r revs; 
+	  let i = ref (n - 1) in 
+	  let prev_rev = ref r in 
+	  while !i > 0 do begin 
+	    match db_p#get_latest_rev with 
+	      None -> i := 0 
+	    | Some r -> begin 
+		(* If the author is different from the current one *)
+		if Revision.different_author equate_anons r !prev_rev then begin 
+		  Vec.append r revs;
+		  i := !i - 1
+		end; 
+		prev_rev := r
+	      end
 	  end
-      end
-
-
-    (** This private method computes the edit list between revision last_rev_idx
-	and all previous revisions in revs, storign the results in edit_list and edit_dist. *)
-    method (* private *) compute_edit_lists_to_rev (last_rev_idx: int) : unit = 
-      (* Index of last revision *)
-      let last_idx = (Vec.length revs) - 1 in 
-      (* For uniform nicknames *)
-      let rev2_idx = last_rev_idx in 
-      let rev2 = Vec.get rev2_idx revs in 
-      let rev2_id = rev2#get_id in 
-      (* gets text etc of last version *) 
-      let rev2_t = rev2#get_words in 
-      let rev2_l = Array.length (rev2_t) in 
-      let rev2_i = Chdiff.make_index_diff rev2_t in 
-      (* Now it determines the edit list of rev2 from those at rev2_idx +1, ...+2,
-	 and so forth. *)
-      for rev1_idx = rev2_idx + 1 to last_idx do begin 
-        let rev1 = Vec.get rev1_idx revs in
-	let rev1_id = rev1#get_id in 
-        let rev1_t = rev1#get_words in 
-        let rev1_l = Array.length (rev1_t) in 
-
-        (* Decides which method to use: zipping the lists, or 
-           computing the precise distance.  
-           If rev1 is the revision before rev2, there is no choice *)
-        if rev1_idx - 1 = rev2_idx then begin 
-          let edits  = Chdiff.edit_diff rev1_t rev2_t rev2_i in 
-          let d      = Editlist.edit_distance edits (max rev1_l rev2_l) in 
-	  Hashtbl.add edit_list (rev1_id, rev2_id) (rev1_l, rev2_l, edits);
-	  Hashtbl.add edit_dist (rev1_id, rev2_id) d
-        end else begin 
-          (* We will choose the intermediary which gives the best coverage *)
-          let best_middle_idx = ref (-1) in 
-          (* for best_coverage, the smaller, the better: measures uncovered amount *)
-          let best_coverage   = ref (rev1_l + rev2_l + 1) in 
-          for revm_idx = rev2_idx + 1 to rev1_idx - 1 do begin 
-            let revm = Vec.get revm_idx revs in 
-	    let revm_id = revm#get_id in 
-            let (_, _, revm_e) = Hashtbl.find edit_list (revm_id, rev2_id) in 
-	    let (_, _, forw_e) = Hashtbl.find edit_list (rev1_id, revm_id) in 
-	    (* Computes a zipped edit list from rev1 to rev2 *)
-            let zip_e = Compute_edlist.zip_edit_lists revm_e forw_e in 
-            let (c1, c2) = Compute_edlist.diff_cover zip_e in 
-            (* Computes the amount of uncovered text *)
-            let unc1 = rev1_l - c1 in 
-            let unc2 = rev2_l - c2 in 
-            let unc = min unc1 unc2 in 
-            (* Computes the percentages of uncovered *)
-            let perc1 = (float_of_int (unc1 + 1)) /. (float_of_int (rev1_l + 1)) in 
-            let perc2 = (float_of_int (unc2 + 1)) /. (float_of_int (rev2_l + 1)) in 
-            let perc  = min perc1 perc2 in 
-            (* If it qualifies, and if it is better than the best, use it *)
-            if perc <= max_perc_to_zip && unc <= max_uncovered_to_zip && unc < !best_coverage then begin 
-              best_coverage := unc; 
-              best_middle_idx := revm_idx
-            end
-          end done; 
-          if !best_middle_idx > -1 then begin 
-	    (* It has found some suitable zipping; uses it. *)
-            let revm = Vec.get !best_middle_idx revs in 
-            let (_, _, revm_e) = Hashtbl.find edit_list (revm_id, rev2_id) in 
-	    let (_, _, forw_e) = Hashtbl.find edit_list (rev1_id, revm_id) in 
-            (* computes the distance via zipping. *)
-            let edits = Compute_edlist.edit_diff_using_zipped_edits rev1_t rev2_t forw_e revm_e in 
-            let d = Editlist.edit_distance edits (max rev1_l rev2_l) in 
-	    Hashtbl.add edit_list (rev1_id, rev2_id) (rev1_l, rev2_l, edits);
-	    Hashtbl.add edit_dist (rev1_id, rev2_id) d
-          end else begin 
-            (* Nothing suitable found, uses the brute-force approach of computing 
-	       the edit distance from direct text comparison. ¯*)
-            let edits   = Chdiff.edit_diff rev1_t rev2_t rev2_i in 
-            let d = Editlist.edit_distance edits (max rev1_l rev2_l) in 
-	    Hashtbl.add edit_list (rev1_id, rev2_id) (rev1_l, rev2_l, edits);
-	    Hashtbl.add edit_dist (rev1_id, rev2_id) d
-          end
-        end (* Tries to use zipping. *)
-      end (* for rev1_idx: for all previous revisions in the array *)
+	end
 
 
     (** This method computes all the revision-to-revision edit lists and distances among the
@@ -165,60 +102,116 @@ class page
 	   into words, so we need to check them, and in case, rebuild them. 
 	   Gets the current version of the code. *)
 	let current_version = Text.version in 
-	let used_version = db#read_text_split_version page_id in 
-	(* If the current version of text splitting is equal to the old one, 
-	   then we just need to do the distances from the most recent page. *)
-	if current_version = used_version then begin 
 
-	  (* Reads the edit lists between revisions that already exist, as they still apply. *)
-	  for i = 1 to n_revs - 2 do begin 
-	    let rev_i = Vec.get i revs in 
-	    let revid_i = rev_i#get_id in 
-	    let rev_i_l = Array.length (rev_i#get_words) in 
-	    for j = i + 1 to n_revs - 1 do begin 
-	      let rev_j = Vec.get j revs in 
-	      let revid_j = rev_j#get_id in 
-	      let edl = db#read_edit_diff revid_j revid_i in 
-	      let rev_j_l = Array.length (rev_j#get_words) in 
-	      let d = Editlist.edit_distance edl (max rev_i_l rev_j_l) in 
-	      Hashtbl.add edit_list (revid_j, revid_i) (rev_i_l, rev_j_l, edl); 
-	      Hashtbl.add edit_dist (revid_j, revid_i) d
-	    end done
-	  end done; 
-	  (* This method computes the edit list for position k of the table, 
-	     with k=0 in this call, given that the edit lists between all 
-	     higher-numbered entried in revs have already been correctly 
-	     determined. *)
-	  self#compute_edit_lists_to_rev 0; 
-	  (* Now we must write to the db the newly computed edit lists *)
-	  let rev_0 = Vec.get 0 revs in
-	  let revid_0 = rev_0#get_id in 
-	  for j = 1 to n_revs - 1 do begin 
-	    let rev_j = Vec.get j revs in 
-	    let revid_j = rev_j#get_id in 
-	    let (_, _, el) = Hashtbl.find edit_list (revid_j, revid_0) in 
-	    db#write_edit_diff revid_j revid_0 el 
-	  end done
+	(* Now reads or computes all the triangle distances.
+	   It starts from the end of the Vec, and progresses towards the beginning. *)
+	let last_idx = n_revs - 1 in 
+	for rev1_idx = last_idx - 1 downto 0 do begin 
+	  let rev1 = Vec.get rev1_idx revs in 
+	  let rev1_t = rev1#get_words in 
+	  let rev1_l = Array.length rev1_t in 
+	  let rev1_id = rev1#get_id in 
+	  let rev1_i = Chdiff.make_index_diff rev1_t in 
+	  (* We now must read or compute the distance between rev1_idx and all previous
+	     revisions.  I iterate with rev_2_idx that goes from most recent, to oldest, 
+	     as it is easier and better to compute distances over shorer time and revision
+	     spans than longer ones. *)
+	  for rev2_idx = rev1_idx + 1 to last_idx do begin 
+	    let rev2 = Vec.get rev2_idx revs in 
+	    let rev2_t = rev2#get_words in 
+	    let rev2_l = Array.length rev2_t in 
+	    let rev2_id = rev2#get_id in 
 
-	end else begin 
-	  (* We need to recompute all edit lists *)
-	  for i = n_revs - 2 downto 0 do self#compute_edit_lists_to_rev i done; 
-	  (* And we write them all to disk *)
-	  for i = nrevs - 2 downto 0 do begin 
-	    let rev_i = Vec.get i revs in 
-	    let revid_i = rev_i#get_id in 
-	    for j = nrevs - 1 downto i + 1 do begin 
-	      let rev_j = Vec.get j revs in 
-	      let revid_j = rev_j#get_id in 
-	      let el = Hashtbl.find edit_list (revid_j, revid_i) in 
-	      db#write_edit_diff revid_j revid_i el
-	    end done
-	  end done;
-	  (* Now they are up to date *)
-	  db#write_text_split_version page_id current_version
+	    (* The easiest case is when the distance can be read from the database. *)
+	    let edl_opt = db#read_edit_diff rev2_id rev1_id in 
+	    (* This needs to be recomputed if it cannot be found, or if it is computed 
+	       with an old method. *)
+	    let must_recompute = 
+	      match edl_opt with 
+		None -> true
+	      | Some (vers, edl) -> vers != current_version 
+	    in 
+	    if must_recompute then begin 
+	      (* The edit list must be computed. *)
+	      let (edl, d) = 
+		(* Decides which method to use: zipping the lists, or 
+		   computing the precise distance.  
+		   If rev1 is the revision before rev2, there is no choice *)
+		if rev2_idx = rev1_idx + 1 then begin 
+		  let edits  = Chdiff.edit_diff rev2_t rev1_t rev1_i in 
+		  let d      = Editlist.edit_distance edits (max rev1_l rev2_l) in 
+		  (edits, d)
+		end else begin 
+		  (* We will choose the intermediary which gives the best coverage *)
+		  let best_middle_idx = ref (-1) in 
+		  (* for best_coverage, the smaller, the better: measures uncovered amount *)
+		  let best_coverage   = ref (rev1_l + rev2_l + 1) in 
+		  for revm_idx = rev1_idx + 1 to rev2_idx - 1 do begin 
+		    let revm = Vec.get revm_idx revs in 
+		    let revm_id = revm#get_id in
+		    (* We have that: 
+		       edit_list (revm_id, rev1_id) is defined, as it was computed in a previous 
+		                                    iteration of for rev2_idx 
+		       edit_list (rev2_id, revm_id) is defined, as it was computed in a previous 
+		                                    iteration of for rev1_idx 
+		       So any Not_found here indicate an algorithm error. *)
+		    let (_, _, rev1_e) = Hashtbl.find edit_list (revm_id, rev1_id) in 
+		    let (_, _, rev2_e) = Hashtbl.find edit_list (rev2_id, revm_id) in 
+		    (* Computes a zipped edit list from rev1 to rev2 *)
+		    let zip_e = Compute_edlist.zip_edit_lists rev2_e rev1_e in 
+		    let (c2, c1) = Compute_edlist.diff_cover zip_e in 
+		    (* Computes the amount of uncovered text *)
+		    let unc1 = rev1_l - c1 in 
+		    let unc2 = rev2_l - c2 in 
+		    let unc = min unc1 unc2 in 
+		    (* Computes the percentages of uncovered *)
+		    let perc1 = (float_of_int (unc1 + 1)) /. (float_of_int (rev1_l + 1)) in 
+		    let perc2 = (float_of_int (unc2 + 1)) /. (float_of_int (rev2_l + 1)) in 
+		    let perc  = min perc1 perc2 in 
+		    (* If it qualifies, and if it is better than the best, use it *)
+		    if perc <= max_perc_to_zip && unc <= max_uncovered_to_zip && unc < !best_coverage then begin 
+		      best_coverage := unc; 
+		      best_middle_idx := revm_idx
+		    end
+		  end done; 
+		  if !best_middle_idx > -1 then begin 
+		    (* It has found some suitable zipping; uses it. *)
+		    let revm = Vec.get !best_middle_idx revs in 
+		    let (_, _, rev1_e) = Hashtbl.find edit_list (revm_id, rev1_id) in 
+		    let (_, _, rev2_e) = Hashtbl.find edit_list (rev2_id, revm_id) in 
+		    (* computes the distance via zipping. *)
+		    let edits = Compute_edlist.edit_diff_using_zipped_edits rev2_t rev1_t rev2_e rev1_e in 
+		    let d = Editlist.edit_distance edits (max rev1_l rev2_l) in 
+		    (edits, d)
+		  end else begin 
+		    (* Nothing suitable found, uses the brute-force approach of computing 
+		       the edit distance from direct text comparison. ¯*)
+		    let edits   = Chdiff.edit_diff rev2_t rev1_t rev1_i in 
+		    let d = Editlist.edit_distance edits (max rev1_l rev2_l) in 
+		    (edits, d)
+		  end
+		end (* Tries to use zipping. *)
+	      in 
+	      (* Writes it to the hash table *)
+	      Hashtbl.add edit_list (rev2_id, rev1_id) (rev2_l, rev1_l, edl)
+	      let d = Editlist.edit_distance edl (max rev2_l rev1_l) in 
+	      Hashtbl.add edit_dist (rev2_id, rev1_id) d; 
+	      (* and writes it to disk *)
+	      db#write_edit_diff rev2_id rev1_id current_version edl 
+	    end else begin 
+	      (* The edit list can be found on disk *)
+	      match edl_opt with 
+		None -> ()
+	      | Some (vers, edl) -> begin 
+		  Hashtbl.add edit_list (rev2_id, rev1_id) (rev2_l, rev1_l, edl);
+		  let d = Editlist.edit_distance edl (max rev2_l rev1_l) in 
+		  Hashtbl.add edit_dist (rev2_id, rev1_id) d
+		end
+	    end
 
-	end (* Recomputation of all edit lists *)
-      end (* If there is only one revision *)
+	  end (* for rev2_idx *)
+	end (* for rev1_idx *)
+      end (* if more than one revision *)
 
 
     (** Gets a list of dead chunks coming from the disk, and translates them into 
