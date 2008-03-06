@@ -42,10 +42,10 @@ type chunk_t = {
   (** The timestamp is the time at which the chunk was deleted from the page. 
       This is to make it possible to delete chunks that have been deleted for 
       very long (otherwise, they could accumulate). *)
-  timestamp: float; 
+  mutable timestamp: float; 
   (** Number of revisions for which a chunk has been deleted. 
       The purpose is similar to above *)
-  n_del_revisions: int; 
+  mutable n_del_revisions: int; 
   (** This is the array of words.  Note that we store the words, not the 
       seps.  This because all we need to know of the deleted chunks is if they 
       are re-inserted, via text comparison, which is based on words. *)

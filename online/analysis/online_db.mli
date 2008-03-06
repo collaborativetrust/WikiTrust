@@ -38,7 +38,9 @@ POSSIBILITY OF SUCH DAMAGE.
     I don't know how it is created; most likely, it would take a database 
     name and password, or something like that, to connect to the db. *)
 class db : 
-  ?? -> 
+  string ->
+  string ->
+  string -> 
 
   object
 
@@ -52,7 +54,7 @@ class db :
 	a string [s] associated with a page [page_id].  The string
 	represents the version of Text.ml that has 
 	been used to split a revision in words, and returns it. *)
-    method read_text_split_version : int -> string -> unit 
+    method write_text_split_version : int -> string -> unit 
 
     (** [read_edit_diff revid1 revid2] reads from the database the edit list 
 	from the (live) text of revision [revid1] to revision [revid2]. *)
@@ -122,7 +124,7 @@ class db :
 
     (** [read_feedback_by revid1] reads from the db all the (revid2, userid2,  timestamp, q) that 
 	have been caused by the revision with id [revid1]. *)
-    method read_feedback_by int -> (int * int * float * float)
+    method read_feedback_by : int -> (int * int * float * float)
 
   end
 
