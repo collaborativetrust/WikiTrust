@@ -68,6 +68,14 @@ CREATE TABLE colored_markup (
         revision_text   text NOT NULL
 );
 
+CREATE TABLE dead_page_chunks (
+        chunk_id        int,
+        page_id         int,
+        chunk_json      text ,
+        addedon         timestamp DEFAULT now(),
+        PRIMARY KEY (chunk_id, page_id)
+);
+
 -- place to store dead page chunks
 CREATE TABLE dead_page_chunks (
   chunk_id       bigserial      PRIMARY KEY,

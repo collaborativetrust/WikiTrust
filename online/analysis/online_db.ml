@@ -208,18 +208,32 @@ class db
 	been deleted; the database records its existence. *)
     method write_dead_page_chunks (page_id : int) (clist : Online_types.chunk_t
     list) : unit =
-      let obj = Object [ "x", Int 1;
-                         "y", Int 2 ] in
-      let mystr = string_of_json True obj in 
-      let sth = dbh#prepare "insert into page_chunks (page_id, revision_id,
-                chunk) VALUES (?, ?, ?) " in
-      sth#execute [`Int page_id; `String mystr ];
-      dbh#commit ()
-
+      let f chk = (
+        match chk with
+          chunk_t (t n tx tr o) -> (
+            let obj = Object [ "timestamp", Float t ;
+                "page_id", Int page_id;
+                "n_del_revisions", Int n; 
+                "text", Array [tx],
+                "trust", Array [tr],
+                "origin", Array [o]
+                ] in
+            let mystr = string_of_json True obj in 
+            let sth = dbh#prepare "insert into dead_page_chunks (chunk_id,
+                chunk) VALUES (?, ?) " in
+            sth#execute [`Int page_id; `String mystr ];
+            dbh#commit () )
+          | _ -> assert(false)        
+        ) in
+      List.iter clist f
 
     (** [read_dead_page_chunks page_id] returns the list of dead chunks associated
 	with the page [page_id]. *)
     method read_dead_page_chunks : int -> Online_types.chunk_t list
+        let json_obj = json_of_string jsn_str in
+        let tbl = make_table (objekt json_obj) in
+        let chunk_t foo float (field  tbl "timestamp")        
+
 
   end;; (* online_db *)
 
