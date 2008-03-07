@@ -33,6 +33,8 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
+Open Json_type
+
 (** This class provides a handle for accessing the database in the on-line 
     implementation.
     I don't know how it is created; most likely, it would take a database 
@@ -85,11 +87,12 @@ class db
       sth#execute [`Int revid1; `Int revid2];
       let elist = [] in
       sth#iter (function
-                | [`String etype; `Int val1; `Int val2; `Int val3] ->
-                  match etype with
-                    "Ins" -> Ins (val1, val2) :: elist
-                    | "Del" -> Del (val1, val2) :: elist
-                    | "Mov" -> Mov (val1, val2, val3) :: elist
+                | [ `String etype; `Int val1; `Int val2; `Int val3 ] ->
+                 ( match etype with
+                    "Ins" -> Editlist.Ins (val1, val2) :: elist
+                    | "Del" -> Editlist.Del (val1, val2) :: elist
+                    | "Mov" -> Editlist.Mov (val1, val2, val3) :: elist 
+                    | _ -> assert false )
                 | _ ->
                     assert false );
       elist              
@@ -196,18 +199,27 @@ class db
       sth#execute [`Int rev_id];
       sth#fetch1string ()
 
-(*
+
     (** [write_dead_page_chunks page_id chunk_list] writes, in a table indexed by 
 	(page id, string list) that the page with id [page_id] is associated 
 	with the "dead" strings of text [chunk1], [chunk2], ..., where
 	[chunk_list = [chunk1, chunk2, ...] ]. 
 	The chunk_list contains text that used to be present in the article, but has 
 	been deleted; the database records its existence. *)
-    method write_dead_page_chunks : int -> Online_types.chunk_t list -> unit
+    method write_dead_page_chunks (page_id : int) (clist : Online_types.chunk_t
+    list) : unit =
+      let obj = Object [ "x", Int 1;
+                         "y", Int 2 ] in
+      let mystr = string_of_json True obj in 
+      let sth = dbh#prepare "insert into page_chunks (page_id, revision_id,
+                chunk) VALUES (?, ?, ?) " in
+      sth#execute [`Int page_id; `String mystr ];
+      dbh#commit ()
+
 
     (** [read_dead_page_chunks page_id] returns the list of dead chunks associated
 	with the page [page_id]. *)
     method read_dead_page_chunks : int -> Online_types.chunk_t list
-*)
+
   end;; (* online_db *)
 
