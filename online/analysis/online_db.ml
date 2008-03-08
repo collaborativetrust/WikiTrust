@@ -33,7 +33,8 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
-Open Json_type
+open Json_type
+open Json_type.Browse
 
 (** This class provides a handle for accessing the database in the on-line 
     implementation.
@@ -86,16 +87,18 @@ class db
           from_revision = ? AND to_revision  = ?" in
       sth#execute [`Int revid1; `Int revid2];
       let elist = [] in
-      sth#iter (function
+      let p_elist = ref elist in
+      let f row = (match row with
                 | [ `String etype; `Int val1; `Int val2; `Int val3 ] ->
                  ( match etype with
-                    "Ins" -> Editlist.Ins (val1, val2) :: elist
-                    | "Del" -> Editlist.Del (val1, val2) :: elist
-                    | "Mov" -> Editlist.Mov (val1, val2, val3) :: elist 
+                    "Ins" -> p_elist := Editlist.Ins (val1, val2) :: !p_elist
+                    | "Del" -> p_elist := Editlist.Del (val1, val2) :: !p_elist
+                    | "Mov" -> p_elist := Editlist.Mov (val1, val2, val3) :: !p_elist
                     | _ -> assert false )
                 | _ ->
-                    assert false );
-      elist              
+                    assert false ) in
+      sth#iter f ;
+      elist
       
 
       
@@ -111,16 +114,16 @@ class db
       let sth_del = dbh#prepare "insert into edit_lists (from_revision,
            to_revisiona, edit_type, val1, val2 ) VALUES (?, ?, 'Del', ?, ?) " in
 
-      let f rfr rto ed =
+      let f ed =
         match ed with
-            Ins (i, l) -> sth_ins#execute [`Int rfr; `Int rto; `Int i; `Int l ];
+            Editlist.Ins (i, l) -> sth_ins#execute [`Int revid1; `Int revid2; `Int i; `Int l ];
 
-          | Del (i, l) -> sth_del#execute [`Int rfr; `Int rto; `Int i; `Int l ];
+          | Editlist.Del (i, l) -> sth_del#execute [`Int revid1; `Int revid2; `Int i; `Int l ];
 
-          | Mov (i, j, l) -> sth_mov#execute [`Int rfr; `Int rto; `Int i;
+          | Editlist.Mov (i, j, l) -> sth_mov#execute [`Int revid1; `Int revid2; `Int i;
                   `Int j; `Int l ]; 
           in
-      List.iter f revid1 revid2 elist
+      List.iter f elist
     
 
     (** [get_rep uid] gets the reputation of user [uid], from a table 
@@ -139,16 +142,16 @@ class db
       
       let old_rep = self#get_rep uid in
       match old_rep with
-        _  -> 
-          let sth = dbh#prepare "insert into trust_user_rep (user_id,
-                                 user_rep) values (?, ?)" in
-          sth#execute [`Int uid; `Float rep ];
-          dbh#commit
-        | float ->  
-          let sth = dbh#prepare "update trust_user_rep set user_rep = ?
-                                 where user_id = ?" in
-          sth#execute [`Int uid; `Float rep ];
-          dbh#commit ()
+            float -> ( 
+              let sth = dbh#prepare "update trust_user_rep set user_rep = ?
+                  where user_id = ?" in
+              sth#execute [`Int uid; `Float rep ]; )
+          | _  -> 
+              let sth = dbh#prepare "insert into trust_user_rep
+                  (user_id,  user_rep) values (?, ?)" in
+              sth#execute [`Int uid; `Float rep ];  
+      dbh#commit()
+
 
     (** [set_rep_hist uid t r0 r1] writes, in a table with keys user_id, time, 
 	and reputation, that at time [t] the reputation of user [uid] went from
@@ -208,6 +211,10 @@ class db
 	been deleted; the database records its existence. *)
     method write_dead_page_chunks (page_id : int) (clist : Online_types.chunk_t
     list) : unit =
+       let sth = dbh#prepare "SELECT chunk_json FROM dead_page_chunks WHERE 
+           chunk_id = ?" in
+       print_line "sss"
+      (*
       let f chk = (
         match chk with
           chunk_t (t n tx tr o) -> (
@@ -226,14 +233,64 @@ class db
           | _ -> assert(false)        
         ) in
       List.iter clist f
-
+*)
     (** [read_dead_page_chunks page_id] returns the list of dead chunks associated
 	with the page [page_id]. *)
-    method read_dead_page_chunks : int -> Online_types.chunk_t list
-        let json_obj = json_of_string jsn_str in
-        let tbl = make_table (objekt json_obj) in
-        let chunk_t foo float (field  tbl "timestamp")        
+    method read_dead_page_chunks (page_id : int) : Online_types.chunk_t list =
+      let sth = dbh#prepare "SELECT chunk_json FROM dead_page_chunks WHERE 
+          chunk_id = ?" in
+      let chunks = [] in
+      let p_chunks = ref chunks in
+      let f row = (match row with
+        | [ `String json_str ] ->
+            let json_obj = json_of_string jsn_str in
+            let tbl = make_table (objekt json_obj) in
+            p_chunks := Online_types.chunk_t (float (field tbl "timestamp"),
+                                              int (field tbl "n_del_revs"),
+                                              array (field tbl "text"),
+                                              array (field tbl "trust"),
+                                              array (field tbl "origin")
+            ) :: !p_chunks
+        | _ ->
+            assert false ) in
 
+      sth#execute [`Int page_id];
+      sth#iter f ;
+      chunks;
+
+
+  (*  [write_feedback revid1 userid1, revid2, userid2, timestamp, q] adds
+          one such tuple to the db. *)
+    method write_feedback (revid1 :int) (userid1 : int) (revid2 : int) (userid2
+        : int) (times : float) (q : float) : unit = 
+      (* First we delete any pre-existing text. *)
+      let sth = dbh#prepare "DELETE FROM feedback WHERE revid1 = ? AND revid2 =
+        ? AND userid 1 = ? AND userid2 = ? AND timestamp = ?" in
+      sth#execute [`Int revid1; `Int revid2; `Int userid1; `Int userid2; `Float times ];
+      dbh#commit ();
+      (* Next we add in the new text. *) 
+      let sth = dbh#prepare "insert into feedback (revid1, userid1, revid2,
+      userid2, timestamp, q) VALUES (?, ?, ?, ?, ?, ?)" in 
+      sth#execute [`Int revid1; `Int userid1; `Int revid2; `Int userid2; 
+          `Float times; `Float q];
+      dbh#commit ()
+
+    (** [read_feedback_by revid1] reads from the db all the (revid2,
+      userid2,  timestamp, q) that 
+      have been caused by the revision with id [revid1]. *)
+    method read_feedback_by (revid1 : int) : (int * int * float * float) list = 
+      let sth = dbh#prepare "SELECT revid2, userid2, timestamp, q FROM feedback
+          WHERE revid1 = ?" in
+      sth#execute [`Int revid1];
+      let replist = [] in
+      let p_replist = ref replist in
+      let f row = (match row with
+        | [ `Int r2; `Int u2; `Float t; `Float q] ->
+            p_replist := (r2, u2, t, q) :: !p_replist
+        | _ ->
+            assert false ) in
+      sth#iter f;
+      replist;
 
   end;; (* online_db *)
 

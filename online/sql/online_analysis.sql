@@ -32,6 +32,19 @@ CREATE TRIGGER remove_existing_split_version BEFORE INSERT OR UPDATE
   FOR EACH ROW EXECUTE PROCEDURE remove_existing_split_version();
 
 
+-- a place to store feedback
+CREATE TABLE feedback (
+  revid1        int NOT NULL, 
+  userid1       int NOT NULL,
+  revid2        int NOT NULL, 
+  userid2       int NOT NULL, 
+  timestamp    float NOT NULL, 
+  q             float,
+  PRIMARY KEY (revid1, userid1, revid2, userid2, timestamp)
+);
+
+CREATE INDEX feedback_idx on feedback(revid1);
+
 -- now, a place to store edit lists
 CREATE TABLE edit_lists (
         from_revision   int , 
