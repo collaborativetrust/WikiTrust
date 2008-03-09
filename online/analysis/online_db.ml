@@ -52,15 +52,18 @@ class db
                         ~user:user
                         ~password:auth
                         database 
+    
+    (* HERE are all of the prepaired sql statments used below *)
+    val sth_select_page_text = dbh#prepare "SELECT page_text FROM text_split_version WHERE 
+                                    page_id = ?"
+
     (** [read_text_split_version page_id] given a [page_id] returns a 
 	string associated with the page in the db.  The string 
 	represents the version of Text.ml that has 
 	been used to split a revision in words. *)
     method read_text_split_version (page_id : int) : string = 
-      let sth = dbh#prepare "SELECT page_text FROM text_split_version WHERE 
-                                page_id = ?" in
-      sth#execute [`Int page_id];
-      sth#fetch1string () 
+      sth_select_page_text#execute [`Int page_id];
+      sth_select_page_text#fetch1string () 
 
     (** [write_text_split_version page_id s] writes to the db 
 	a string [s] associated with a page [page_id].  The string
