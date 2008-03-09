@@ -50,11 +50,34 @@ class revision
   let (t, _, _, swi, s) = Text.split_into_words_seps_and_info text_init in 
 
   object (self)
-    inherit Revision.revision id page_id timestamp time contributor user_id ip_addr username is_minor comment text_init 
-
     val words : word array = t 
     val seps  : Text.sep_t array = s
     val sep_word_idx : int array = swi 
+    val is_anon : bool = (user_id = 0)
+
+      (* Things to store: 
+	 tot_edit_qual
+	 n_edit_judges (these two allow the computation of the edit longevity)
+	 tot_rep (total earned reputation )
+         A list of revisions and authors to which the current revision gave a 
+	 reputation increase, so that the same increase can be undone 
+	 total_text  
+	 n_text_judges
+
+       *)
+
+
+    method get_time : float = time
+    method get_id : int = id
+    method get_ip : string = ip_addr 
+    method get_page_id : int = page_id
+    method get_user_id : int = user_id
+    method get_user_name : string = 
+      if is_anon then
+        ip_addr
+      else
+        username
+    method get_is_anon : bool = is_anon
 
     method get_words : word array = words
     method get_n_words : int = Array.length words
