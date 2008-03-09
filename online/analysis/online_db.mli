@@ -124,7 +124,7 @@ class db :
 
     (** [read_feedback_by revid1] reads from the db all the (revid2, userid2,  timestamp, q) that 
 	have been caused by the revision with id [revid1]. *)
-    method read_feedback_by : int -> (int * int * float * float)
+    method read_feedback_by : int -> (int * int * float * float) list
 
   end
 

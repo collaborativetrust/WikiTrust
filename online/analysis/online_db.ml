@@ -35,6 +35,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
 open Json_type
 open Json_type.Browse
+open Online_types
 
 (** This class provides a handle for accessing the database in the on-line 
     implementation.
@@ -127,7 +128,10 @@ class db
     
 
     (** [get_rep uid] gets the reputation of user [uid], from a table 
-	relating user ids to their reputation *)
+	relating user ids to their reputation 
+
+        @raise Not_found if no tuple is returned by the database.
+        *)
     method get_rep (uid : int) : float =
       let sth = dbh#prepare "SELECT user_rep FROM trust_user_rep WHERE 
                                       user_id = ?" in
@@ -139,14 +143,13 @@ class db
 	the reputation of user [uid] to be equal to [r]. *)
     method set_rep (uid : int) (rep : float) =
       (* first check to see if there exists the user already *)
-      
-      let old_rep = self#get_rep uid in
-      match old_rep with
-            float -> ( 
-              let sth = dbh#prepare "update trust_user_rep set user_rep = ?
-                  where user_id = ?" in
-              sth#execute [`Int uid; `Float rep ]; )
-          | _  -> 
+      try
+        ignore (self#get_rep uid ) ;
+        let sth = dbh#prepare "update trust_user_rep set user_rep = ?
+            where user_id = ?" in
+        sth#execute [`Int uid; `Float rep ]; 
+      with
+        Not_found -> 
               let sth = dbh#prepare "insert into trust_user_rep
                   (user_id,  user_rep) values (?, ?)" in
               sth#execute [`Int uid; `Float rep ];  
@@ -211,29 +214,34 @@ class db
 	been deleted; the database records its existence. *)
     method write_dead_page_chunks (page_id : int) (clist : Online_types.chunk_t
     list) : unit =
-       let sth = dbh#prepare "SELECT chunk_json FROM dead_page_chunks WHERE 
-           chunk_id = ?" in
-       print_line "sss"
-      (*
-      let f chk = (
-        match chk with
-          chunk_t (t n tx tr o) -> (
-            let obj = Object [ "timestamp", Float t ;
-                "page_id", Int page_id;
-                "n_del_revisions", Int n; 
-                "text", Array [tx],
-                "trust", Array [tr],
-                "origin", Array [o]
+      let sth = dbh#prepare "INSERT INTO dead_page_chunks (chunk_id,
+          chunk_json) VALUES (?, ?)" in
+      let f (chk : Online_types.chunk_t) = (
+        let text_lst = [] in
+        let p_text_lst = ref text_lst in
+        let trust_lst = [] in
+        let p_trust_lst = ref trust_lst in
+        let origin_lst = [] in
+        let p_origin_lst = ref origin_lst in 
+        for i = 0 to (Array.length chk.text) do 
+          begin
+            p_text_lst := [ String (Array.get chk.text i) ] :: !p_text_lst;
+            p_trust_lst := [ Float (Array.get chk.trust i) ] :: !p_trust_lst;
+            p_origin_lst := [ Int (Array.get chk.origin i) ] :: !p_origin_lst;
+          end ;  
+        done  ;
+        let obj = Object [ "timestamp", Float (chk.timestamp) ;
+                "n_del_revisions", Int (chk.n_del_revisions); 
+                "text", Array text_lst;
+                "trust", Array trust_lst;
+                "origin", Array origin_lst
                 ] in
-            let mystr = string_of_json True obj in 
-            let sth = dbh#prepare "insert into dead_page_chunks (chunk_id,
-                chunk) VALUES (?, ?) " in
-            sth#execute [`Int page_id; `String mystr ];
-            dbh#commit () )
-          | _ -> assert(false)        
-        ) in
-      List.iter clist f
-*)
+            let jsonstr = Json_io.string_of_json ~compact:true obj in 
+            sth#execute [`Int page_id; `String jsonstr ];
+      ) in
+      List.iter f clist;
+      dbh#commit ()
+
     (** [read_dead_page_chunks page_id] returns the list of dead chunks associated
 	with the page [page_id]. *)
     method read_dead_page_chunks (page_id : int) : Online_types.chunk_t list =
@@ -243,14 +251,14 @@ class db
       let p_chunks = ref chunks in
       let f row = (match row with
         | [ `String json_str ] ->
-            let json_obj = json_of_string jsn_str in
+            let json_obj = Json_io.json_of_string json_str in
             let tbl = make_table (objekt json_obj) in
-            p_chunks := Online_types.chunk_t (float (field tbl "timestamp"),
-                                              int (field tbl "n_del_revs"),
+            p_chunks := ((float (field tbl "timestamp"),
+                                              int (field tbl "n_del_revisions"),
                                               array (field tbl "text"),
                                               array (field tbl "trust"),
-                                              array (field tbl "origin")
-            ) :: !p_chunks
+                                              array (field tbl "origin"))
+      ) :: !p_chunks
         | _ ->
             assert false ) in
 
