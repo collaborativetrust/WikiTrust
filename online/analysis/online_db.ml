@@ -247,23 +247,45 @@ class db
     method read_dead_page_chunks (page_id : int) : Online_types.chunk_t list =
       let sth = dbh#prepare "SELECT chunk_json FROM dead_page_chunks WHERE 
           chunk_id = ?" in
+      let json2float (j_arr : Json_type.t array) (x : float) = (
+        let txt = Array.make (Array.length j_arr) x in     
+        for i = 0 to (Array.length j_arr) do
+          txt.(i) <- (float j_arr.(i));
+        done;
+        txt 
+      ) in
+      let json2string (j_arr : Json_type.t array) (x : string) = (
+        let txt = Array.make (Array.length j_arr) x in     
+        for i = 0 to (Array.length j_arr) do
+          txt.(i) <- (string j_arr.(i));
+        done;
+        txt
+      ) in
+      let json2int (j_arr : Json_type.t array) (x : int) = (
+        let txt = Array.make (Array.length j_arr) x in     
+        for i = 0 to (Array.length j_arr) do
+          txt.(i) <- (int j_arr.(i));
+        done;
+        txt
+      ) in
+
       let chunks = [] in
       let p_chunks = ref chunks in
       let f row = (match row with
         | [ `String json_str ] ->
             let json_obj = Json_io.json_of_string json_str in
             let tbl = make_table (objekt json_obj) in
-            p_chunks := ((float (field tbl "timestamp"),
-                                              int (field tbl "n_del_revisions"),
-                                              array (field tbl "text"),
-                                              array (field tbl "trust"),
-                                              array (field tbl "origin"))
-      ) :: !p_chunks
+            p_chunks := { timestamp = float (field tbl "timestamp");
+                          n_del_revisions = int (field tbl "n_del_revisions");
+                          text = json2string (Array.of_list (array (field tbl "text"))) "";
+                          trust = json2float (Array.of_list (array (field tbl "trust"))) 0.0;
+                          origin = json2int (Array.of_list (array (field tbl "origin"))) 0;
+                        } :: !p_chunks
         | _ ->
             assert false ) in
 
-      sth#execute [`Int page_id];
-      sth#iter f ;
+      sth#execute [ `Int page_id ];
+      sth#iter f;
       chunks;
 
 
