@@ -54,11 +54,12 @@ class page
         - n is the length of the left text
         - m is the length of the right text
         - el is the edit list. *)
-    val edit_list : ((int * int), (int * int * Editlist.edit)) Hashtbl.t
+    val edit_list : ((int * int), (int * int * Editlist.edit)) Hashtbl.t = Hashtbl.create 10
     (** These are the edit distances, indexed as above. *)
-    val edit_dist : ((int * int), float) Hashtbl.t
-    (** This is the revision of text.ml used to split strings *)
-    val mutable text_split_version : string = "" *)
+    val edit_dist : ((int * int), float) Hashtbl.t = Hashtbl.create 10
+    (** This is a hashtable from revision id to author id.  It is used to 
+	account for author contributions. *)
+    val revid_to_uid: (int, int) Hashtbl.t = Hashtbl.create Online_constants.n_revs_to_consider 
 
     (** [read_revs n] initializes an array consisting of [n] past revisions, 
 	if they can be found in the db, or less. 
@@ -73,12 +74,18 @@ class page
 	None -> ()
       | Some r -> begin 
 	  Vec.append r revs; 
+	  let uid = r#get_user_id in 
+	  let rid = r#get_id in 
+	  Hashtbl.add rid uid; 
 	  let i = ref (n - 1) in 
 	  let prev_rev = ref r in 
 	  while !i > 0 do begin 
 	    match db_p#get_latest_rev with 
 	      None -> i := 0 
 	    | Some r -> begin 
+		let uid = r#get_user_id in 
+		let rid = r#get_id in 
+		Hashtbl.add rid uid; 
 		(* If the author is different from the current one *)
 		if Revision.different_author equate_anons r !prev_rev then begin 
 		  Vec.append r revs;
@@ -369,6 +376,13 @@ class page
 	end (* if different authors *)
       end done (* for rev1_idx *)
 	
+
+    (** [compute_text_inc text_origin_a] updates the author reputation on the basis of the 
+	information on text origin. *)
+
+    method compute_text_inc (origin_a: int array array) : unit = 
+      ---qui---
+
 
     (** This method computes the trust of the revision 0, given that the edit distances from 
 	previous revisions are known. 
