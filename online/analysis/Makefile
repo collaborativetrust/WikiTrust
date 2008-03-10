@@ -5,7 +5,7 @@ OCAMLFIND := ocamlfind
 OCAMLC := ocamlc -g
 
 OCAMLINCS := -I ../../batch/analysis
-OCAMLPACKAGES := -package dbi.mysql -package json-wheel
+OCAMLPACKAGES := -package dbi.mysql -package json-wheel -package extlib
 
 
 TARGETS	:= online_types-h  \

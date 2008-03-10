@@ -3,6 +3,7 @@ open Online_db
 open Editlist
 open Online_types
 open Printf
+open Std
 
 let test_db dbuser dbpass dbname = (
   let test_page_id = 10 in
@@ -14,9 +15,9 @@ let test_db dbuser dbpass dbname = (
   let time1 = 100.4533 in
   let quality = 10.0 in
   let n_del_revs = 22 in
-  let texta = Array.make 10 "" in
-  let trusta = Array.make 10 0.0 in
-  let origina = Array.make 10 0 in
+  let texta = Array.make 10 "test" in
+  let trusta = Array.make 10 1.44 in
+  let origina = Array.make 10 1 in
   let rep0 = 0.0 in
   let rep1 = 1.1 in
   let myeditlist = [Editlist.Ins (0, 1) ; Editlist.Del (0, 1); Editlist.Mov (0,
@@ -28,8 +29,6 @@ let test_db dbuser dbpass dbname = (
                     origin = origina } in
   let mydb = new db dbuser dbpass dbname in
   begin
-
-    printf "texta len %d" (Array.length texta);
 
     (* first, clear everything out *)
     mydb#delete_all true;
@@ -67,8 +66,15 @@ let test_db dbuser dbpass dbname = (
 
     (* dead_page_chunks *) 
     mydb#write_dead_page_chunks test_page_id [ testchunk ];
-    if [ testchunk ] != mydb#read_dead_page_chunks test_page_id then
-      printf "error: dead_page_chunks\n";
+    let f_chk (chk : Online_types.chunk_t ) = (
+      assert (chk.timestamp = testchunk.timestamp);
+      assert (chk.n_del_revisions = testchunk.n_del_revisions);
+      assert (chk.text = testchunk.text);
+      assert (chk.trust = testchunk.trust);
+      assert (chk.origin = testchunk.origin);
+    ) in
+    let db_chk_list = mydb#read_dead_page_chunks test_page_id in
+    List.iter f_chk db_chk_list;
 
     (* feedback *)
     mydb#write_feedback revid1 userid1 revid2 userid2 time1 quality ;

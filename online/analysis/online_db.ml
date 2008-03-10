@@ -36,7 +36,6 @@ POSSIBILITY OF SUCH DAMAGE.
 open Json_type
 open Json_type.Browse
 open Online_types
-open Printf
 
 (** This class provides a handle for accessing the database in the on-line 
     implementation.
@@ -239,16 +238,16 @@ class db
         let p_origin_lst = ref origin_lst in 
         for i = 0 to (Array.length chk.text) - 1 do 
           begin
-            p_text_lst := [ String (Array.get chk.text i) ] :: !p_text_lst;
-            p_trust_lst := [ Float (Array.get chk.trust i) ] :: !p_trust_lst;
-            p_origin_lst := [ Int (Array.get chk.origin i) ] :: !p_origin_lst;
+            p_text_lst := String (Array.get chk.text i) :: !p_text_lst;
+            p_trust_lst := Float (Array.get chk.trust i) :: !p_trust_lst;
+            p_origin_lst := Int (Array.get chk.origin i) :: !p_origin_lst;
           end ;  
-        done  ;
+        done;
         let obj = Object [ "timestamp", Float (chk.timestamp) ;
                 "n_del_revisions", Int (chk.n_del_revisions); 
-                "text", Array text_lst;
-                "trust", Array trust_lst;
-                "origin", Array origin_lst
+                "text", Array !p_text_lst;
+                "trust", Array !p_trust_lst;
+                "origin", Array !p_origin_lst
                 ] in
             let jsonstr = Json_io.string_of_json ~compact:true obj in 
             sth_insert_chunk#execute [`Int page_id; `String jsonstr ];
