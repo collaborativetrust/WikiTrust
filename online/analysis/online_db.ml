@@ -245,9 +245,9 @@ class db
         done;
         let obj = Object [ "timestamp", Float (chk.timestamp) ;
                 "n_del_revisions", Int (chk.n_del_revisions); 
-                "text", Array !p_text_lst;
-                "trust", Array !p_trust_lst;
-                "origin", Array !p_origin_lst
+                "text", Array (List.rev !p_text_lst);
+                "trust", Array (List.rev !p_trust_lst);
+                "origin", Array (List.rev !p_origin_lst)
                 ] in
             let jsonstr = Json_io.string_of_json ~compact:true obj in 
             sth_insert_chunk#execute [`Int page_id; `String jsonstr ];
