@@ -45,17 +45,55 @@ class db
   (user : string)
   (auth : string)
   (database : string) =
-
-  object(self)
         
-    val mutable dbh = Dbi_mysql.connect
-                        ~user:user
-                        ~password:auth
-                        database 
+  let dbh = Dbi_mysql.connect ~user:user ~password:auth database in
+    
+  object(self)
     
     (* HERE are all of the prepaired sql statments used below *)
-    val sth_select_page_text = dbh#prepare "SELECT page_text FROM text_split_version WHERE 
-                                    page_id = ?"
+    val mutable sth_select_page_text = dbh#prepare "SELECT page_text FROM 
+          text_split_version WHERE page_id = ?"
+    val sth_delet_text_split = dbh#prepare "DELETE FROM text_split_version 
+          WHERE page_id = ?" 
+    val sth_insert_text_split = dbh#prepare "INSERT INTO text_split_version 
+          (page_text, page_id) VALUES (?, ?)"    
+    val sth_select_edit_list = dbh#prepare "SELECT edit_type, val1,
+          val2, val3 FROM edit_lists WHERE 
+          from_revision = ? AND to_revision  = ?"
+    val sth_ins_edit_lists = dbh#prepare "INSERT INTO edit_lists (from_revision,
+          to_revisiona, edit_type, val1, val2 ) VALUES (?, ?, 'Ins', ?, ?) " 
+    val sth_mov_edit_lists = dbh#prepare "INSERT INTO edit_lists (from_revision,
+          to_revisiona, edit_type, val1, val2, val3 ) VALUES (?, ?, 'Mov', ?,
+          ?, ?) " 
+    val sth_del_edit_lists = dbh#prepare "INSERT INTO edit_lists (from_revision,
+          to_revision, edit_type, val1, val2 ) VALUES (?, ?, 'Del', ?, ?) " 
+    val sth_select_user_rep = dbh#prepare "SELECT user_rep FROM trust_user_rep 
+          WHERE user_id = ?" 
+    val sth_update_user_rep = dbh#prepare "UPDATE trust_user_rep SET user_rep = 
+          ? WHERE user_id = ?" 
+    val sth_insert_user_rep = dbh#prepare "INSERT INTO trust_user_rep
+          (user_id,  user_rep) VALUES (?, ?)" 
+    val sth_delete_hist = dbh#prepare "DELETE FROM user_rep_history WHERE 
+          user_id = ? AND change_time = ?" 
+    val sth_insert_hist = dbh#prepare "INSERT INTO user_rep_history 
+          (user_id, rep_before, rep_after, change_time) VALUES
+          (?, ?, ?, ?)" 
+    val sth_delete_markup = dbh#prepare "DELETE FROM colored_markup WHERE 
+          revision_id = ?" 
+    val sth_insert_markup = dbh#prepare "INSERT INTO colored_markup 
+          (revision_id, revision_text) VALUES (?, ?) " 
+    val sth_select_markup = dbh#prepare "SELECT revision_text FROM 
+          colored_markup WHERE revision_id = ?" 
+    val sth_insert_chunk = dbh#prepare "INSERT INTO dead_page_chunks (chunk_id,
+          chunk_json) VALUES (?, ?)"
+    val sth_select_chunk = dbh#prepare "SELECT chunk_json FROM dead_page_chunks 
+          WHERE chunk_id = ?"  
+    val sth_delete_feedback = dbh#prepare "DELETE FROM feedback WHERE revid1 
+          = ? AND revid2 = ? AND userid 1 = ? AND userid2 = ? AND timestamp = ?"
+    val sth_insert_feedback = dbh#prepare "INSERT INTO feedback (revid1, 
+          userid1, revid2, userid2, timestamp, q) VALUES (?, ?, ?, ?, ?, ?)"  
+    val sth_select_feedback = dbh#prepare "SELECT revid2, userid2, timestamp, 
+          q FROM feedback WHERE revid1 = ?"   
 
     (** [read_text_split_version page_id] given a [page_id] returns a 
 	string associated with the page in the db.  The string 
@@ -70,92 +108,70 @@ class db
 	represents the version of Text.ml that has 
 	been used to split a revision in words, and returns it. *)
     method write_text_split_version (page_id : int) (page_text : string) : unit =
+    
       (* First we delete any pre-existing text. *)
-      let sth = dbh#prepare "DELETE FROM text_split_version WHERE 
-                             page_id = ?" in
-      sth#execute [`Int page_id ];
-        
+      sth_delet_text_split#execute [`Int page_id ];
       (* Next we add in the new text. *)
-      let sth = dbh#prepare "insert into text_split_version (page_text, page_id)
-                               values (?, ?)" in
-      sth#execute [`String page_text; `Int page_id ];
+      sth_insert_text_split#execute [`String page_text; `Int page_id ];
       dbh#commit ()
-
 
       
     (** [read_edit_diff revid1 revid2] reads from the database the edit list 
 	from the (live) text of revision [revid1] to revision [revid2]. *)
     method read_edit_diff (revid1 : int) (revid2 : int) : (Editlist.edit list) =
-      let sth = dbh#prepare "SELECT edit_type, val1,
-          val2, val3 FROM edit_lists WHERE 
-          from_revision = ? AND to_revision  = ?" in
-      sth#execute [`Int revid1; `Int revid2];
+      
+      sth_select_edit_list#execute [`Int revid1; `Int revid2];
       let elist = [] in
       let p_elist = ref elist in
       let f row = (match row with
                 | [ `String etype; `Int val1; `Int val2; `Int val3 ] ->
                  ( match etype with
-                    "Ins" -> p_elist := Editlist.Ins (val1, val2) :: !p_elist
+                    | "Ins" -> p_elist := Editlist.Ins (val1, val2) :: !p_elist
                     | "Del" -> p_elist := Editlist.Del (val1, val2) :: !p_elist
                     | "Mov" -> p_elist := Editlist.Mov (val1, val2, val3) :: !p_elist
                     | _ -> assert false )
                 | _ ->
                     assert false ) in
-      sth#iter f ;
+      sth_select_edit_list#iter f ;
       elist
       
-
-      
+     
     (** [write_edit_diff revid1 revid2 elist] writes to the database the edit list 
 	[elist] from the (live) text of revision [revid1] to revision [revid2]. *)
     method write_edit_diff (revid1 : int) (revid2 : int) (elist : Editlist.edit
     list) : unit = 
-      let sth_ins = dbh#prepare "insert into edit_lists (from_revision,
-           to_revisiona, edit_type, val1, val2 ) VALUES (?, ?, 'Ins', ?, ?) " in
-      let sth_mov = dbh#prepare "insert into edit_lists (from_revision,
-           to_revisiona, edit_type, val1, val2, val3 ) VALUES (?, ?, 'Mov', ?,
-           ?, ?) " in
-      let sth_del = dbh#prepare "insert into edit_lists (from_revision,
-           to_revisiona, edit_type, val1, val2 ) VALUES (?, ?, 'Del', ?, ?) " in
-
       let f ed =
         match ed with
-            Editlist.Ins (i, l) -> sth_ins#execute [`Int revid1; `Int revid2; `Int i; `Int l ];
+          | Editlist.Ins (i, l) -> sth_ins_edit_lists#execute [`Int revid1; 
+                `Int revid2; `Int i; `Int l ];
 
-          | Editlist.Del (i, l) -> sth_del#execute [`Int revid1; `Int revid2; `Int i; `Int l ];
+          | Editlist.Del (i, l) -> sth_del_edit_lists#execute [`Int revid1; 
+                `Int revid2; `Int i; `Int l ];
 
-          | Editlist.Mov (i, j, l) -> sth_mov#execute [`Int revid1; `Int revid2; `Int i;
-                  `Int j; `Int l ]; 
+          | Editlist.Mov (i, j, l) -> sth_mov_edit_lists#execute [`Int revid1; 
+                `Int revid2; `Int i; `Int j; `Int l ]; 
           in
       List.iter f elist
     
 
     (** [get_rep uid] gets the reputation of user [uid], from a table 
-	relating user ids to their reputation 
-
+	      relating user ids to their reputation 
         @raise Not_found if no tuple is returned by the database.
-        *)
+    *)
     method get_rep (uid : int) : float =
-      let sth = dbh#prepare "SELECT user_rep FROM trust_user_rep WHERE 
-                                      user_id = ?" in
-      sth#execute [`Int uid];
+      sth_select_user_rep#execute [`Int uid];
       float_of_string (sth#fetch1string ())
 
-
     (** [set_rep uid r] sets, in the table relating user ids to reputations, 
-	the reputation of user [uid] to be equal to [r]. *)
+	  the reputation of user [uid] to be equal to [r]. *)
     method set_rep (uid : int) (rep : float) =
       (* first check to see if there exists the user already *)
       try
         ignore (self#get_rep uid ) ;
-        let sth = dbh#prepare "update trust_user_rep set user_rep = ?
-            where user_id = ?" in
-        sth#execute [`Int uid; `Float rep ]; 
+        sth_update_user_rep#execute [`Int uid; `Float rep ]; 
       with
         Not_found -> 
-              let sth = dbh#prepare "insert into trust_user_rep
-                  (user_id,  user_rep) values (?, ?)" in
-              sth#execute [`Int uid; `Float rep ];  
+          sth_insert_user_rep#execute [`Int uid; `Float rep ];  
       dbh#commit()
 
 
@@ -165,15 +181,10 @@ class db
     method set_rep_hist (uid : int) (timet : float) (r0 : float) (r1 : float)
     : unit =
       (* First we delete any pre-existing text. *)
-      let sth = dbh#prepare "DELETE FROM user_rep_history WHERE user_id = ? AND
-          change_time = ?" in
-      sth#execute [`Int uid; `Float timet ];
+      sth_delete_hist#execute [`Int uid; `Float timet ];
 
       (* Next we add in the new text. *)
-      let sth = dbh#prepare "insert into user_rep_history (user_id, rep_before,
-          rep_after, change_time) VALUES
-          (?, ?, ?, ?)" in
-      sth#execute [`Int uid; `Float r0; `Float r1; `Float timet ];
+      sth_insert_hist#execute [`Int uid; `Float r0; `Float r1; `Float timet ];
       dbh#commit ()
 
 
@@ -190,23 +201,17 @@ class db
     (* This is currently a first cut, which will be hopefully optimized later *)
     method write_colored_markup (rev_id : int) (markup : string) : unit =
       (* First we delete any pre-existing text. *)
-      let sth = dbh#prepare "DELETE FROM colored_markup WHERE revision_id =
-          ?" in
-      sth#execute [`Int rev_id ];
+      sth_delete_markup#execute [`Int rev_id ];
       (* Next we add in the new text. *)
-      let sth = dbh#prepare "insert into colored_markup (revision_id,
-          revision_text) VALUES (?, ?) " in
-      sth#execute [`Int rev_id; `String markup ];
+      sth_insert_markup#execute [`Int rev_id; `String markup ];
       dbh#commit ()
 
     (** [read_colored_markup rev_id] reads the text markup of a revision with id
 	[rev_id].  The markup is the text of the revision, annontated with trust
 	and origin information. *)
     method read_colored_markup (rev_id : int) : string =
-      let sth = dbh#prepare "SELECT revision_text FROM colored_markup WHERE 
-          revision_id = ?" in
-      sth#execute [`Int rev_id];
-      sth#fetch1string ()
+      sth_select_markup#execute [`Int rev_id];
+      sth_select_markup#fetch1string ()
 
 
     (** [write_dead_page_chunks page_id chunk_list] writes, in a table indexed by 
@@ -217,8 +222,7 @@ class db
 	been deleted; the database records its existence. *)
     method write_dead_page_chunks (page_id : int) (clist : Online_types.chunk_t
     list) : unit =
-      let sth = dbh#prepare "INSERT INTO dead_page_chunks (chunk_id,
-          chunk_json) VALUES (?, ?)" in
+      
       let f (chk : Online_types.chunk_t) = (
         let text_lst = [] in
         let p_text_lst = ref text_lst in
@@ -240,7 +244,7 @@ class db
                 "origin", Array origin_lst
                 ] in
             let jsonstr = Json_io.string_of_json ~compact:true obj in 
-            sth#execute [`Int page_id; `String jsonstr ];
+            sth_insert_chunk#execute [`Int page_id; `String jsonstr ];
       ) in
       List.iter f clist;
       dbh#commit ()
@@ -248,8 +252,7 @@ class db
     (** [read_dead_page_chunks page_id] returns the list of dead chunks associated
 	with the page [page_id]. *)
     method read_dead_page_chunks (page_id : int) : Online_types.chunk_t list =
-      let sth = dbh#prepare "SELECT chunk_json FROM dead_page_chunks WHERE 
-          chunk_id = ?" in
+     
       let json2float (j_arr : Json_type.t array) (x : float) = (
         let txt = Array.make (Array.length j_arr) x in     
         for i = 0 to (Array.length j_arr) do
@@ -280,15 +283,18 @@ class db
             let tbl = make_table (objekt json_obj) in
             p_chunks := { timestamp = float (field tbl "timestamp");
                           n_del_revisions = int (field tbl "n_del_revisions");
-                          text = json2string (Array.of_list (array (field tbl "text"))) "";
-                          trust = json2float (Array.of_list (array (field tbl "trust"))) 0.0;
-                          origin = json2int (Array.of_list (array (field tbl "origin"))) 0;
+                          text = json2string (Array.of_list (array (field 
+                              tbl "text"))) "";
+                          trust = json2float (Array.of_list (array (field 
+                              tbl "trust"))) 0.0;
+                          origin = json2int (Array.of_list (array (field 
+                              tbl "origin"))) 0;
                         } :: !p_chunks
         | _ ->
             assert false ) in
 
-      sth#execute [ `Int page_id ];
-      sth#iter f;
+      sth_select_chunk#execute [ `Int page_id ];
+      sth_select_chunk#iter f;
       chunks;
 
 
@@ -297,24 +303,17 @@ class db
     method write_feedback (revid1 :int) (userid1 : int) (revid2 : int) (userid2
         : int) (times : float) (q : float) : unit = 
       (* First we delete any pre-existing text. *)
-      let sth = dbh#prepare "DELETE FROM feedback WHERE revid1 = ? AND revid2 =
-        ? AND userid 1 = ? AND userid2 = ? AND timestamp = ?" in
-      sth#execute [`Int revid1; `Int revid2; `Int userid1; `Int userid2; `Float times ];
-      dbh#commit ();
+      sth_delete_feedback#execute [`Int revid1; `Int revid2; `Int userid1; 
+          `Int userid2; `Float times ];
       (* Next we add in the new text. *) 
-      let sth = dbh#prepare "insert into feedback (revid1, userid1, revid2,
-      userid2, timestamp, q) VALUES (?, ?, ?, ?, ?, ?)" in 
-      sth#execute [`Int revid1; `Int userid1; `Int revid2; `Int userid2; 
-          `Float times; `Float q];
+      sth_insert_feedback#execute [`Int revid1; `Int userid1; `Int revid2; 
+          `Int userid2; `Float times; `Float q];
       dbh#commit ()
 
     (** [read_feedback_by revid1] reads from the db all the (revid2,
       userid2,  timestamp, q) that 
       have been caused by the revision with id [revid1]. *)
     method read_feedback_by (revid1 : int) : (int * int * float * float) list = 
-      let sth = dbh#prepare "SELECT revid2, userid2, timestamp, q FROM feedback
-          WHERE revid1 = ?" in
-      sth#execute [`Int revid1];
       let replist = [] in
       let p_replist = ref replist in
       let f row = (match row with
@@ -322,7 +321,8 @@ class db
             p_replist := (r2, u2, t, q) :: !p_replist
         | _ ->
             assert false ) in
-      sth#iter f;
+      sth_select_feedback#execute [`Int revid1];
+      sth_select_feedback#iter f;
       replist;
 
   end;; (* online_db *)
