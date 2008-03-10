@@ -1,7 +1,8 @@
-# $Id: Makefile,v 1.1 2004/08/05 13:40:59 rwmj Exp $
+## Basic Makefile to put together a testing setup for the online_db stuff
+## Ian Pye
 
 OCAMLFIND := ocamlfind
-OCAMLC := ocamlc
+OCAMLC := ocamlc -g
 
 OCAMLINCS := -I ../../batch/analysis
 OCAMLPACKAGES := -package dbi.mysql -package json-wheel
@@ -10,7 +11,8 @@ OCAMLPACKAGES := -package dbi.mysql -package json-wheel
 TARGETS	:= online_types-h  \
 	online_types \
 	online_db-h \
-	online_db 
+	online_db  \
+	run_harness
 
 all:	$(TARGETS)
 
@@ -25,10 +27,9 @@ online_db-h: online_db.mli
 
 online_db: online_db.ml
 	$(OCAMLFIND) $(OCAMLC) $(OCAMLPACKAGES) $(OCAMLINCS) -c $^ 
-	#$(OCAMLFIND) $(OCAMLC) -o $@ $(OCAMLPACKAGES) -linkpkg $@.cmo
 
-#debug: examplesLib.cmo debug.ml
-#	$(OCAMLC) $(OCAMLINCS) $(OCAMLLIBS) $^ -o $@
+run_harness: online_db.cmo online_db_run_harness.ml
+	$(OCAMLFIND) $(OCAMLC) -o $@ $(OCAMLPACKAGES) $(OCAMLINCS) -linkpkg $^
 
 clean:
 	rm -f $(TARGETS)

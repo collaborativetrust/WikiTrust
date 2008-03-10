@@ -54,8 +54,10 @@ CREATE TABLE edit_lists (
         val2            int NOT NULL,
         val3            int,
         updatedon       timestamp DEFAULT now(),
-        PRIMARY KEY (from_revision, to_revision)
+        PRIMARY KEY (from_revision, to_revision, edit_type)
 );
+
+CREATE INDEX edit_lists_idx ON edit_lists (from_revision, to_revision);
 
 -- Reputation of a user
 -- first, a table with all known user names and ids

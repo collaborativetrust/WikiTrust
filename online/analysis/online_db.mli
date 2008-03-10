@@ -126,5 +126,9 @@ class db :
 	have been caused by the revision with id [revid1]. *)
     method read_feedback_by : int -> (int * int * float * float) list
 
+    (** Totally clear out the db structure -- THIS IS INTEDED ONLY FOR UNIT
+    TESTING *)
+    method delete_all : bool -> unit
+
   end
 

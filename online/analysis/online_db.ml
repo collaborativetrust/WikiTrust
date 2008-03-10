@@ -36,6 +36,7 @@ POSSIBILITY OF SUCH DAMAGE.
 open Json_type
 open Json_type.Browse
 open Online_types
+open Printf
 
 (** This class provides a handle for accessing the database in the on-line 
     implementation.
@@ -51,48 +52,48 @@ class db
   object(self)
     
     (* HERE are all of the prepaired sql statments used below *)
-    val mutable sth_select_page_text = dbh#prepare "SELECT page_text FROM 
+    val mutable sth_select_page_text = dbh#prepare_cached "SELECT current_rev_text FROM 
           text_split_version WHERE page_id = ?"
-    val sth_delet_text_split = dbh#prepare "DELETE FROM text_split_version 
+    val sth_delet_text_split = dbh#prepare_cached "DELETE FROM text_split_version 
           WHERE page_id = ?" 
-    val sth_insert_text_split = dbh#prepare "INSERT INTO text_split_version 
-          (page_text, page_id) VALUES (?, ?)"    
-    val sth_select_edit_list = dbh#prepare "SELECT edit_type, val1,
+    val sth_insert_text_split = dbh#prepare_cached "INSERT INTO text_split_version 
+          (current_rev_text, page_id) VALUES (?, ?)"    
+    val sth_select_edit_list = dbh#prepare_cached "SELECT edit_type, val1,
           val2, val3 FROM edit_lists WHERE 
           from_revision = ? AND to_revision  = ?"
-    val sth_ins_edit_lists = dbh#prepare "INSERT INTO edit_lists (from_revision,
-          to_revisiona, edit_type, val1, val2 ) VALUES (?, ?, 'Ins', ?, ?) " 
-    val sth_mov_edit_lists = dbh#prepare "INSERT INTO edit_lists (from_revision,
-          to_revisiona, edit_type, val1, val2, val3 ) VALUES (?, ?, 'Mov', ?,
+    val sth_ins_ins_edit_lists = dbh#prepare_cached "INSERT INTO edit_lists (from_revision,
+          to_revision, edit_type, val1, val2 ) VALUES (?, ?, 'Ins', ?, ?) " 
+    val sth_ins_mov_edit_lists = dbh#prepare_cached "INSERT INTO edit_lists (from_revision,
+          to_revision, edit_type, val1, val2, val3 ) VALUES (?, ?, 'Mov', ?,
           ?, ?) " 
-    val sth_del_edit_lists = dbh#prepare "INSERT INTO edit_lists (from_revision,
+    val sth_ins_del_edit_lists = dbh#prepare_cached "INSERT INTO edit_lists (from_revision,
           to_revision, edit_type, val1, val2 ) VALUES (?, ?, 'Del', ?, ?) " 
-    val sth_select_user_rep = dbh#prepare "SELECT user_rep FROM trust_user_rep 
+    val sth_select_user_rep = dbh#prepare_cached "SELECT user_rep FROM trust_user_rep 
           WHERE user_id = ?" 
-    val sth_update_user_rep = dbh#prepare "UPDATE trust_user_rep SET user_rep = 
+    val sth_update_user_rep = dbh#prepare_cached "UPDATE trust_user_rep SET user_rep = 
           ? WHERE user_id = ?" 
-    val sth_insert_user_rep = dbh#prepare "INSERT INTO trust_user_rep
+    val sth_insert_user_rep = dbh#prepare_cached "INSERT INTO trust_user_rep
           (user_id,  user_rep) VALUES (?, ?)" 
-    val sth_delete_hist = dbh#prepare "DELETE FROM user_rep_history WHERE 
+    val sth_delete_hist = dbh#prepare_cached "DELETE FROM user_rep_history WHERE 
           user_id = ? AND change_time = ?" 
-    val sth_insert_hist = dbh#prepare "INSERT INTO user_rep_history 
+    val sth_insert_hist = dbh#prepare_cached "INSERT INTO user_rep_history 
           (user_id, rep_before, rep_after, change_time) VALUES
           (?, ?, ?, ?)" 
-    val sth_delete_markup = dbh#prepare "DELETE FROM colored_markup WHERE 
+    val sth_delete_markup = dbh#prepare_cached "DELETE FROM colored_markup WHERE 
           revision_id = ?" 
-    val sth_insert_markup = dbh#prepare "INSERT INTO colored_markup 
+    val sth_insert_markup = dbh#prepare_cached "INSERT INTO colored_markup 
           (revision_id, revision_text) VALUES (?, ?) " 
-    val sth_select_markup = dbh#prepare "SELECT revision_text FROM 
+    val sth_select_markup = dbh#prepare_cached "SELECT revision_text FROM 
           colored_markup WHERE revision_id = ?" 
-    val sth_insert_chunk = dbh#prepare "INSERT INTO dead_page_chunks (chunk_id,
+    val sth_insert_chunk = dbh#prepare_cached "INSERT INTO dead_page_chunks (chunk_id,
           chunk_json) VALUES (?, ?)"
-    val sth_select_chunk = dbh#prepare "SELECT chunk_json FROM dead_page_chunks 
+    val sth_select_chunk = dbh#prepare_cached "SELECT chunk_json FROM dead_page_chunks 
           WHERE chunk_id = ?"  
-    val sth_delete_feedback = dbh#prepare "DELETE FROM feedback WHERE revid1 
-          = ? AND revid2 = ? AND userid 1 = ? AND userid2 = ? AND timestamp = ?"
-    val sth_insert_feedback = dbh#prepare "INSERT INTO feedback (revid1, 
+    val sth_delete_feedback = dbh#prepare_cached "DELETE FROM feedback WHERE revid1 
+          = ? AND revid2 = ? AND userid1 = ? AND userid2 = ? AND timestamp = ?"
+    val sth_insert_feedback = dbh#prepare_cached "INSERT INTO feedback (revid1, 
           userid1, revid2, userid2, timestamp, q) VALUES (?, ?, ?, ?, ?, ?)"  
-    val sth_select_feedback = dbh#prepare "SELECT revid2, userid2, timestamp, 
+    val sth_select_feedback = dbh#prepare_cached "SELECT revid2, userid2, timestamp, 
           q FROM feedback WHERE revid1 = ?"   
 
     (** [read_text_split_version page_id] given a [page_id] returns a 
@@ -124,16 +125,19 @@ class db
       let elist = [] in
       let p_elist = ref elist in
       let f row = (match row with
-                | [ `String etype; `Int val1; `Int val2; `Int val3 ] ->
-                 ( match etype with
+                | [ `String etype; `Int val1; `Int val2; `Null ] ->
+                  ( match etype with
                     | "Ins" -> p_elist := Editlist.Ins (val1, val2) :: !p_elist
                     | "Del" -> p_elist := Editlist.Del (val1, val2) :: !p_elist
+                    | _ -> assert false )
+                | [ `String etype; `Int val1; `Int val2; `Int val3 ] ->
+                  ( match etype with
                     | "Mov" -> p_elist := Editlist.Mov (val1, val2, val3) :: !p_elist
                     | _ -> assert false )
                 | _ ->
                     assert false ) in
       sth_select_edit_list#iter f ;
-      elist
+      !p_elist
       
      
     (** [write_edit_diff revid1 revid2 elist] writes to the database the edit list 
@@ -142,13 +146,13 @@ class db
     list) : unit = 
       let f ed =
         match ed with
-          | Editlist.Ins (i, l) -> sth_ins_edit_lists#execute [`Int revid1; 
+          | Editlist.Ins (i, l) -> sth_ins_ins_edit_lists#execute [`Int revid1; 
                 `Int revid2; `Int i; `Int l ];
 
-          | Editlist.Del (i, l) -> sth_del_edit_lists#execute [`Int revid1; 
+          | Editlist.Del (i, l) -> sth_ins_del_edit_lists#execute [`Int revid1; 
                 `Int revid2; `Int i; `Int l ];
 
-          | Editlist.Mov (i, j, l) -> sth_mov_edit_lists#execute [`Int revid1; 
+          | Editlist.Mov (i, j, l) -> sth_ins_mov_edit_lists#execute [`Int revid1; 
                 `Int revid2; `Int i; `Int j; `Int l ]; 
           in
       List.iter f elist
@@ -160,7 +164,10 @@ class db
     *)
     method get_rep (uid : int) : float =
       sth_select_user_rep#execute [`Int uid];
-      float_of_string (sth_select_user_rep#fetch1string ())
+      let row = sth_select_user_rep#fetch1 () in
+      match row with 
+        | [ `Float rep] -> rep
+        | _ -> assert false  
 
     (** [set_rep uid r] sets, in the table relating user ids to reputations, 
 	  the reputation of user [uid] to be equal to [r]. *)
@@ -230,7 +237,7 @@ class db
         let p_trust_lst = ref trust_lst in
         let origin_lst = [] in
         let p_origin_lst = ref origin_lst in 
-        for i = 0 to (Array.length chk.text) do 
+        for i = 0 to (Array.length chk.text) - 1 do 
           begin
             p_text_lst := [ String (Array.get chk.text i) ] :: !p_text_lst;
             p_trust_lst := [ Float (Array.get chk.trust i) ] :: !p_trust_lst;
@@ -255,21 +262,21 @@ class db
      
       let json2float (j_arr : Json_type.t array) (x : float) = (
         let txt = Array.make (Array.length j_arr) x in     
-        for i = 0 to (Array.length j_arr) do
+        for i = 0 to (Array.length j_arr) - 1 do
           txt.(i) <- (float j_arr.(i));
         done;
         txt 
       ) in
       let json2string (j_arr : Json_type.t array) (x : string) = (
         let txt = Array.make (Array.length j_arr) x in     
-        for i = 0 to (Array.length j_arr) do
+        for i = 0 to (Array.length j_arr) - 1 do
           txt.(i) <- (string j_arr.(i));
         done;
         txt
       ) in
       let json2int (j_arr : Json_type.t array) (x : int) = (
         let txt = Array.make (Array.length j_arr) x in     
-        for i = 0 to (Array.length j_arr) do
+        for i = 0 to (Array.length j_arr) - 1 do
           txt.(i) <- (int j_arr.(i));
         done;
         txt
@@ -295,7 +302,7 @@ class db
 
       sth_select_chunk#execute [ `Int page_id ];
       sth_select_chunk#iter f;
-      chunks;
+      !p_chunks;
 
 
   (*  [write_feedback revid1 userid1, revid2, userid2, timestamp, q] adds
@@ -323,7 +330,21 @@ class db
             assert false ) in
       sth_select_feedback#execute [`Int revid1];
       sth_select_feedback#iter f;
-      replist;
+      !p_replist;
+
+    (** Clear everything out -- INTENDED FOR UNIT TESTING ONLY *)
+    method delete_all (really : bool) =
+      match really with
+        | true -> (
+            ignore (dbh#ex "DELETE FROM colored_markup" []);
+            ignore (dbh#ex "DELETE FROM dead_page_chunks" []);
+            ignore (dbh#ex "DELETE FROM edit_lists" []);
+            ignore (dbh#ex "DELETE FROM feedback" []);
+            ignore (dbh#ex "DELETE FROM text_split_version" []); 
+            ignore (dbh#ex "DELETE FROM trust_user_rep" []);
+            ignore (dbh#ex "DELETE FROM user_rep_history" []); 
+            dbh#commit())
+        | false -> dbh#commit()
 
   end;; (* online_db *)
 
