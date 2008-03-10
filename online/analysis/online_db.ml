@@ -160,7 +160,7 @@ class db
     *)
     method get_rep (uid : int) : float =
       sth_select_user_rep#execute [`Int uid];
-      float_of_string (sth#fetch1string ())
+      float_of_string (sth_select_user_rep#fetch1string ())
 
     (** [set_rep uid r] sets, in the table relating user ids to reputations, 
 	  the reputation of user [uid] to be equal to [r]. *)
