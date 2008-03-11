@@ -120,6 +120,12 @@ class db :
 	have been caused by the revision with id [revid1]. *)
     method read_feedback_by : int -> (int * int * float * float) list
 
+    (** [read_user_rep uid] reads the reputation of user [uid], and returns it*)
+    method read_user_rep : int -> float 
+
+    (** [writes_user_rep uid rep] writes that the reputation of user [uid] is equal to [rep] *)
+    method write_user_rep : int -> float -> unit 
+
     (** Totally clear out the db structure -- THIS IS INTEDED ONLY FOR UNIT
     TESTING *)
     method delete_all : bool -> unit
