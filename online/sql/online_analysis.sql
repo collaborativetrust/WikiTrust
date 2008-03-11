@@ -32,6 +32,19 @@ CREATE TRIGGER remove_existing_split_version BEFORE INSERT OR UPDATE
   FOR EACH ROW EXECUTE PROCEDURE remove_existing_split_version();
 
 
+-- a place to store feedback
+CREATE TABLE feedback (
+  revid1        int NOT NULL, 
+  userid1       int NOT NULL,
+  revid2        int NOT NULL, 
+  userid2       int NOT NULL, 
+  timestamp    float NOT NULL, 
+  q             float,
+  PRIMARY KEY (revid1, userid1, revid2, userid2, timestamp)
+);
+
+CREATE INDEX feedback_idx on feedback(revid1);
+
 -- now, a place to store edit lists
 CREATE TABLE edit_lists (
         from_revision   int , 
@@ -41,8 +54,10 @@ CREATE TABLE edit_lists (
         val2            int NOT NULL,
         val3            int,
         updatedon       timestamp DEFAULT now(),
-        PRIMARY KEY (from_revision, to_revision)
+        PRIMARY KEY (from_revision, to_revision, edit_type)
 );
+
+CREATE INDEX edit_lists_idx ON edit_lists (from_revision, to_revision);
 
 -- Reputation of a user
 -- first, a table with all known user names and ids
@@ -66,6 +81,14 @@ CREATE TABLE user_rep_history(
 CREATE TABLE colored_markup (
         revision_id     int PRIMARY KEY,
         revision_text   text NOT NULL
+);
+
+CREATE TABLE dead_page_chunks (
+        chunk_id        int,
+        page_id         int,
+        chunk_json      text ,
+        addedon         timestamp DEFAULT now(),
+        PRIMARY KEY (chunk_id, page_id)
 );
 
 -- place to store dead page chunks
