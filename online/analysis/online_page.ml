@@ -105,7 +105,8 @@ class page
 		end else begin 
 		  (* same author as before *)
 		  Hashtbl.add revid_to_uid rid (uid, r#get_user_name, 
-					       Online_constants.n_revs_to_read - !i, r#get_time)
+					       Online_constants.n_revs_to_read - !i, r#get_time);
+		  !prev_rev#add_by_same_author r; 
 		end; 
 		prev_rev := r
 	      end
@@ -341,22 +342,22 @@ class page
       let rev2_idx = n_revs - 1 in 
       let rev2 = Vec.get rev2_idx revs in 
       let rev2_id    = rev2#get_id in 
-      let rev2_uid   = rev2#get_uid in 
-      let rev2_uname = rev2#get_name in 
+      let rev2_uid   = rev2#get_user_id in 
+      let rev2_uname = rev2#get_user_name in 
       let rev2_time  = rev2#get_time in 
       for rev1_idx = rev2_idx - 1 downto 1 do begin 
 	let rev1 = Vec.get rev1_idx revs in 
 	let rev1_id    = rev1#get_id in 
-	let rev1_uid   = rev1#get_uid in 
-	let rev1_uname = rev1#get_name in 
+	let rev1_uid   = rev1#get_user_id in 
+	let rev1_uname = rev1#get_user_name in 
 	let rev1_time  = rev1#get_time in 
 	(* If the author of rev2 and rev1 are the same, no judgement occurs. *)
 	if Revison.different_author equate_anons rev2 rev1 then begin 
 	  for rev0_idx = rev1_idx - 1 downto 0 do begin 
 	    let rev0 = Vec.get rev0_idx revs in 
 	    let rev0_id    = rev0#get_id in 
-	    let rev0_uid   = rev0#get_uid in 
-	    let rev0_uname = rev0#get_name in 
+	    let rev0_uid   = rev0#get_user_id in 
+	    let rev0_uname = rev0#get_user_name in 
 	    let rev0_time  = rev0#get_time in 
 	    (* Here we start the work on edit distances and reputation. *)
 	    let d01 = Hashtbl.find edit_dist (rev0_id, rev1_id) in 
@@ -406,7 +407,7 @@ class page
       let rev0 = Vec.get 0 revs in 
       let rev0_id = rev0#get_id in 
       let rev0_time = rev0#get_time in 
-      let rev0_uid = rev0#get_uid in 
+      let rev0_uid = rev0#get_user_id in 
       (* First, computes how much text there is due to each recent revision *)
       (* This hash table associates each recent revision with the amount of text added *)
       let rev_to_text_q: (int, int) Hashtbl.t = Hashtbl.create 10 in 
@@ -482,7 +483,7 @@ class page
 	(* Gets the data for the latest revision, to then do trust computation. *)
 	let rev0 = Vec.get 0 revs in 
 	let rev0_id = rev0#get_id in 
-	let rev0_uid = rev0#get_uid in 
+	let rev0_uid = rev0#get_user_id in 
 	let rev1 = Vec.get 1 revs in 
 	let rev1_id = rev1#get_id in 
 	let new_wl = rev0#get_words in 
@@ -525,7 +526,7 @@ class page
 	(* If the author is the same, we do not increase the reputation of exisiting text, 
 	   to thwart a trivial attack. *)
 	let (c_read_all, c_read_part) = 
-	  if rev0#get_uid = rev1#get_uid 
+	  if rev0#get_user_id = rev1#get_user_id 
 	  then (0., 0.) 
 	  else (trust_coeff_read_all, trust_coeff_read_part)
 	in 
@@ -560,7 +561,7 @@ class page
 	  (* If the author is the same, we do not increase the reputation of exisiting text, 
 	     to thwart a trivial attack. *)
 	  let (c_read_all, c_read_part) = 
-	    if rev0#get_uid = rev2#get_uid 
+	    if rev0#get_user_id = rev2#get_user_id 
 	    then (0., 0.) 
 	    else (trust_coeff_read_all, trust_coeff_read_part)
 	  in 
@@ -596,6 +597,18 @@ class page
 	db#write_colored_markup rev0_id (Buffer.contents buf); 
 	db#write_dead_page_chunks page_id chunk_l;
 	(* Ok, there is nothing more here to do for trust. *)
+
+	(* Now comes a difficult issue. 
+	   I want to take into account only the latest among consecutive revisions 
+	   by the same author, when computing reputation increments.  
+	   Thus, if the latest revision is by the same author as the previous one, 
+	   we undo all the changes to author reputations done by the previous one, 
+	   before computing the new reputation updates. *)
+	begin 
+	  match rev0#get_preceding_by_same_author with 
+	    None -> ()
+	  | Some r' -> self#undo_reputation_update r' 
+	end; 
 
 	(* We now process the reputation update. *)
 	let weight_user = log (1. +. (db#read_user_rep rev0_id)) in 
