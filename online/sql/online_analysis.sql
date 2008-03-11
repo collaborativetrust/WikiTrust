@@ -10,7 +10,7 @@ CREATE TABLE text_split_version (
         current_rev_text        text NOT NULL,
         updatedon               timestamp DEFAULT now()
 );
-
+/*
 -- delete so we don't have to do insert or update stuff
 CREATE FUNCTION remove_existing_split_version() RETURNS trigger AS
 $remove_existing_split_version$
@@ -30,7 +30,7 @@ $remove_existing_split_version$ LANGUAGE plpgsql;
 CREATE TRIGGER remove_existing_split_version BEFORE INSERT OR UPDATE 
   ON text_split_version
   FOR EACH ROW EXECUTE PROCEDURE remove_existing_split_version();
-
+*/
 
 -- a place to store feedback
 CREATE TABLE feedback (
@@ -83,6 +83,49 @@ CREATE TABLE colored_markup (
         revision_text   text NOT NULL
 );
 
+CREATE TABLE chunk_text (
+        text_id serial PRIMARY KEY,
+        chunk_text text NOT NULL
+);
+
+CREATE INDEX chunk_text_idx ON chunk_text(chunk_text, 1000);
+
+CREATE TABLE chunk_trust (
+        trust_id serial PRIMARY KEY,
+        chunk_trust float  NOT NULL
+);
+
+CREATE TABLE chunk_origin (
+        origin_id serial PRIMARY KEY,
+        chunk_origin int  NOT NULL
+);
+
+CREATE TABLE dead_page_chunks (
+        chunk_id   serial PRIMARY KEY,
+        page_id    int NOT NULL,
+        n_del_revs int NOT NULL,
+        n_chunks   int NOT NULL,
+        addedon    timestamp NOT NULL DEFAULT now()
+);
+
+CREATE INDEX dead_page_chunks_page_idx on dead_page_chunks (page_id);
+
+CREATE TABLE dead_page_chunk_map (
+        chunk_id int REFERENCES dead_page_chunks(chunk_id) ON DELETE CASCADE ON
+               UPDATE CASCADE,
+        text_id int REFERENCES chunk_text(text_id) ON DELETE CASCADE ON 
+                UPDATE CASCADE,
+        trust_id int REFERENCES chunk_trust(trust_id)  ON DELETE CASCADE ON 
+                UPDATE CASCADE,
+        origin_id int REFERENCES chunk_origin(origin_id)  ON DELETE CASCADE ON 
+               UPDATE CASCADE,
+        chunk_posit int NOT NULL,
+        PRIMARY KEY (chunk_id, text_id, trust_id, origin_id)
+);
+
+CREATE INDEX dead_chunk_map_posit_id ON dead_page_chunk_map (chunk_posit);
+
+/*
 CREATE TABLE dead_page_chunks (
         chunk_id        int,
         page_id         int,
@@ -90,8 +133,9 @@ CREATE TABLE dead_page_chunks (
         addedon         timestamp DEFAULT now(),
         PRIMARY KEY (chunk_id, page_id)
 );
-
+*/
 -- place to store dead page chunks
+/*
 CREATE TABLE dead_page_chunks (
   chunk_id       bigserial      PRIMARY KEY,
   chunk_time     timestamp      NOT NULL,
@@ -127,13 +171,15 @@ CREATE TABLE dead_page_chunk_lists (
 
 -- assuming a lot of searches by page id
 CREATE INDEX dead_page_chunk_idx ON dead_page_chunk_lists(page_id);
-
+*/
 /*
         To insert a chunk list, we first insert all of the text which we need to
         into the chunk_text table, compiling a list of text_id's to use. With
         each one, we insert the entry into the chunks table. -- and also insert
         the corresponding entry into the lists table.
 */
+
+/*
 CREATE FUNCTION insert_chunk(page_id_p int, chunk_time_p timestamp, n_del_revisions_p int) RETURNS
     int AS $$
     DECLARE
@@ -151,7 +197,7 @@ CREATE FUNCTION insert_chunk(page_id_p int, chunk_time_p timestamp, n_del_revisi
     END;
 $$ LANGUAGE plpgsql;
 
-
+*/
 
 
 

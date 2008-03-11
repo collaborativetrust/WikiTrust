@@ -45,7 +45,7 @@ class db
   (user : string)
   (auth : string)
   (database : string) =
-        
+ 
   let dbh = Dbi_mysql.connect ~user:user ~password:auth database in
     
   object(self)
@@ -84,10 +84,36 @@ class db
           (revision_id, revision_text) VALUES (?, ?) " 
     val sth_select_markup = dbh#prepare_cached "SELECT revision_text FROM 
           colored_markup WHERE revision_id = ?" 
+    val sth_select_text_id = dbh#prepare_cached "select text_id from 
+            chunk_text where chunk_text = ?"
+    val sth_select_trust_id = dbh#prepare_cached "select trust_id from
+            chunk_trust where chunk_trust = ?"
+    val sth_select_origin_id = dbh#prepare_cached "select origin_id
+            from chunk_origin where chunk_origin = ?"
+    val sth_insert_text = dbh#prepare_cached "insert into chunk_text
+            (chunk_text) values (?)"
+    val sth_insert_trust = dbh#prepare_cached "insert into chunk_trust
+            (chunk_trust) values (?)"
+    val sth_insert_origin = dbh#prepare_cached "insert into chunk_origin
+            (chunk_origin) values (?)"
+    val sth_insert_chunk_map = dbh#prepare_cached "insert into
+            dead_page_chunk_map (chunk_id, text_id, trust_id, origin_id,
+            chunk_posit ) values (?, ?, ?, ?, ?)"
+    val sth_insert_chunk = dbh#prepare_cached "insert into dead_page_chunks 
+            (page_id, timestamp, n_del_revs, n_chunks) values (?, ?, ?, ?)"
+    val sth_select_chunk_id = dbh#prepare_cached "select chunk_id from 
+            dead_page_chunks where page_id = ? order by addedon desc limit 1"
+            
+      
+          
+      (*    
     val sth_insert_chunk = dbh#prepare_cached "INSERT INTO dead_page_chunks (chunk_id,
           chunk_json) VALUES (?, ?)"
     val sth_select_chunk = dbh#prepare_cached "SELECT chunk_json FROM dead_page_chunks 
           WHERE chunk_id = ?"  
+          *)
+          
+          
     val sth_delete_feedback = dbh#prepare_cached "DELETE FROM feedback WHERE revid1 
           = ? AND revid2 = ? AND userid1 = ? AND userid2 = ? AND timestamp = ?"
     val sth_insert_feedback = dbh#prepare_cached "INSERT INTO feedback (revid1, 
@@ -228,29 +254,36 @@ class db
 	been deleted; the database records its existence. *)
     method write_dead_page_chunks (page_id : int) (clist : Online_types.chunk_t
     list) : unit =
-      
+      let get_id stmnt_sel stmnt_ins tx : int = (
+          stmnt_sel#execute tx;
+           try
+             stmnt_sel#fetch1int ()
+           with           
+             Not_found -> ( stmnt_ins#execute tx;
+                            stmnt_sel#execute tx;
+                            stmnt_sel#fetch1int ()
+             )
+      ) in 
       let f (chk : Online_types.chunk_t) = (
-        let text_lst = [] in
-        let p_text_lst = ref text_lst in
-        let trust_lst = [] in
-        let p_trust_lst = ref trust_lst in
-        let origin_lst = [] in
-        let p_origin_lst = ref origin_lst in 
-        for i = 0 to (Array.length chk.text) - 1 do 
+        for i = 0 to (Array.length chk.text) - 1 do
           begin
-            p_text_lst := String (Array.get chk.text i) :: !p_text_lst;
-            p_trust_lst := Float (Array.get chk.trust i) :: !p_trust_lst;
-            p_origin_lst := Int (Array.get chk.origin i) :: !p_origin_lst;
-          end ;  
-        done;
-        let obj = Object [ "timestamp", Float (chk.timestamp) ;
-                "n_del_revisions", Int (chk.n_del_revisions); 
-                "text", Array (List.rev !p_text_lst);
-                "trust", Array (List.rev !p_trust_lst);
-                "origin", Array (List.rev !p_origin_lst)
-                ] in
-            let jsonstr = Json_io.string_of_json ~compact:true obj in 
-            sth_insert_chunk#execute [`Int page_id; `String jsonstr ];
+            sth_insert_chunk#execute [`Int page_id; `Float chk.timestamp; 
+                `Int chk.n_del_revisions;
+                `Int (Array.length chk.text)];
+            sth_select_chunk_id#execute [`Int page_id];
+            let dead_chunk_id = sth_select_chunk_id#fetch1int () in
+
+            let text_id = get_id sth_select_text_id sth_insert_text
+                [`String chk.text.(i)] in
+            let trust_id = get_id sth_select_trust_id sth_insert_trust 
+                [`Float chk.trust.(i)] in
+            let origin_id = get_id sth_select_origin_id sth_insert_origin 
+                [`Int chk.origin.(i)] in
+
+            sth_insert_chunk_map#execute [`Int dead_chunk_id; `Int text_id;
+                `Int trust_id; `Int origin_id; `Int i ];  
+          end;
+        done;  
       ) in
       List.iter f clist;
       dbh#commit ()
@@ -258,51 +291,44 @@ class db
     (** [read_dead_page_chunks page_id] returns the list of dead chunks associated
 	with the page [page_id]. *)
     method read_dead_page_chunks (page_id : int) : Online_types.chunk_t list =
-     
-      let json2float (j_arr : Json_type.t array) (x : float) = (
-        let txt = Array.make (Array.length j_arr) x in     
-        for i = 0 to (Array.length j_arr) - 1 do
-          txt.(i) <- (float j_arr.(i));
-        done;
-        txt 
-      ) in
-      let json2string (j_arr : Json_type.t array) (x : string) = (
-        let txt = Array.make (Array.length j_arr) x in     
-        for i = 0 to (Array.length j_arr) - 1 do
-          txt.(i) <- (string j_arr.(i));
-        done;
-        txt
-      ) in
-      let json2int (j_arr : Json_type.t array) (x : int) = (
-        let txt = Array.make (Array.length j_arr) x in     
-        for i = 0 to (Array.length j_arr) - 1 do
-          txt.(i) <- (int j_arr.(i));
-        done;
-        txt
-      ) in
-
+      let sth_select_dead_chunks = dbh#prepare_cached "SELECT chunk_id,
+      timestamp,
+      n_del_revs, n_chunks FROM dead_page_chunks WHERE page_id ?" in
+      let sth_select_chunk_arr_vals = dbh#prepare_cached "SELECT A.chunk_posit,
+      B.chunk_text, C.chunk_trust, D.chunk_origin  FROM dead_page_chunk_map as A
+      LEFT JOIN chunk_text as B ON A.text_id = B.text_id  LEFT JOIN chunk_trust AS
+      C ON A.trust_id = C.trust_id LEFT JOIN chunk_origin AS D ON A.origin_id 
+      = D.origin_id WHERE A.chunk_id = ?" in
       let chunks = [] in
       let p_chunks = ref chunks in
       let f row = (match row with
-        | [ `String json_str ] ->
-            let json_obj = Json_io.json_of_string json_str in
-            let tbl = make_table (objekt json_obj) in
-            p_chunks := { timestamp = float (field tbl "timestamp");
-                          n_del_revisions = int (field tbl "n_del_revisions");
-                          text = json2string (Array.of_list (array (field 
-                              tbl "text"))) "";
-                          trust = json2float (Array.of_list (array (field 
-                              tbl "trust"))) 0.0;
-                          origin = json2int (Array.of_list (array (field 
-                              tbl "origin"))) 0;
-                        } :: !p_chunks
-        | _ ->
-            assert false ) in
-
-      sth_select_chunk#execute [ `Int page_id ];
-      sth_select_chunk#iter f;
-      !p_chunks;
-
+        | [`Int chunk_id; `Float timet; `Int n_rel_revs; `Int n_chunks] -> (
+          let texta = Array.make n_chunks "" in
+          let trusta = Array.make n_chunks 0.0 in
+          let origina = Array.make n_chunks 0 in
+          let get_arr crow = (match crow with
+            | [`Int posit; `String text; `Float trust; `Int origin] -> (
+                texta.(posit) <- text;
+                trusta.(posit) <- trust;
+                origina.(posit) <- origin
+              )
+            | _ -> assert false
+          ) in
+          sth_select_chunk_arr_vals#execute [`Int chunk_id];
+          sth_select_chunk_arr_vals#iter get_arr;
+          p_chunks := { timestamp = timet;
+                      n_del_revisions = n_rel_revs;
+                      text = texta;
+                      trust = trusta;
+                      origin = origina
+          } :: !p_chunks;
+        )
+        | _ -> assert false
+      ) in
+      sth_select_dead_chunks#execute [`Int page_id ];
+      sth_select_dead_chunks#iter f;
+      !p_chunks
+      
 
   (*  [write_feedback revid1 userid1, revid2, userid2, timestamp, q] adds
           one such tuple to the db. *)
