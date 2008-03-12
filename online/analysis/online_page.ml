@@ -57,11 +57,19 @@ class page
     val edit_list : ((int * int), (int * int * Editlist.edit)) Hashtbl.t = Hashtbl.create 10
     (** These are the edit distances, indexed as above. *)
     val edit_dist : ((int * int), float) Hashtbl.t = Hashtbl.create 10
-    (** This is a hashtable from revision id to tuples of: 
-	(author id, author name, how many revisions ago by different authors, revision time). 
-	It is used to remember who is the authors of recent revisions, used for trust 
-	computation. *)
-    val revid_to_uid: (int, (int * string * int * float)) Hashtbl.t = Hashtbl.create Online_constants.n_revs_to_consider 
+    (** This is a hashtable from revision id to revision, for the revisions that 
+	have been read from disc. *)
+    val revid_to_rev: (int, Online_revision.revision) Hashtbl.t = Hashtbl.create Online_constants.n_revs_to_consider 
+
+    (** This is a hashtable from revision ids, to reputaton increment to the authors
+	of that revision.  This is used to write the feedback produced by this
+	revision; it is not used to update the user reputations themselves. 
+	The next hash table is used for that purpose. *)
+    val revid_to_rep_inc : (int, float) Hashtbl.t = Hashtbl.create 10
+      (** This is a hashtable from user ids, to reputation increments to the 
+	  authors, and is used to collect all reputation changes, so that 
+	  they can be done all at the end. *)
+    val uid_to_rep_inc : (int, float) Hashtbl.t = Hashtbl.create 10
 
     (** [read_revs n] initializes an array consisting of [n] past revisions, 
 	if they can be found in the db, or less. 
@@ -69,7 +77,7 @@ class page
 	deleted chunks. 
 	After this revision, we keep only the latest among consecuive revisions by the same author.
      *)
-    method read_revs : unit = 
+    method private read_revs : unit = 
       let db_p = new Db_page.page db page_id in 
       (* Puts the first revision first *)
       match db_p#get_latest_rev with 
@@ -77,12 +85,14 @@ class page
       | Some r -> begin 
 	  (* Reads the most recent revision *)
 	  let rv = ref (Vec.singleton r) in 
+	  r#set_age 0; 
 	  let uid = r#get_user_id in 
 	  let rid = r#get_id in 
 	  Hashtbl.add revid_to_uid rid (uid, r#get_user_name, 0, r#get_time); 
 	  (* Reads some previous ones *)
 	  let i = ref Online_constants.n_revs_to_read in 
-	  let prev_rev = ref r in 
+	  let prev_by_auth = ref r in 
+	  let age = ref 0 in 
 	  (* !i is the number of revision blocks by different authors that we must read. 
 	     Assume the revisions are r1 r2 r3 r4 r5 r6 r7 r8 r9 
 	     by authors               u1 u1 u2 u2 u2 u3 u4 u4 u5
@@ -94,31 +104,100 @@ class page
 	    | Some r -> begin 
 		let uid = r#get_user_id in 
 		let rid = r#get_id in 
+		Hashtbl.add revid_to_rev rid r
 		(* If the author is different from the current one *)
-		if Revision.different_author equate_anons r !prev_rev then begin 
-		  i := !i - 1; 
+		if Revision.different_author equate_anons r !prev_by_auth then begin 
+		  i := !i - 1;
 		  if !i > 0 then begin 
+		    age := !age + 1; 
+		    r#set_age !age; 
 		    rv := Vec.append r !rv;
-		    Hashtbl.add revid_to_uid rid (uid, r#get_user_name, 
-						 Online_constants.n_revs_to_read - !i, r#get_time)
+		    prev_by_auth := r;
 		  end
 		end else begin 
 		  (* same author as before *)
-		  Hashtbl.add revid_to_uid rid (uid, r#get_user_name, 
-					       Online_constants.n_revs_to_read - !i, r#get_time);
-		  !prev_rev#add_by_same_author r; 
-		end; 
-		prev_rev := r
+		  r#set_age !age; 
+		  !prev_by_auth#add_by_same_author r; 
+		end
 	      end
 	  end; 
 	  !rv
 	end
 
 
+    (** Keeps track of the reputation increments to users. *)
+    method private inc_author_rep (uid: int) (q: float) : unit = 
+      if Hashtbl.mem uid_to_rep_inc uid then begin 
+	let tot = Hashtbl.find uid_to_rep_inc uid in 
+	Hashtbl.replace uid_to_rep_inc uid (tot +. q)
+      end else begin 
+	Hashtbl.add uid_to_rep_inc uid q
+      end
+
+
+    (** Keeps track of the reputation increments to revisions. *)
+    method private inc_rev_rep (rev_id: int) (q: float) : unit = 
+      if Hashtbl.mem revid_to_rep_inc rev_id then begin 
+	let tot = Hashtbl.find revid_to_rep_inc rev_id in 
+	Hashtbl.replace revid_to_rep_inc rev_id (tot +. q)
+      end else begin 
+	Hashtbl.add revid_to_rep_inc rev_id q
+      end
+
+
+   (** General method for increasing reputations *)
+    method private inc_reputation (rev_id: int) (uid: int) (q: float) : unit = 
+      self#inc_author_rep uid q; 
+      self#inc_rev_rep rev_id q
+
+
+   (** Writes the reputation increments to disc. 
+       This method must be called at the very end. *)
+    method private write_reputation_increments : unit = 
+      let rev0 = Vec.get 0 revs in 
+      let rev0_id = rev0#get_id in 
+      let rev0_uid = rev0#get_user_id in 
+      let rev0_time = rev0#get_time in 
+      (* Goes over the revisions one by one, and writes the edges
+	 in the reputation transfer graph. *)
+      let f (rev_id: int) (q: float) = 
+	begin 
+	  let rev = Hashtbl.find revid_to_rev rev_id in 
+	  let uid = rev#get_user_id in 
+	  db#write_feedback rev0_id rev0_uid rev_id uid rev0_time q false; 
+	end 
+      in 
+      Hashtbl.iter f revid_to_rep_inc;
+      (* Writes the changes in user reputations *)
+      let g (uid: int) (q: float) = 
+	let old_rep = db#get_rep uid in 
+	let new_rep = old_rep + q in 
+	db#set_rep uid new_rep
+      in 
+      Hashtbl.iter g uid_to_rep_inc
+
+
+    (** [undo_reputation_update r] undoes the reputation updates done by a 
+	revision [r] to authors.  This is used to roll back [r] effects if 
+	[r] is not the last among consecutve versions by the same author.  *)
+    method private undo_reputation_update (r: Online_revision.revision) : unit = 
+      let rev_id = r#get_id in 
+      let rev_uid = r#get_user_id in 
+      (* Reads from the db the list of changes *)
+      let l = db#read_feedback_by rev_id in 
+      (* Now iterates over the list l, and changes the user reputations *)
+      let f (el : (int * int * float * float * bool)) : unit = 
+	let (rev2_id, rev2_uid, timestamp, q, reverted) = el in 
+	self#inc_author_rep rev2_uid (-. q); 
+	db#write_feedback rev_id rev_uid rev2_id rev2_uid timestamp q true 
+      in 
+      List.iter f l; 
+
+
     (** This method computes all the revision-to-revision edit lists and distances among the
 	revisions.  It assumes that the revision 0 is the newest one, and it has not been 
 	compared to any existing revision. *)
-    method compute_edit_list : unit =       
+    method private compute_edit_list : unit =       
       let n_revs = Vec.length revs in 
       (* If there is only one revision, there is nothing to do. *)
       if n_revs > 1 then begin 
@@ -241,7 +320,7 @@ class page
 
     (** Gets a list of dead chunks coming from the disk, and translates them into 
 	arrays, leaving position 0 free for the current revision. *)
-    method (* private *) chunks_to_array (chunk_l: chunk_t list) :
+    method private chunks_to_array (chunk_l: chunk_t list) :
       (word array array, float array array, int array array, int array, float array) = 
       let n_els = 1 + List.length chunk_l in 
       let chunks_a = Array.make n_els (Array.make 0 "") in 
@@ -271,7 +350,7 @@ class page
 	[(live_chunk, live_trust, live_origin, chunk_l)]. 
         [previous_time] is the time of the revision preceding the one whose list of dead chunks is being computed; 
 	[current_time] is the current time. *)
-    method (* private *) compute_dead_chunk_list 
+    method private compute_dead_chunk_list 
       (new_chunks_a: word array array)
       (new_trust_a: float array array) 
       (new_origin_a: int array array)
@@ -336,7 +415,7 @@ class page
         basis of all the revisions in the Vec revs: that is why the 
         pairwise distances in vec have been evaluated. 
         We use as input the reputation weight of the last user, who acts as the judge. *)
-    method compute_edit_inc (weight_user: float) : unit = 
+    method private compute_edit_inc (weight_user: float) : unit = 
       let n_revs = Vec.length revs in 
       (* The "triangle" of revisions is formed as follows: rev0 (oldest), rev1 (judged), rev2 (judge). *)
       let rev2_idx = n_revs - 1 in 
@@ -389,7 +468,7 @@ class page
               let q1 = if q < 0.0 then q0 *. Online_constants.punish_factor else q0 in 
               let increment = q1 *. weight_user *. (1.0 -. Online_constants.text_vs_edit_weight) in 
 	      (* Stores the increment -- we give them out all at the end *)
-	      self#inc_user_rep rev1_id rev1_uid increment
+	      self#inc_reputation rev1_id rev1_uid increment
 	    end (* if the author of rev1 is not anonymous *)	    
 	  end done (* for rev0_idx *)
 	end (* if different authors *)
@@ -401,15 +480,16 @@ class page
 	[weight_user] is the weight of the user's reputation, 
 	and [origin_a] is an array containing the revision ids 
 	where the words originated. *)
-    method compute_text_inc 
+    method private compute_text_inc 
       (weight_user: float) 
       (origin_a: int array) : unit = 
-      let rev0 = Vec.get 0 revs in 
-      let rev0_id = rev0#get_id in 
-      let rev0_time = rev0#get_time in 
-      let rev0_uid = rev0#get_user_id in 
-      (* First, computes how much text there is due to each recent revision *)
-      (* This hash table associates each recent revision with the amount of text added *)
+      let rev1 = Vec.get 0 revs in 
+      let rev1_id = rev1#get_id in 
+      let rev1_time = rev1#get_time in 
+      let rev1_uid = rev1#get_user_id in 
+      let rev1_name = rev1#get_user_name in 
+      (* First, computes how much text there is due to each revision *)
+      (* The hash table rev_to_text_q associates each recent revision with the amount of text added *)
       let rev_to_text_q: (int, int) Hashtbl.t = Hashtbl.create 10 in 
       let add_one_word (r_id: int) = 
 	if Hashtbl.mem rev_to_text_q r_id then begin 
@@ -419,25 +499,41 @@ class page
 	  Hashtbl.add rev_to_text_q r_id 1 
 	end
       in 
-      (* Now computes the contributions of all revisions *)
+      (* Sets the total amount of text introduced in this very revision *)
+      if Hashtbl.mem rev_to_text_q rev1_id then begin 
+	let q = Hashtbl.find rev_to_text_q rev1_id in 
+	rev1#set_new_text q
+      end; 
+      (* Now computes the reputation update of all revisions that have been read from the disk *)
       Array.iter add_one_word origin_a; 
       (* Gives reputation to users in proportion to the number of words added 
 	 in the various revisions. 
-	 This function f is iterated on the hashtable of revisions *)
-      let f (r_id: int) (q: int) : unit = 
-	if Hashtbl.mem revid_to_uid r_id then begin 
-	  (* The revision where the word originated is recent; takes it into account *)
-	  let (uid, uname, age, old_time) = Hashtbl.find revid_to_uid r_id in 
-	  if uid != 0 && uid != rev0_uid then begin 
+	 This function f is iterated on the hashtable rev_to_text_q *)
+      let f (rev0_id: int) (q: int) : unit = 
+	(* Takes only into account recent revisions *)
+	if Hashtbl.mem revid_to_rev r_id then begin 
+	  let rev0 = Hashtbl.find revid_to_rev rev0_id in 
+	  let rev0_uid = rev0#get_user_id in 
+	  if rev0_uid != 0 && rev0_uid != rev1_uid then begin 
+	    let rev0_uname = rev0#get_user_name in 
+	    let rev0_age = rev0#get_age in 
+	    let rev0_time = rev0#get_time in 
+	    let rev0_new_text = rev0#get_new_text in 
 	    (* Produces the log line *)
-	    let s = Printf.sprintf "TextInc %10.0f PageId: %d rev0: %d uid0: %d uname0: %S rev1: %d uid1: %d uname1: %S text: -- left: %d n01: %d t01: %d"
-	      rev0_time page_id r_id uid uname rev0_id rev0_uid rev0#get_user_name 
-	      q age (int_of_float (rev0#get_time -. old_time))
+	    let s = Printf.sprintf "TextInc %10.0f PageId: %d rev0: %d uid0: %d uname0: %S rev1: %d uid1: %d uname1: %S text: %d left: %d n01: %d t01: %d"
+	      rev1_time page_id 
+	      rev0_id rev0_uid rev0_uname 
+	      rev1_id rev1_uid rev1_uname 
+	      rev0_new_text q rev0_age (int_of_float (rev1_time -. rev0_time))
 	    in 
 	    Online_log.log s; 
-	    let increment = ((float_of_int q) ** Online_constants.length_exponent)
-	      *. weight_user in 
-	    self#inc_user_rep r_id uid increment 
+	    (* Computes the reputation increment *)
+	    let ratio_live = (float_of_int q) /. (float_of_int rev0_new_text) in 
+	    let merit = ratio_live *. ((float_of_int q) ** Online_constants.length_exponent) in 
+	    let increment = merit *. weight_user *. Online_constants.text_vs_edit_weight in 
+	    self#inc_reputation rev0_id rev0_uid increment; 
+	    (* And stores the fact that there is one more text judge that found q *)
+	    rev0#adds_text_quality_info q; 
 	  end 
 	end
       in Hashtbl.iter f rev_to_text_q
@@ -598,6 +694,8 @@ class page
 	db#write_dead_page_chunks page_id chunk_l;
 	(* Ok, there is nothing more here to do for trust. *)
 
+	(* We now work on reputation. *)
+
 	(* Now comes a difficult issue. 
 	   I want to take into account only the latest among consecutive revisions 
 	   by the same author, when computing reputation increments.  
@@ -613,7 +711,15 @@ class page
 	(* We now process the reputation update. *)
 	let weight_user = log (1. +. (db#read_user_rep rev0_id)) in 
 	self#compute_text_inc weight_user rev0_id new_origin_10_a.(0); 
-	if n_revs > 2 then self#compute_edit_inc weight_user
+	if n_revs > 2 then self#compute_edit_inc weight_user;
+	(* and we write them to disk *)
+	self#write_reputation_increments; 
+
+        (* Finally, we write back to disc the quality information of all revisions *)
+	(* The function f is iterated on revid_to_rev *)
+	let f (revid: int) (r: Online_revision.revision) : unit = 
+	  r#write_quality_info 
+	in Hashtbl.iter f revid_to_rev; 
 
       end (* There is at least one past revision *)
 

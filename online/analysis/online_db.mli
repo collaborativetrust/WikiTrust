@@ -106,19 +106,37 @@ class db :
 	- revid2, userid2 is the judged revision
 	- timestamp is the time of the judgement
 	- q is the reputation increase quantity (can be negative). 
+	- voided is a flag that, if true, indicates that this reputation operation 
+	  has been later reverted. 
 
 	Make sure this table is widely indexed, as we may like to use it for data
 	analysis.  Note that I can get userid1 and userid2 via joins, but I believe it 
 	is more efficient to have such fields already in the table.  Otherwise, we need 
 	too many accesses every time a new revision is made. 
 
-	[write_feedback revid1 userid1, revid2, userid2, timestamp, q] adds one such tuple 
-	to the db. *)
-    method write_feedback : int -> int -> int -> int -> float -> float -> unit
+	[write_feedback revid1 userid1, revid2, userid2, timestamp, q, voided] adds one such tuple 
+	to the db. 
 
-    (** [read_feedback_by revid1] reads from the db all the (revid2, userid2,  timestamp, q) that 
+        NOTE: [revid1, revid2] is a key pair to the db, so that if a row with the same
+        values for [revid1] and [revid2] exists in the db already, the values are 
+        overwritten.  Ian, delete this sentence once you read and implement this. *)
+    method write_feedback : int -> int -> int -> int -> float -> float -> bool -> unit
+
+    (** [read_feedback_by revid1] reads from the db all the (revid2, userid2,  timestamp, q, reverted) that 
 	have been caused by the revision with id [revid1]. *)
-    method read_feedback_by : int -> (int * int * float * float) list
+    method read_feedback_by : int -> (int * int * float * float * bool) list
+
+    (** [write_quality_info rev_id n_edit_judges total_edit_quality min_edit_quality
+	  n_text_judges new_text persistent_text] writes in a table on disk indexed by [rev_id]
+	the tuple (rev_id  n_edit_judges total_edit_quality min_edit_quality
+	  n_text_judges new_text persistent_text). *)
+    method write_quality_info : int -> int -> float -> float -> int -> int -> int -> unit
+
+    (** [read_quality_info rev_id] returns the tuple 
+	(rev_id  n_edit_judges total_edit_quality min_edit_quality
+	  n_text_judges new_text persistent_text)
+	associated with the revision with id [rev_id]. *)
+    method read_quality_info ; int -> (int * float * float * int * int * int)
 
     (** Totally clear out the db structure -- THIS IS INTEDED ONLY FOR UNIT
     TESTING *)
