@@ -33,9 +33,8 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
-open Json_type
-open Json_type.Browse
 open Online_types
+open Printf
 
 (** This class provides a handle for accessing the database in the on-line 
     implementation.
@@ -84,36 +83,32 @@ class db
           (revision_id, revision_text) VALUES (?, ?) " 
     val sth_select_markup = dbh#prepare_cached "SELECT revision_text FROM 
           colored_markup WHERE revision_id = ?" 
-    val sth_select_text_id = dbh#prepare_cached "select text_id from 
-            chunk_text where chunk_text = ?"
-    val sth_select_trust_id = dbh#prepare_cached "select trust_id from
-            chunk_trust where chunk_trust = ?"
-    val sth_select_origin_id = dbh#prepare_cached "select origin_id
-            from chunk_origin where chunk_origin = ?"
-    val sth_insert_text = dbh#prepare_cached "insert into chunk_text
+    val sth_select_text_id = dbh#prepare_cached "SELECT text_id FROM 
+            chunk_text WHERE chunk_text = ?"
+    val sth_select_trust_id = dbh#prepare_cached "SELECT trust_id FROM
+            chunk_trust WHERE chunk_trust = ?"
+    val sth_select_origin_id = dbh#prepare_cached "SELECT origin_id
+            FROM chunk_origin WHERE chunk_origin = ?"
+    val sth_insert_text = dbh#prepare_cached "INSERT INTO chunk_text
             (chunk_text) values (?)"
-    val sth_insert_trust = dbh#prepare_cached "insert into chunk_trust
-            (chunk_trust) values (?)"
-    val sth_insert_origin = dbh#prepare_cached "insert into chunk_origin
-            (chunk_origin) values (?)"
-    val sth_insert_chunk_map = dbh#prepare_cached "insert into
+    val sth_insert_trust = dbh#prepare_cached "INSERT INTO chunk_trust
+            (chunk_trust) VALUES (?)"
+    val sth_insert_origin = dbh#prepare_cached "INSERT INTO chunk_origin
+            (chunk_origin) VALUES (?)"
+    val sth_insert_chunk_map = dbh#prepare_cached "INSERT INTO
             dead_page_chunk_map (chunk_id, text_id, trust_id, origin_id,
-            chunk_posit ) values (?, ?, ?, ?, ?)"
-    val sth_insert_chunk = dbh#prepare_cached "insert into dead_page_chunks 
-            (page_id, timestamp, n_del_revs, n_chunks) values (?, ?, ?, ?)"
-    val sth_select_chunk_id = dbh#prepare_cached "select chunk_id from 
-            dead_page_chunks where page_id = ? order by addedon desc limit 1"
-            
-      
-          
-      (*    
-    val sth_insert_chunk = dbh#prepare_cached "INSERT INTO dead_page_chunks (chunk_id,
-          chunk_json) VALUES (?, ?)"
-    val sth_select_chunk = dbh#prepare_cached "SELECT chunk_json FROM dead_page_chunks 
-          WHERE chunk_id = ?"  
-          *)
-          
-          
+            chunk_posit ) VALUES (?, ?, ?, ?, ?)"
+    val sth_insert_chunk = dbh#prepare_cached "INSERT INTO dead_page_chunks 
+            (page_id, timestamp, n_del_revs, n_chunks) VALUES (?, ?, ?, ?)"
+    val sth_select_chunk_id = dbh#prepare_cached "SELECT chunk_id FROM 
+            dead_page_chunks WHERE page_id = ? ORDER BY addedon DESC LIMIT 1"
+    val sth_select_dead_chunks = dbh#prepare_cached "SELECT chunk_id,
+      timestamp, n_del_revs, n_chunks FROM dead_page_chunks WHERE page_id = ?"
+    val sth_select_chunk_arr_vals = dbh#prepare_cached "SELECT A.chunk_posit,
+      B.chunk_text, C.chunk_trust, D.chunk_origin  FROM dead_page_chunk_map as A
+      LEFT JOIN chunk_text as B ON A.text_id = B.text_id  LEFT JOIN chunk_trust 
+      AS C ON A.trust_id = C.trust_id LEFT JOIN chunk_origin AS D ON A.origin_id 
+      = D.origin_id WHERE A.chunk_id = ?" 
     val sth_delete_feedback = dbh#prepare_cached "DELETE FROM feedback WHERE revid1 
           = ? AND revid2 = ? AND userid1 = ? AND userid2 = ? AND timestamp = ?"
     val sth_insert_feedback = dbh#prepare_cached "INSERT INTO feedback (revid1, 
@@ -257,22 +252,21 @@ class db
       let get_id stmnt_sel stmnt_ins tx : int = (
           stmnt_sel#execute tx;
            try
-             stmnt_sel#fetch1int ()
+             int_of_string (stmnt_sel#fetch1string ())
            with           
              Not_found -> ( stmnt_ins#execute tx;
                             stmnt_sel#execute tx;
-                            stmnt_sel#fetch1int ()
+                            int_of_string (stmnt_sel#fetch1string ())
              )
       ) in 
       let f (chk : Online_types.chunk_t) = (
-        for i = 0 to (Array.length chk.text) - 1 do
-          begin
-            sth_insert_chunk#execute [`Int page_id; `Float chk.timestamp; 
+        sth_insert_chunk#execute [`Int page_id; `Float chk.timestamp; 
                 `Int chk.n_del_revisions;
                 `Int (Array.length chk.text)];
-            sth_select_chunk_id#execute [`Int page_id];
-            let dead_chunk_id = sth_select_chunk_id#fetch1int () in
-
+        sth_select_chunk_id#execute [`Int page_id];
+        let dead_chunk_id = int_of_string (sth_select_chunk_id#fetch1string ()) in
+        for i = 0 to (Array.length chk.text) - 1 do
+          begin
             let text_id = get_id sth_select_text_id sth_insert_text
                 [`String chk.text.(i)] in
             let trust_id = get_id sth_select_trust_id sth_insert_trust 
@@ -291,21 +285,14 @@ class db
     (** [read_dead_page_chunks page_id] returns the list of dead chunks associated
 	with the page [page_id]. *)
     method read_dead_page_chunks (page_id : int) : Online_types.chunk_t list =
-      let sth_select_dead_chunks = dbh#prepare_cached "SELECT chunk_id,
-      timestamp,
-      n_del_revs, n_chunks FROM dead_page_chunks WHERE page_id ?" in
-      let sth_select_chunk_arr_vals = dbh#prepare_cached "SELECT A.chunk_posit,
-      B.chunk_text, C.chunk_trust, D.chunk_origin  FROM dead_page_chunk_map as A
-      LEFT JOIN chunk_text as B ON A.text_id = B.text_id  LEFT JOIN chunk_trust AS
-      C ON A.trust_id = C.trust_id LEFT JOIN chunk_origin AS D ON A.origin_id 
-      = D.origin_id WHERE A.chunk_id = ?" in
       let chunks = [] in
       let p_chunks = ref chunks in
       let f row = (match row with
-        | [`Int chunk_id; `Float timet; `Int n_rel_revs; `Int n_chunks] -> (
+        | [`String chunk_id; `Float timet; `Int n_rel_revs; `Int n_chunks] -> (
           let texta = Array.make n_chunks "" in
           let trusta = Array.make n_chunks 0.0 in
           let origina = Array.make n_chunks 0 in
+          let chunk_id_int = int_of_string chunk_id in
           let get_arr crow = (match crow with
             | [`Int posit; `String text; `Float trust; `Int origin] -> (
                 texta.(posit) <- text;
@@ -314,7 +301,7 @@ class db
               )
             | _ -> assert false
           ) in
-          sth_select_chunk_arr_vals#execute [`Int chunk_id];
+          sth_select_chunk_arr_vals#execute [`Int chunk_id_int];
           sth_select_chunk_arr_vals#iter get_arr;
           p_chunks := { timestamp = timet;
                       n_del_revisions = n_rel_revs;

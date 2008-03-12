@@ -4,8 +4,8 @@
 OCAMLFIND := ocamlfind
 OCAMLC := ocamlc -g
 
-OCAMLINCS := -I ../../batch/analysis -I /usr/lib/ocaml/3.09.2/gz
-OCAMLPACKAGES := -package dbi.mysql -package json-wheel -package extlib
+OCAMLINCS := -I ../../batch/analysis 
+OCAMLPACKAGES := -package dbi.mysql -package extlib
 
 
 TARGETS	:= online_types-h  \
