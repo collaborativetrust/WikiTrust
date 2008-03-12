@@ -38,7 +38,7 @@ open Online_types;;
 
 (** This is a class representing a page, or article, at a high level. 
     Most of the functions implementing an online edit are implemented 
-    in this file. *)
+    in this file. See the mli file for the call parameters. *)
 
 class page 
   (db: Online_db.db) 
@@ -80,9 +80,9 @@ class page
 	After this revision, we keep only the latest among consecuive revisions by the same author.
      *)
     method private read_revs : unit = 
-      let db_p = new Db_page.page db page_id in 
+      let db_p = new Db_page.page db page_id revid_to_analyze in 
       (* Puts the first revision first *)
-      match db_p#get_latest_rev with 
+      match db_p#get_rev with 
 	None -> Vec.empty 
       | Some r -> begin 
 
