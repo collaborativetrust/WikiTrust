@@ -49,7 +49,8 @@ class db :
         Text.ml used for splitting the text, and in the edit list proper.
         The return type is an option: the db should return None if no such row for 
         revid1 and revid2 can be found in the database. *)
-    method read_edit_diff : int -> int -> (string * (Editlist.edit list)) option 
+    (* TODO IMPLEMENT option *)
+    method read_edit_diff : int -> int -> (string * (Editlist.edit list))  
 
     (** [write_edit_diff revid1 revid2 vers elist] writes to the database the edit list 
 	[elist] from the (live) text of revision [revid1] to revision [revid2], 
@@ -119,7 +120,7 @@ class db :
 
         NOTE: [revid1, revid2] is a key pair to the db, so that if a row with the same
         values for [revid1] and [revid2] exists in the db already, the values are 
-        overwritten.  Ian, delete this sentence once you read and implement this. *)
+        overwritten. *)
     method write_feedback : int -> int -> int -> int -> float -> float -> bool -> unit
 
     (** [read_feedback_by revid1] reads from the db all the (revid2, userid2,  timestamp, q, reverted) that 
@@ -136,7 +137,7 @@ class db :
 	(rev_id  n_edit_judges total_edit_quality min_edit_quality
 	  n_text_judges new_text persistent_text)
 	associated with the revision with id [rev_id]. *)
-    method read_quality_info : int -> (int * float * float * int * int * int)
+    method read_quality_info : int -> (int * int * float * float * int * int * int)
 
     (** Totally clear out the db structure -- THIS IS INTENDED ONLY FOR UNIT
     TESTING *)

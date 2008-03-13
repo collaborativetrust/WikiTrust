@@ -11,11 +11,13 @@ let test_db dbuser dbpass dbname = (
   let test_page_text = "this is the page text" in
   let revid1 = 1 in
   let revid2 = 2 in
+  let valid = true in
   let userid1 = 11 in
   let userid2 = 22 in
   let time1 = 100.4533 in
   let quality = 10.0 in
   let n_del_revs = 22 in
+  let vers = "0.1" in
   let sizeof_arr = 100 in
   let array_init_str i = string_of_int i in
   let array_init_int i = i in
@@ -38,13 +40,13 @@ let test_db dbuser dbpass dbname = (
     (* first, clear everything out *)
     mydb#delete_all true;
 
-    (* test the split text function *)
+    (* test the split text function *)(*
     mydb#write_text_split_version test_page_id test_page_text ;
     let db_text = mydb#read_text_split_version test_page_id in
     assert( db_text = test_page_text ); 
-
+*)
     (* edit dif *)
-    mydb#write_edit_diff revid1 revid2 myeditlist ;
+    mydb#write_edit_diff revid1 revid2 vers myeditlist ;
     let db_editlist = mydb#read_edit_diff revid1 revid2 in
     let num_eds = 0 in
     let p_num_eds = ref num_eds in
@@ -54,7 +56,7 @@ let test_db dbuser dbpass dbname = (
       | Del (i, l) -> p_num_eds := 1 + !p_num_eds;
       | Mov (i, j, l) -> p_num_eds := 1 + !p_num_eds
     ) in
-    List.iter fel db_editlist;
+    List.iter fel (snd(db_editlist));
     assert (!p_num_eds >= (List.length myeditlist));
     
     (* user reputation *)
@@ -82,13 +84,13 @@ let test_db dbuser dbpass dbname = (
     List.iter f_chk db_chk_list;
 
     (* feedback *)
-    mydb#write_feedback revid1 userid1 revid2 userid2 time1 quality ;
+    mydb#write_feedback revid1 userid1 revid2 userid2 time1 quality valid ;
     let db_feedback = mydb#read_feedback_by revid1 in
     let num_rows = 0 in
     let p_num_rows = ref num_rows in
     let f fd = (
       match fd with 
-        | ((r2 : int), (u2 : int), (t1 : float), (q : float)) -> 
+        | ((r2 : int), (u2 : int), (t1 : float), (q : float), (v : bool)) -> 
             (p_num_rows := 1 + !p_num_rows)) in
     List.iter f db_feedback;
     assert( !p_num_rows > 0 );

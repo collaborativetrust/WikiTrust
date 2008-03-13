@@ -57,15 +57,17 @@ class db
     val sth_insert_text_split = dbh#prepare_cached "INSERT INTO text_split_version 
           (current_rev_text, page_id) VALUES (?, ?)"    
     val sth_select_edit_list = dbh#prepare_cached "SELECT edit_type, val1,
-          val2, val3 FROM edit_lists WHERE 
+          val2, val3, version FROM edit_lists WHERE 
           from_revision = ? AND to_revision  = ?"
+    val sth_delete_edit_list = dbh#prepare_cached "DELETE FROM edit_lists WHERE
+          from_revision = ? AND to_revision = ? AND edit_type = ?"      
     val sth_ins_ins_edit_lists = dbh#prepare_cached "INSERT INTO edit_lists (from_revision,
-          to_revision, edit_type, val1, val2 ) VALUES (?, ?, 'Ins', ?, ?) " 
+          to_revision, edit_type, version, val1, val2 ) VALUES (?, ?, 'Ins', ?, ?, ?) " 
     val sth_ins_mov_edit_lists = dbh#prepare_cached "INSERT INTO edit_lists (from_revision,
-          to_revision, edit_type, val1, val2, val3 ) VALUES (?, ?, 'Mov', ?,
+          to_revision, edit_type, version, val1, val2, val3 ) VALUES (?, ?, 'Mov', ?, ?,
           ?, ?) " 
     val sth_ins_del_edit_lists = dbh#prepare_cached "INSERT INTO edit_lists (from_revision,
-          to_revision, edit_type, val1, val2 ) VALUES (?, ?, 'Del', ?, ?) " 
+          to_revision, edit_type, version, val1, val2 ) VALUES (?, ?, 'Del', ?, ?, ?) " 
     val sth_select_user_rep = dbh#prepare_cached "SELECT user_rep FROM trust_user_rep 
           WHERE user_id = ?" 
     val sth_update_user_rep = dbh#prepare_cached "UPDATE trust_user_rep SET user_rep = 
@@ -110,13 +112,21 @@ class db
       AS C ON A.trust_id = C.trust_id LEFT JOIN chunk_origin AS D ON A.origin_id 
       = D.origin_id WHERE A.chunk_id = ?" 
     val sth_delete_feedback = dbh#prepare_cached "DELETE FROM feedback WHERE revid1 
-          = ? AND revid2 = ? AND userid1 = ? AND userid2 = ? AND timestamp = ?"
+          = ? AND revid2 = ?"
     val sth_insert_feedback = dbh#prepare_cached "INSERT INTO feedback (revid1, 
           userid1, revid2, userid2, timestamp, q, voided) 
           VALUES (?, ?, ?, ?, ?, ?, ?)"  
     val sth_select_feedback = dbh#prepare_cached "SELECT revid2, userid2, timestamp, 
           q, voided FROM feedback WHERE revid1 = ?"   
-
+    val sth_delete_quality = dbh#prepare_cached "DELETE FROM quality_info WHERE
+          rev_id = ?"
+    val sth_insert_quality = dbh#prepare_cached "INSERT INTO quality_info
+          (rev_id, n_edit_judges, total_edit_quality, min_edit_quality, 
+          n_text_judges, new_text, persistent_text ) VALUES (?, ?, ?, ?, ?, ?, ?)" 
+    val sth_select_quality = dbh#prepare_cached "SELECT rev_id, n_edit_judges,
+          total_edit_quality, min_edit_quality, n_text_judges, new_text,
+          persistent_text FROM quality_info WHERE rev_id = ?" 
+(*
     (** [read_text_split_version page_id] given a [page_id] returns a 
 	string associated with the page in the db.  The string 
 	represents the version of Text.ml that has 
@@ -137,44 +147,62 @@ class db
       sth_insert_text_split#execute [`String page_text; `Int page_id ];
       dbh#commit ()
 
-      
+  *)    
     (** [read_edit_diff revid1 revid2] reads from the database the edit list 
 	from the (live) text of revision [revid1] to revision [revid2]. *)
-    method read_edit_diff (revid1 : int) (revid2 : int) : (Editlist.edit list) =
+    method read_edit_diff (revid1 : int) (revid2 : int) : 
+      (string * (Editlist.edit list)) =
       
       sth_select_edit_list#execute [`Int revid1; `Int revid2];
       let elist = [] in
       let p_elist = ref elist in
+      let version = "" in
+      let p_version = ref version in
       let f row = (match row with
-                | [ `String etype; `Int val1; `Int val2; `Null ] ->
-                  ( match etype with
+                  | [ `String etype; `Int val1; `Int val2; `Null; `String vers ] ->
+                      ( p_version := vers;
+                    match etype with
                     | "Ins" -> p_elist := Editlist.Ins (val1, val2) :: !p_elist
                     | "Del" -> p_elist := Editlist.Del (val1, val2) :: !p_elist
                     | _ -> assert false )
-                | [ `String etype; `Int val1; `Int val2; `Int val3 ] ->
-                  ( match etype with
+                  | [ `String etype; `Int val1; `Int val2; `Int val3; `String
+                  vers ] ->
+                    ( p_version := vers;
+                    match etype with
                     | "Mov" -> p_elist := Editlist.Mov (val1, val2, val3) :: !p_elist
                     | _ -> assert false )
                 | _ ->
                     assert false ) in
       sth_select_edit_list#iter f ;
-      !p_elist
+      match List.length !p_elist with
+        | _ -> (!p_version, !p_elist)
+        
+
+      (* (!p_version, !p_elist) 
+      with Not_found -> None *)
       
      
-    (** [write_edit_diff revid1 revid2 elist] writes to the database the edit list 
+    (** [wrte_edit_diff revid1 revid2 elist] writes to the database the edit list 
 	[elist] from the (live) text of revision [revid1] to revision [revid2]. *)
-    method write_edit_diff (revid1 : int) (revid2 : int) (elist : Editlist.edit
+    method write_edit_diff (revid1 : int) (revid2 : int) (vers : string) (elist : Editlist.edit
     list) : unit = 
       let f ed =
         match ed with
-          | Editlist.Ins (i, l) -> sth_ins_ins_edit_lists#execute [`Int revid1; 
-                `Int revid2; `Int i; `Int l ];
+          | Editlist.Ins (i, l) -> (
+            sth_delete_edit_list#execute [`Int revid1; `Int revid2; `String
+              "Ins"];
+              sth_ins_ins_edit_lists#execute [`Int revid1; 
+                `Int revid2; `String vers; `Int i; `Int l ];)
 
-          | Editlist.Del (i, l) -> sth_ins_del_edit_lists#execute [`Int revid1; 
-                `Int revid2; `Int i; `Int l ];
+          | Editlist.Del (i, l) -> (
+            sth_delete_edit_list#execute [`Int revid1; `Int revid2; `String "Del"];
+            sth_ins_del_edit_lists#execute [`Int revid1; 
+              `Int revid2; `String vers; `Int i; `Int l ];)
 
-          | Editlist.Mov (i, j, l) -> sth_ins_mov_edit_lists#execute [`Int revid1; 
-                `Int revid2; `Int i; `Int j; `Int l ]; 
+          | Editlist.Mov (i, j, l) -> (
+            sth_delete_edit_list#execute [`Int revid1; `Int revid2; `String "Mov"]; 
+              sth_ins_mov_edit_lists#execute [`Int revid1; 
+                `Int revid2; `String vers; `Int i; `Int j; `Int l ]; ) 
           in
       List.iter f elist
     
@@ -323,8 +351,7 @@ class db
     method write_feedback (revid1 :int) (userid1 : int) (revid2 : int) (userid2
         : int) (times : float) (q : float) (voided :  bool) : unit = 
       (* First we delete any pre-existing text. *)
-      sth_delete_feedback#execute [`Int revid1; `Int revid2; `Int userid1; 
-          `Int userid2; `Float times ];
+      sth_delete_feedback#execute [`Int revid1; `Int revid2];
       (* Next we add in the new text. *) 
       sth_insert_feedback#execute [`Int revid1; `Int userid1; `Int revid2; 
           `Int userid2; `Float times; `Float q; `Bool voided];
@@ -336,9 +363,14 @@ class db
     method read_feedback_by (revid1 : int) : (int * int * float * float * bool) list = 
       let replist = [] in
       let p_replist = ref replist in
-      let f row = (match row with
-      | [ `Int r2; `Int u2; `Float t; `Float q; `Bool v;] ->
-            p_replist := (r2, u2, t, q, v) :: !p_replist
+      let f row = (
+        match row with
+        | [ `Int r2; `Int u2; `Float t; `Float q; `Int v] -> (
+            match v with
+              | 0 -> p_replist := (r2, u2, t, q, false) :: !p_replist 
+              | 1 -> p_replist := (r2, u2, t, q, true) :: !p_replist 
+              | _ -> assert false
+            )
         | _ ->
             assert false ) in
       sth_select_feedback#execute [`Int revid1];
@@ -349,11 +381,19 @@ class db
    n_text_judges new_text persistent_text] writes in a table on disk
    indexed by [rev_id] the tuple (rev_id  n_edit_judges total_edit_quality
     min_edit_quality n_text_judges new_text persistent_text). *)
-(*
+
     method write_quality_info (rev_id : int) (n_edit_judges : int)
-    (min_edit_quality : float) (n_text_judges : float) (new_text : int)
-    (persistent_text : int) : 
-      int -> unit =
+    (total_edit_quality : float)
+    (min_edit_quality : float) (n_text_judges : int) (new_text : int)
+    (persistent_text : int) : unit =
+      (* First we delete any pre-existing text. *)
+      sth_delete_quality#execute [`Int rev_id ];
+      (* Next we add in the new text. *)
+      sth_insert_quality#execute [`Int rev_id; `Int n_edit_judges;
+          `Float total_edit_quality; `Float min_edit_quality; `Int n_text_judges;
+          `Int new_text; `Int persistent_text ];
+      dbh#commit ()
+
 
     (** [read_quality_info rev_id] returns the tuple 
        (rev_id  n_edit_judges total_edit_quality min_edit_quality
@@ -361,8 +401,14 @@ class db
           associated with the revision with id [rev_id].
     *)
 
-    method read_quality_info : int -> (int * float * float * int * int * int) 
-*)
+    method read_quality_info (rev_id : int) : (int * int * float * float * int * int
+    * int) =
+      sth_select_quality#execute [`Int rev_id];
+      match (sth_select_quality#fetch1 ()) with
+        | [`Int r; `Int ned; `Float tq; `Float mq; `Int ntx; `Int nt; `Int pt ] ->
+          ((r,ned,tq,mq,ntx,nt,pt))
+        | _ -> assert(false)
+
 
     (** Clear everything out -- INTENDED FOR UNIT TESTING ONLY *)
     method delete_all (really : bool) =

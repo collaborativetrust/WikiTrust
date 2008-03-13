@@ -9,6 +9,19 @@ DROP TABLE chunk_text;
 DROP TABLE chunk_trust;
 DROP TABLE chunk_origin;
 DROP TABLE dead_page_chunk_map;
+DROP TABLE quality_info;
+
+-- quality info?
+CREATE TABLE quality_info (
+        rev_id                  int PRIMARY KEY,
+        n_edit_judges           int NOT NULL,
+        total_edit_quality      float NOT NULL,
+        min_edit_quality        float NOT NULL,
+        n_text_judges           int NOT NULL,
+        new_text                int NOT NULL,
+        persistent_text         int NOT NULL
+);
+GRANT ALL ON quality_info TO wikiuser;
 
 -- maps page_id to text of the most recently added revision
 CREATE TABLE text_split_version (
@@ -39,6 +52,7 @@ CREATE TABLE edit_lists (
         from_revision   int , 
         to_revision     int,
         edit_type       enum ('Ins','Del','Mov'),
+        version         text NOT NULL,
         val1            int NOT NULL,
         val2            int NOT NULL,
         val3            int,
