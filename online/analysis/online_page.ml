@@ -63,7 +63,7 @@ class page
 	have been read from disc. *)
     val revid_to_rev: (int, Online_revision.revision) Hashtbl.t = Hashtbl.create Online_constants.n_revs_to_consider 
 
-    (** This is a hashtable from revision ids, to reputaton increment to the authors
+    (** This is a hashtable from revision ids, to reputation increment to the authors
 	of that revision.  This is used to write the feedback produced by this
 	revision; it is not used to update the user reputations themselves. 
 	The next hash table is used for that purpose. *)
