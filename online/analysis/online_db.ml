@@ -112,9 +112,10 @@ class db
     val sth_delete_feedback = dbh#prepare_cached "DELETE FROM feedback WHERE revid1 
           = ? AND revid2 = ? AND userid1 = ? AND userid2 = ? AND timestamp = ?"
     val sth_insert_feedback = dbh#prepare_cached "INSERT INTO feedback (revid1, 
-          userid1, revid2, userid2, timestamp, q) VALUES (?, ?, ?, ?, ?, ?)"  
+          userid1, revid2, userid2, timestamp, q, voided) 
+          VALUES (?, ?, ?, ?, ?, ?, ?)"  
     val sth_select_feedback = dbh#prepare_cached "SELECT revid2, userid2, timestamp, 
-          q FROM feedback WHERE revid1 = ?"   
+          q, voided FROM feedback WHERE revid1 = ?"   
 
     (** [read_text_split_version page_id] given a [page_id] returns a 
 	string associated with the page in the db.  The string 
@@ -320,29 +321,48 @@ class db
   (*  [write_feedback revid1 userid1, revid2, userid2, timestamp, q] adds
           one such tuple to the db. *)
     method write_feedback (revid1 :int) (userid1 : int) (revid2 : int) (userid2
-        : int) (times : float) (q : float) : unit = 
+        : int) (times : float) (q : float) (voided :  bool) : unit = 
       (* First we delete any pre-existing text. *)
       sth_delete_feedback#execute [`Int revid1; `Int revid2; `Int userid1; 
           `Int userid2; `Float times ];
       (* Next we add in the new text. *) 
       sth_insert_feedback#execute [`Int revid1; `Int userid1; `Int revid2; 
-          `Int userid2; `Float times; `Float q];
+          `Int userid2; `Float times; `Float q; `Bool voided];
       dbh#commit ()
 
     (** [read_feedback_by revid1] reads from the db all the (revid2,
       userid2,  timestamp, q) that 
       have been caused by the revision with id [revid1]. *)
-    method read_feedback_by (revid1 : int) : (int * int * float * float) list = 
+    method read_feedback_by (revid1 : int) : (int * int * float * float * bool) list = 
       let replist = [] in
       let p_replist = ref replist in
       let f row = (match row with
-        | [ `Int r2; `Int u2; `Float t; `Float q] ->
-            p_replist := (r2, u2, t, q) :: !p_replist
+      | [ `Int r2; `Int u2; `Float t; `Float q; `Bool v;] ->
+            p_replist := (r2, u2, t, q, v) :: !p_replist
         | _ ->
             assert false ) in
       sth_select_feedback#execute [`Int revid1];
       sth_select_feedback#iter f;
       !p_replist;
+
+  (** [write_quality_info rev_id n_edit_judges total_edit_quality min_edit_quality
+   n_text_judges new_text persistent_text] writes in a table on disk
+   indexed by [rev_id] the tuple (rev_id  n_edit_judges total_edit_quality
+    min_edit_quality n_text_judges new_text persistent_text). *)
+
+    method write_quality_info (rev_id : int) (n_edit_judges : int)
+    (min_edit_quality : float) (n_text_judges : float) (new_text : int)
+    (persistent_text : int) : 
+      int -> unit
+
+    (** [read_quality_info rev_id] returns the tuple 
+       (rev_id  n_edit_judges total_edit_quality min_edit_quality
+             n_text_judges new_text persistent_text)
+          associated with the revision with id [rev_id].
+    *)
+
+    method read_quality_info : int -> (int * float * float * int * int * int) 
+
 
     (** Clear everything out -- INTENDED FOR UNIT TESTING ONLY *)
     method delete_all (really : bool) =

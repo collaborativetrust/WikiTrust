@@ -25,8 +25,9 @@ CREATE TABLE feedback (
   userid1       int NOT NULL,
   revid2        int NOT NULL, 
   userid2       int NOT NULL, 
-  timestamp    float NOT NULL, 
-  q             float,
+  timestamp     float NOT NULL, 
+  q             float NOT NULL,
+  voided        bool NOT NULL,
   PRIMARY KEY (revid1, userid1, revid2, userid2, timestamp)
 );
 

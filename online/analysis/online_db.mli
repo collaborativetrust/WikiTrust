@@ -136,7 +136,7 @@ class db :
 	(rev_id  n_edit_judges total_edit_quality min_edit_quality
 	  n_text_judges new_text persistent_text)
 	associated with the revision with id [rev_id]. *)
-    method read_quality_info ; int -> (int * float * float * int * int * int)
+    method read_quality_info : int -> (int * float * float * int * int * int)
 
     (** Totally clear out the db structure -- THIS IS INTENDED ONLY FOR UNIT
     TESTING *)
