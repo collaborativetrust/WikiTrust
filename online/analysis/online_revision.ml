@@ -35,88 +35,202 @@ POSSIBILITY OF SUCH DAMAGE.
 
 (** This is the revision object used for the on-line author reputation and text trust evaluation *)
 class revision 
-  (id: int) (* revision id *)
+  (db: Online_db.db)
+  (rev_id: int) (* revision id *)
   (page_id: int) (* page id *)
-  (timestamp: string) (* timestamp string *)
   (time: float) (* time, as a floating point *)
-  (contributor: string) (* name of the contributor *)
   (user_id: int) (* user id *)
-  (ip_addr: string) (* IP address *)
   (username: string) (* name of the user *)
   (is_minor: bool) 
   (comment: string)
-  (text_init: string Vec.t) (* Text of the revision, still to be split into words *)
   =
-  let (t, _, _, swi, s) = Text.split_into_words_seps_and_info text_init in 
+  object (self : 'a)
+    val is_anon : bool = (user_id = 0)
 
-  object (self)
-    inherit Revision.revision id page_id timestamp time contributor user_id ip_addr username is_minor comment text_init 
+      (* Things to store: 
+	 tot_edit_qual
+	 n_edit_judges (these two allow the computation of the edit longevity)
+	 tot_rep (total earned reputation )
+         A list of revisions and authors to which the current revision gave a 
+	 reputation increase, so that the same increase can be undone 
+	 total_text  
+	 n_text_judges
 
-    val words : word array = t 
-    val seps  : Text.sep_t array = s
-    val sep_word_idx : int array = swi 
+       *)
+      (* These have to do with the revision text.  There is nothing in this, 
+	 since we do not necessarily read the text of all the revisions we 
+	 may want to keep track: reading the text is expensive. *)
+    val mutable words : word array option = None
+    val mutable trust : float array option = None
+    val mutable origin : int array option = None
+    val mutable seps  : Text.sep_t array option = None 
+    val mutable sep_word_idx : int array option = None 
 
-    method get_words : word array = words
-    method get_n_words : int = Array.length words
-    method print_words : unit = begin Text.print_words words ; print_newline () end
+    (* This is a Vec of previous revisions by the same author *)
+    val mutable prev_by_author : 'a Vec.t = Vec.empty 
 
-    method get_seps : Text.sep_t array = seps 
-    method get_sep_word_idx : int array = sep_word_idx 
+    (* This counts how many revisions ago a revision was made, 
+       counting consecutive revisions by the same author as one revision only. *)
+    val mutable age : int = 0 
 
-    (* This is an array of word reputations *)
-    val mutable word_trust : float array = [| |] 
-    method set_word_trust (a: float array) : unit = word_trust <- a
-    method get_word_trust : float array = word_trust
+    (* These quantities keep track of the quality of a revision *)
+    (* First, I have a flag that says whether I have read the quantities 
+       or not.  They are not read by default; they reside in a 
+       separate table from standard revision data. *)
+    val mutable has_quality_info : bool = false
+    (* Dirty bit to avoid writing back unchanged stuff *)
+    val mutable modified_quality_info : bool = false
 
-    (* This is an array of word origins *)
-    val mutable word_origin : int array = [| |] 
-    method set_word_origin (a: int array) : unit = word_origin <- a
-    method get_word_origin : int array = word_origin
+    (* Edit *)
+    (* Number of revisions that act as edit judges of the current one *)
+    val mutable n_edit_judges : int  = 0
+    (* Total edit quality of the revision *)
+    val mutable total_edit_quality : float = 0.
+    (* Minimum edit quality the revision has received so far *)
+    val mutable min_edit_quality : float = 0.
 
-    method print_words_and_seps : unit = begin 
-      Text.print_words_and_seps words seps;
-      print_newline (); 
-    end
+    (* Text *)
+    (* Number of revisions that act as text judges of the current one *)
+    val mutable n_text_judges : int  = 0
+    (* Amount of text created in the revision *)
+    val mutable new_text : int = 0
+    (* Total amount of left-over text *)
+    val mutable persistent_text : int = 0
 
-    method output_rev_preamble trust_file = 
-      (* prints standard stuff *)
-      Printf.fprintf trust_file "<revision>\n<id>%d</id>\n" id; 
-      Printf.fprintf trust_file "<timestamp>%s</timestamp>\n" timestamp;
-      Printf.fprintf trust_file "<contributor>\n%s</contributor>\n" contributor;
-      if is_minor then Printf.fprintf trust_file "<minor />\n";
-      Printf.fprintf trust_file "<comment>%s</comment>\n" comment;
-      Printf.fprintf trust_file "<text xml:space=\"preserve\">"
+    (* Basic access methods *)
+    method get_id : int = id
+    method get_ip : string = if user_id = 0 then username else ""
+    method get_time : float = time
+    method get_page_id : int = page_id
+    method get_user_id : int = user_id
+    method get_user_name : string = username 
+    method get_is_anon : bool = is_anon
+    method set_age (n: int) : unit = age <- n 
+    method get_age : int = age
 
-    method output_revision trust_file = 
-      (** This method is used to output the revision to an output file. *)
-      self#output_rev_preamble trust_file; 
-      (* This function f is iterated on the array *)
-      let f (s: Text.sep_t) : unit = 
-        match s with 
-	  Text.Title_start (t, _) | Text.Title_end (t, _) | Text.Par_break t
-        | Text.Bullet (t, _) | Text.Indent (t, _) | Text.Space t | Text.Newline t
-	| Text.Armored_char (t, _) | Text.Table_line (t, _) | Text.Table_cell (t, _)
-	| Text.Table_caption (t, _) 
-        | Text.Tag (t, _) | Text.Redirect (t, _) | Text.Word (t, _) -> 
-	    output_string trust_file t
-      in
-      Array.iter f seps;
-      output_string trust_file "</text>\n</revision>\n"
+      (* Reads the revision text from the db, and splits it appropriately *)
+    method read_text : unit = 
+      let text_vec = Vec.singleton (db#read_colored_markup rev_id) in 
+      let (w, t, o, s_idx, s) = Text.split_into_words_seps_and_info in 
+      words <- Some w; 
+      trust <- Some t; 
+      origin <- Some o; 
+      seps <- Some s; 
+      sep_word_idx <- Some s_idx
 
+    method get_words : word array =
+      match words with 
+	Some w -> w
+      | None -> begin 
+	  self#read_text;
+	  match words with 
+	    Some w -> w
+	  | None -> Raise ReadTextError
+	end
 
-    method output_rev_text (include_origin: bool) trust_file = 
-      (** This method is used to output the colorized version of a 
-          revision to an output file. *)
-      self#output_rev_preamble trust_file; 
-      (* Now we must write the text of the revision *)
-      let b = Buffer.create 1000 in 
-      produce_annotated_markup seps word_trust word_origin false include_origin b; 
-      Buffer.output_buffer trust_file b; 
-      output_string trust_file "</text>\n</revision>\n"
+    method get_trust : word array =
+      match trust with 
+	Some w -> w
+      | None -> begin 
+	  self#read_text;
+	  match trust with 
+	    Some w -> w
+	  | None -> Raise ReadTextError
+	end
 
+    method get_origin : word array =
+      match origin with 
+	Some w -> w
+      | None -> begin 
+	  self#read_text;
+	  match origin with 
+	    Some w -> w
+	  | None -> Raise ReadTextError
+	end
 
-    method output_trust_revision = self#output_rev_text false
+    method get_seps : Text.sep_t array = 
+      match seps with 
+	Some w -> w
+      | None -> begin 
+	  self#read_text;
+	  match seps with 
+	    Some w -> w
+	  | None -> Raise ReadTextError
+	end
 
-    method output_trust_origin_revision = self#output_rev_text true 
+    method get_sep_word_idx : Text.sep_t array = 
+      match sep_word_idx with 
+	Some w -> w
+      | None -> begin 
+	  self#read_text;
+	  match sep_word_idx with 
+	    Some w -> w
+	  | None -> Raise ReadTextError
+	end
+
+    (** This method adds to the revision immediately preceding revisions by the same author. *)
+    method add_by_same_author (r: 'a) : unit = 
+      prev_by_author <- Vec.append r prev_by_author
+
+    (** This method returns the immediately preceding revision by the same author, if any *)
+    method get_preceding_by_same_author : 'a option = 
+      if Vec.length prev_by_author = 0 
+      then None
+      else Some (Vec.get 0 prev_by_author)
+
+    (** Reads the quality info from the database *)
+    method read_quality_info : unit = 
+      if not has_quality_info then begin 
+	let (n_ed_j, t_ed_q, m_ed_q, n_tx_j, new_tx, tot_tx) = db#read_quality_info rev_id in 
+	n_edit_judges <- n_ed_j; 
+	total_edit_quality <- t_ed_q; 
+	min_edit_quality <- m_ed_q; 
+	n_text_judges <- n_tx_j; 
+	new_text <- new_tx; 
+	persistent_text <- tot_tx;
+	has_quality_info <- true;
+	modified_quality_info <- false
+      end
+
+    (** Writes quality info to the database *)
+    method write_quality_info : unit = 
+      if has_quality_info && modified_quality_info then begin 
+	db#write_quality_info rev_id n_edit_judges total_edit_quality min_edit_quality
+	  n_text_judges new_text persistent_text; 
+	modified_quality_info <- false
+      end
+
+    (** Adds edit quality information *)
+    method add_edit_quality_info (q: float) : unit = 
+      if not has_quality_info then self#read_quality_info; 
+      total_edit_quality <- total_edit_quality +. q; 
+      if q < min_edit_quality then min_edit_quality <- q; 
+      n_edit_judges <- n_edit_judges + 1; 
+      modified_quality_info <- true
+
+    (** Adds text quality information *)
+    method add_text_quality_info (q: int) : unit = 
+      if not has_quality_info then self#read_quality_info; 
+      persistent_text <- persistent_text + q; 
+      n_text_judges <- n_text_judges + 1; 
+      modified_quality_info <- true
+
+    (** Sets the amount of new text found in a revision *)
+    method set_new_text (q: int) : unit = 
+      if not has_quality_info then self#read_quality_info; 
+      new_text <- q; 
+      modified_quality_info <- true
+
+    (** Returns the amount of new text found in a revision *)
+    method get_new_text : int = 
+      if not has_quality_info then self#read_quality_info; 
+      new_text
+
+    (** Returns the amount of new text in this revision, as well as in all
+	consecutive previous revisions by the same author *)
+    method get_all_text_by_same_consecutive_author : int = 
+      let f x y = x#get_new_text + y in 
+      Vec.fold f 0 prev_by_author 
+	
 
   end (* revision object *)

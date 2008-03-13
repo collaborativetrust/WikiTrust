@@ -35,34 +35,28 @@ POSSIBILITY OF SUCH DAMAGE.
 
 (** This class provides a handle for accessing the database in the on-line 
     implementation.
-    I don't know how it is created; most likely, it would take a database 
-    name and password, or something like that, to connect to the db. *)
+    Ian, can you add documentation on what these values are? *)
 class db : 
-  string ->
+  string -> 
   string ->
   string -> 
 
   object
 
-    (** [read_text_split_version page_id] given a [page_id] returns a 
-	string associated with the page in the db.  The string 
-	represents the version of Text.ml that has 
-	been used to split a revision in words. *)
-    method read_text_split_version : int -> string
-
-    (** [write_text_split_version page_id s] writes to the db 
-	a string [s] associated with a page [page_id].  The string
-	represents the version of Text.ml that has 
-	been used to split a revision in words, and returns it. *)
-    method write_text_split_version : int -> string -> unit 
-
     (** [read_edit_diff revid1 revid2] reads from the database the edit list 
-	from the (live) text of revision [revid1] to revision [revid2]. *)
-    method read_edit_diff : int -> int -> (Editlist.edit list)
+	from the (live) text of revision [revid1] to revision [revid2]. 
+        The edit list consists in a string, identifying the way revision of 
+        Text.ml used for splitting the text, and in the edit list proper.
+        The return type is an option: the db should return None if no such row for 
+        revid1 and revid2 can be found in the database. *)
+    method read_edit_diff : int -> int -> (string * (Editlist.edit list)) option 
 
-    (** [write_edit_diff revid1 revid2 elist] writes to the database the edit list 
-	[elist] from the (live) text of revision [revid1] to revision [revid2]. *)
-    method write_edit_diff : int -> int -> (Editlist.edit list) -> unit
+    (** [write_edit_diff revid1 revid2 vers elist] writes to the database the edit list 
+	[elist] from the (live) text of revision [revid1] to revision [revid2], 
+	computed by splitting the text of revision with version [vers] of 
+	Text.ml.  Note that for each revid1 and revid2, I want a UNIQUE [vers] and [elist]; 
+	previous values should be over-written. *)
+    method write_edit_diff : int -> int -> string -> (Editlist.edit list) -> unit
 
     (** [get_rep uid] gets the reputation of user [uid], from a table 
 	relating user ids to their reputation *)
@@ -112,19 +106,37 @@ class db :
 	- revid2, userid2 is the judged revision
 	- timestamp is the time of the judgement
 	- q is the reputation increase quantity (can be negative). 
+	- voided is a flag that, if true, indicates that this reputation operation 
+	  has been later reverted. 
 
 	Make sure this table is widely indexed, as we may like to use it for data
 	analysis.  Note that I can get userid1 and userid2 via joins, but I believe it 
 	is more efficient to have such fields already in the table.  Otherwise, we need 
 	too many accesses every time a new revision is made. 
 
-	[write_feedback revid1 userid1, revid2, userid2, timestamp, q] adds one such tuple 
-	to the db. *)
-    method write_feedback : int -> int -> int -> int -> float -> float -> unit
+	[write_feedback revid1 userid1, revid2, userid2, timestamp, q, voided] adds one such tuple 
+	to the db. 
 
-    (** [read_feedback_by revid1] reads from the db all the (revid2, userid2,  timestamp, q) that 
+        NOTE: [revid1, revid2] is a key pair to the db, so that if a row with the same
+        values for [revid1] and [revid2] exists in the db already, the values are 
+        overwritten.  Ian, delete this sentence once you read and implement this. *)
+    method write_feedback : int -> int -> int -> int -> float -> float -> bool -> unit
+
+    (** [read_feedback_by revid1] reads from the db all the (revid2, userid2,  timestamp, q, reverted) that 
 	have been caused by the revision with id [revid1]. *)
-    method read_feedback_by : int -> (int * int * float * float) list
+    method read_feedback_by : int -> (int * int * float * float * bool) list
+
+    (** [write_quality_info rev_id n_edit_judges total_edit_quality min_edit_quality
+	  n_text_judges new_text persistent_text] writes in a table on disk indexed by [rev_id]
+	the tuple (rev_id  n_edit_judges total_edit_quality min_edit_quality
+	  n_text_judges new_text persistent_text). *)
+    method write_quality_info : int -> int -> float -> float -> int -> int -> int -> unit
+
+    (** [read_quality_info rev_id] returns the tuple 
+	(rev_id  n_edit_judges total_edit_quality min_edit_quality
+	  n_text_judges new_text persistent_text)
+	associated with the revision with id [rev_id]. *)
+    method read_quality_info ; int -> (int * float * float * int * int * int)
 
     (** Totally clear out the db structure -- THIS IS INTENDED ONLY FOR UNIT
     TESTING *)
