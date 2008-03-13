@@ -50,12 +50,6 @@ class db
   object(self)
     
     (* HERE are all of the prepaired sql statments used below *)
-    val mutable sth_select_page_text = dbh#prepare_cached "SELECT current_rev_text FROM 
-          text_split_version WHERE page_id = ?"
-    val sth_delet_text_split = dbh#prepare_cached "DELETE FROM text_split_version 
-          WHERE page_id = ?" 
-    val sth_insert_text_split = dbh#prepare_cached "INSERT INTO text_split_version 
-          (current_rev_text, page_id) VALUES (?, ?)"    
     val sth_select_edit_list = dbh#prepare_cached "SELECT edit_type, val1,
           val2, val3, version FROM edit_lists WHERE 
           from_revision = ? AND to_revision  = ?"
@@ -126,28 +120,7 @@ class db
     val sth_select_quality = dbh#prepare_cached "SELECT rev_id, n_edit_judges,
           total_edit_quality, min_edit_quality, n_text_judges, new_text,
           persistent_text FROM quality_info WHERE rev_id = ?" 
-(*
-    (** [read_text_split_version page_id] given a [page_id] returns a 
-	string associated with the page in the db.  The string 
-	represents the version of Text.ml that has 
-	been used to split a revision in words. *)
-    method read_text_split_version (page_id : int) : string = 
-      sth_select_page_text#execute [`Int page_id];
-      sth_select_page_text#fetch1string () 
 
-    (** [write_text_split_version page_id s] writes to the db 
-	a string [s] associated with a page [page_id].  The string
-	represents the version of Text.ml that has 
-	been used to split a revision in words, and returns it. *)
-    method write_text_split_version (page_id : int) (page_text : string) : unit =
-    
-      (* First we delete any pre-existing text. *)
-      sth_delet_text_split#execute [`Int page_id ];
-      (* Next we add in the new text. *)
-      sth_insert_text_split#execute [`String page_text; `Int page_id ];
-      dbh#commit ()
-
-  *)    
     (** [read_edit_diff revid1 revid2] reads from the database the edit list 
 	from the (live) text of revision [revid1] to revision [revid2]. *)
     method read_edit_diff (revid1 : int) (revid2 : int) : 
