@@ -138,7 +138,7 @@ class db :
 	associated with the revision with id [rev_id]. *)
     method read_quality_info ; int -> (int * float * float * int * int * int)
 
-    (** Totally clear out the db structure -- THIS IS INTEDED ONLY FOR UNIT
+    (** Totally clear out the db structure -- THIS IS INTENDED ONLY FOR UNIT
     TESTING *)
     method delete_all : bool -> unit
 

@@ -6,6 +6,7 @@ open Printf
 open Std
 
 let test_db dbuser dbpass dbname = (
+  let epsilon = 0.001 in (* MYSQL is not all about precics floating point values *)
   let test_page_id = 10 in
   let test_page_text = "this is the page text" in
   let revid1 = 1 in
@@ -15,7 +16,7 @@ let test_db dbuser dbpass dbname = (
   let time1 = 100.4533 in
   let quality = 10.0 in
   let n_del_revs = 22 in
-  let sizeof_arr = 10 in
+  let sizeof_arr = 100 in
   let array_init_str i = string_of_int i in
   let array_init_int i = i in
   let array_init_float i = float_of_int i in
@@ -71,7 +72,7 @@ let test_db dbuser dbpass dbname = (
     (* dead_page_chunks *) 
     mydb#write_dead_page_chunks test_page_id [ testchunk ];
     let f_chk (chk : Online_types.chunk_t ) = (
-      assert (chk.timestamp = testchunk.timestamp);
+      assert ((abs_float (chk.timestamp -. testchunk.timestamp)) < epsilon);
       assert (chk.n_del_revisions = testchunk.n_del_revisions);
       assert (chk.text = testchunk.text);
       assert (chk.trust = testchunk.trust);
