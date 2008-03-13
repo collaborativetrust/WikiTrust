@@ -1,57 +1,104 @@
-## Basic Makefile to put together a testing setup for the online_db stuff
-## Ian Pye
+# Copyright (c) 2007-2008 The Regents of the University of California
+# All rights reserved.
+#
+# Authors: Luca de Alfaro, B. Thomas Adler, Ian Pye
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+# this list of conditions and the following disclaimer.
+#
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+# this list of conditions and the following disclaimer in the documentation
+# and/or other materials provided with the distribution.
+#
+# 3. The names of the contributors may not be used to endorse or promote
+# products derived from this software without specific prior written
+# permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
 
-OCAMLFIND := ocamlfind
-OCAMLC := ocamlc -g
-OCAMLOPT := ocamlopt
+# Vars we use in our rules to build ocaml programs
+OCAML_LDA_LIBS = vec.cmo hashtbl_bounded.cmo intvmap.cmo
+OCAML_LDA_LIBS_OPT = vec.cmx hashtbl_bounded.cmx intvmap.cmx
+OUR_LD_ADD = str.cma unix.cma $(OCAML_LDA_LIBS)
+OUR_OPTLD_ADD = str.cmxa unix.cmxa $(OCAML_LDA_LIBS_OPT)
+OUR_PACKAGES = -package dbi.mysql -package extlib
+INCLUDES = -I ../../batch/analysis
 
-OCAMLINCS := -I ../../batch/analysis 
-OCAMLPACKAGES := -package dbi.mysql -package extlib
+OCAMLC=ocamlc
+OCAMLOPT=ocamlopt
+OCAMLMKTOP=ocamlmktop
+
+OCAMLLEX=ocamllex
+OCAMLYACC=ocamlyacc
+OCAMLDEP=ocamldep
+OCAMLMKLIB=ocamlmklib
+OCAMLDOC=ocamldoc
+OCAMLFIND_C=ocamlfind ocamlc
+OCAMLFIND_COPT=ocamlfind ocamlopt
+
+SUFFIXES= .ml .cmo .cmi .cmx
+
+# OCAMLDEBUG = -g -p film 
+OCAMLDEBUG = -g
+
+# Flags for commands, depending on optimization/debugging
+OCAML_CFLAGS=$(INCLUDES) $(OCAMLDEBUG)
+OCAMLOPT_FLAGS=$(INCLUDES) 
+
+%.cmo: %.ml
+	@echo '$(OCAMLFIND_C) $(OCAML_CFLAGS) $(OUR_PACKAGES) -c $<'; \
+	$(OCAMLFIND_C) $(OCAML_CFLAGS) $(OUR_PACKAGES) -c $<
+
+%.cmi: %.mli
+	@echo '$(OCAMLC) $(OCAML_CFLAGS) -c $<'; \
+	$(OCAMLC) $(OCAML_CFLAGS) -c $<
+
+%.cmx: %.ml
+	@echo '$(OCAMLFIND_COPT) $(OCAMLOPT_FLAGS) $(OUR_PACKAGES) -c $<'; \
+	$(OCAMLFIND_COPT) $(OCAMLOPT_FLAGS) $(OUR_PACKAGES) -c $<
+
+.PHONY: all allopt universe clean
+
+## Library for accessing the db
+OUR_ONLINE_DB_OBJS = online_db.cmo
+OUR_OPT_ONLINE_DB_OBJS = online_db.cmx
 
 
-TARGETS	:= online_types-h  \
-	online_types \
-	online_db-h \
-	online_db  \
-	run_harness
+# compiles the online_db stuff 
 
-TARGETS-OPT := online_types-hopt  \
-            online_typesopt \
-	    online_db-hopt \
-	    online_dbopt  \
-	    run_harnessopt
+online_db: $(OUR_ONLINE_DB_OBJS)
+	$(OCAMLFIND_C) -o run_harness $(OCAML_CFLAGS) $(OUR_ONLINE_DB_OBJS) -linkpkg
 
+online_dbopt: $(OUR_OPT_ONLINE_DB_OBJS)
+	$(OCAMLFIND_COPT) -o run_harness $(OCAMLOPT_FLAGS) $(OUR_OPT_ONLINE_DB_OBJS) -linkpkg
 
-all:	$(TARGETS)
-allopt: $(TARGETS-OPT)
+all: online_db
+allopt: online_dbopt
+universe: all allopt
 
-online_types-h: online_types.mli
-	$(OCAMLC) $<
-online_types-hopt: online_types.mli
-	$(OCAMLOPT) $<
-
-online_types: online_types.ml
-	$(OCAMLC) -c $<
-online_typesopt: online_types.ml
-	$(OCAMLOPT) -c $<
-
-online_db-h: online_db.mli
-	$(OCAMLC) $(OCAMLINCS) $^ 
-online_db-hopt: online_db.mli
-	$(OCAMLOPT) $(OCAMLINCS) $^ 
-
-online_db: online_db.ml
-	$(OCAMLFIND) $(OCAMLC) $(OCAMLPACKAGES) $(OCAMLINCS) -c $^ 
-online_dbopt: online_db.ml
-	$(OCAMLFIND) $(OCAMLOPT) $(OCAMLPACKAGES) $(OCAMLINCS) -c $^
-
-run_harness: online_db.cmo online_db_run_harness.ml
-	$(OCAMLFIND) $(OCAMLC) -o $@ $(OCAMLPACKAGES) $(OCAMLINCS) -linkpkg $^
-run_harnessopt: online_db.cmx online_db_run_harness.ml
-	$(OCAMLFIND) $(OCAMLOPT) -o run_harness $(OCAMLPACKAGES) $(OCAMLINCS) -linkpkg $^
-
+#
+# Boilerplate code for building ocaml dependencies, and
+# "make clean".
+#
 
 clean:
-	rm -f $(TARGETS)
-	rm -f *.cmi *.cmo *~
-	rm -f *.cmx *.o
+	rm -f *.o *.cmo *.cmx *.cmi .depends run_harness
+
+.depends: *.ml
+	$(OCAMLDEP) $^ > $@
+
+-include .depends
+

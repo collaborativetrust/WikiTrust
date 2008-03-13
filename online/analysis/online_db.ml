@@ -349,11 +349,11 @@ class db
    n_text_judges new_text persistent_text] writes in a table on disk
    indexed by [rev_id] the tuple (rev_id  n_edit_judges total_edit_quality
     min_edit_quality n_text_judges new_text persistent_text). *)
-
+(*
     method write_quality_info (rev_id : int) (n_edit_judges : int)
     (min_edit_quality : float) (n_text_judges : float) (new_text : int)
     (persistent_text : int) : 
-      int -> unit
+      int -> unit =
 
     (** [read_quality_info rev_id] returns the tuple 
        (rev_id  n_edit_judges total_edit_quality min_edit_quality
@@ -362,7 +362,7 @@ class db
     *)
 
     method read_quality_info : int -> (int * float * float * int * int * int) 
-
+*)
 
     (** Clear everything out -- INTENDED FOR UNIT TESTING ONLY *)
     method delete_all (really : bool) =
