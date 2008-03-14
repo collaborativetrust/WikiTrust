@@ -50,7 +50,7 @@ class db :
         The return type is an option: the db should return None if no such row for 
         revid1 and revid2 can be found in the database. *)
     (* TODO IMPLEMENT option *)
-    method read_edit_diff : int -> int -> (string * (Editlist.edit list))  
+    method read_edit_diff : int -> int -> (string * (Editlist.edit list)) option  
 
     (** [write_edit_diff revid1 revid2 vers elist] writes to the database the edit list 
 	[elist] from the (live) text of revision [revid1] to revision [revid2], 

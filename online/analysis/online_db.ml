@@ -124,7 +124,7 @@ class db
     (** [read_edit_diff revid1 revid2] reads from the database the edit list 
 	from the (live) text of revision [revid1] to revision [revid2]. *)
     method read_edit_diff (revid1 : int) (revid2 : int) : 
-      (string * (Editlist.edit list)) =
+      (string * (Editlist.edit list)) option =
       
       sth_select_edit_list#execute [`Int revid1; `Int revid2];
       let elist = [] in
@@ -148,11 +148,8 @@ class db
                     assert false ) in
       sth_select_edit_list#iter f ;
       match List.length !p_elist with
-        | _ -> (!p_version, !p_elist)
-        
-
-      (* (!p_version, !p_elist) 
-      with Not_found -> None *)
+        | 0 -> None
+        | _ -> Some (!p_version, !p_elist)
       
      
     (** [wrte_edit_diff revid1 revid2 elist] writes to the database the edit list 

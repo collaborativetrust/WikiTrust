@@ -56,7 +56,10 @@ let test_db dbuser dbpass dbname = (
       | Del (i, l) -> p_num_eds := 1 + !p_num_eds;
       | Mov (i, j, l) -> p_num_eds := 1 + !p_num_eds
     ) in
-    List.iter fel (snd(db_editlist));
+    match db_editlist with
+      | None -> assert(false)
+      | Some ((version : string), (edits : Editlist.edit list )) -> List.iter fel edits
+      ;
     assert (!p_num_eds >= (List.length myeditlist));
     
     (* user reputation *)
