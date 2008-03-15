@@ -46,9 +46,24 @@ class page
   (rev_id : int) =  (* revision id.  This is the first revision to read; after this, 
 	    each read operation returns the previous revision (so the
 	    read is backwards. *)
+
   object (self)
+
+    val sth_select_revs = db#prepare_cached "select rev_id, rev_page,
+      rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment from re
+      vision where rev_page = ? and rev_id <= ?"
+        
+    (* This runs after the object is built, before anything else happens *)
+    initializer sth_select_revs#execute [`Int page_id; `Int rev_id]
+
     (* This method gets, every time, the previous revision of the page, 
        starting from the revision id that was given as input. *)
     method get_rev : Online_revision.revision =
-      "ff"
+      match sth_select_revs#fetch1 with
+        | [`Int rid; `Int pid; `Int time; `Int uid; `String usern; `Int ism;
+            `String com] -> ( new Online_revision.revision db rid pid
+            (float_of_int time) uid usern (bool_of_string (string_of_int ism))
+            com )
+        | _ -> assert(false)
+      
   end (* End page *)
