@@ -35,18 +35,20 @@ POSSIBILITY OF SUCH DAMAGE.
 
 open Eval_constants;;
 open Online_types;;
+open Online_revision;;
 
 (** This class contains methods to read consecutive revisions belonging
     to a page from the database. *)
 
-class page : 
-  Online_db.db -> (* Online database containing the pages and revisions *)
-  int -> (* page id to which the revisions belong *)
-  int -> (* revision id.  This is the first revision to read; after this, 
+class page 
+  (db :Online_db.db)  (* Online database containing the pages and revisions *)
+  (page_id : int)  (* page id to which the revisions belong *)
+  (rev_id : int) =  (* revision id.  This is the first revision to read; after this, 
 	    each read operation returns the previous revision (so the
 	    read is backwards. *)
   object (self)
     (* This method gets, every time, the previous revision of the page, 
        starting from the revision id that was given as input. *)
-    method get_rev : Online_revision.revision 
-  end
+    method get_rev : Online_revision.revision =
+      "ff"
+  end (* End page *)

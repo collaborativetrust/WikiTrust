@@ -33,6 +33,9 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
+open Vec;;
+type word = string;;
+
 (** This is the revision object used for the on-line author reputation and text trust evaluation *)
 class revision 
   (db: Online_db.db)
