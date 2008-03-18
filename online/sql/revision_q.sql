@@ -76,5 +76,6 @@ CREATE TABLE trust_text(
 CREATE TABLE trust_users(
   trust_user        int(5) unsigned PRIMARY KEY   ,
   trust_user_text   varchar(255) NOT NULL     ,
+  sucessful         boolean NOT NULL DEFAULT true,
   addedon           timestamp NOT NULL DEFAULT now() 
 );
