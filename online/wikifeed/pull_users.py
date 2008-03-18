@@ -41,7 +41,7 @@ import getopt
 import urllib
 import urllib2
 import gzip
-import os
+import signal,os
 import re
 import time
 import StringIO
@@ -57,8 +57,9 @@ EPSILON_TO_STOP_AT = 100
 LOCK_FILE = "/tmp/mw_user_pull"
 SLEEP_TIME_SEC = 1
 MAX_TIMES_TRY = 1
-BASE_DIR = "/home/ipye/dev/wikifeed/"
+BASE_DIR = ""
 INI_FILE = BASE_DIR + "pull_revision.ini"
+DB_PREFIX = ''
 
 ## re to pull out the xml header
 patern = re.compile('\<mediawiki(.)*?xml:lang="en"\>')
@@ -68,6 +69,18 @@ user_patern = re.compile(' ')
 
 users_added = 0
 last_users_added = []
+keep_going = True
+
+## inerrupt handler
+def int_handler(signum, frame):
+  global keep_going
+  global verbose
+  if verbose:
+    print "Caught Stop Signal -- Shutting down after current run."
+  keep_going = False
+
+##, and setup the sig handler
+signal.signal(signal.SIGINT, int_handler)
 
 def add_user():
   global current_user_id
@@ -75,6 +88,7 @@ def add_user():
   global users_added
   global user_text
   global last_users_added
+  global DB_PREFIX
   
   user_uni = current_user.encode('utf-8')
   if current_user in last_users_added:
@@ -90,16 +104,23 @@ def add_user():
 
   user_id = int(current_user_id)
   if user_id > 0:                                                                                           
-    curs.execute("SELECT trust_user FROM trust_users WHERE trust_user_text = %s", (user_uni))                    
+    curs.execute("SELECT trust_user FROM " + DB_PREFIX + "trust_users WHERE \
+        trust_user_text = %s", (user_uni))                    
     data = curs.fetchall()                                                                                
     if len(data) <= 0:                                                                                    
-      curs.execute("INSERT INTO trust_users (trust_user, trust_user_text) VALUES (%s, %s)", (user_id, user_uni))
+      curs.execute("INSERT INTO "+ DB_PREFIX + "trust_users (trust_user, \
+          trust_user_text) VALUES (%s, %s)", (user_id, user_uni))
       users_added += 1   
+
     ## now, update all the revision rows for this user
-    curs.execute("UPDATE trust_revision SET rev_user = %s WHERE rev_user_text = %s", (user_id, user_uni))
+    curs.execute("UPDATE " + DB_PREFIX + "revision SET rev_user = %s WHERE \
+        rev_user_text = %s", (user_id, user_uni))
 
     ## mark that we have already looked at this guy
     last_users_added.append(user_uni)
+
+    ## and commit
+    connection.commit()
 
 ## parser callbacks
 def start_element(name, attrs):
@@ -155,12 +176,13 @@ args = ""
 user_text = ""
 num_users = 0
 
-sql_get_users = "select rev_user_text from trust_revision where \
-                 rev_user = 0 and rev_user_text NOT REGEXP \
+sql_get_users = "SELECT DISTINCT rev_user_text FROM " + DB_PREFIX + "revision WHERE \
+                 rev_user = 0 \
+                 AND  rev_user_text NOT REGEXP \
                  '^[[:digit:]]*.[[:digit:]]*.[[:digit:]]*.[[:digit:]]*$'" 
 
 
-def pull_revs():                                                                                            
+def pull_users():
   global parser
   global patern
   global user_patern
@@ -173,7 +195,7 @@ def pull_revs():
   api_data = ""
   tmp_user = ""
 
-  ## First, get the timestamp we left off at                                                           
+  ## First, get a list of users to look at                                                          
   curs.execute (sql_get_users)
   data = curs.fetchall()                                                                                    
   for row in range(len(data)):   
@@ -276,7 +298,7 @@ else:
   lock_f.close()
 
 # now, pull users
-pull_revs()
+pull_users()
 
 ## close off the root element
 parser.Parse("</START_XML_LIST>", True) ## keep the xml well formed
