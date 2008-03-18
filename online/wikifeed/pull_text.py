@@ -53,7 +53,7 @@ import ConfigParser
 ## Const Globals -- ?? how do I mark a variable immutable in python?
 WIKI_BASE = "http://en.wikipedia.org/w/api.php"
 REVS_TO_PULL = 20
-LOCK_FILE = "/tmp/mw_test_pull"
+LOCK_FILE = "/tmp/mw_text_pull"
 SLEEP_TIME_SEC = 1
 MAX_TIMES_TRY = 10 ## how many times to try downloading content before giving up
 BASE_DIR = "/home/ipye/dev/wikifeed/"
@@ -128,7 +128,7 @@ def save_data():
   global num_revs
   global verbose
 
-  page_restrict = 0
+  page_restrict = ''
   page_random = 0.0
 
   if verbose:
@@ -146,7 +146,8 @@ def save_data():
                   (%s, %s, %s, \
                   date_format(%s, %s), \
                   %s, %s, %s, %s, %s) ", \
-                  (page_data["pageid"], page_data["ns"], page_data["title"].encode('utf-8') \
+                  (page_data["pageid"], page_data["ns"],
+                    page_data["title"].replace(' ', '_').encode('utf-8') \
                   , page_data["touched"][:19], DB_TIMESTAMP_FORMAT \
                   , page_data["lastrevid"], page_data["counter"], page_data["length"],
                   page_restrict, page_random))
