@@ -35,6 +35,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
 open Vec;;
 type word = string;;
+exception ReadTextError
 
 (** This is the revision object used for the on-line author reputation and text trust evaluation *)
 class revision 
@@ -101,7 +102,7 @@ class revision
     val mutable persistent_text : int = 0
 
     (* Basic access methods *)
-    method get_id : int = id
+    method get_id : int = rev_id
     method get_ip : string = if user_id = 0 then username else ""
     method get_time : float = time
     method get_page_id : int = page_id
@@ -114,7 +115,7 @@ class revision
       (* Reads the revision text from the db, and splits it appropriately *)
     method read_text : unit = 
       let text_vec = Vec.singleton (db#read_colored_markup rev_id) in 
-      let (w, t, o, s_idx, s) = Text.split_into_words_seps_and_info in 
+      let (w, t, o, s_idx, s) = Text.split_into_words_seps_and_info text_vec in 
       words <- Some w; 
       trust <- Some t; 
       origin <- Some o; 
@@ -128,7 +129,7 @@ class revision
 	  self#read_text;
 	  match words with 
 	    Some w -> w
-	  | None -> Raise ReadTextError
+	  | None -> raise ReadTextError
 	end
 
     method get_trust : word array =
@@ -138,7 +139,7 @@ class revision
 	  self#read_text;
 	  match trust with 
 	    Some w -> w
-	  | None -> Raise ReadTextError
+	  | None -> raise ReadTextError
 	end
 
     method get_origin : word array =
@@ -148,7 +149,7 @@ class revision
 	  self#read_text;
 	  match origin with 
 	    Some w -> w
-	  | None -> Raise ReadTextError
+	  | None -> raise ReadTextError
 	end
 
     method get_seps : Text.sep_t array = 
@@ -158,7 +159,7 @@ class revision
 	  self#read_text;
 	  match seps with 
 	    Some w -> w
-	  | None -> Raise ReadTextError
+	  | None -> raise ReadTextError
 	end
 
     method get_sep_word_idx : Text.sep_t array = 
@@ -168,7 +169,7 @@ class revision
 	  self#read_text;
 	  match sep_word_idx with 
 	    Some w -> w
-	  | None -> Raise ReadTextError
+	  | None -> raise ReadTextError
 	end
 
     (** This method adds to the revision immediately preceding revisions by the same author. *)

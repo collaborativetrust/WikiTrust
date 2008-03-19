@@ -1,0 +1,15 @@
+Packages to install (in Ubuntu / Debian): 
+
+ocaml-findlib
+libdbi-ocaml
+libdbi-ocaml-dev
+libmysql-ocaml
+libmysql-ocaml-dev
+libextlib-ocaml-dev
+
+To make (both all and allopt): 
+
+OcamlLdaLibs
+batch/analysis
+
+
