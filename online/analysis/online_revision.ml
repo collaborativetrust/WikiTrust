@@ -132,7 +132,7 @@ class revision
 	  | None -> raise ReadTextError
 	end
 
-    method get_trust : word array =
+    method get_trust : float array =
       match trust with 
 	Some w -> w
       | None -> begin 
@@ -142,7 +142,7 @@ class revision
 	  | None -> raise ReadTextError
 	end
 
-    method get_origin : word array =
+    method get_origin : int array =
       match origin with 
 	Some w -> w
       | None -> begin 
@@ -162,7 +162,7 @@ class revision
 	  | None -> raise ReadTextError
 	end
 
-    method get_sep_word_idx : Text.sep_t array = 
+    method get_sep_word_idx : int array = 
       match sep_word_idx with 
 	Some w -> w
       | None -> begin 
@@ -233,8 +233,8 @@ class revision
     (** Returns the amount of new text in this revision, as well as in all
 	consecutive previous revisions by the same author *)
     method get_all_text_by_same_consecutive_author : int = 
-      let f x y = x#get_new_text + y in 
-      Vec.fold f 0 prev_by_author 
-	
+      let f x y = y + x#get_new_text in 
+      Vec.fold f prev_by_author 0
+
 
   end (* revision object *)

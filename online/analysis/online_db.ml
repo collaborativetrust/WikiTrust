@@ -366,17 +366,17 @@ class db
 
 
     (** [read_quality_info rev_id] returns the tuple 
-       (rev_id  n_edit_judges total_edit_quality min_edit_quality
+       (n_edit_judges total_edit_quality min_edit_quality
              n_text_judges new_text persistent_text)
           associated with the revision with id [rev_id].
     *)
 
-    method read_quality_info (rev_id : int) : (int * int * float * float * int * int
+    method read_quality_info (rev_id : int) : (int * float * float * int * int
     * int) =
       sth_select_quality#execute [`Int rev_id];
       match (sth_select_quality#fetch1 ()) with
         | [`Int r; `Int ned; `Float tq; `Float mq; `Int ntx; `Int nt; `Int pt ] ->
-          ((r,ned,tq,mq,ntx,nt,pt))
+          ((ned,tq,mq,ntx,nt,pt))
         | _ -> assert(false)
 
 
