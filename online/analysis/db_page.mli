@@ -47,6 +47,9 @@ class page :
 	    read is backwards. *)
   object
     (* This method gets, every time, the previous revision of the page, 
-       starting from the revision id that was given as input. *)
-    method get_rev : Online_revision.revision 
+       starting from the revision id that was given as input. 
+       The method returns a revision option, returning either (Some revision) 
+       or (None), the latter to indicate that no previous revision was 
+       present in the database. *)
+    method get_rev : Online_revision.revision option
   end

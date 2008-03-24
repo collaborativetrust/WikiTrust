@@ -38,3 +38,6 @@ val big_distance : int
 val max_perc_to_zip : float
 val max_uncovered_to_zip : int
 val max_longevity_table : int
+val n_online_revs_to_consider : int
+val online_max_age_time_del_chunk : float
+val online_max_age_nrevs_del_chunk : int

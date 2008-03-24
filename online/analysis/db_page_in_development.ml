@@ -38,8 +38,7 @@ open Online_types;;
 open Online_revision;;
 
 (** This class contains methods to read consecutive revisions belonging
-    to a page from the database. 
-    This implementation is just a stub, used to debug the rest of the code. *)
+    to a page from the database. *)
 
 class page 
   (db :Online_db.db)  (* Online database containing the pages and revisions *)
@@ -50,9 +49,21 @@ class page
 
   object (self)
 
+    val sth_select_revs = db#prepare_cached "select rev_id, rev_page,
+      rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment from re
+      vision where rev_page = ? and rev_id <= ?"
+        
+    (* This runs after the object is built, before anything else happens *)
+    initializer sth_select_revs#execute [`Int page_id; `Int rev_id]
+
     (* This method gets, every time, the previous revision of the page, 
        starting from the revision id that was given as input. *)
-    method get_rev : Online_revision.revision option =
-      Some (new Online_revision.revision db rev_id page_id 356.3 354 "luca-test" false "test revision")
+    method get_rev : Online_revision.revision =
+      match sth_select_revs#fetch1 with
+        | [`Int rid; `Int pid; `Int time; `Int uid; `String usern; `Int ism;
+            `String com] -> ( new Online_revision.revision db rid pid
+            (float_of_int time) uid usern (bool_of_string (string_of_int ism))
+            com )
+        | _ -> assert(false)
       
   end (* End page *)
