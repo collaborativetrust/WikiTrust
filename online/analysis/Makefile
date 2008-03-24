@@ -35,7 +35,7 @@ OCAML_LDA_LIBS_OPT = vec.cmx hashtbl_bounded.cmx intvmap.cmx
 OUR_LD_ADD = str.cma unix.cma $(OCAML_LDA_LIBS)
 OUR_OPTLD_ADD = str.cmxa unix.cmxa $(OCAML_LDA_LIBS_OPT)
 OUR_PACKAGES = -package dbi.mysql -package extlib
-INCLUDES = -I ../../batch/analysis ../../../OcamlLdaLibs
+INCLUDES = -I ../../batch/analysis -I ../../../OcamlLdaLibs
 
 OCAMLC=ocamlc
 OCAMLOPT=ocamlopt
@@ -63,8 +63,8 @@ OCAMLOPT_FLAGS=$(INCLUDES)
 	$(OCAMLFIND_C) $(OCAML_CFLAGS) $(OUR_PACKAGES) -c $<
 
 %.cmi: %.mli
-	@echo '$(OCAMLC) $(OCAML_CFLAGS) -c $<'; \
-	$(OCAMLC) $(OCAML_CFLAGS) -c $<
+	@echo '$(OCAMLFIND_C) $(OCAML_CFLAGS) -c $<'; \
+	$(OCAMLFIND_C) $(OCAML_CFLAGS) -c $<
 
 %.cmx: %.ml
 	@echo '$(OCAMLFIND_COPT) $(OCAMLOPT_FLAGS) $(OUR_PACKAGES) -c $<'; \
@@ -76,7 +76,7 @@ OCAMLOPT_FLAGS=$(INCLUDES)
 # We need two lines of these, one for the debugging compilation,
 # one for the optimizing compilation. 
 OUR_ONLINE_OBJS = online_types.cmo online_db.cmo online_revision.cmo \
-	db_page.cmo 
+	db_page.cmo
 
 OUR_OPT_ONLINE_OBJS = online_types.cmx online_db.cmx online_revision.cmx \
 	db_page.cmx
@@ -84,11 +84,11 @@ OUR_OPT_ONLINE_OBJS = online_types.cmx online_db.cmx online_revision.cmx \
 
 # compiles the online_db stuff 
 
-online_db: $(OUR_ONLINE_DB_OBJS)
-	$(OCAMLFIND_C) -o run_harness $(OCAML_CFLAGS) $(OUR_ONLINE_DB_OBJS) -linkpkg
+online_db: $(OUR_ONLINE_OBJS)
+	$(OCAMLFIND_C) -o run_harness $(OCAML_CFLAGS) $(OUR_ONLINE_OBJS) -linkpkg
 
-online_dbopt: $(OUR_OPT_ONLINE_DB_OBJS)
-	$(OCAMLFIND_COPT) -o run_harness $(OCAMLOPT_FLAGS) $(OUR_OPT_ONLINE_DB_OBJS) -linkpkg
+online_dbopt: $(OUR_OPT_ONLINE_OBJS)
+	$(OCAMLFIND_COPT) -o run_harness $(OCAMLOPT_FLAGS) $(OUR_OPT_ONLINE_OBJS) -linkpkg
 
 all: online_db
 allopt: online_dbopt
