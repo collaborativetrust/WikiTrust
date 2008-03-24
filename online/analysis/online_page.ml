@@ -114,7 +114,7 @@ class page
 	    | Some r -> begin 
 		let uid = r#get_user_id in 
 		let rid = r#get_id in 
-		Hashtbl.add revid_to_rev rid r
+		Hashtbl.add revid_to_rev rid r;
 		(* If the author is different from the current one *)
 		if (Revision.different_author equate_anons r !prev_by_auth)
 		  || !is_preceding then begin 
@@ -132,7 +132,7 @@ class page
 		    !prev_by_auth#add_by_same_author r; 
 		  end
 	      end
-	  end; 
+	  end done; 
 	  !rv
 	end
 
@@ -309,7 +309,7 @@ class page
 		end (* Tries to use zipping. *)
 	      in 
 	      (* Writes it to the hash table *)
-	      Hashtbl.add edit_list (rev2_id, rev1_id) (rev2_l, rev1_l, edl)
+	      Hashtbl.add edit_list (rev2_id, rev1_id) (rev2_l, rev1_l, edl);
 	      let d = Editlist.edit_distance edl (max rev2_l rev1_l) in 
 	      Hashtbl.add edit_dist (rev2_id, rev1_id) d; 
 	      (* and writes it to disk *)
@@ -325,15 +325,15 @@ class page
 		end
 	    end
 
-	  end (* for rev2_idx *)
-	end (* for rev1_idx *)
+	  end done (* for rev2_idx *)
+	end done (* for rev1_idx *)
       end (* if more than one revision *)
 
 
     (** Gets a list of dead chunks coming from the disk, and translates them into 
 	arrays, leaving position 0 free for the current revision. *)
     method private chunks_to_array (chunk_l: chunk_t list) :
-      (word array array, float array array, int array array, int array, float array) = 
+      (word array array * float array array * int array array * int array * float array) = 
       let n_els = 1 + List.length chunk_l in 
       let chunks_a = Array.make n_els (Array.make 0 "") in 
       let trust_a  = Array.make n_els (Array.make 0 0.) in 
