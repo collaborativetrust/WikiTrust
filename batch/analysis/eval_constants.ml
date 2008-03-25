@@ -51,12 +51,4 @@ let max_uncovered_to_zip = 100
 (* Used for analyzing trust color performance *)
 let max_longevity_table = 24
 
-(* These constants are specific to the online implementation *)
-let n_online_revs_to_consider = 20
-(* This is the maximal age, in seconds, for a deleted chunk; chunks older than
-   this are thrown out.  Set to 2 months (60 days). *)
-let online_max_age_time_del_chunk = 60. *. 24. *. 3600. 
-(* This is the maximal age, in number of revisions, for which 
-   a deleted chunks can be deleted, and still be kept around. *)
-let online_max_age_nrevs_del_chunk = 100
 

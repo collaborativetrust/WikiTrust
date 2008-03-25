@@ -33,18 +33,32 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
-(** [new page db logger page_id rev_id] creates a class for the
-    analysis of revision [rev_id] of page [page_id] as if it was the
-    last one.  [db] is the database handle, and [logger] is the logger
-    handle. *)
+(** This class does the main job of evaluating a revision, computing the trust
+    of its words, as well as the reputation increments for various wiki users. 
+    The call is: 
+    [new page db logger page_id revision_id coeff]
+    where: 
+    [db] is the db handle
+    [logger] is the logger handle
+    [page_id] is the page_id of the revision that is to be processed
+    [revision_id] is the revision id to be processed.  All previous revisions
+                  should have already been processed. 
+    [coeff] contains the coefficients to be used for the evaluation. 
+ *)
 
-class page : 
-  Online_db.db -> 
-  Online_log.logger -> 
-  int -> 
+class page :
+  (** Database handle *)
+  Online_db.db ->
+  (** Logger handle *)
+  Online_log.logger ->
+  (** page_id of the page to analyze *)
+  int ->
+  (** revision id of the revision to analyze. All previous revisions should
+      have been already evaluated. *)
+  int ->
+  (** Coefficients to be used for the evaluation *)
+  Online_types.trust_coeff_t ->
   object
-
     (** Call this method exactly once! *)
-    method eval : unit 
-
+    method eval : unit
   end

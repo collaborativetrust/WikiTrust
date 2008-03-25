@@ -46,13 +46,7 @@ class page
   (logger: Online_log.logger)
   (page_id: int) 
   (revid_to_analyze: int) 
-  (trust_coeff_lends_rep: float)
-  (trust_coeff_read_all: float)
-  (trust_coeff_read_part: float)
-  (trust_coeff_kill_decrease: float)
-  (trust_coeff_cut_rep_radius: float)
-  (trust_coeff_local_decay: float)
-  (equate_anons: bool)
+  (trust_coeff: trust_coeff_t) 
 
 = 
   
@@ -71,7 +65,7 @@ class page
     val edit_dist : ((int * int), float) Hashtbl.t = Hashtbl.create 10
     (** This is a hashtable from revision id to revision, for the revisions that 
         have been read from disc. *)
-    val revid_to_rev: (int, Online_revision.revision) Hashtbl.t = Hashtbl.create n_online_revs_to_consider
+    val revid_to_rev: (int, Online_revision.revision) Hashtbl.t = Hashtbl.create trust_coeff.n_revs_to_consider
 
     (** This is a hashtable from revision ids, to reputation increment to the authors
         of that revision.  This is used to write the feedback produced by this
@@ -112,7 +106,7 @@ class page
              author as the most recent one. *)
           let is_preceding = ref true in 
 
-          let i = ref n_online_revs_to_consider in 
+          let i = ref trust_coeff.n_revs_to_consider in 
           let prev_by_auth = ref r in 
           let age = ref 0 in 
           (* !i is the number of revision blocks by different authors that we must read. 
@@ -127,7 +121,7 @@ class page
                 let rid = r#get_id in 
                 Hashtbl.add revid_to_rev rid r;
                 (* If the author is different from the current one *)
-                if (Revision.different_author equate_anons r !prev_by_auth)
+                if (Revision.different_author trust_coeff.equate_anons r !prev_by_auth)
                   || !is_preceding then begin 
                     is_preceding := false;
                     i := !i - 1;
@@ -149,12 +143,12 @@ class page
 
     (** Keeps track of the reputation increments to users. *)
     method private inc_author_rep (uid: int) (q: float) : unit = 
-      if Hashtbl.mem uid_to_rep_inc uid then begin 
-        let tot = Hashtbl.find uid_to_rep_inc uid in 
-        Hashtbl.replace uid_to_rep_inc uid (tot +. q)
-      end else begin 
-        Hashtbl.add uid_to_rep_inc uid q
+      if Hashtbl.mem uid_to_rep_inc uid 
+      then begin
+	let tot = Hashtbl.find uid_to_rep_inc uid in 
+	Hashtbl.replace uid_to_rep_inc uid (tot +. q)
       end
+      else Hashtbl.add uid_to_rep_inc uid q
 
 
     (** Keeps track of the reputation increments to revisions. *)
@@ -169,8 +163,10 @@ class page
 
    (** General method for increasing reputations *)
     method private inc_reputation (rev_id: int) (uid: int) (q: float) : unit = 
-      self#inc_author_rep uid q; 
-      self#inc_rev_rep rev_id q
+      (* Applies reputation scaling *)
+      let q' = q *. trust_coeff.rep_scaling in 
+      self#inc_author_rep uid q'; 
+      self#inc_rev_rep rev_id q'
 
 
    (** Writes the reputation increments to disc. 
@@ -193,8 +189,8 @@ class page
       (* Writes the changes in user reputations *)
       let g (uid: int) (q: float) = 
         let old_rep = db#get_rep uid in 
-        let new_rep = old_rep +. q in 
-        db#set_rep uid new_rep
+        let new_rep = min trust_coeff.max_rep (old_rep +. q) in
+	if new_rep != old_rep then db#set_rep uid new_rep
       in 
       Hashtbl.iter g uid_to_rep_inc
 
@@ -369,7 +365,7 @@ class page
     (** This method computes the list of dead chunks, updating appropriately their age and 
         count, and selects the ones that are not too old. 
         [compute_dead_chunk_list new_chunks_a new_trust_a new_origin_a original_chunk_l 
-        previous_time current_time medit_l] computes
+        medit_l previous_time current_time] computes
         [(live_chunk, live_trust, live_origin, chunk_l)]. 
         [previous_time] is the time of the revision preceding the one whose list of dead chunks is being computed; 
         [current_time] is the current time. *)
@@ -378,9 +374,9 @@ class page
       (new_trust_a: float array array) 
       (new_origin_a: int array array)
       (original_chunk_l: chunk_t list)
+      (medit_l: Editlist.medit list) 
       (previous_time: float)
       (current_time: float)
-      (medit_l: Editlist.medit list) 
         : chunk_t list = 
       (* First of all, makes a Vec of chunk_t, and copies there the information. *)
       let chunk_v = ref Vec.empty in 
@@ -424,9 +420,9 @@ class page
          It filters chunk_v, removing old versions. *)
       (* The function p is the filter *)
       let p (c: chunk_t) : bool = 
-        (current_time -. c.timestamp < online_max_age_time_del_chunk)
+        (current_time -. c.timestamp < trust_coeff.max_del_time_chunk)
         ||
-        (c.n_del_revisions < online_max_age_nrevs_del_chunk) 
+        (c.n_del_revisions < trust_coeff.max_del_revs_chunk)
       in 
       let chunk_v' = Vec.filter p !chunk_v in 
       (* Finally, makes a list of these chunks *)
@@ -442,6 +438,7 @@ class page
       let rev0_id = rev0#get_id in
       let rev0_uid = rev0#get_user_id in 
       let rev0_t = rev0#get_words in 
+      let rev0_time = rev0#get_time in 
       let rev0_l = Array.length rev0_t in 
       let rev0_seps = rev0#get_seps in 
       (* Gets the author reputation from the db *)
@@ -453,7 +450,7 @@ class page
         (* It's the first revision.  Then all trust is simply inherited from the 
            author's reputation.  The revision trust will consist of only one chunk, 
            with the trust as computed. *)
-        let new_text_trust = rep_float *. trust_coeff_lends_rep in 
+        let new_text_trust = rep_float *. trust_coeff.lends_rep in 
         let chunk_0_trust = Array.make rev0_l new_text_trust in 
         let chunk_0_origin = Array.make rev0_l rev0_id in 
         (* Produces the live chunk, consisting of the text of the revision, annotated
@@ -473,11 +470,14 @@ class page
 
         let rev1 = Vec.get 1 revs in 
         let rev1_id = rev1#get_id in 
+	let rev1_time = rev1#get_time in 
         (* Reads from disk the deleted chunks list from the page *)
         let del_chunks_list = db#read_dead_page_chunks page_id in 
         (* And makes the arrays of deleted chunks of words, trust, and origin, 
            leaving position 0 free, for the live page. *)
         let (chunks_a, trust_a, origin_a, age_a, timestamp_a) = self#chunks_to_array del_chunks_list in 
+	(* For the origin, we always consider the immediately preceding revision. *)
+        origin_a.(0) <- rev1#get_origin;
 
         (* I check whether the closest revision to the latest one is 
            (a) the previous revision, or
@@ -514,7 +514,7 @@ class page
         let (c_read_all, c_read_part) = 
           if rev0#get_user_id = rev1#get_user_id 
           then (0., 0.) 
-          else (trust_coeff_read_all, trust_coeff_read_part)
+          else (trust_coeff.read_all, trust_coeff.read_part)
         in 
         let new_trust_10_a = Compute_trust.compute_trust_chunks 
           trust_a 
@@ -522,12 +522,12 @@ class page
           rev0#get_seps 
           medit_10_l
           rep_float 
-          trust_coeff_lends_rep 
-          trust_coeff_kill_decrease 
-          trust_coeff_cut_rep_radius 
+          trust_coeff.lends_rep 
+          trust_coeff.kill_decrease 
+          trust_coeff.cut_rep_radius 
           c_read_all
           c_read_part
-          trust_coeff_local_decay
+          trust_coeff.local_decay
         in 
 
         if !close_idx > 1 then begin 
@@ -549,7 +549,7 @@ class page
           let (c_read_all, c_read_part) = 
             if rev0#get_user_id = rev2#get_user_id 
             then (0., 0.) 
-            else (trust_coeff_read_all, trust_coeff_read_part)
+            else (trust_coeff.read_all, trust_coeff.read_part)
           in 
           let new_trust_20_a = Compute_trust.compute_trust_chunks 
             trust_a 
@@ -557,12 +557,12 @@ class page
             rev0#get_seps 
             medit_20_l
             rep_float 
-            trust_coeff_lends_rep 
-            trust_coeff_kill_decrease 
-            trust_coeff_cut_rep_radius 
+            trust_coeff.lends_rep 
+            trust_coeff.kill_decrease 
+            trust_coeff.cut_rep_radius 
             c_read_all
             c_read_part
-            trust_coeff_local_decay
+            trust_coeff.local_decay
           in
           (* The trust of each word is the max of the trust under both edits *)
           for i = 0 to Array.length (new_trust_10_a.(0)) do begin 
@@ -571,17 +571,17 @@ class page
         end; (* The closest version was not the immediately preceding one. *)
 
         (* Computes the origin of the new text; for this, we use the immediately preceding revision. *)
-        origin_a.(0) <- rev1#get_origin;
         let new_origin_10_a = Compute_trust.compute_origin origin_a new_chunks_10_a medit_10_l rev0_id in 
         (* Computes the list of deleted chunks with extended information (also age, timestamp), 
            and the information for the live text *)
-        let (live_chunk, live_trust, live_origin, chunk_l) = 
-          self#compute_dead_chunk_list new_chunks_10_a new_trust_10_a new_origin_10_a del_chunks_list medit_10_l 
+        let dead_chunk_l = self#compute_dead_chunk_list 
+	  new_chunks_10_a new_trust_10_a new_origin_10_a del_chunks_list medit_10_l rev1_time rev0_time
         in 
         (* Writes the revision to disk *)
-        let buf = Revision.produce_annotated_markup rev0#get_seps live_trust live_origin true true in 
+        let buf = Revision.produce_annotated_markup rev0#get_seps new_trust_10_a.(0) 
+	  new_origin_10_a.(0) true true in 
         db#write_colored_markup rev0_id (Buffer.contents buf); 
-        db#write_dead_page_chunks page_id chunk_l;
+        db#write_dead_page_chunks page_id dead_chunk_l;
         (* Ok, there is nothing more here to do for trust. *)
         (* Returns the text origin of the live text, used by text processing *)
         new_origin_10_a.(0)
@@ -609,7 +609,7 @@ class page
         let rev1_uname = rev1#get_user_name in 
         let rev1_time  = rev1#get_time in 
         (* If the author of rev2 and rev1 are the same, no judgement occurs. *)
-        if Revison.different_author equate_anons rev2 rev1 then begin 
+        if Revision.different_author trust_coeff.equate_anons rev2 rev1 then begin 
           for rev0_idx = rev1_idx - 1 downto 0 do begin 
             let rev0 = Vec.get rev0_idx revs in 
             let rev0_id    = rev0#get_id in 
@@ -622,12 +622,12 @@ class page
             let d02 = Hashtbl.find edit_dist (rev0_id, rev2_id) in 
             (* First, for logging purposes, produces the Edit_inc line *)
             let s = Printf.sprintf "\nEditInc %10.0f PageId: %d rev0: %d uid0: %d uname0: %S rev1: %d uid1: %d uname1: %S rev2: %d uid2: %d uname2: %S d01: %7.2f d02: %7.2f d12: %7.2f n01: %d n12: %d t01: %d t12: %d"
-              time2 page_id 
+              rev2_time page_id 
               rev0_id rev0_uid rev0_uname 
               rev1_id rev1_uid rev1_uname 
               rev2_id rev2_uid rev2_uname 
               d01 d02 d12
-              (rev1 - rev0) (rev2 - rev1)
+              (rev1_idx - rev0_idx) (rev2_idx - rev1_idx)
               (int_of_float (rev1_time -. rev0_time)) (int_of_float (rev2_time -. rev1_time)) 
             in 
             logger#log s; 
@@ -639,12 +639,12 @@ class page
             if rev1_uid != 0 then begin 
               (* This code is lifted from computerep.ml 
                  This code should match, as computerep is used to do the parameter optimization. *)
-              let spec_q = min 1.0 ((Online_constants.edit_leniency *. d01 -. d02) /. d12) in 
+              let spec_q = min 1.0 ((trust_coeff.edit_leniency *. d01 -. d02) /. d12) in 
               (* takes into account of delta and the length exponent *)
-              let q0 = spec_q *. (d12 ** Online_constants.length_exponent) in 
+              let q0 = spec_q *. (d12 ** trust_coeff.length_exponent) in 
               (* punish the people who do damage *)
-              let q1 = if q < 0.0 then q0 *. Online_constants.punish_factor else q0 in 
-              let increment = q1 *. weight_user *. (1.0 -. Online_constants.text_vs_edit_weight) in 
+              let q1 = if q0 < 0.0 then q0 *. trust_coeff.punish_factor else q0 in 
+              let increment = q1 *. weight_user *. (1.0 -. trust_coeff.text_vs_edit) in 
               (* Stores the increment -- we give them out all at the end *)
               self#inc_reputation rev1_id rev1_uid increment
             end (* if the author of rev1 is not anonymous *)        
@@ -661,13 +661,16 @@ class page
     method private compute_text_inc 
       (weight_user: float) 
       (origin_a: int array) : unit = 
+      (* rev1 is the most recent revision in this function, and rev0 is the judged one. 
+	 This keeps the terminology consistent with the TextInc line that is produced. *)
       let rev1 = Vec.get 0 revs in 
       let rev1_id = rev1#get_id in 
       let rev1_time = rev1#get_time in 
       let rev1_uid = rev1#get_user_id in 
+      let rev1_uname = rev1#get_user_name in 
       (* First, computes how much text there is due to each revision *)
-      (* The hash table rev_to_text_q associates each recent revision with the amount of text added *)
-      let rev_to_text_q: (int, int) Hashtbl.t = Hashtbl.create 10 in 
+      (* The hash table rev_to_text_q associates each revision with the amount of text added *)
+      let rev_to_text_q: (int, int) Hashtbl.t = Hashtbl.create 20 in 
       let add_one_word (r_id: int) = 
         if Hashtbl.mem rev_to_text_q r_id then begin 
           let q = Hashtbl.find rev_to_text_q r_id in 
@@ -676,19 +679,18 @@ class page
           Hashtbl.add rev_to_text_q r_id 1 
         end
       in 
+      Array.iter add_one_word origin_a; 
       (* Sets the total amount of text introduced in this very revision *)
       if Hashtbl.mem rev_to_text_q rev1_id then begin 
         let q = Hashtbl.find rev_to_text_q rev1_id in 
         rev1#set_new_text q
       end; 
-      (* Now computes the reputation update of all revisions that have been read from the disk *)
-      Array.iter add_one_word origin_a; 
       (* Gives reputation to users in proportion to the number of words added 
          in the various revisions. 
          This function f is iterated on the hashtable rev_to_text_q *)
       let f (rev0_id: int) (q: int) : unit = 
         (* Takes only into account recent revisions *)
-        if Hashtbl.mem revid_to_rev r_id then begin 
+        if Hashtbl.mem revid_to_rev rev0_id then begin 
           let rev0 = Hashtbl.find revid_to_rev rev0_id in 
           let rev0_uid = rev0#get_user_id in 
           if rev0_uid != 0 && rev0_uid != rev1_uid then begin 
@@ -706,11 +708,11 @@ class page
             logger#log s; 
             (* Computes the reputation increment *)
             let ratio_live = (float_of_int q) /. (float_of_int rev0_new_text) in 
-            let merit = ratio_live *. ((float_of_int q) ** Online_constants.length_exponent) in 
-            let increment = merit *. weight_user *. Online_constants.text_vs_edit_weight in 
+            let merit = ratio_live *. ((float_of_int q) ** trust_coeff.length_exponent) in 
+            let increment = merit *. weight_user *. trust_coeff.text_vs_edit in 
             self#inc_reputation rev0_id rev0_uid increment; 
             (* And stores the fact that there is one more text judge that found q *)
-            rev0#adds_text_quality_info q; 
+            rev0#add_text_quality_info q; 
           end 
         end
       in Hashtbl.iter f rev_to_text_q
@@ -746,12 +748,12 @@ class page
          before computing the new reputation updates. *)
       if n_revs > 1 then begin 
         let rev1 = Vec.get 1 revs in 
-        if not Revision.different_author equate_anons rev rev1 then 
+        if not (Revision.different_author trust_coeff.equate_anons rev rev1) then 
           self#undo_reputation_update rev1
       end; 
 
       (* We now process the reputation update. *)
-      self#compute_text_inc weight_user rev_id chunk0_origin;
+      self#compute_text_inc weight_user chunk0_origin;
       if n_revs > 2 then self#compute_edit_inc weight_user;
       (* and we write them to disk *)
       self#write_reputation_increments; 

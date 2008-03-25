@@ -57,3 +57,46 @@ type chunk_t = {
   origin: int array;
 }
 
+(** These are the coefficients used for the evaluation. *)
+type trust_coeff_t = {
+  (** Number of revision to use for trust computation *)
+  mutable n_revs_to_consider : int; 
+  (** Max time a chunk can be deleted before it is discarded *)
+  mutable max_del_time_chunk : float; 
+  (** max n. of revisions for which a chunk can be deleted before being discarded *)
+  mutable max_del_revs_chunk : int; 
+  (** how much reputation is lent as trust for new text *)
+  mutable lends_rep : float; 
+  (** how much the text of revised articles raises in trust towards the 
+      reputation of the editor *)
+  mutable read_all : float; 
+  (** how much the text of revised articles, in the portion of article directly edited, 
+      raises in trust towards the reputation of the editor *)
+  mutable read_part: float; 
+  (** how much the trust of text is lost when text is deleted *)
+  mutable kill_decrease: float; 
+  (** how much trust propagates from the edges of block moves *)
+  mutable cut_rep_radius: float; 
+  (** the text of revised articles that is local to an edit increases more in trust
+      when revised (see read_part).  This coefficient says how fast this "locality" 
+      effect decays at the border of a local area, into the non-local area.  A value
+      of 0 is perfectly fine. *)
+  mutable local_decay: float; 
+  (** How much an edit can be negative without being punished.  This is an obscure
+      coefficient, which can be understood only via optimization. *)
+  mutable edit_leniency: float; 
+  (** If 0, only the number of edits matters.  If 1, their length matters. In general, 
+      an edit of length l is raised to this exponent to decide how much it matters. *)
+  mutable length_exponent: float;
+  (** How much to punish people who do things that get a very negative edit. *)
+  mutable punish_factor: float; 
+  (** If 1, only text life matters; if 0, only edits matter.  Anything in between 
+      does the linear combination. *)
+  mutable text_vs_edit: float; 
+  (** scaling for reputation increments *)
+  mutable rep_scaling: float; 
+  (** maximum reputation *)
+  mutable max_rep: float;
+  (** Whether to equate anonymous users, regardless of their IP. *)
+  mutable equate_anons: bool; 
+}
