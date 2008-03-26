@@ -30,13 +30,12 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 # Vars we use in our rules to build ocaml programs
-OCAML_LDA_LIBS = vec.cmo hashtbl_bounded.cmo intvmap.cmo
-OCAML_LDA_LIBS_OPT = vec.cmx hashtbl_bounded.cmx intvmap.cmx
+OCAML_LDA_LIBS = vec.cmo text.cmo hashtbl_bounded.cmo revision.cmo prioq.cmo coda.cmo editlist.cmo chdiff.cmo compute_edlist.cmo intvmap.cmo eval_constants.cmo compute_trust.cmo
+OCAML_LDA_LIBS_OPT = vec.cmx text.cmx hashtbl_bounded.cmx revision.cmx prioq.cmx coda.cmx editlist.cmx chdiff.cmx compute_edlist.cmx intvmap.cmx eval_constants.cmx compute_trust.cmx
 OUR_LD_ADD = str.cma unix.cma mysql.cma dbi.cma dbi_mysql.cmo $(OCAML_LDA_LIBS)
 OUR_OPTLD_ADD = str.cmxa unix.cmxa $(OCAML_LDA_LIBS_OPT)
 OUR_PACKAGES = -package dbi.mysql -package extlib
 INCLUDES = -I ../../batch/analysis -I ../../../OcamlLdaLibs
-LIBS = -cclib
 
 OCAMLC=ocamlc
 OCAMLOPT=ocamlopt
@@ -77,19 +76,19 @@ OCAMLOPT_FLAGS=$(INCLUDES)
 # We need two lines of these, one for the debugging compilation,
 # one for the optimizing compilation. 
 OUR_ONLINE_OBJS = online_types.cmo online_db.cmo online_revision.cmo \
-	db_page.cmo online_rep.cmo online_page.cmo
+	db_page.cmo online_rep.cmo online_page.cmo online_db_run_harness.cmo
 
 OUR_OPT_ONLINE_OBJS = online_types.cmx online_db.cmx online_revision.cmx \
-	db_page.cmx online_rep.cmx online_page.cmx
+	db_page.cmx online_rep.cmx online_page.cmx online_db_run_harness.cmx
 
 
 # compiles the online_db stuff 
 
 online_db: $(OUR_ONLINE_OBJS)
-	$(OCAMLFIND_C) -o run_harness $(OCAML_CFLAGS) $(OUR_PACKAGES) $(OUR_LD_ADD) $(OUR_ONLINE_OBJS) $(LIBS) -linkpkg
+	$(OCAMLFIND_C) -o run_harness $(OCAML_CFLAGS) $(OUR_PACKAGES) $(OUR_LD_ADD) $(OUR_ONLINE_OBJS) -linkpkg
 
 online_dbopt: $(OUR_OPT_ONLINE_OBJS)
-	$(OCAMLFIND_COPT) -o run_harness $(OCAMLOPT_FLAGS) $(OUR_LD_ADD) $(OUR_PACKAGES) $(OUR_OPT_ONLINE_OBJS) $(LIBS) -linkpkg
+	$(OCAMLFIND_COPT) -o run_harness $(OCAMLOPT_FLAGS) $(OUR_LD_ADD) $(OUR_PACKAGES) $(OUR_OPT_ONLINE_OBJS) -linkpkg
 
 all: online_db
 allopt: online_dbopt
