@@ -86,7 +86,7 @@ OUR_OPT_ONLINE_OBJS = online_types.cmx online_db.cmx online_revision.cmx \
 # compiles the online_db stuff 
 
 online_db: $(OUR_ONLINE_OBJS)
-	$(OCAMLFIND_C) -o run_harness $(OCAML_CFLAGS) $(OUR_LD_ADD) $(OUR_PACKAGES) $(OUR_ONLINE_OBJS) $(LIBS) -linkpkg
+	$(OCAMLFIND_C) -o run_harness $(OCAML_CFLAGS) $(OUR_LD_ADD) $(OUR_ONLINE_OBJS) $(LIBS) -linkpkg
 
 online_dbopt: $(OUR_OPT_ONLINE_OBJS)
 	$(OCAMLFIND_COPT) -o run_harness $(OCAMLOPT_FLAGS) $(OUR_LD_ADD) $(OUR_PACKAGES) $(OUR_OPT_ONLINE_OBJS) $(LIBS) -linkpkg
