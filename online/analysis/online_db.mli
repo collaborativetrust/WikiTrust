@@ -36,6 +36,9 @@ POSSIBILITY OF SUCH DAMAGE.
 (** This class provides a handle for accessing the database in the on-line 
     implementation.
     Ian, can you add documentation on what these values are? *)
+
+open Dbi;;
+
 class db : 
   string -> 
   string ->
@@ -138,6 +141,17 @@ class db :
 	  n_text_judges new_text persistent_text)
 	associated with the revision with id [rev_id]. *)
     method read_quality_info : int -> (int * float * float * int * int * int)
+
+    (** [mark_rev_colored rev_id] marks a revision as having been colored *)
+    method mark_rev_colored : int -> unit
+
+    (** [mark_rev_uncolored revid] removed the marking of a revision as having
+    been colored *)
+    method mark_rev_uncolored : int -> unit
+        
+    (** [prepare_cached statement] Passes the given statment into the dbh
+    handle, then returns a prepared and executable statement *)
+    method prepare_cached : string -> Dbi.statement
 
     (** Totally clear out the db structure -- THIS IS INTENDED ONLY FOR UNIT
     TESTING *)

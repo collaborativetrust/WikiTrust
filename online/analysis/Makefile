@@ -36,6 +36,7 @@ OUR_LD_ADD = str.cma unix.cma $(OCAML_LDA_LIBS)
 OUR_OPTLD_ADD = str.cmxa unix.cmxa $(OCAML_LDA_LIBS_OPT)
 OUR_PACKAGES = -package dbi.mysql -package extlib
 INCLUDES = -I ../../batch/analysis -I ../../../OcamlLdaLibs
+LIBS = -cclib -L../../../OcamlLdaLibs
 
 OCAMLC=ocamlc
 OCAMLOPT=ocamlopt
@@ -63,8 +64,8 @@ OCAMLOPT_FLAGS=$(INCLUDES)
 	$(OCAMLFIND_C) $(OCAML_CFLAGS) $(OUR_PACKAGES) -c $<
 
 %.cmi: %.mli
-	@echo '$(OCAMLFIND_C) $(OCAML_CFLAGS) -c $<'; \
-	$(OCAMLFIND_C) $(OCAML_CFLAGS) -c $<
+	@echo '$(OCAMLFIND_C) $(OUR_PACKAGES) $(OCAML_CFLAGS) -c $<'; \
+	$(OCAMLFIND_C) $(OUR_PACKAGES) $(OCAML_CFLAGS) -c $<
 
 %.cmx: %.ml
 	@echo '$(OCAMLFIND_COPT) $(OCAMLOPT_FLAGS) $(OUR_PACKAGES) -c $<'; \
@@ -85,10 +86,10 @@ OUR_OPT_ONLINE_OBJS = online_types.cmx online_db.cmx online_revision.cmx \
 # compiles the online_db stuff 
 
 online_db: $(OUR_ONLINE_OBJS)
-	$(OCAMLFIND_C) -o run_harness $(OCAML_CFLAGS) $(OUR_ONLINE_OBJS) -linkpkg
+	$(OCAMLFIND_C) -o run_harness $(OCAML_CFLAGS) $(OUR_PACKAGES) $(OUR_ONLINE_OBJS) $(LIBS) -linkpkg
 
 online_dbopt: $(OUR_OPT_ONLINE_OBJS)
-	$(OCAMLFIND_COPT) -o run_harness $(OCAMLOPT_FLAGS) $(OUR_OPT_ONLINE_OBJS) -linkpkg
+	$(OCAMLFIND_COPT) -o run_harness $(OCAMLOPT_FLAGS) $(OUR_PACKAGES) $(OUR_OPT_ONLINE_OBJS) $(LIBS) -linkpkg
 
 all: online_db
 allopt: online_dbopt

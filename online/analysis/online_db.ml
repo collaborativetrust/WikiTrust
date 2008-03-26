@@ -120,6 +120,10 @@ class db
     val sth_select_quality = dbh#prepare_cached "SELECT rev_id, n_edit_judges,
           total_edit_quality, min_edit_quality, n_text_judges, new_text,
           persistent_text FROM quality_info WHERE rev_id = ?" 
+    val sth_set_colored = dbh#prepare_cached "UPDATE revision SET 
+          trust_rev_colored = TRUE WHERE rev_id = ?"
+    val sth_revert_colored = dbh#prepare_cached "UPDATE revision set
+          trust_rev_colored = FALSE WHERE rev_id = ?"
 
     (** [read_edit_diff revid1 revid2] reads from the database the edit list 
 	from the (live) text of revision [revid1] to revision [revid2]. *)
@@ -378,6 +382,17 @@ class db
         | [`Int r; `Int ned; `Float tq; `Float mq; `Int ntx; `Int nt; `Int pt ] ->
           ((ned,tq,mq,ntx,nt,pt))
         | _ -> assert(false)
+
+    (** [mark_rev_colored rev_id] marks a revision as having been colored *)
+    method mark_rev_colored (rev_id : int) : unit =
+      sth_set_colored#execute [`Int rev_id];
+    (** [mark_rev_uncolored revid] removed the marking of a revision
+       as having been colored *)
+    method mark_rev_uncolored (rev_id : int) : unit =
+      sth_revert_colored#execute [`Int rev_id];
+
+    method prepare_cached (sql : string) : Dbi.statement =
+      dbh#prepare_cached sql
 
 
     (** Clear everything out -- INTENDED FOR UNIT TESTING ONLY *)
