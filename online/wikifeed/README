@@ -6,6 +6,10 @@ These are at quite a preliminary stage.
 To work, first copy pull_revision.ini.sample into pull_revision.ini and 
 update the values defined there.
 
+SETUP AND RUN A TEST FEED EVALUATION:
+python ./set_test.py --use_dump 'dump to color' --eval_wiki 'path to the
+eval_online_wiki' executable
+
 CURRENT ISSUES:
 
 1) UserID is not pulled -- all userids are set to NULL 
