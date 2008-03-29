@@ -106,7 +106,7 @@ universe: all allopt
 #
 
 clean:
-	rm -f *.o *.cmo *.cmx *.cmi .depends run_harness
+	rm -f *.o *.cmo *.cmx *.cmi .depends run_harness eval_online_wiki
 
 .depends: *.ml
 	$(OCAMLDEP) $^ > $@
