@@ -60,16 +60,19 @@ class page
     (* This method gets, every time, the previous revision of the page, 
        starting from the revision id that was given as input. *)
     method get_rev : Online_revision.revision option =
-      let next_rev = sth_select_revs#fetch1 () in
-      let set_is_minor ism = match ism with
-        | 0 -> false
-        | 1 -> true
-        | _ -> assert false in
-      match next_rev with
-        | [`Int rid; `Int pid; `String time; `Int uid; `String usern; `Int ism;
+      try 
+        let next_rev = sth_select_revs#fetch1 () in
+        let set_is_minor ism = match ism with
+          | 0 -> false
+          | 1 -> true
+          | _ -> assert false in
+        match next_rev with
+          | [`Int rid; `Int pid; `String time; `Int uid; `String usern; `Int ism;
             `String com] -> Some (new Online_revision.revision db rid pid
             (float_of_string time) uid usern (set_is_minor ism)
             com )
-        | _ -> assert false
+          | _ -> assert false
+      with Not_found -> None
+      
       
   end (* End page *)
