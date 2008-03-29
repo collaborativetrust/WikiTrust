@@ -100,3 +100,6 @@ type trust_coeff_t = {
   (** Whether to equate anonymous users, regardless of their IP. *)
   mutable equate_anons: bool; 
 }
+
+(** Returns an instance of the trust_coeff with all default values *)
+val get_default_coeff : trust_coeff_t
