@@ -86,14 +86,14 @@ online_db: $(OUR_ONLINE_OBJS)
 	$(OCAMLFIND_C) -o run_harness $(OCAML_CFLAGS) $(OUR_PACKAGES) $(OUR_LD_ADD) $(OUR_ONLINE_OBJS) online_db_run_harness.ml -linkpkg
 
 online_dbopt: $(OUR_OPT_ONLINE_OBJS)
-	$(OCAMLFIND_COPT) -o run_harness $(OCAMLOPT_FLAGS) $(OUR_LD_ADD) $(OUR_PACKAGES) $(OUR_OPT_ONLINE_OBJS) online_db_run_harness.ml -linkpkg
+	$(OCAMLFIND_COPT) -o run_harness $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) $(OUR_PACKAGES) $(OUR_OPT_ONLINE_OBJS) online_db_run_harness.ml -linkpkg
 
 # Creates a way to run the online_eval process
 online_eval: $(OUR_ONLINE_OBJS) 
 	$(OCAMLFIND_C) -o eval_online_wiki $(OCAML_CFLAGS) $(OUR_PACKAGES) $(OUR_LD_ADD) $(OUR_ONLINE_OBJS) eval_online_wiki.ml -linkpkg
 
 online_evalopt: $(OUR_OPT_ONLINE_OBJS)
-	$(OCAMLFIND_COPT) -o eval_online_wiki $(OCAMLOPT_FLAGS) $(OUR_LD_ADD) $(OUR_PACKAGES) $(OUR_OPT_ONLINE_OBJS) eval_online_wiki.ml -linkpkg
+	$(OCAMLFIND_COPT) -o eval_online_wiki $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) $(OUR_PACKAGES) $(OUR_OPT_ONLINE_OBJS) eval_online_wiki.ml -linkpkg
 
 
 all: online_db online_eval
