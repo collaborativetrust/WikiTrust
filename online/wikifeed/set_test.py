@@ -57,6 +57,7 @@ BASE_DIR = "./"
 LOG_NAME = BASE_DIR + "online_eval.log"
 INI_FILE = BASE_DIR + "pull_revision.ini"
 RUN_TEST_FEED = BASE_DIR + "run_test_feed.sh"
+NUM_TO_PULL = 10
 
 revs_added = 0
 
@@ -117,12 +118,19 @@ def set_test():
     revs_added+=1
 
   ## Now, call the script to setup the feed
-  os.system(RUN_TEST_FEED)
+  os.system(RUN_TEST_FEED + " " + str(len(revs)) + " " + str(NUM_TO_PULL))
 
   ## finally, call the coloring script
         
   for rev in range(1):      
-    print "Running eval on page " + str(pages[rev]) + ", rev " + str(revs[rev])
+    if verbose:
+      print "\nRunning eval on page " + str(pages[rev]) + ", rev " + str(revs[rev])
+      print ("******\n" + eval_wiki + " --db_user " + ini_config.get('db', 'user') \
+            + " --db_name " + ini_config.get('db', 'db') + " --db_pass "\
+            + ini_config.get('db', 'pass') + " --page_id " + str(pages[rev]) \
+            + " --rev_id " + str(revs[rev])  \
+            + " --log_name " + LOG_NAME + " --synch_log\n" )
+
     os.system(eval_wiki + " --db_user " + ini_config.get('db', 'user') \
         + " --db_name " + ini_config.get('db', 'db') + " --db_pass "  \
         + ini_config.get('db', 'pass') + " --page_id " + str(pages[rev]) \
