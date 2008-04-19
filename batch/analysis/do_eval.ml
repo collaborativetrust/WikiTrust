@@ -36,6 +36,13 @@ POSSIBILITY OF SUCH DAMAGE.
 (* This module contains the function do_eval, which performs the evaluation of an .xml file, 
    producing any required output. *)
 
+(* Get out HTTP client *)
+open Http_client.Convenience 
+open ExtString.String
+
+(* HTTP Seperator *)
+let http_file_dir_sep     = " "
+
 (* Tags *)
 let tag_siteinfo_start    = Str.regexp "<mediawiki"
 let tag_siteinfo_end      = Str.regexp "</siteinfo>"
@@ -55,10 +62,6 @@ let tag_username          = Str.regexp "<username>\\(.*\\)</username>"
 let tag_text_start        = Str.regexp "<text xml:space=\"preserve\">"
 let tag_text_end          = Str.regexp "</text>"
 let tag_the_end           = Str.regexp "</mediawiki>"
-
-(* Magic Numbers *) 
-let end_state             = "--end"
-let done_char             = "0000"
 
 exception ProcError
 
@@ -372,13 +375,8 @@ let do_multi_eval
   end done;
   !output_names
 
-let do_eval_dist 
+let do_dist_eval 
     (remote_host: string)
-    (remote_user: string)
-    (remote_color_dir: string)
-    (begin_url: string)
-    (done_url: string)
-    (dist_client: string)
     (times_to_loop: int)
     (loop_until_done: bool)
     (factory: Page_factory.page_factory)
@@ -387,43 +385,42 @@ let do_eval_dist
     (unzip_cmd: string)
     (continue: bool) : string Vec.t = 
   let output_files = ref Vec.empty in     
-  let all_output_files = ref Vec.empty in  
+  let all_output_files = ref Vec.empty in
   let input_files = ref Vec.empty in
   let add_to_input_files s = input_files := Vec.append s !input_files in
- 
+
+  let http_responce_lst =  ExtString.String.nsplit 
+      (Http_client.Convenience.http_get remote_host) http_file_dir_sep in
+  let file = List.hd http_responce_lst in
+  let remote_dest_dir = List.nth http_responce_lst ((List.length http_responce_lst) - 1)  in
+  let send_file_back fl = ignore (Unix.open_process_in ("rsync " ^ fl ^ " " 
+      ^ remote_dest_dir)) in
+  let cleanup fld = ignore (Unix.open_process_in ("rm " ^ fld)) in
+
   begin
     let quit_loop = ref false in
-    let quit_inner_loop = ref false in
     let count = ref 0 in    
     while not !quit_loop do 
       (* setup a few things for each time through the loop *)
       count := !count + 1;
       input_files := Vec.empty;
-      quit_inner_loop := false;
-      let in_c = Unix.open_process_in ( dist_client ^ " " ^ begin_url ^ " " 
-          ^ done_url ^ " " ^ remote_host ^ " " ^ remote_color_dir 
-          ^ " " ^ remote_user ^ " " ^ src_dir ^ " " ^ working_dir ) in    
-      try
-        while not !quit_inner_loop do 
-          let line = input_line in_c in  (* read line from in_channel and discard \n *)
-            if line = done_char then quit_inner_loop := true
-            else 
-              begin
-                add_to_input_files line;  (* add the file to the list of files to process *)      
-              end;
-            flush stdout;                (* write on the underlying device now *)                
-          done;
-        close_in in_c                  (* close the input channel *) 
-      with e ->                      (* some unexpected exception occurs *)
-        close_in_noerr in_c;           (* emergency closing *)
-      ;                                
-      (* Now, process the files read *)                                    
-      print_vec !input_files ;  
-           
+
+      (* copy the input file over *)
+      ignore (Unix.open_process_in ("rsync " ^ file ^ " " ^ src_dir));
+      add_to_input_files (src_dir ^ file);
+
+      (* print_vec !input_files ;  *)
       print_endline "starting multi_eval";
       output_files := ( do_multi_eval !input_files factory working_dir unzip_cmd continue);
       print_endline "done with multi_eval";
       
+      (* Now, send the file back *)
+      Vec.iter send_file_back !output_files;
+
+      (* Cleanup *)
+      Vec.iter cleanup !output_files;
+      Vec.iter cleanup !input_files;
+
       (* Is it time to stop ? *)
       if loop_until_done then begin quit_loop := Vec.is_empty !input_files; end
       else 
@@ -437,28 +434,6 @@ let do_eval_dist
 
       all_output_files := Vec.concat !all_output_files !output_files;
         
-      (* And send the files back to where they came *)
-      if not (Vec.is_empty !input_files) then begin
-        let copy_back = Unix.open_process_in ( dist_client ^ " " ^ begin_url ^ " " 
-            ^ done_url ^ " " ^ remote_host ^ " " ^ remote_color_dir ^ " " 
-            ^ remote_user ^ " " ^ src_dir ^ " " ^ working_dir 
-            ^ " " ^ end_state) in 
-        quit_inner_loop := false;    
-        try                                                                                 
-          while not !quit_inner_loop do                                                     
-            let line = input_line copy_back in  (* read line from in_channel and discard \n *)   
-            if line = done_char then quit_inner_loop := true  
-            else  
-              begin  
-                print_endline line; (* to see where we are in the process *) 
-              end;  
-              flush stdout;   (* write on the underlying device now *)
-          done;    
-            close_in copy_back                  (* close the input channel *) 
-          with e ->                      (* some unexpected exception occurs *)
-            close_in_noerr copy_back;           (* emergency closing *)
-          ;      
-      end;      
     done; (* outer begin *)  
   end;
   !all_output_files

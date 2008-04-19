@@ -49,5 +49,5 @@ val do_multi_eval :
   string Vec.t -> Page_factory.page_factory -> string -> string -> bool -> string Vec.t
 
 (** Distributed Processing **)
-val do_eval_dist :
-  string -> string -> string -> string -> string -> string -> int -> bool -> Page_factory.page_factory -> string -> string -> string -> bool -> string Vec.t
+val do_dist_eval :
+  string -> int -> bool -> Page_factory.page_factory -> string -> string -> string -> bool -> string Vec.t
