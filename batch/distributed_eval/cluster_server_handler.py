@@ -79,9 +79,9 @@ def handler(req):
                   file_status = 'unprocessed' LIMIT 1")
     data = curs.fetchall()
     for row in range(len(data)):
-      req.write(row[0] + FILE_ENDING_SEP + row[1])
+      req.write(data[row][0] + FILE_ENDING_SEP + data[row][1])
       curs.execute("UPDATE cluster_simple SET file_status = 'processing' WHERE \
-                    file_name = '" + row[0] + "'")
+                    file_name = '" + data[row][0] + "'")
 
     connection.commit()  
     return apache.OK

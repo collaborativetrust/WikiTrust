@@ -401,22 +401,23 @@ let do_dist_eval
       (* Figure out what we are going to do *)
       let http_responce_lst =  ExtString.String.nsplit
         (Http_client.Convenience.http_get remote_host) http_file_dir_sep in
-      let file = List.hd http_responce_lst in
+      let get_file = List.hd http_responce_lst in
+      let file_split_lst = ExtString.String.nsplit get_file "/" in
+      let file_name = List.nth file_split_lst ((List.length file_split_lst) - 1) in
       let remote_dest_dir = List.nth http_responce_lst ((List.length http_responce_lst) - 1) in
       let send_file_back fl = ignore (Unix.open_process_in ("rsync " ^ fl ^ " "
             ^ remote_dest_dir)) in
       
-      match file with
+      match get_file with
         | "" -> quit_loop := true
         | _  -> (
 
         (* copy the input file over *)
-        ignore (Unix.open_process_in ("rsync " ^ file ^ " " ^ src_dir));
-        add_to_input_files (src_dir ^ file);
-        print_endline (src_dir ^ file);
+        ignore (Unix.open_process_in ("rsync " ^ get_file ^ " " ^ src_dir));
+        add_to_input_files (src_dir ^ file_name);
 
         (* print_vec !input_files ;  *)
-        print_endline "starting multi_eval";
+        print_endline ("starting multi_eval on " ^ file_name);
         output_files := ( do_multi_eval !input_files factory working_dir unzip_cmd continue);
         print_endline "done with multi_eval";
       
