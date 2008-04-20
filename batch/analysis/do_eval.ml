@@ -36,8 +36,10 @@ POSSIBILITY OF SUCH DAMAGE.
 (* This module contains the function do_eval, which performs the evaluation of an .xml file, 
    producing any required output. *)
 
-(* Get out HTTP client *)
+(* Get out our HTTP client *)
 open Http_client.Convenience 
+
+(* And the most excellent extlib lib *)
 open ExtString.String
 
 (* HTTP Seperator *)
@@ -388,7 +390,7 @@ let do_dist_eval
   let all_output_files = ref Vec.empty in
   let input_files = ref Vec.empty in
   let add_to_input_files s = input_files := Vec.append s !input_files in
-  let cleanup fld = ignore (Unix.open_process_in ("rm " ^ fld)) in
+  let cleanup fld = ignore (Unix.close_process_in (Unix.open_process_in ("rm " ^ fld))) in
 
   begin
     let quit_loop = ref false in
@@ -405,8 +407,8 @@ let do_dist_eval
       let file_split_lst = ExtString.String.nsplit get_file "/" in
       let file_name = List.nth file_split_lst ((List.length file_split_lst) - 1) in
       let remote_dest_dir = List.nth http_responce_lst ((List.length http_responce_lst) - 1) in
-      let send_file_back fl = ignore (Unix.open_process_in ("rsync " ^ fl ^ " "
-            ^ remote_dest_dir)) in
+      let send_file_back fl = ignore (Unix.close_process_in (Unix.open_process_in ("rsync " ^ fl ^ " "
+            ^ remote_dest_dir))) in
       
       match get_file with
         | "" -> quit_loop := true
