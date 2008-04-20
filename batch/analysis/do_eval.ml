@@ -413,6 +413,7 @@ let do_dist_eval
         | _  -> (
 
         (* copy the input file over *)
+        print_endline ("rsync " ^ get_file ^ " " ^ src_dir);
         ignore (Unix.open_process_in ("rsync " ^ get_file ^ " " ^ src_dir));
         add_to_input_files (src_dir ^ file_name);
 
