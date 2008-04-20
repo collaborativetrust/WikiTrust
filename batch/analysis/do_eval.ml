@@ -414,20 +414,29 @@ let do_dist_eval
 
         (* copy the input file over *)
         print_endline ("rsync " ^ get_file ^ " " ^ src_dir);
-        ignore (Unix.open_process_in ("rsync " ^ get_file ^ " " ^ src_dir));
-        add_to_input_files (src_dir ^ file_name);
+        let rsync_status = (Unix.close_process_in (Unix.open_process_in 
+            ("rsync " ^ get_file ^ " " ^ src_dir))) in
 
-        (* print_vec !input_files ;  *)
-        print_endline ("starting multi_eval on " ^ file_name);
-        output_files := ( do_multi_eval !input_files factory working_dir unzip_cmd continue);
-        print_endline "done with multi_eval";
+        (* Make sure the file really made it over *)
+        match rsync_status with
+          | Unix.WSIGNALED sig_num -> quit_loop := true
+          | Unix.WSTOPPED sig_num -> quit_loop := true
+          | Unix.WEXITED ret_val -> (
+       
+          add_to_input_files (src_dir ^ file_name);
+        
+          (* print_vec !input_files ;  *)
+          print_endline ("starting multi_eval on " ^ file_name);
+          output_files := ( do_multi_eval !input_files factory working_dir unzip_cmd continue);
+          print_endline "done with multi_eval";
       
-        (* Now, send the file back *)
-        Vec.iter send_file_back !output_files;
+          (* Now, send the file back *)
+          Vec.iter send_file_back !output_files;
 
-        (* Cleanup *)
-        Vec.iter cleanup !output_files;
-        Vec.iter cleanup !input_files;
+          (* Cleanup *)
+          Vec.iter cleanup !output_files;
+          Vec.iter cleanup !input_files;
+        );
       );
 
       (* Is it time to stop ? *)
