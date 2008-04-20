@@ -46,8 +46,9 @@ rsync_prefix = sys.argv[3]
 return_dir = sys.argv[2]
 source_dir = sys.argv[1]
 
+print "BEGIN TRANSACTION"
 SQL_INSERT = "INSERT INTO cluster_simple (file_name, file_return_dir) VALUES \
-    ('%(file_name)s', ' " + rsync_prefix + return_dir + "')"
+    ('%(file_name)s', ' " + rsync_prefix + return_dir + "');"
 
 source_dir = sys.argv[1]
 
@@ -55,6 +56,7 @@ files = commands.getoutput ("ls " + source_dir).split ()
 for file in files:
   print SQL_INSERT % {'file_name': rsync_prefix + source_dir + file}
 
+print "COMMIT"
 
 
 
