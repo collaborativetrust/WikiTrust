@@ -436,6 +436,9 @@ let do_dist_eval
           (* Cleanup *)
           Vec.iter cleanup !output_files;
           Vec.iter cleanup !input_files;
+
+          (* Alert that we have sucessfully send the file back *)
+          ignore (Http_client.Convenience.http_get (remote_host ^ "/?file=" ^ get_file))
         );
       );
 
