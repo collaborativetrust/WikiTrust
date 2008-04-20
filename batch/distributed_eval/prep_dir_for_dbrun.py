@@ -52,7 +52,7 @@ source_dir = sys.argv[1]
 
 files = commands.getoutput ("ls " + source_dir).split ()   
 for file in files:
-  print SQL_INSERT % {'file_name': file}
+  print SQL_INSERT % {'file_name': source_dir + file}
 
 
 
