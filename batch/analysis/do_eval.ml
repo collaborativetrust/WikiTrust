@@ -388,38 +388,45 @@ let do_dist_eval
   let all_output_files = ref Vec.empty in
   let input_files = ref Vec.empty in
   let add_to_input_files s = input_files := Vec.append s !input_files in
-
-  let http_responce_lst =  ExtString.String.nsplit 
-      (Http_client.Convenience.http_get remote_host) http_file_dir_sep in
-  let file = List.hd http_responce_lst in
-  let remote_dest_dir = List.nth http_responce_lst ((List.length http_responce_lst) - 1)  in
-  let send_file_back fl = ignore (Unix.open_process_in ("rsync " ^ fl ^ " " 
-      ^ remote_dest_dir)) in
   let cleanup fld = ignore (Unix.open_process_in ("rm " ^ fld)) in
 
   begin
     let quit_loop = ref false in
     let count = ref 0 in    
     while not !quit_loop do 
-      (* setup a few things for each time through the loop *)
-      count := !count + 1;
-      input_files := Vec.empty;
+      (* setup a few things for each time through the loop *)                             
+      count := !count + 1;                                                                
+      input_files := Vec.empty;   
 
-      (* copy the input file over *)
-      ignore (Unix.open_process_in ("rsync " ^ file ^ " " ^ src_dir));
-      add_to_input_files (src_dir ^ file);
-
-      (* print_vec !input_files ;  *)
-      print_endline "starting multi_eval";
-      output_files := ( do_multi_eval !input_files factory working_dir unzip_cmd continue);
-      print_endline "done with multi_eval";
+      (* Figure out what we are going to do *)
+      let http_responce_lst =  ExtString.String.nsplit
+        (Http_client.Convenience.http_get remote_host) http_file_dir_sep in
+      let file = List.hd http_responce_lst in
+      let remote_dest_dir = List.nth http_responce_lst ((List.length http_responce_lst) - 1) in
+      let send_file_back fl = ignore (Unix.open_process_in ("rsync " ^ fl ^ " "
+            ^ remote_dest_dir)) in
       
-      (* Now, send the file back *)
-      Vec.iter send_file_back !output_files;
+      match file with
+        | "" -> quit_loop := true
+        | _  -> (
 
-      (* Cleanup *)
-      Vec.iter cleanup !output_files;
-      Vec.iter cleanup !input_files;
+        (* copy the input file over *)
+        ignore (Unix.open_process_in ("rsync " ^ file ^ " " ^ src_dir));
+        add_to_input_files (src_dir ^ file);
+        print_endline (src_dir ^ file);
+
+        (* print_vec !input_files ;  *)
+        print_endline "starting multi_eval";
+        output_files := ( do_multi_eval !input_files factory working_dir unzip_cmd continue);
+        print_endline "done with multi_eval";
+      
+        (* Now, send the file back *)
+        Vec.iter send_file_back !output_files;
+
+        (* Cleanup *)
+        Vec.iter cleanup !output_files;
+        Vec.iter cleanup !input_files;
+      );
 
       (* Is it time to stop ? *)
       if loop_until_done then begin quit_loop := Vec.is_empty !input_files; end
