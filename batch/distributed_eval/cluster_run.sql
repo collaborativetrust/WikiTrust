@@ -2,6 +2,17 @@
 DROP TABLE cluster_experiments;
 DROP TABLE cluster_files;
 DROP TABLE cluster_files_in_exper;
+DROP TABLE cluster_simple;
+
+CREATE TABLE cluster_simple (
+  file_id serial PRIMARY KEY,
+  file_return_dir varchar(1000),
+  file_name varchar(1000) NOT NULL UNIQUE ,
+  file_status ENUM('unprocessed', 'processing', 'processed') DEFAULT 'unprocessed',
+  processedon timestamp
+);
+
+CREATE INDEX cluster_simple_idx ON cluster_simple(file_name);
 
 CREATE TABLE cluster_experiments (
   exper_id serial PRIMARY KEY,
@@ -27,6 +38,7 @@ CREATE TABLE cluster_files_in_exper (
   processedon timestamp
 );
 
+GRANT ALL ON cluster_simple TO wikiuser;
 GRANT ALL ON cluster_experiments TO wikiuser;
 GRANT ALL ON cluster_files TO wikiuser;
 GRANT ALL ON cluster_files_in_exper TO wikiuser;

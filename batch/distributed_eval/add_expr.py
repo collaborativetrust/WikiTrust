@@ -1,5 +1,3 @@
-#!/usr/bin/python
-
 """
 Copyright (c) 2007-2008 The Regents of the University of California
 All rights reserved.
@@ -34,54 +32,74 @@ POSSIBILITY OF SUCH DAMAGE.
 
 """
 
-
-
-## creates an experiment
-## Usage: ./add_expr experiment
-
+# Given a file and experiment, deletes the file from the experiment
 
 import MySQLdb
-import sys
+import getopt
+import ConfigParser                                                                       
+from mod_python import util
+from mod_python import apache
 
-USER = "wikiuser"
-PASS = raw_input "Password? "
-DB   = "wikitest"
+BASE_DIR = "/var/www/cluster_run_handler/"                                                     
+INI_FILE = BASE_DIR + "db_options.ini"   
+FILE_ENDING_SEP = " "
 
-if len(sys.argv) < 2:
-  print "Usage: ./add_expr experiment"
-  sys.exit(-1)
+## parse the ini file
+ini_config = ConfigParser.ConfigParser()
+ini_config.readfp(open(INI_FILE))
 
-expr_name = sys.argv[1]
+## init the DB
+connection = MySQLdb.connect(host=ini_config.get('db', 'host'),
+user=ini_config.get('db', 'user'), passwd=ini_config.get('db', 'pass') \
+    , db=ini_config.get('db', 'db') )
+curs = connection.cursor()
 
-class Tr_db: 
-  def __init__(self): 
-    return
-  def add_expr(self):
-    try: 
-      connection = MySQLdb.connect(host="localhost", 
-      user=USER, passwd=PASS, db=DB ) 
-      curs = connection.cursor()
+def handler(req):
 
-      curs.execute( ''.join( [ "INSERT INTO trust_experiments (expr_name) VALUES ('"\
-          , expr_name \
-          , "')"] ) )
+  req.content_type = "text/plain" ## needed for web based things
 
-      curs.execute("SELECT expr_id FROM trust_experiments WHERE expr_name = '"+expr_name+"'");
-      expr_id_int = curs.fetchone()[0]
-      curs.execute("SELECT file_id FROM trust_files")
-    except  MySQLdb.OperationalError, message: 
-      errorMessage = "Error %d:\n%s" % (message[ 0 ], message[ 1 ] ) 
-      print errorMessage
-      return
-    else:
-      data = curs.fetchall()  
-      for row in range(len(data)):
-        for col in range(len(data[row])):
-          file_id_int = data[row][col]
-          curs.execute( "INSERT INTO trust_exper_file (expr_id, file_id) VALUES \
-              ("+str(expr_id_int)+", "+str(file_id_int)+")")
-      return
+  form = util.FieldStorage(req)
+  experiment = form.getfirst("e", None)
+  file_used  = form.getfirst("file", None)
+  
+  ## Start out transaction going
+  curs.execute("START TRANSACTION")
 
-db = Tr_db();
-db.add_expr();
+  ##first, if e is not set, return nothing
+  if experiment is None:
+    return apache.DECLINED
+  
+  ## otherwise, return either file info, or else mark the file as being processed
+  if file_used is not None:
+    curs.execute("SELECT B.file_id, B.exper_id FROM cluster_experiments \
+                  AS A JOIN cluster_files_in_exper AS B ON (A.exper_id = B.exper_id) \
+                  JOIN cluster_files AS C ON C.file_id = B.file_id WHERE \
+                  A.exper_prefix || C.file_name || A.exper_suffix = '" + str(file_used) + "' AND \
+                  A.exper_name = '" + str(experiment) + "'")
+
+    data = curs.fetchall()
+    for row in range(len(data)):
+      curs.execute("UPDATE cluster_files_in_exper SET file_status = 'processing' \
+                    AND processedon = now() WHERE \
+                    file_id = " + row[0] + " AND exper_id = " + row[1])    
+    connection.commit()
+    req.write("Deleted file " + str(file_used))
+    return apache.OK
+  else:
+
+    ## Start processing of a new file.
+    curs.execute("SELECT A.exper_prefix || C.file_name || A.exper_suffix AS  \
+                full_file_name, A.exper_ending_dir, B.file_id, B.exper_id FROM cluster_experiments \
+                AS A JOIN cluster_files_in_exper AS B ON (A.exper_id = B.exper_id) \
+                JOIN cluster_files AS C ON C.file_id = B.file_id WHERE B.file_status = \
+                'unprocessed' AND A.exper_name = '" + str(experiment) + "' LIMIT 1")
+    data = curs.fetchall()
+    for row in range(len(data)):
+      req.write(row[0] + FILE_ENDING_SEP + row[1])
+      curs.execute("UPDATE cluster_files_in_exper SET file_status = 'processing' WHERE \
+                 file_id = " + row[2] + " AND exper_id = " + row[3])
+
+    connection.commit()  
+    return apache.OK
+
 

@@ -59,46 +59,31 @@ def handler(req):
   req.content_type = "text/plain" ## needed for web based things
 
   form = util.FieldStorage(req)
-  experiment = form.getfirst("e", None)
   file_used  = form.getfirst("file", None)
   
   ## Start out transaction going
   curs.execute("START TRANSACTION")
-
-  ##first, if e is not set, return nothing
-  if experiment is None:
-    return apache.DECLINED
   
   ## otherwise, return either file info, or else mark the file as being processed
-  if file is not None:
-    curs.execute("SELECT B.file_id, B.exper_id FROM cluster_experiments \
-                  AS A JOIN cluster_files_in_exper AS B ON (A.exper_id = B.exper_id) \
-                  JOIN cluster_files AS C ON C.file_id = B.file_id WHERE \
-                  A.exper_prefix || C.file_name || A.exper_suffix = '" + str(file_used) + "' AND \
-                  A.exper_name = '" + str(experiment) + "'")
+  if file_used is not None:
 
-    data = curs.fetchall()
-    for row in range(len(data)):
-      curs.execute("UPDATE cluster_files_in_exper SET file_status = 'processing' \
-                    AND processedon = now() WHERE \
-                    file_id = " + row[0] + " AND exper_id = " + row[1])    
+    curs.execute("UPDATE cluster_simple SET processedon = now(), file_status = \
+                  'processing' WHERE file_name = '" + str(file_used) + "'")
     connection.commit()
     req.write("Deleted file " + str(file_used))
     return apache.OK
+  else:
 
-  ## Start processing of a new file.
-  curs.execute("SELECT A.exper_prefix || C.file_name || A.exper_suffix AS  \
-                full_file_name, A.exper_ending_dir, B.file_id, B.exper_id FROM cluster_experiments \
-                AS A JOIN cluster_files_in_exper AS B ON (A.exper_id = B.exper_id) \
-                JOIN cluster_files AS C ON C.file_id = B.file_id WHERE B.file_status = \
-                'unprocessed' AND A.exper_name = '" + str(experiment) + "' LIMIT 1")
-  data = curs.fetchall()
-  for row in range(len(data)):
-    req.write(row[0] + FILE_ENDING_SEP + row[1])
-    curs.execute("UPDATE cluster_files_in_exper SET file_status = 'processing' WHERE \
-                 file_id = " + row[2] + " AND exper_id = " + row[3])
+    ## Start processing of a new file.
+    curs.execute("SELECT file_name, file_return_dir FROM cluster_simple WHERE \
+                  file_status = 'unprocessed' LIMIT 1")
+    data = curs.fetchall()
+    for row in range(len(data)):
+      req.write(row[0] + FILE_ENDING_SEP + row[1])
+      curs.execute("UPDATE cluster_simple SET file_status = 'processing' WHERE \
+                    file_name = '" + row[0] + "'")
 
-  connection.commit()  
-  return apache.OK
+    connection.commit()  
+    return apache.OK
 
 

@@ -34,62 +34,27 @@ POSSIBILITY OF SUCH DAMAGE.
 
 """
 
+# Given a directory, add all of the files in the directory into the db
 
-## adds files into the db to be processed
-## Ian Pye <ipye@cs.ucsc.edu>
+import MySQLdb
+import getopt
+import ConfigParser                                                                       
+import sys
+import commands
 
-import MySQLdb, sys
+return_dir = sys.argv[2]
+source_dir = sys.argv[1]
 
-USER = "wikiuser"
-PASS = raw_input "Password? "
-DB   = "wikitest"
+SQL_INSERT = "INSERT INTO cluster_simple (file_name, file_return_dir) VALUES \
+    ('%(file_name)s', ' " + return_dir + "')"
 
-START = 1
-END   = 12
-DO_PADDING = False
+source_dir = sys.argv[1]
 
-if len(sys.argv) < 3:
-  print "Usage: ./add_files prefix suffix <start> <end> <paadding>"
-  sys.exit(-1)
+files = commands.getoutput ("ls " + source_dir).split ()   
+for file in files:
+  print SQL_INSERT % {'file_name': file}
 
-file_prefix = sys.argv[1]
-file_suffix = sys.argv[2]
 
-if len( sys.argv ) > 3 :
-  START = int(sys.argv[3])
-if len( sys.argv ) > 4:
-  END =  int(sys.argv[4])
-if len( sys.argv ) > 5 :
-  DO_PADDING = True
 
-class Tr_db: 
-  def __init__(self): 
-    return
-  def add_entries(self):
-    try: 
-      connection = MySQLdb.connect(host="localhost", 
-      user=USER, passwd=PASS, db=DB ) 
-      curs = connection.cursor()
-      for i in range(START, END):
-        if DO_PADDING :
-          curs.execute( ''.join( [ "INSERT INTO trust_files (filename) VALUES ('"
-              , file_prefix
-              , '%(#)05d' % {'#':i } 
-              , file_suffix
-              , "')"] ) )
-        else:   
-          curs.execute( ''.join( [ "INSERT INTO trust_files (filename) VALUES ('"
-              , file_prefix
-              , str(i)
-              , file_suffix
-              , "')"] ) )   
-    except  MySQLdb.OperationalError, message: 
-      errorMessage = "Error %d:\n%s" % (message[ 0 ], message[ 1 ] ) 
-      print errorMessage
-      return
-    else:
-      return
 
-db = Tr_db();
-db.add_entries();
 
