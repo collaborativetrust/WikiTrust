@@ -35,6 +35,7 @@ POSSIBILITY OF SUCH DAMAGE.
 """
 
 # Given a directory, add all of the files in the directory into the db
+# Usage: python prep_dir_for_dbrun.py dir_to_prep prefix return_dir
 
 import MySQLdb
 import getopt
@@ -46,17 +47,15 @@ rsync_prefix = sys.argv[3]
 return_dir = sys.argv[2]
 source_dir = sys.argv[1]
 
-print "BEGIN TRANSACTION"
+print "BEGIN TRANSACTION;" # Faster if this is all 1 long trans.
 SQL_INSERT = "INSERT INTO cluster_simple (file_name, file_return_dir) VALUES \
     ('%(file_name)s', ' " + rsync_prefix + return_dir + "');"
-
-source_dir = sys.argv[1]
 
 files = commands.getoutput ("ls " + source_dir).split ()   
 for file in files:
   print SQL_INSERT % {'file_name': rsync_prefix + source_dir + file}
 
-print "COMMIT"
+print "COMMIT;"
 
 
 
