@@ -44,15 +44,24 @@ BASE_DIR = "/var/www/cluster_run_handler/"
 INI_FILE = BASE_DIR + "db_options.ini"   
 FILE_ENDING_SEP = " "
 
-## parse the ini file
-ini_config = ConfigParser.ConfigParser()
-ini_config.readfp(open(INI_FILE))
+connection = None
+curs = None
 
-## init the DB
-connection = MySQLdb.connect(host=ini_config.get('db', 'host'),
-user=ini_config.get('db', 'user'), passwd=ini_config.get('db', 'pass') \
-    , db=ini_config.get('db', 'db') )
-curs = connection.cursor()
+def connect_db():
+  global connection
+  global curs
+
+  ## parse the ini file
+  ini_config = ConfigParser.ConfigParser()
+  ini_config.readfp(open(INI_FILE))
+
+  ## init the DB
+  connection = MySQLdb.connect(host=ini_config.get('db', 'host'),
+  user=ini_config.get('db', 'user'), passwd=ini_config.get('db', 'pass') \
+      , db=ini_config.get('db', 'db') )
+  curs = connection.cursor()
+
+connect_db()
 
 def handler(req):
 
@@ -62,13 +71,18 @@ def handler(req):
   file_used  = form.getfirst("file", None)
   
   ## Start out transaction going
-  curs.execute("START TRANSACTION")
-  
+  try:
+    connect_db()
+    curs.execute("START TRANSACTION")
+  except Exception: ## Yes, in general I know this is bad form.
+    connect_db()
+    curs.execute("START TRANSACTION")  
+
   ## otherwise, return either file info, or else mark the file as being processed
   if file_used is not None:
 
     curs.execute("UPDATE cluster_simple SET processedon = now(), file_status = \
-                  'processing' WHERE file_name = '" + str(file_used) + "'")
+                  'processed' WHERE file_name = %s", (str(file_used)))
     connection.commit()
     req.write("Deleted file " + str(file_used))
     return apache.OK
