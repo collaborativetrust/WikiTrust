@@ -391,7 +391,7 @@ let do_dist_eval
   let input_files = ref Vec.empty in
   let add_to_input_files s = input_files := Vec.append s !input_files in
   let cleanup fld = ignore (Unix.close_process_in (Unix.open_process_in ("rm " ^ fld))) in
-
+  let max_times_get_file = 10 in
   begin
     let quit_loop = ref false in
     let count = ref 0 in    
@@ -413,35 +413,43 @@ let do_dist_eval
       match get_file with
         | "" -> quit_loop := true
         | _  -> (
-
-        (* copy the input file over *)
-        print_endline ("rsync " ^ get_file ^ " " ^ src_dir);
-        let rsync_status = (Unix.close_process_in (Unix.open_process_in 
-            ("rsync " ^ get_file ^ " " ^ src_dir))) in
-
-        (* Make sure the file really made it over *)
-        match rsync_status with
-          | Unix.WSIGNALED sig_num -> quit_loop := true
-          | Unix.WSTOPPED sig_num -> quit_loop := true
-          | Unix.WEXITED ret_val -> (
-       
-          add_to_input_files (src_dir ^ file_name);
         
-          (* print_vec !input_files ;  *)
-          print_endline ("starting multi_eval on " ^ file_name);
-          output_files := ( do_multi_eval !input_files factory working_dir unzip_cmd continue);
-          print_endline "done with multi_eval";
+        let keep_trying_downloading = ref true in
+        let times_though = ref 0 in
+        while not !keep_trying_downloading && !times_though < max_times_get_file do
+          (* copy the input file over *)
+          print_endline ("rsync " ^ get_file ^ " " ^ src_dir);
+          let rsync_status = (Unix.close_process_in (Unix.open_process_in 
+              ("rsync " ^ get_file ^ " " ^ src_dir))) in
+
+          (* Make sure the file really made it over *)
+          match rsync_status with
+            | Unix.WSIGNALED sig_num -> quit_loop := true
+            | Unix.WSTOPPED sig_num -> quit_loop := true
+            | Unix.WEXITED ret_val -> (
+              match ret_val with
+                | 0 -> (
+            keep_trying_downloading := true;
+            add_to_input_files (src_dir ^ file_name);
+        
+            (* print_vec !input_files ;  *)
+            print_endline ("starting multi_eval on " ^ file_name);
+            output_files := ( do_multi_eval !input_files factory working_dir unzip_cmd continue);
+            print_endline "done with multi_eval";
       
-          (* Now, send the file back *)
-          Vec.iter send_file_back !output_files;
+            (* Now, send the file back *)
+            Vec.iter send_file_back !output_files;
 
-          (* Cleanup *)
-          Vec.iter cleanup !output_files;
-          Vec.iter cleanup !input_files;
+            (* Cleanup *)
+            Vec.iter cleanup !output_files;
+            Vec.iter cleanup !input_files;
 
-          (* Alert that we have sucessfully send the file back *)
-          ignore (Http_client.Convenience.http_get (remote_host ^ "/?file=" ^ get_file))
+            (* Alert that we have sucessfully send the file back *)
+            ignore (Http_client.Convenience.http_get (remote_host ^ "/?file=" ^ get_file))
+            ) 
+            | _ -> times_though := !times_though + 1
         );
+        done
       );
 
       (* Is it time to stop ? *)
