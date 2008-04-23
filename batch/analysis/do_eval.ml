@@ -407,8 +407,18 @@ let do_dist_eval
       let file_split_lst = ExtString.String.nsplit get_file "/" in
       let file_name = List.nth file_split_lst ((List.length file_split_lst) - 1) in
       let remote_dest_dir = List.nth http_responce_lst ((List.length http_responce_lst) - 1) in
-      let send_file_back fl = ignore (Unix.close_process_in (Unix.open_process_in ("rsync " ^ fl ^ " "
-            ^ remote_dest_dir))) in
+      let send_back_times = ref 0 in
+      let rec send_file_back file_back = 
+        match (Unix.close_process_in (Unix.open_process_in ("rsync " ^ file_back ^ " "
+            ^ remote_dest_dir))) with
+             | Unix.WSIGNALED sig_num -> quit_loop := true
+             | Unix.WSTOPPED sig_num -> quit_loop := true
+             | Unix.WEXITED ret_val -> ( 
+               match ret_val with                                                          
+                 | 0 -> (  ) 
+                 | _ -> ( if !send_back_times <= max_times_get_file then send_file_back file_back; 
+                            send_back_times := !send_back_times + 1)
+               ) in
       
       match get_file with
         | "" -> quit_loop := true
@@ -438,7 +448,7 @@ let do_dist_eval
             print_endline "done with multi_eval";
       
             (* Now, send the file back *)
-            Vec.iter send_file_back !output_files;
+            Vec.iter send_file_back !output_files ;
 
             (* Cleanup *)
             Vec.iter cleanup !output_files;
