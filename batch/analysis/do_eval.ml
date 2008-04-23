@@ -426,7 +426,7 @@ let do_dist_eval
         
         let keep_trying_downloading = ref true in
         let times_though = ref 0 in
-        while not !keep_trying_downloading && !times_though < max_times_get_file do
+        while !keep_trying_downloading && !times_though < max_times_get_file do
           (* copy the input file over *)
           print_endline ("rsync " ^ get_file ^ " " ^ src_dir);
           let rsync_status = (Unix.close_process_in (Unix.open_process_in 
@@ -439,7 +439,7 @@ let do_dist_eval
             | Unix.WEXITED ret_val -> (
               match ret_val with
                 | 0 -> (
-            keep_trying_downloading := true;
+            keep_trying_downloading := false;
             add_to_input_files (src_dir ^ file_name);
         
             (* print_vec !input_files ;  *)
