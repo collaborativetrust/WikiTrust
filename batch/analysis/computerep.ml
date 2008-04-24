@@ -334,27 +334,27 @@ object (self)
 	  t.text_life_time
 	end
       | EditInc e -> begin 
-          let uid = e.edit_inc_uid0 in 
-	  let uname = e.edit_inc_uname0 in
+          let uid = e.edit_inc_uid1 in 
+	  let uname = e.edit_inc_uname1 in
           (* increments non-anonymous users or anonymous user domains, 
 	     if delta > 0, and if it is in the time range *)
           if (uid <> 0 || include_domains)
-	    && e.edit_inc_d12 > 0.
+	    && e.edit_inc_d01 > 0.
             && e.edit_inc_time >= rep_intv.start_time
             && e.edit_inc_time <= rep_intv.end_time
-	    && e.edit_inc_uid1 <> e.edit_inc_uid0 
+	    && e.edit_inc_uid2 <> e.edit_inc_uid1 
 	    && ((not do_firstcut) || (do_firstcut && e.edit_inc_n01 = 1))
           then 
             begin
               let spec_q = min 1.0 
-		((params.edit_leniency *. e.edit_inc_d01 -. e.edit_inc_d02) 
-		/. e.edit_inc_d12)
+		((params.edit_leniency *. e.edit_inc_d02 -. e.edit_inc_d12) 
+		/. e.edit_inc_d01)
               in 
               (* takes into account of delta and the length exponent *)
-              let q = spec_q *. (e.edit_inc_d12 ** params.length_exponent) in 
+              let q = spec_q *. (e.edit_inc_d01 ** params.length_exponent) in 
               (* punish the people who do damage *)
               let q1 = if q < 0.0 then q *. params.punish_factor else q in 
-              let judge_w = user_data#get_weight e.edit_inc_uid1 in 
+              let judge_w = user_data#get_weight e.edit_inc_uid2 in 
               let q2 = q1 *. judge_w *. (1.0 -. params.text_vs_edit_weight) in 
 	      if debug then Printf.printf "EditInc Uid %d q %f\n" uid q2; (* debug *)
               user_data#inc_rep uid uname q2 e.edit_inc_time
