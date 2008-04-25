@@ -359,39 +359,42 @@ object (self)
             let judge_w = user_data#get_weight e.edit_inc_uid2 in 
             let q2 = q1 *. judge_w *. (1.0 -. params.text_vs_edit_weight) in 
 	    (* Decides whether to use normal, or robust, reputation *)
-	    let q3 = if robust_reputation then begin
-	      (* Yes, we are using robust reputation *)
-	      (* Decide whether we nix rev1 *)
-	      if q2 < 0. && e.edit_inc_t12 < nix_interval then begin 
-		if not (Hashtbl.mem nixed revid1) then Hashtbl.add nixed revid1 ()
-	      end;
-	      (* If time greater that nixing interval, and the revision has not been nixed, 
-		 then we do reputation as we do it in the non-robust version. *)
-	      if q2 < 0. || (e.edit_inc_t12 > nix_interval && (not (Hashtbl.mem nixed revid1)))
-	      then q2
-	      else begin 
-		(* We cap the reputation increment *)
-		let rep0 = user_data#get_rep e.edit_inc_uid0 in 
-		let rep1 = user_data#get_rep e.edit_inc_uid1 in 
-		let rep2 = user_data#get_rep e.edit_inc_uid2 in 
-		let rep02 = min rep0 rep2 in 
-		let r_inc = min rep02 (q2 +. rep1) in 
-		let r_new = max rep1 r_inc in 
-		r_new -. rep1
+	    let q3 = 
+	      if robust_reputation then begin
+		(* Yes, we are using robust reputation *)
+		(* Decide whether we nix rev1 *)
+		if q2 < 0. && e.edit_inc_t12 < nix_interval then begin 
+		  if not (Hashtbl.mem nixed revid1) then Hashtbl.add nixed revid1 ()
+		end;
+		(* If time greater that nixing interval, and the revision has not been nixed, 
+		   then we do reputation as we do it in the non-robust version. *)
+		if q2 < 0. || (e.edit_inc_t12 > nix_interval && (not (Hashtbl.mem nixed revid1)))
+		then q2
+		else begin 
+		  (* We cap the reputation increment *)
+		  let rep0 = user_data#get_rep e.edit_inc_uid0 in 
+		  let rep1 = user_data#get_rep e.edit_inc_uid1 in 
+		  let rep2 = user_data#get_rep e.edit_inc_uid2 in 
+		  let rep02 = min rep0 rep2 in 
+		  let r_inc = min rep02 (q2 +. rep1) in 
+		  let r_new = max rep1 r_inc in 
+		  r_new -. rep1
+		end
+	      end else begin 
+		(* standard, non-robust reputation *)
+		q2
 	      end
-	    end else begin 
-	      q2
-	    end
 	    in 
-	    if debug then Printf.printf "EditInc Uid %d q %f\n" uid1 q3; (* debug *)
+	    if debug then Printf.printf "EditInc Uid %d q3 %f\n" uid1 q3; (* debug *)
             user_data#inc_rep uid1 uname1 q3 e.edit_inc_time
           end;
 	  e.edit_inc_time 
       end
     | TextInc t -> begin 
-        let uid = t.text_inc_uid0 in 
-	let uname = t.text_inc_uname0 in
-        if (uid <> 0 || include_domains)
+        let uid0 = t.text_inc_uid0 in 
+	let uname0 = t.text_inc_uname0 in
+	let revid0 = t.text_inc_rev0 in 
+        if (uid0 <> 0 || include_domains)
 	  && t.text_inc_orig_text > 0
 	  && t.text_inc_seen_text > 0
           && t.text_inc_time >= rep_intv.start_time
@@ -405,9 +408,26 @@ object (self)
             let merit = ratio_live *. 
 	      ((float_of_int t.text_inc_orig_text) ** params.length_exponent) in 
             let judge_w = user_data#get_weight t.text_inc_uid1 in 
-            let q = merit *. judge_w *. params.text_vs_edit_weight in 
-	    if debug then Printf.printf "TextInc Uid %d q %f\n" uid q; (* debug *)
-            user_data#inc_rep uid uname q t.text_inc_time
+            let q = merit *. judge_w *. params.text_vs_edit_weight in
+	    (* Decides whether to use robust reputaion *)
+	    let q3 = 
+	      if robust_reputation then begin 
+		if t.text_inc_t01 > nix_interval && (not (Hashtbl.mem nixed revid0))
+		then q
+		else begin 
+		  let rep0 = user_data#get_rep t.text_inc_uid0 in 
+		  let rep1 = user_data#get_rep t.text_inc_uid1 in 
+		  let r_inc = min (rep0 +. q) rep1 in 
+		  let r_new = max rep0 r_inc in 
+		  r_new -. rep0
+		end
+	      end else begin 
+		(* standard reputation *)
+		q
+	      end
+	    in 
+	    if debug then Printf.printf "TextInc Uid %d q3 %f\n" uid0 q3; (* debug *)
+            user_data#inc_rep uid0 uname0 q3 t.text_inc_time
           end;
 	t.text_inc_time
       end
