@@ -319,9 +319,9 @@ class page
       (* This is for the computation of edit longevity *)
       let n_judges_1 = ref 0 in 
       let tot_qual_1 = ref 0.0 in 
-      (* 0 is the distance before, 
-         rev1_idx is the judged, 
-         rev2_idx is the judge *)
+      (* rev0 is the revision before, 
+         rev1 is the judged, 
+         rev2 is the judge, so in time they are in the order rev0, rev1, rev2.  *)
       let max_idx = min n_edit_judging ((Vec.length revs) - 1) in 
       let rev0 = Vec.get 0 revs in 
       let uid0 = rev0#get_user_id in 

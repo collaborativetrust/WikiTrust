@@ -46,6 +46,9 @@ let do_monthly = ref false
 let do_cumulative = ref false 
 let do_firstcut = ref false
 let gen_exact_rep = ref false
+let gen_robust_rep = ref false
+let nix_interval = ref (4. *. 3600.)
+let set_nix_interval f = nix_interval := f 
 let user_contrib_order_asc = ref false
 let include_domains = ref false
 let ip_nbytes = ref 0
@@ -79,7 +82,6 @@ let set_end_time (s: string) =
     end_time = Timeconv.time_to_float y m d 0 0 0; 
 };;
 
-
 let command_line_format = [("-end", Arg.String (set_end_time), 
 			    "End time for the evaluation (YYYY.MMDD)"); 
 			   ("-m", Arg.Set (do_monthly), 
@@ -101,7 +103,12 @@ let command_line_format = [("-end", Arg.String (set_end_time),
                            ("-u_contrib_order_asc", Arg.Set (user_contrib_order_asc),
                             "Ascending order of user contributions (default: descending)");
 			   ("-gen_exact_rep", Arg.Set (gen_exact_rep),
-			    "Generate an extra column in the user reputation file with exact reputation values")]
+			    "Generate an extra column in the user reputation file with exact reputation values");
+			   ("-gen_robust_rep", Arg.Set gen_robust_rep, 
+			    "Generate reputation using the robust method.");
+			   ("-nix_inverval", Arg.Float set_nix_interval, 
+			    "Nixing interval (in seconds) for robust reputation.");
+]
 
 let _ = Arg.parse command_line_format set_file_name "Usage: showstats [<filename>]\nIf <filename> is missing, stdin is used"
 
@@ -120,7 +127,7 @@ let all_time_intv = {
 };;
 
 (* This is the reputation evaluator *)
-let r = new Computerep.rep params !include_anon all_time_intv !time_intv !user_file !do_monthly !do_cumulative !do_firstcut !gen_exact_rep !user_contrib_order_asc !include_domains !ip_nbytes stdout;;
+let r = new Computerep.rep params !include_anon all_time_intv !time_intv !user_file !do_monthly !do_cumulative !do_firstcut !gen_exact_rep !user_contrib_order_asc !include_domains !ip_nbytes stdout !gen_robust_rep !nix_interval;;
 
 (* Reads the data *)
 let stream = if !stream_name = "" 
