@@ -280,6 +280,8 @@ object (self)
   val mutable last_month = -1
     (* Remembers which revisions have been nixed *)
   val nixed : (int, unit) Hashtbl.t = Hashtbl.create 1000
+    (* Which revisions were never nixed. *) 
+  val not_nixed : (int, unit) Hashtbl.t = Hashtbl.create 1000
 
   method add_data (datum: wiki_data_t) : unit = 
     (* quality normalization function *)
@@ -361,8 +363,14 @@ object (self)
 		(* Yes, we are using robust reputation *)
 		(* Decide whether we nix rev1 *)
 		if q2 < 0. && e.edit_inc_t12 < nix_interval then begin 
-		  if not (Hashtbl.mem nixed revid1) then Hashtbl.add nixed revid1 ()
-		end;
+		  if not (Hashtbl.mem nixed revid1) then 
+                    Hashtbl.add nixed revid1 ();
+                    Hashtbl.remove not_nixed revid1
+		end 
+                  else begin 
+                    if not (Hashtbl.mem nixed revid1) && (Hashtbl.mem not_nixed revid1) then 
+                        Hashtbl.add not_nixed revid1 ()
+                end;
 		(* If time greater that nixing interval, and the revision has not been nixed, 
 		   then we do reputation as we do it in the non-robust version. *)
 		if q2 < 0. || (e.edit_inc_t12 > nix_interval && (not (Hashtbl.mem nixed revid1)))
@@ -456,6 +464,10 @@ object (self)
           Some f -> user_data#print_contributions f user_contrib_order_asc
         | None -> ()
     end;
+    let total_revs = (Hashtbl.length nixed) + (Hashtbl.length not_nixed) in
+    Printf.fprintf out_ch "%d Revisions out of %d nixed -- %f percent."
+        (Hashtbl.length nixed) total_revs (float_of_int (Hashtbl.length nixed) /.
+        float_of_int total_revs) ;
     Printf.fprintf out_ch "\nEdit Stats:\n"; 
     let edit_s = stat_edit#compute_stats false out_ch in 
     Printf.fprintf out_ch "\nText Stats:\n";

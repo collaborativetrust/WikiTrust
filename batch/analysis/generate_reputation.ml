@@ -113,12 +113,13 @@ let command_line_format = [("-end", Arg.String (set_end_time),
 let _ = Arg.parse command_line_format set_file_name "Usage: showstats [<filename>]\nIf <filename> is missing, stdin is used"
 
 let params = {
-  rep_scaling = 13.084503; 
-  punish_factor = exp (3.0) -. 1.0; 
+ rep_scaling = 500.0 ; 
+ (* rep_scaling = 73.24; *)
+  punish_factor = 1.0; 
   max_rep = 22026.465795 -. 2.0; 
-  text_vs_edit_weight = 0.6; 
+  text_vs_edit_weight = 0.0; 
   length_exponent = 0.6;
-  edit_leniency = 2.2;
+  edit_leniency = 1.0;
 }
 
 let all_time_intv = {
