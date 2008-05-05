@@ -257,11 +257,15 @@ class reputation_revision
       (* This Vec stores, in fashion similar to distance above, 
          the edit list to go from one version to the other *)
     val mutable editlist: Editlist.edit list Vec.t = Vec.empty 
+      (* Delta from the previous revision *)
+    val mutable delta = None 
+
     method get_distance: float Vec.t = distance
     method set_distance (v: float Vec.t) : unit = distance <- v
     method get_editlist: Editlist.edit list Vec.t = editlist
     method set_editlist (l: Editlist.edit list Vec.t) = editlist <- l 
-
+    method set_delta (d: float) = delta <- Some d
+    method get_delta : float option = delta
     (* Output method *)
     method print_text_life out_file =
       let n_judges = self#get_n_text_judge_revisions in 

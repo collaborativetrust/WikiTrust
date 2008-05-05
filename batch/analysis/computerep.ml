@@ -352,7 +352,7 @@ object (self)
 	      ((params.edit_leniency *. e.edit_inc_d02 -. e.edit_inc_d12) /. e.edit_inc_d01)
             in 
             (* takes into account of delta and the length exponent *)
-            let q = spec_q *. (e.edit_inc_d01 ** params.length_exponent) in 
+            let q = spec_q *. (e.edit_inc_delta ** params.length_exponent) in 
             (* punish the people who do damage *)
             let q1 = if q < 0.0 then q *. params.punish_factor else q in 
             let judge_w = user_data#get_weight e.edit_inc_uid2 in 

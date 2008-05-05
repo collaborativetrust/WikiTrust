@@ -103,31 +103,32 @@ POSSIBILITY OF SUCH DAMAGE.
 	NewText: 846 ;;  amount of original text: in revision 29479, 846 words were introduced.
 	Life: 7665 ;; 7665 words of the text introduced at version 29479 appeared in the next 9 revisions.
 
-   EditInc 1030871979 PageId: 8179 rev0: 101832 uid0: 0 uname0: "Joe Black" rev1: 187662 uid1: 30 uname1: "God" rev2: 187665 uid2: 83 uname2: "Trinity" d01: 1.50 d02: 5.50 d12: 4.00 n01: 1 n12: 1 t01: 10016956 t12: 6174432
+   EditInc 1113671446 PageId: 7954 Delta:    2.50 rev0: 10550535 uid0: 55767 uname0: "R. fiend" rev1: 11805828 uid1: 0 uname1: "210.49.80.154" rev2: 12543256 uid2: 231414 uname2: "Jack39" d01:   16.00 d02:  611.67 d12:  613.17 n01: 6 n12: 3 t01: 3429205 t12: 1543097
+
 
 	This line is used to compute an increment (positive or negative) to the reputation of the author of a revision, 
 	according to how much the edits are still present at a later revision. 
 
 	EditInc ;; fixed string.
-	1082322340 ;; timestamp at which the edit was made.
-	PageId: 1 ;; the page id is 1.
-	rev0: 47102 ;; the revision where the edit was made.
-	uid0: 7 ;; the user who did revision 47102 is the user 7.
-        uname0: "Joe Black" ;; the user name for uid0
-	rev1: 47136 ;; the revision that acts as the "judge" is the later revision 47136.
-	uid1: 24 ;; the user who is judging the quality of the edit is user 24.
-        uname1: "God" ;; the user name for uid1
-	rev2: 187665 ;; A revision that came after rev1. Potentially there can be more than one revision that came after
-                rev1. We will have one line for each such revision as long as uid2 is different from uid1.
-	uid2: 83 ;; The author of revision rev2.
-        uname2: "Trinity" ;; the user name for uid2
-	d01: 2035 ;; The distance between the revision preceding 47102 and 47136 is 2053.
-	d02: 1962 ;; The distance between revision 47102 and 47136 is 1962.
-	d12: 71.50 ;; The distance between the revision preceding 47102 and 47102 is 71.50.  This is how much user 7 has changed. 
-        n01: 1 ;; The number of revisions between rev0 and rev1, including rev1.
-        n12: 1 ;; The number of revisions between rev1 and rev2, including rev2.
-        t01: 10016956 ;; The elapsed time between rev0 and rev1.
-        t12: 6174432 ;; The elapsed time between rev1 and rev2.
+	1113671446 ;; timestamp at which the edit was made.
+	PageId: 7954 ;; the page id is 1.
+        Delta: 2.50 ;; how much was the edit distance between this revision and the previous one
+	rev0: 10550535 ;; there are the revision id, user id, and user name of the revision that is the reference point in the past. 
+	uid0: 55767 ;; 
+        uname0: "R. fiend" ;; 
+	rev1: 11805828 ;;this is the revision whose change is being judged. 
+	uid1: 0 ;; '0' means anonymous
+        uname1: "210.49.80.154" ;; for anonymous users, the name is the IP
+	rev2: 12543256 ;; this is the judge revision, userid, and username, in the future of rev1. 
+	uid2: 231414 ;;
+        uname2: "Jack39" ;;
+	d01: 16.00 ;; The distance between rev0 and rev1
+	d02: 611.67 ;; The distance between rev1 and rev2
+	d12: 613.17 ;; The distance between rev0 and rev2
+        n01: 6 ;; The number of revisions between rev0 and rev1, including rev1.
+        n12: 3 ;; The number of revisions between rev1 and rev2, including rev2.
+        t01: 3429205 ;; The elapsed time between rev0 and rev1.
+        t12: 1543097 ;; The elapsed time between rev1 and rev2.
 
    EditLife 1082322340 PageId: 1 rev0: 47136 uid0: 24 NJudges: 4 Delta:    3.52 AvgSpecQ: -0.06902
 
@@ -179,7 +180,7 @@ let read_data
               (* Now we must figure out which line l is *)
               if (String.sub l 0 7) = "EditInc" then 
 		begin
-                  let make_t t p r0 u0 un0 r1 u1 un1 r2 u2 un2 b a d n1 n2 t1 t2=
+                  let make_t t p delta r0 u0 un0 r1 u1 un1 r2 u2 un2 b a d n1 n2 t1 t2=
 		    if t < !last_time then begin
 		      if not !last_time_warned then begin
 			last_time_warned := true;
@@ -191,6 +192,7 @@ let read_data
 		    EditInc {
 		      edit_inc_time = t; 
 		      edit_inc_page_id = p;
+		      edit_inc_delta = delta;
 		      edit_inc_rev0 = r0;
 		      edit_inc_uid0 = u0;
                       edit_inc_uname0 = un0;
@@ -209,7 +211,7 @@ let read_data
 		      edit_inc_t12 = t2;
                     }
                   in
-                  let x = Scanf.sscanf l "EditInc %f PageId: %d rev0: %d uid0: %d uname0: %S rev1: %d uid1: %d uname1: %S rev2: %d uid2: %d uname2: %S d01: %f d02: %f d12: %f n01: %d n12: %d t01: %f t12: %f" make_t in
+                  let x = Scanf.sscanf l "EditInc %f PageId: %d Delta: %f rev0: %d uid0: %d uname0: %S rev1: %d uid1: %d uname1: %S rev2: %d uid2: %d uname2: %S d01: %f d02: %f d12: %f n01: %d n12: %d t01: %f t12: %f" make_t in
                     consumer x
 		end
               else if (String.sub l 0 7) = "TextInc" then 
