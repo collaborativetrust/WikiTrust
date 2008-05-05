@@ -110,7 +110,7 @@ let command_line_format = [("-end", Arg.String (set_end_time),
 			    "Nixing interval (in seconds) for robust reputation.");
 ]
 
-let _ = Arg.parse command_line_format set_file_name "Usage: showstats [<filename>]\nIf <filename> is missing, stdin is used"
+let _ = Arg.parse command_line_format set_file_name "Usage: generate_reputation [<filename>]\nIf <filename> is missing, stdin is used"
 
 let params = {
   rep_scaling = 13.084503; 
