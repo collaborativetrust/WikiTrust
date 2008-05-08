@@ -199,6 +199,8 @@ class reputation_revision :
     method set_created_text : int -> unit
     method set_distance : float Vec.t -> unit
     method set_editlist : Editlist.edit list Vec.t -> unit
+    method set_delta : float -> unit
+    method get_delta : float option
   end
 class trust_revision :
   int ->

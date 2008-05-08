@@ -76,59 +76,56 @@ class users
       end else uid
 
     method inc_rep (uid: int) (username: string) (q: float) (timestamp: Rephist.RepHistory.key) : unit = 
-      if (uid <> 0 || include_domains) then 
-        begin
-	  let user_id = self#generate_user_id uid username in
-	    if Hashtbl.mem tbl user_id then 
-              begin
-		let u = Hashtbl.find tbl user_id in 
-		  if debug then Printf.printf "Uid %d rep: %f " user_id u.rep; 
-		  if debug then Printf.printf "inc: %f\n" (q /. rep_scaling);
-		  u.rep <- max 0.0 (min max_rep (u.rep +. (q /. rep_scaling)));
-		  match user_history_file with 
-		      None -> ()
-		    | Some f -> begin 
-			let new_weight = log (1.0 +. (max 0.0 u.rep)) in 
-			  if new_weight > (float_of_int u.rep_bin) +. 1.2 
-			    || new_weight < (float_of_int u.rep_bin) -. 0.2 
-			    || gen_exact_rep
-			  then (* must write out the change in reputation *)
-			    let new_bin = int_of_float new_weight in 
-			      if gen_exact_rep then
-				Printf.fprintf f "%f %7d %2d %2d %f\n" timestamp user_id u.rep_bin new_bin u.rep
-			      else
-				Printf.fprintf f "%f %7d %2d %2d\n" timestamp user_id u.rep_bin new_bin;
-			      u.rep_bin <- new_bin 
-		      end;
-			if user_id = single_debug_id && single_debug then 
-			  Printf.printf "Rep of %d: %f\n" user_id u.rep
-              end
-            else 
-              begin
-		(* New user *)
-		let u = {
-                  uname = username;
-		  rep = initial_reputation; 
-                  contrib = 0.0;
-		  cnt = 0.0; 
-		  rep_bin = 0; 
-		  rep_history = RepHistory.empty } in 
-                  u.rep <- max 0.0 (min max_rep (u.rep +. (q /. rep_scaling)));
-		  match user_history_file with 
-		      None -> ()
-		    | Some f -> begin 
-			let new_weight = log (1.0 +. (max 0.0 u.rep)) in 
+      let user_id = self#generate_user_id uid username in
+	if Hashtbl.mem tbl user_id then 
+	  begin
+	    let u = Hashtbl.find tbl user_id in 
+	      if debug then Printf.printf "Uid %d rep: %f " user_id u.rep; 
+	      if debug then Printf.printf "inc: %f\n" (q /. rep_scaling);
+	      u.rep <- max 0.0 (min max_rep (u.rep +. (q /. rep_scaling)));
+	      match user_history_file with 
+		  None -> ()
+		| Some f -> begin 
+		    let new_weight = log (1.0 +. (max 0.0 u.rep)) in 
+		      if new_weight > (float_of_int u.rep_bin) +. 1.2 
+			|| new_weight < (float_of_int u.rep_bin) -. 0.2 
+			|| gen_exact_rep
+		      then (* must write out the change in reputation *)
 			let new_bin = int_of_float new_weight in 
 			  if gen_exact_rep then
-			    Printf.fprintf f "%f %7d %2d %2d %f\n" timestamp user_id (-1) new_bin u.rep
+			    Printf.fprintf f "%f %7d %2d %2d %f\n" timestamp user_id u.rep_bin new_bin u.rep
 			  else
-			    Printf.fprintf f "%f %7d %2d %2d\n" timestamp user_id (-1) new_bin;
+			    Printf.fprintf f "%f %7d %2d %2d\n" timestamp user_id u.rep_bin new_bin;
 			  u.rep_bin <- new_bin 
-		      end;
-			Hashtbl.add tbl user_id u; 
-              end
-        end
-	  
+		  end;
+		    if user_id = single_debug_id && single_debug then 
+		      Printf.printf "Rep of %d: %f\n" user_id u.rep
+	  end
+	else 
+	  begin
+	    (* New user *)
+	    let u = {
+	      uname = username;
+	      rep = initial_reputation; 
+	      contrib = 0.0;
+	      cnt = 0.0; 
+	      rep_bin = 0; 
+	      rep_history = RepHistory.empty } in 
+	      u.rep <- max 0.0 (min max_rep (u.rep +. (q /. rep_scaling)));
+	      match user_history_file with 
+		  None -> ()
+		| Some f -> begin 
+		    let new_weight = log (1.0 +. (max 0.0 u.rep)) in 
+		    let new_bin = int_of_float new_weight in 
+		      if gen_exact_rep then
+			Printf.fprintf f "%f %7d %2d %2d %f\n" timestamp user_id (-1) new_bin u.rep
+		      else
+			Printf.fprintf f "%f %7d %2d %2d\n" timestamp user_id (-1) new_bin;
+		      u.rep_bin <- new_bin 
+		  end;
+		    Hashtbl.add tbl user_id u; 
+	  end
+
     method inc_contrib (uid: int) (username: string) (delta: float) (longevity: float) (include_anons: bool) : unit = 
       if (uid <> 0 || include_anons || include_domains) then 
         begin
@@ -353,7 +350,7 @@ object (self)
 	      ((params.edit_leniency *. e.edit_inc_d02 -. e.edit_inc_d12) /. e.edit_inc_d01)
             in 
             (* takes into account of delta and the length exponent *)
-            let q = spec_q *. (e.edit_inc_d01 ** params.length_exponent) in 
+            let q = spec_q *. (e.edit_inc_delta ** params.length_exponent) in 
             (* punish the people who do damage *)
             let q1 = if q < 0.0 then q *. params.punish_factor else q in 
             let judge_w = user_data#get_weight e.edit_inc_uid2 in 

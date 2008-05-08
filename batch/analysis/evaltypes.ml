@@ -44,6 +44,7 @@ POSSIBILITY OF SUCH DAMAGE.
 type edit_inc_t = {
   edit_inc_time: float; 
   edit_inc_page_id: int; 
+  edit_inc_delta: float;
   edit_inc_rev0: int; 
   edit_inc_uid0: int; 
   edit_inc_uname0: string;

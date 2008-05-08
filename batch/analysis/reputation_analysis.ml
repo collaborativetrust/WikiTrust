@@ -242,7 +242,11 @@ class page
           let edits  = Chdiff.edit_diff rev1_t rev2_t rev2_i in 
           let d      = Editlist.edit_distance edits (max rev1_l rev2_l) in 
           rev1#set_distance (Vec.setappend 0.0 d i rev1#get_distance);
-          rev1#set_editlist (Vec.setappend [] edits i rev1#get_editlist)
+          rev1#set_editlist (Vec.setappend [] edits i rev1#get_editlist);
+	  if rev1_idx + 1 = rev2_idx then begin 
+	    (* Stores the delta *)
+	    rev2#set_delta d
+	  end
         end else begin 
           (* Picks the intermediary which gives the best coverage *)
           let best_middle_idx = ref (-1) in 
@@ -355,19 +359,22 @@ class page
                 let time2 = rev2#get_time in 
                 
                 (* Prints out the edit inc *)
-                if not eval_zip_error then 
-                  Printf.fprintf out_file "\nEditInc %10.0f PageId: %d rev0: %d uid0: %d uname0: %S rev1: %d uid1: %d uname1: %S rev2: %d uid2: %d uname2: %S d01: %7.2f d02: %7.2f d12: %7.2f n01: %d n12: %d t01: %d t12: %d"
-		    (* time and page id *)
-                    time2 id 
-		    (* revision and user ids *)
-                    rid0 uid0 uname0 rid1 uid1 uname1 rid2 uid2 uname2
-		    (* word distances *)
-                    d01 d02 d12
-                    (* distances between revisions in n. of revisions *)
-		    rev1_idx (rev2_idx - rev1_idx)
-		    (* distances between revisions in seconds *)
-		    (int_of_float (time1 -. time0)) (int_of_float (time2 -. time1))
-		    ;
+		match rev1#get_delta with 
+		  None -> ()
+		| Some delta -> begin 
+                    if not eval_zip_error then 
+                      Printf.fprintf out_file "\nEditInc %10.0f PageId: %d Delta: %7.2f rev0: %d uid0: %d uname0: %S rev1: %d uid1: %d uname1: %S rev2: %d uid2: %d uname2: %S d01: %7.2f d02: %7.2f d12: %7.2f n01: %d n12: %d t01: %d t12: %d"
+			(* time and page id *)
+			time2 id delta
+			(* revision and user ids *)
+			rid0 uid0 uname0 rid1 uid1 uname1 rid2 uid2 uname2
+			(* word distances *)
+			d01 d02 d12
+			(* distances between revisions in n. of revisions *)
+			rev1_idx (rev2_idx - rev1_idx)
+			(* distances between revisions in seconds *)
+			(int_of_float (time1 -. time0)) (int_of_float (time2 -. time1))
+		  end;
                 (* If revisions 0 and 1 are consecutive, computes the 
                    contribution to the longevity of revision 1 *)
                 if 1 = rev1_idx then begin 
