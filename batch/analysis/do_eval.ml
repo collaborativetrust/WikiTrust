@@ -390,8 +390,6 @@ let do_dist_eval
   let all_output_files = ref Vec.empty in
   let input_files = ref Vec.empty in
   let add_to_input_files s = input_files := Vec.append s !input_files in
-  let cleanup fld = ignore (Unix.close_process_in (Unix.open_process_in ("rm " ^ fld))) in
-  let max_times_get_file = 10 in
   begin
     let quit_loop = ref false in
     let count = ref 0 in    
@@ -406,60 +404,21 @@ let do_dist_eval
       let get_file = List.hd http_responce_lst in
       let file_split_lst = ExtString.String.nsplit get_file "/" in
       let file_name = List.nth file_split_lst ((List.length file_split_lst) - 1) in
-      let remote_dest_dir = List.nth http_responce_lst ((List.length http_responce_lst) - 1) in
-      let send_back_times = ref 0 in
-      let rec send_file_back file_back = 
-        match (Unix.close_process_in (Unix.open_process_in ("rsync " ^ file_back ^ " "
-            ^ remote_dest_dir))) with
-             | Unix.WSIGNALED sig_num -> quit_loop := true
-             | Unix.WSTOPPED sig_num -> quit_loop := true
-             | Unix.WEXITED ret_val -> ( 
-               match ret_val with                                                          
-                 | 0 -> (  ) 
-                 | _ -> ( if !send_back_times <= max_times_get_file then send_file_back file_back; 
-                            send_back_times := !send_back_times + 1)
-               ) in
       
       match get_file with
         | "" -> quit_loop := true
         | _  -> (
         
-        let keep_trying_downloading = ref true in
-        let times_though = ref 0 in
-        while !keep_trying_downloading && !times_though < max_times_get_file do
-          (* copy the input file over *)
-          print_endline ("rsync " ^ get_file ^ " " ^ src_dir);
-          let rsync_status = (Unix.close_process_in (Unix.open_process_in 
-              ("rsync " ^ get_file ^ " " ^ src_dir))) in
-
-          (* Make sure the file really made it over *)
-          match rsync_status with
-            | Unix.WSIGNALED sig_num -> quit_loop := true
-            | Unix.WSTOPPED sig_num -> quit_loop := true
-            | Unix.WEXITED ret_val -> (
-              match ret_val with
-                | 0 -> (
-            keep_trying_downloading := false;
-            add_to_input_files (src_dir ^ file_name);
+        (* Begin *)
+        print_endline ("running on " ^ src_dir ^ file_name);
+        add_to_input_files (src_dir ^ file_name);
         
-            (* print_vec !input_files ;  *)
-            print_endline ("starting multi_eval on " ^ file_name);
-            output_files := ( do_multi_eval !input_files factory working_dir unzip_cmd continue);
-            print_endline "done with multi_eval";
+        (* print_vec !input_files ;  *)
+        output_files := ( do_multi_eval !input_files factory working_dir unzip_cmd continue);
+        print_endline "done with multi_eval";
       
-            (* Now, send the file back *)
-            Vec.iter send_file_back !output_files ;
-
-            (* Cleanup *)
-            Vec.iter cleanup !output_files;
-            Vec.iter cleanup !input_files;
-
-            (* Alert that we have sucessfully send the file back *)
-            ignore (Http_client.Convenience.http_get (remote_host ^ "/?file=" ^ get_file))
-            ) 
-            | _ -> times_though := !times_though + 1
-        );
-        done
+        (* Alert that we have sucessfully send the file back *)
+        ignore (Http_client.Convenience.http_get (remote_host ^ "/?file=" ^ get_file))
       );
 
       (* Is it time to stop ? *)
