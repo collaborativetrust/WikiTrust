@@ -49,6 +49,8 @@ let gen_exact_rep = ref false
 let gen_robust_rep = ref false
 let nix_interval = ref (4. *. 3600.)
 let set_nix_interval f = nix_interval := f 
+let n_edit_judging = ref 12 (* This default is the same as n_edit_judging in page_factory.ml *)
+let set_n_edit_judging n = n_edit_judging := n 
 let user_contrib_order_asc = ref false
 let include_domains = ref false
 let ip_nbytes = ref 0
@@ -108,6 +110,8 @@ let command_line_format = [("-end", Arg.String (set_end_time),
 			    "Generate reputation using the robust method.");
 			   ("-nix_inverval", Arg.Float set_nix_interval, 
 			    "Nixing interval (in seconds) for robust reputation.");
+			   ("-n_edit_judging", Arg.Int set_n_edit_judging, 
+			    "N. of edit judges for nixing (this must match the way evalwiki was called to compute the stats"); 
 ]
 
 let _ = Arg.parse command_line_format set_file_name "Usage: generate_reputation [<filename>]\nIf <filename> is missing, stdin is used"
@@ -128,7 +132,7 @@ let all_time_intv = {
 };;
 
 (* This is the reputation evaluator *)
-let r = new Computerep.rep params !include_anon all_time_intv !time_intv !user_file !do_monthly !do_cumulative !do_firstcut !gen_exact_rep !user_contrib_order_asc !include_domains !ip_nbytes stdout !gen_robust_rep !nix_interval;;
+let r = new Computerep.rep params !include_anon all_time_intv !time_intv !user_file !do_monthly !do_cumulative !do_firstcut !gen_exact_rep !user_contrib_order_asc !include_domains !ip_nbytes stdout !gen_robust_rep !nix_interval !n_edit_judging;;
 
 (* Reads the data *)
 let stream = if !stream_name = "" 

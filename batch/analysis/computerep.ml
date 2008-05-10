@@ -269,6 +269,7 @@ class rep
   (output_channel: out_channel) (* Used to print automated stuff like monthly stats *)
   (robust_reputation: bool) (* use the new robust reputation triangle algorithm *)
   (nix_interval: float) (* interval in which we expect negative edits if any *)
+  (n_edit_judging: int) (* n. of edit judges for each revision; used for nixing *)
   =
 object (self)
   (* This is the object keeping track of all users *)
@@ -362,10 +363,14 @@ object (self)
 	      if robust_reputation then begin
 		(* Yes, we are using robust reputation *)
 		(* Decide whether we nix rev1 *)
-		if ((q2 < 0. && e.edit_inc_t12 < nix_interval) || 
-                    (e.edit_inc_rev2 - e.edit_inc_rev0 >= 66 
-                    (* Luca -- Is this value for m correct? *)
-                    && (e.edit_inc_t01 +. e.edit_inc_t12) < nix_interval)) then begin 
+		if (
+		    (* Nix reason n. 1: negative feedback in the nixing interval *)
+		    (q2 < 0. && e.edit_inc_t12 < nix_interval) || 
+		    (* Nix reason n. 2: too many edits in the nixing interval *)
+                    ((e.edit_inc_n01 + e.edit_inc_n12 >= n_edit_judging) 
+                      && (e.edit_inc_t01 +. e.edit_inc_t12) < nix_interval)
+		) then begin 
+		  (* Nixes the revision *)
 		  if not (Hashtbl.mem nixed revid1) then 
                     Hashtbl.add nixed revid1 ();
                     Hashtbl.remove not_nixed revid1

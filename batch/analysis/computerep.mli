@@ -74,6 +74,7 @@ class rep :
   out_channel -> 
   bool -> 
   float ->
+  int -> 
   object
     method add_data : Evaltypes.wiki_data_t -> unit
     method compute_stats : out_channel option -> out_channel -> Evaltypes.stats_t * Evaltypes.stats_t
