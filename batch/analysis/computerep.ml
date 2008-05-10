@@ -362,7 +362,10 @@ object (self)
 	      if robust_reputation then begin
 		(* Yes, we are using robust reputation *)
 		(* Decide whether we nix rev1 *)
-		if q2 < 0. && e.edit_inc_t12 < nix_interval then begin 
+		if ((q2 < 0. && e.edit_inc_t12 < nix_interval) || 
+                    (e.edit_inc_rev2 - e.edit_inc_rev0 >= 66 
+                    (* Luca -- Is this value for m correct? *)
+                    && (e.edit_inc_t01 +. e.edit_inc_t12) < nix_interval)) then begin 
 		  if not (Hashtbl.mem nixed revid1) then 
                     Hashtbl.add nixed revid1 ();
                     Hashtbl.remove not_nixed revid1
