@@ -355,6 +355,10 @@ class page
                 (* Ok, we have a valid distance triple *)
                 let d12 = Vec.get (rev2_idx - rev1_idx) dist1 in 
                 let d02 = Vec.get rev2_idx dist0 in 
+		(* dp2 is the distance between the revision before rev1, and rev2 *)
+		let rev_prev = Vec.get (rev1_idx - 1) revs in 
+	        let dist_prev = rev_prev#get_distance in
+		let dp2 = Vec.get (rev2_idx - rev1_idx + 1) dist_prev in 
                 let rid2 = rev2#get_id in 
                 let time2 = rev2#get_time in 
                 
@@ -363,13 +367,13 @@ class page
 		  None -> ()
 		| Some delta -> begin 
                     if not eval_zip_error then 
-                      Printf.fprintf out_file "\nEditInc %10.0f PageId: %d Delta: %7.2f rev0: %d uid0: %d uname0: %S rev1: %d uid1: %d uname1: %S rev2: %d uid2: %d uname2: %S d01: %7.2f d02: %7.2f d12: %7.2f n01: %d n12: %d t01: %d t12: %d"
+                      Printf.fprintf out_file "\nEditInc %10.0f PageId: %d Delta: %7.2f rev0: %d uid0: %d uname0: %S rev1: %d uid1: %d uname1: %S rev2: %d uid2: %d uname2: %S d01: %7.2f d02: %7.2f d12: %7.2f dp2: %7.2f n01: %d n12: %d t01: %d t12: %d"
 			(* time and page id *)
 			time2 id delta
 			(* revision and user ids *)
 			rid0 uid0 uname0 rid1 uid1 uname1 rid2 uid2 uname2
 			(* word distances *)
-			d01 d02 d12
+			d01 d02 d12 dp2
 			(* distances between revisions in n. of revisions *)
 			rev1_idx (rev2_idx - rev1_idx)
 			(* distances between revisions in seconds *)
