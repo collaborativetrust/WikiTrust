@@ -72,9 +72,11 @@ class rep :
   bool ->
   int ->
   out_channel -> 
-  bool -> 
-  float ->
-  int -> 
+  (* use_reputation_cap *) bool -> 
+  (* use_nix *) bool ->
+  (* nix_interval *) float ->
+  (* n_edit_judging *) int -> 
+  (* gen_truthful_rep *) bool -> 
   object
     method add_data : Evaltypes.wiki_data_t -> unit
     method compute_stats : out_channel option -> out_channel -> Evaltypes.stats_t * Evaltypes.stats_t

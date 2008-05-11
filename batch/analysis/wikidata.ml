@@ -103,7 +103,7 @@ POSSIBILITY OF SUCH DAMAGE.
 	NewText: 846 ;;  amount of original text: in revision 29479, 846 words were introduced.
 	Life: 7665 ;; 7665 words of the text introduced at version 29479 appeared in the next 9 revisions.
 
-   EditInc 1113671446 PageId: 7954 Delta:    2.50 rev0: 10550535 uid0: 55767 uname0: "R. fiend" rev1: 11805828 uid1: 0 uname1: "210.49.80.154" rev2: 12543256 uid2: 231414 uname2: "Jack39" d01:   16.00 d02:  611.67 d12:  613.17 n01: 6 n12: 3 t01: 3429205 t12: 1543097
+   EditInc 1113671446 PageId: 7954 Delta:    2.50 rev0: 10550535 uid0: 55767 uname0: "R. fiend" rev1: 11805828 uid1: 0 uname1: "210.49.80.154" rev2: 12543256 uid2: 231414 uname2: "Jack39" d01:   16.00 d02:  611.67 d12:  613.17  dp2: 302.00 n01: 6 n12: 3 t01: 3429205 t12: 1543097
 
 
 	This line is used to compute an increment (positive or negative) to the reputation of the author of a revision, 
@@ -125,6 +125,7 @@ POSSIBILITY OF SUCH DAMAGE.
 	d01: 16.00 ;; The distance between rev0 and rev1
 	d02: 611.67 ;; The distance between rev1 and rev2
 	d12: 613.17 ;; The distance between rev0 and rev2
+        dp2: 302.00 ;; the distance between the revision before rev1, and rev2
         n01: 6 ;; The number of revisions between rev0 and rev1, including rev1.
         n12: 3 ;; The number of revisions between rev1 and rev2, including rev2.
         t01: 3429205 ;; The elapsed time between rev0 and rev1.
@@ -180,7 +181,7 @@ let read_data
               (* Now we must figure out which line l is *)
               if (String.sub l 0 7) = "EditInc" then 
 		begin
-                  let make_t t p delta r0 u0 un0 r1 u1 un1 r2 u2 un2 b a d n1 n2 t1 t2=
+                  let make_t t p delta r0 u0 un0 r1 u1 un1 r2 u2 un2 b a d dp n1 n2 t1 t2=
 		    if t < !last_time then begin
 		      if not !last_time_warned then begin
 			last_time_warned := true;
@@ -205,13 +206,14 @@ let read_data
 		      edit_inc_d01 = b;
 		      edit_inc_d02 = a;
 		      edit_inc_d12 = d;
+		      edit_inc_dp2 = dp; 
 		      edit_inc_n01 = n1;
 		      edit_inc_n12 = n2;
 		      edit_inc_t01 = t1;
 		      edit_inc_t12 = t2;
                     }
                   in
-                  let x = Scanf.sscanf l "EditInc %f PageId: %d Delta: %f rev0: %d uid0: %d uname0: %S rev1: %d uid1: %d uname1: %S rev2: %d uid2: %d uname2: %S d01: %f d02: %f d12: %f n01: %d n12: %d t01: %f t12: %f" make_t in
+                  let x = Scanf.sscanf l "EditInc %f PageId: %d Delta: %f rev0: %d uid0: %d uname0: %S rev1: %d uid1: %d uname1: %S rev2: %d uid2: %d uname2: %S d01: %f d02: %f d12: %f dp2: %f n01: %d n12: %d t01: %f t12: %f" make_t in
                     consumer x
 		end
               else if (String.sub l 0 7) = "TextInc" then 
