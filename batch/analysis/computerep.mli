@@ -76,6 +76,7 @@ class rep :
   (* use_nix *) bool ->
   (* nix_interval *) float ->
   (* n_edit_judging *) int -> 
+  (* gen_almost_truthful_rep *) bool -> 
   (* gen_truthful_rep *) bool -> 
   object
     method add_data : Evaltypes.wiki_data_t -> unit

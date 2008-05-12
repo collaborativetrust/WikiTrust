@@ -271,7 +271,8 @@ class rep
   (use_nix: bool) (* Use nixing *)
   (nix_interval: float) (* interval in which we expect negative edits if any *)
   (n_edit_judging: int) (* n. of edit judges for each revision; used for nixing *)
-  (gen_truthful_rep: bool) (* use algorithm for truthful reputation *)
+  (gen_almost_truthful_rep: bool) (* use algorithm for almost truthful reputation *)
+  (gen_truthful_rep: bool) (* use strict algorithm for truthful reputation only *)
   =
 object (self)
   (* This is the object keeping track of all users *)
@@ -367,10 +368,10 @@ object (self)
 	      (* Decide whether we nix rev1 *)
 	      if (
 		(* Nix reason n. 1: negative feedback in the nixing interval *)
-		(spec_q < 0. && e.edit_inc_t12 < nix_interval) || 
+		(spec_q < 0. && e.edit_inc_t12 <= nix_interval) || 
 		  (* Nix reason n. 2: too many edits in the nixing interval *)
                   ((e.edit_inc_n01 + e.edit_inc_n12 >= n_edit_judging) 
-                    && (e.edit_inc_t01 +. e.edit_inc_t12) < nix_interval)
+                    && (e.edit_inc_t01 +. e.edit_inc_t12) <= nix_interval)
 	      ) then begin 
 		(* Nixes the revision *)
 		if not (Hashtbl.mem nixed revid1) then Hashtbl.add nixed revid1 ();
@@ -382,38 +383,51 @@ object (self)
 	    end; (* End of nixing portion *)
 
 	    (* This is the quality to be used *)
-	    let qual = if gen_truthful_rep then (min spec_q spec_q_p) else spec_q in 
-	    (* Computes the reputation increment repinc *)
-            let judge_w = user_data#get_weight e.edit_inc_uid2 in 
-	    let proposed_repinc = e.edit_inc_delta *. qual *. judge_w in 
-
-	    (* Computes the real reputation increment, that takes into account 
-	       whether reputation-cap or reputation-cap-nix are used *)
-	    let real_repinc = 
-	      if use_reputation_cap then begin 
-	      (* If we use nixing, and the time rev1 to rev2 is greater that nixing interval, and the revision has not been nixed, 
-		   then the increment is uncapped *)
-		if use_nix && (proposed_repinc < 0. || (e.edit_inc_t12 > nix_interval && (not (Hashtbl.mem nixed revid1))))
-		then proposed_repinc 
-		else begin 
-		  (* We cap the reputation increment *)
-		  let rep0 = user_data#get_rep e.edit_inc_uid0 in 
-		  let rep1 = user_data#get_rep e.edit_inc_uid1 in 
-		  let rep2 = user_data#get_rep e.edit_inc_uid2 in 
-		  let rep02 = min rep0 rep2 in 
-		  let r_inc = min rep02 (proposed_repinc +. rep1) in 
-		  let r_new = max rep1 r_inc in 
-		  r_new -. rep1
-		end
+	    let qual = 
+	      if gen_truthful_rep then begin 
+		(* Truthful reputation: counted only if n01 = 1 *)
+		if e.edit_inc_n01 = 1 then spec_q else 0.
 	      end else begin 
-		(* standard, uncapped reputation *)
-		proposed_repinc 
+		(* Not truthful rep. *)
+		if gen_almost_truthful_rep then (min spec_q spec_q_p) else spec_q
 	      end
-	    in 
+	    in
+	    
+	    if qual != 0. then begin 
 
-	    (* Increments the reputation *)
-	    if debug then Printf.printf "EditInc Uid %d q3 %f\n" uid1 real_repinc; (* debug *)
-            user_data#inc_rep uid1 uname1 real_repinc e.edit_inc_time
+	      (* Computes the reputation increment repinc *)
+              let judge_w = user_data#get_weight e.edit_inc_uid2 in 
+	      let proposed_repinc = e.edit_inc_delta *. qual *. judge_w in 
+
+	      (* Computes the real reputation increment, that takes into account 
+		 whether reputation-cap or reputation-cap-nix are used *)
+	      let real_repinc = 
+		if use_reputation_cap then begin 
+		  (* If we use nixing, and the time rev1 to rev2 is greater that nixing interval, and the revision has not been nixed, 
+		     then the increment is uncapped *)
+		  if use_nix && (proposed_repinc < 0. || (e.edit_inc_t12 > nix_interval && (not (Hashtbl.mem nixed revid1))))
+		  then proposed_repinc 
+		  else begin 
+		    (* We cap the reputation increment *)
+		    let rep0 = user_data#get_rep e.edit_inc_uid0 in 
+		    let rep1 = user_data#get_rep e.edit_inc_uid1 in 
+		    let rep2 = user_data#get_rep e.edit_inc_uid2 in 
+		    let rep02 = min rep0 rep2 in 
+		    let r_inc = min rep02 (proposed_repinc +. rep1) in 
+		    let r_new = max rep1 r_inc in 
+		    r_new -. rep1
+		  end
+		end else begin 
+		  (* standard, uncapped reputation *)
+		  proposed_repinc 
+		end
+	      in 
+
+	      (* Increments the reputation *)
+	      if debug then Printf.printf "EditInc Uid %d q3 %f\n" uid1 real_repinc; (* debug *)
+              user_data#inc_rep uid1 uname1 real_repinc e.edit_inc_time
+
+	    end (* if qual != 0 *)
           end;
 	  e.edit_inc_time 
       end

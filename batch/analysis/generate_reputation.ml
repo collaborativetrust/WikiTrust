@@ -48,6 +48,7 @@ let do_firstcut = ref false
 let gen_exact_rep = ref false
 let use_reputation_cap = ref false
 let use_nix = ref false
+let gen_almost_truthful_rep = ref false
 let gen_truthful_rep = ref false
 let nix_interval = ref (4. *. 3600.)
 let set_nix_interval f = nix_interval := f 
@@ -116,6 +117,8 @@ let command_line_format = [("-end", Arg.String (set_end_time),
 			    "Nixing interval (in seconds) for robust reputation.");
 			   ("-n_edit_judging", Arg.Int set_n_edit_judging, 
 			    "N. of edit judges for nixing (this must match the way evalwiki was called to compute the stats"); 
+			   ("-almost_truthful_rep", Arg.Set gen_almost_truthful_rep, 
+			    "Use algorithm for almost truthful reputation.");
 			   ("-truthful_rep", Arg.Set gen_truthful_rep, 
 			    "Use algorithm for truthful reputation.");
 ]
@@ -133,7 +136,7 @@ let all_time_intv = {
 };;
 
 (* This is the reputation evaluator *)
-let r = new Computerep.rep params !include_anon all_time_intv !time_intv !user_file !do_monthly !do_cumulative !do_firstcut !gen_exact_rep !user_contrib_order_asc !include_domains !ip_nbytes stdout !use_reputation_cap !use_nix !nix_interval !n_edit_judging !gen_truthful_rep;;
+let r = new Computerep.rep params !include_anon all_time_intv !time_intv !user_file !do_monthly !do_cumulative !do_firstcut !gen_exact_rep !user_contrib_order_asc !include_domains !ip_nbytes stdout !use_reputation_cap !use_nix !nix_interval !n_edit_judging !gen_almost_truthful_rep !gen_truthful_rep;;
 
 (* Reads the data *)
 let stream = if !stream_name = "" 
