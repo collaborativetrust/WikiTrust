@@ -256,12 +256,12 @@ class users
 class rep 
   (params: params_t) (* The parameters used for evaluation *)
   (include_anons: bool) (* Whether to include anonymous users in evaluation *)
-  (rep_intv: time_intv_t) (* The interval of time for which reputation is evaluated *)
+  (rep_intv: time_intv_t) (* The interval of time for which reputation is computed *)
   (eval_intv: time_intv_t) (* The time interval for which reputation is evaluated *)
   (user_history_file: out_channel option) (* File where to write the history of user reputations *)
   (print_monthly_stats: bool) (* Prints monthly precision and recall statistics *)
   (do_cumulative_months: bool) (* True if the monthly statistics have to be cumulative *)
-  (do_firstcut: bool) (* True if we want to compute reputations as we did in our first release *)
+  (do_localinc: bool) (* In EditInc, compares a revision only with the immediately preceding one *)
   (gen_exact_rep: bool) (* True if we want to create an extra column in the user history file with exact rep values *)
   (user_contrib_order_asc: bool) (* The order in which we write out author contributions *)
   (include_domains: bool) (* Indicates that we want to extract reputation for anonymous user domains *)
@@ -351,7 +351,7 @@ object (self)
             && e.edit_inc_time >= rep_intv.start_time
             && e.edit_inc_time <= rep_intv.end_time
 	    && e.edit_inc_uid2 <> e.edit_inc_uid1 
-	    && ((not do_firstcut) || (do_firstcut && e.edit_inc_n01 = 1))
+	    && ((not do_localinc) || (do_localinc && e.edit_inc_n01 = 1))
           then begin
 	    (* This is the specific quality based on the versions v0 v1 v2 *)
             let spec_q = min 1.0 

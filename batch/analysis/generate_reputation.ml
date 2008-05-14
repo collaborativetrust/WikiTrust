@@ -44,7 +44,7 @@ let stream_name = ref "" (* Input stream *)
 let include_anon = ref false
 let do_monthly = ref false
 let do_cumulative = ref false 
-let do_firstcut = ref false
+let do_localinc = ref false
 let gen_exact_rep = ref false
 let use_reputation_cap = ref false
 let use_nix = ref false
@@ -97,8 +97,8 @@ let command_line_format = [("-end", Arg.String (set_end_time),
 			    "Do the monthly statistics in cumulative fashion, since the beginning of time");
 			   ("-a", Arg.Set (include_anon), 
                             "Include anonymous users in statistics");
-			   ("-firstcut", Arg.Set (do_firstcut),
-			    "Change the reputation algorithm to compute reputations as in our first release");
+			   ("-localinc", Arg.Set (do_localinc),
+			    "EditInc uses, as past reference point, only the immediately preceding version");
 			   ("-domains", Arg.Set include_domains,
 			    "Include user domains for anonymous users in computing reputation");
 			   ("-ip_nbytes", Arg.Int set_ip_nbytes, 
@@ -136,7 +136,7 @@ let all_time_intv = {
 };;
 
 (* This is the reputation evaluator *)
-let r = new Computerep.rep params !include_anon all_time_intv !time_intv !user_file !do_monthly !do_cumulative !do_firstcut !gen_exact_rep !user_contrib_order_asc !include_domains !ip_nbytes stdout !use_reputation_cap !use_nix !nix_interval !n_edit_judging !gen_almost_truthful_rep !gen_truthful_rep;;
+let r = new Computerep.rep params !include_anon all_time_intv !time_intv !user_file !do_monthly !do_cumulative !do_localinc !gen_exact_rep !user_contrib_order_asc !include_domains !ip_nbytes stdout !use_reputation_cap !use_nix !nix_interval !n_edit_judging !gen_almost_truthful_rep !gen_truthful_rep;;
 
 (* Reads the data *)
 let stream = if !stream_name = "" 
