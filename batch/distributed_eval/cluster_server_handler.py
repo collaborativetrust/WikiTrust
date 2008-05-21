@@ -69,6 +69,7 @@ def handler(req):
 
   form = util.FieldStorage(req)
   file_used  = form.getfirst("file", None)
+  processed_on = form.getfirst("p", "")
   
   ## Start out transaction going
   try:
@@ -94,8 +95,8 @@ def handler(req):
     data = curs.fetchall()
     for row in range(len(data)):
       req.write(data[row][0] + FILE_ENDING_SEP + data[row][1])
-      curs.execute("UPDATE cluster_simple SET file_status = 'processing' WHERE \
-                    file_name = '" + data[row][0] + "'")
+      curs.execute("UPDATE cluster_simple SET processed_on = % AND file_status = 'processing' WHERE \
+                    file_name = '" + data[row][0] + "'", str(processed_on))
 
     connection.commit()  
     return apache.OK
