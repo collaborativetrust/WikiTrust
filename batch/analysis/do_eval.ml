@@ -400,7 +400,7 @@ let do_dist_eval
 
       (* Figure out what we are going to do *)
       let http_responce_lst =  ExtString.String.nsplit
-        (Http_client.Convenience.http_get remote_host) http_file_dir_sep in
+        (Http_client.Convenience.http_get remote_host ^ "/p=" ^ (Unix.gethostname ())) http_file_dir_sep in
       let get_file = List.hd http_responce_lst in
       let file_split_lst = ExtString.String.nsplit get_file "/" in
       let file_name = List.nth file_split_lst ((List.length file_split_lst) - 1) in
