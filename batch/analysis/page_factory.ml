@@ -130,7 +130,7 @@ class page_factory
       (* N. of revisions to evaluate for text life *)
     val mutable n_text_judging = 12
       (* N. of revisions to evaluate for edit life *)
-    val mutable n_edit_judging = 12 
+    val mutable n_edit_judging = 12 (* This default is the same as n_edit_judging in generate_reputation.ml *)
       (* Number of revisions to color for trust *)
     val mutable n_rev_to_output = 100 
       (* Do we equate all anonymous, regardless of IP? *)

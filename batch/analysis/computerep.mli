@@ -59,21 +59,25 @@ class users :
     method print_contributions : out_channel -> bool -> unit
   end
 class rep :
-  Evaltypes.params_t ->
-  bool ->
-  Evaltypes.time_intv_t ->
-  Evaltypes.time_intv_t ->
-  out_channel option ->
-  bool -> 
-  bool ->
-  bool ->
-  bool ->
-  bool ->
-  bool ->
-  int ->
-  out_channel -> 
-  bool -> 
-  float ->
+  (* parameters *) Evaltypes.params_t ->
+  (* include_anons *) bool ->
+  (* rep_intv *) Evaltypes.time_intv_t ->
+  (* eval_intv *) Evaltypes.time_intv_t ->
+  (* user_history_file *) out_channel option ->
+  (* print_monthly_stats *) bool -> 
+  (* do_cumulative_months *) bool ->
+  (* do_localinc *) bool ->
+  (* gen_exact_rep *) bool ->
+  (* user_contrib_order_asc *) bool ->
+  (* include_domains *) bool ->
+  (* ip_nbytes *) int ->
+  (* output_channel *) out_channel -> 
+  (* use_reputation_cap *) bool -> 
+  (* use_nix *) bool ->
+  (* nix_interval *) float ->
+  (* n_edit_judging *) int -> 
+  (* gen_almost_truthful_rep *) bool -> 
+  (* gen_truthful_rep *) bool -> 
   object
     method add_data : Evaltypes.wiki_data_t -> unit
     method compute_stats : out_channel option -> out_channel -> Evaltypes.stats_t * Evaltypes.stats_t
