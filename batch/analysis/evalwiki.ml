@@ -33,6 +33,12 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
+(* First, I want to figure out which version I am. *)
+let p = Unix.open_process_in "git show --pretty=format:\"%H\" @{0}";;
+let version_str = input_line p;;
+ignore (Unix.close_process_in p);;
+(* Then passes this information to fileinfo *)
+Fileinfo.make_info_obj version_str "";;
 
 (* This is the top-level code of the wiki xml evaluation.  *)
 
@@ -91,6 +97,7 @@ let command_line_format =
 let _ = Arg.parse command_line_format set_input_files "Usage: evalwiki [input_files]";;
 
 (* Does all the work *)
+
 if !use_stdin then begin 
   let f_out = open_out !single_out in 
   Do_eval.do_single_eval factory stdin f_out

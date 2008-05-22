@@ -30,11 +30,11 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 # Vars we use in our rules to build ocaml programs
-OCAML_LDA_LIBS = vec.cmo hashtbl_bounded.cmo intvmap.cmo
-OCAML_LDA_LIBS_OPT = vec.cmx hashtbl_bounded.cmx intvmap.cmx
+OCAML_LDA_LIBS = xml-light.cma ocamlldalibs.cma 
+OCAML_LDA_LIBS_OPT = xml-light.cmxa ocamlldalibs.cmxa 
 OUR_LD_ADD = str.cma unix.cma $(OCAML_LDA_LIBS)
 OUR_OPTLD_ADD = str.cmxa unix.cmxa $(OCAML_LDA_LIBS_OPT)
-INCLUDES = -I ../../../OcamlLdaLibs
+INCLUDES = -I ../../../OcamlLdaLibs -I ../../../OcamlLdaLibs/xml-light
 
 OCAMLC=ocamlc
 OCAMLOPT=ocamlopt
