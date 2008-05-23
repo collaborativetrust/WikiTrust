@@ -99,8 +99,9 @@ let _ = Arg.parse command_line_format set_input_files "Usage: evalwiki [input_fi
 (* Does all the work *)
 
 if !use_stdin then begin 
-  let f_out = open_out !single_out in 
-  Do_eval.do_single_eval factory stdin f_out
+  let f_out = Fileinfo.open_info_out !single_out in 
+  Do_eval.do_single_eval factory stdin f_out;
+  Fileinfo.close_info_out f_out
 end else if !do_dist_processing 
 then ignore (Do_eval.do_eval_dist !remote_host !remote_user !remote_color_dir !begin_url !done_url !dist_client !times_to_loop !loop_until_done factory !src_dir !working_dir !unzip_cmd !continue)
 else ignore (Do_eval.do_multi_eval !input_files factory !working_dir !unzip_cmd !continue);;

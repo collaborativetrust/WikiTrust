@@ -113,12 +113,12 @@ class page
       r#output_revision out_file;
       (* Now we need to write the text of the revision in its own file *)
       let s = Printf.sprintf "%012d.txt" rev_id in 
-      let f = open_out (file_prefix ^ s) in 
+      let f = Fileinfo.open_info_out (file_prefix ^ s) in 
       let print_l (b: unit) (d: string) : unit = 
 	output_string f d in 
       let print_r (c: unit) (b: unit) : unit = () in 
       Vec.visit_in () print_l print_r text_init;
-      close_out f
+      Fileinfo.close_info_out f
 
     (** This method is called when there are no more revisions to evaluate. 
 	All it does is write that the page is closed. *)

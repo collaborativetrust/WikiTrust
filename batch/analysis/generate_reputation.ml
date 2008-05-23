@@ -59,9 +59,9 @@ let time_intv = ref {
 
 let user_file = ref None
 let set_file_name (s: string) = stream_name := s
-let set_user_file s = user_file := Some (open_out s)
+let set_user_file s = user_file := Some (Fileinfo.open_info_out s)
 let user_contrib_file = ref None
-let set_user_contrib_file s = user_contrib_file := Some (open_out s)
+let set_user_contrib_file s = user_contrib_file := Some (Fileinfo.open_info_out s)
 
 let set_ip_nbytes i = 
   if (i < 1 || i > 4) then begin
@@ -132,9 +132,10 @@ let r = new Computerep.rep params !include_anon all_time_intv !time_intv !user_f
 (* Reads the data *)
 let stream = if !stream_name = "" 
   then stdin 
-  else open_in !stream_name 
+  else Fileinfo.open_info_in !stream_name 
 in 
-ignore (Wikidata.read_data stream r#add_data None);;
+ignore (Wikidata.read_data stream r#add_data None);
+if !stream_name != "" then Fileinfo.close_info_in stream;;
 
 (* And prints the results *)
 r#compute_stats !user_contrib_file stdout;;

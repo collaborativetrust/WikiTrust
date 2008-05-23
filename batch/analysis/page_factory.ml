@@ -187,9 +187,9 @@ class page_factory
     method set_eval_zip_error () = eval_zip_error <- true
     method set_be_precise () = be_precise <- true
     method set_rep_histories (s : string) = 
-      let f = open_in s in 
+      let f = Fileinfo.open_info_in s in 
       rep_histories#read_reps f; 
-      close_in f
+      Fileinfo.close_info_in f
     method set_trust_coeff_lends_rep (f : float) = trust_coeff_lends_rep <- f
     method set_trust_coeff_read_all (f : float) = trust_coeff_read_all <- f
     method set_trust_coeff_read_part (f : float) = trust_coeff_read_part <- f
@@ -315,16 +315,16 @@ class page_factory
       begin 
 	match mode with 
 	  Linear_analysis | Circular_analysis | Reputation_analysis -> begin 
-	    out_file <- open_out stats_name; 
+	    out_file <- Fileinfo.open_info_out stats_name; 
 	    names_l := Vec.singleton stats_name
 	  end
 	| Contribution_analysis | Revcount_analysis | Intertime_analysis -> begin 
-	    out_file <- open_out default_name; 
+	    out_file <- Fileinfo.open_info_out default_name; 
 	    names_l := Vec.singleton default_name
 	  end
 	| Trust_color | Trust_syntactregion_color | Trust_and_origin 
 	| Prune_revisions | Revisions_to_text -> begin 
-	    xml_file <- open_out xml_name; 
+	    xml_file <- Fileinfo.open_info_out xml_name; 
 	    names_l := Vec.singleton xml_name
 	  end
 	| Do_nothing -> ()
@@ -339,9 +339,9 @@ class page_factory
 
     (* This method closes the output files *)
     method close_out_files : unit = 
-      if out_file != stderr then begin close_out out_file; out_file <- stderr end;
-      if xml_file != stderr then begin close_out xml_file; xml_file <- stderr end;
-      if words_file != stderr then begin close_out words_file; words_file <- stderr end 
+      if out_file != stderr then begin Fileinfo.close_info_out out_file; out_file <- stderr end;
+      if xml_file != stderr then begin Fileinfo.close_info_out xml_file; xml_file <- stderr end;
+      if words_file != stderr then begin Fileinfo.close_info_out words_file; words_file <- stderr end 
 
     (* Writes the output preamble if needed *)
     method output_preamble (s : string) : unit = 

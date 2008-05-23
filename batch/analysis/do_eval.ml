@@ -349,8 +349,8 @@ let do_multi_eval
 	    end done; (* while *)
 	    (* Waits a bit before reading from the pipe *)
 	    Unix.sleep 1
-	  end else in_f := open_in in_file
-	end else in_f := open_in in_file; 
+	  end else in_f := Fileinfo.open_info_in in_file
+	end else in_f := Fileinfo.open_info_in in_file; 
 	(* Both in and out files are open.  Does the evaluation *)
 	do_eval factory !in_f;
 	(* Closes the files *)
@@ -359,13 +359,16 @@ let do_multi_eval
 	if !use_decomp then begin 
 	  try ignore (Unix.close_process_in !in_f) 
 	  with Unix.Unix_error (Unix.ECHILD, _, _) -> ()
-	end else close_in !in_f 
+	end else Fileinfo.close_info_in !in_f 
       end
     with x -> begin 
       Printf.fprintf stderr "Error while processing input %s\n" in_file; 
       if continue then begin 
 	begin try 
-	    if !use_decomp then ignore (Unix.close_process_in !in_f) else close_in !in_f with  _ -> () end; 
+	    if !use_decomp 
+	    then ignore (Unix.close_process_in !in_f) 
+	    else Fileinfo.close_info_in !in_f with  _ -> () 
+	end; 
 	begin try factory#close_out_files with _ -> () end
       end else raise x 
     end
@@ -413,9 +416,9 @@ let do_eval_dist
               end;
             flush stdout;                (* write on the underlying device now *)                
           done;
-        close_in in_c                  (* close the input channel *) 
+        Fileinfo.close_info_in in_c                  (* close the input channel *) 
       with e ->                      (* some unexpected exception occurs *)
-        close_in_noerr in_c;           (* emergency closing *)
+        Fileinfo.close_info_in in_c;           (* emergency closing *)
       ;                                
       (* Now, process the files read *)                                    
       print_vec !input_files ;  
@@ -454,9 +457,9 @@ let do_eval_dist
               end;  
               flush stdout;   (* write on the underlying device now *)
           done;    
-            close_in copy_back                  (* close the input channel *) 
+            Fileinfo.close_info_in copy_back                  (* close the input channel *) 
           with e ->                      (* some unexpected exception occurs *)
-            close_in_noerr copy_back;           (* emergency closing *)
+            Fileinfo.close_info_in copy_back;           (* emergency closing *)
           ;      
       end;      
     done; (* outer begin *)  
