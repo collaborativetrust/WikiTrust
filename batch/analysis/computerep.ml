@@ -309,10 +309,10 @@ object (self)
 		  (normalize e.edit_life_avg_specq) (* debug *)
 	      end; 
 	      stat_edit#add_event 
-	        e.edit_life_time 
-	        (user_data#get_weight uid)
-	        (e.edit_life_delta *. (float_of_int e.edit_life_n_judges))
-	        (normalize e.edit_life_avg_specq);
+	        e.edit_life_time (* time of event *)
+	        (user_data#get_weight uid) (* weight of user reputation *)
+	        (e.edit_life_delta *. (float_of_int e.edit_life_n_judges)) (* weight of data point *)
+	        (normalize e.edit_life_avg_specq); (* edit longevity *)
               user_data#inc_contrib uid uname e.edit_life_delta e.edit_life_avg_specq include_anons
 	    end;
 	    e.edit_life_time
