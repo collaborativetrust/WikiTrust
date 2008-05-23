@@ -43,7 +43,7 @@ POSSIBILITY OF SUCH DAMAGE.
 class logger 
   (file_name: string) 
   (synch: bool) = 
-  let f = open_out_gen [Open_wronly; Open_Creat; Open_append; Open_text] 0o640 file_name in 
+  let f = open_out_gen [Open_wronly; Open_creat; Open_append; Open_text] 0o640 file_name in 
   object
 
     (** [log s] logs the string [s]. *)

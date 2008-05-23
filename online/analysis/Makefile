@@ -30,13 +30,12 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 # Vars we use in our rules to build ocaml programs
-OCAML_LDA_LIBS = vec.cmo hashtbl_bounded.cmo intvmap.cmo
-OCAML_LDA_LIBS_OPT = vec.cmx hashtbl_bounded.cmx intvmap.cmx
+OCAML_LDA_LIBS = vec.cmo text.cmo hashtbl_bounded.cmo revision.cmo prioq.cmo coda.cmo editlist.cmo chdiff.cmo compute_edlist.cmo intvmap.cmo eval_constants.cmo compute_trust.cmo
+OCAML_LDA_LIBS_OPT = vec.cmx text.cmx hashtbl_bounded.cmx revision.cmx prioq.cmx coda.cmx editlist.cmx chdiff.cmx compute_edlist.cmx intvmap.cmx eval_constants.cmx compute_trust.cmx
 OUR_LD_ADD = str.cma unix.cma mysql.cma dbi.cma dbi_mysql.cmo $(OCAML_LDA_LIBS)
 OUR_OPTLD_ADD = str.cmxa unix.cmxa $(OCAML_LDA_LIBS_OPT)
 OUR_PACKAGES = -package dbi.mysql -package extlib
 INCLUDES = -I ../../batch/analysis -I ../../../OcamlLdaLibs
-LIBS = -cclib
 
 OCAMLC=ocamlc
 OCAMLOPT=ocamlopt
@@ -77,22 +76,28 @@ OCAMLOPT_FLAGS=$(INCLUDES)
 # We need two lines of these, one for the debugging compilation,
 # one for the optimizing compilation. 
 OUR_ONLINE_OBJS = online_types.cmo online_db.cmo online_revision.cmo \
-	db_page.cmo online_rep.cmo online_page.cmo
+	db_page.cmo online_rep.cmo online_page.cmo online_log.cmo  \
 
 OUR_OPT_ONLINE_OBJS = online_types.cmx online_db.cmx online_revision.cmx \
-	db_page.cmx online_rep.cmx online_page.cmx
-
+	db_page.cmx online_rep.cmx online_page.cmx online_log.cmx \
 
 # compiles the online_db stuff 
-
 online_db: $(OUR_ONLINE_OBJS)
-	$(OCAMLFIND_C) -o run_harness $(OCAML_CFLAGS) $(OUR_PACKAGES) $(OUR_LD_ADD) $(OUR_ONLINE_OBJS) $(LIBS) -linkpkg
+	$(OCAMLFIND_C) -o run_harness $(OCAML_CFLAGS) $(OUR_PACKAGES) $(OUR_LD_ADD) $(OUR_ONLINE_OBJS) online_db_run_harness.ml -linkpkg
 
 online_dbopt: $(OUR_OPT_ONLINE_OBJS)
-	$(OCAMLFIND_COPT) -o run_harness $(OCAMLOPT_FLAGS) $(OUR_LD_ADD) $(OUR_PACKAGES) $(OUR_OPT_ONLINE_OBJS) $(LIBS) -linkpkg
+	$(OCAMLFIND_COPT) -o run_harness $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) $(OUR_PACKAGES) $(OUR_OPT_ONLINE_OBJS) online_db_run_harness.ml -linkpkg
 
-all: online_db
-allopt: online_dbopt
+# Creates a way to run the online_eval process
+online_eval: $(OUR_ONLINE_OBJS) 
+	$(OCAMLFIND_C) -o eval_online_wiki $(OCAML_CFLAGS) $(OUR_PACKAGES) $(OUR_LD_ADD) $(OUR_ONLINE_OBJS) eval_online_wiki.ml -linkpkg
+
+online_evalopt: $(OUR_OPT_ONLINE_OBJS)
+	$(OCAMLFIND_COPT) -o eval_online_wiki $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) $(OUR_PACKAGES) $(OUR_OPT_ONLINE_OBJS) eval_online_wiki.ml -linkpkg
+
+
+all: online_db online_eval
+allopt: online_dbopt online_evalopt
 universe: all allopt
 
 #
@@ -101,7 +106,7 @@ universe: all allopt
 #
 
 clean:
-	rm -f *.o *.cmo *.cmx *.cmi .depends run_harness
+	rm -f *.o *.cmo *.cmx *.cmi .depends run_harness eval_online_wiki
 
 .depends: *.ml
 	$(OCAMLDEP) $^ > $@

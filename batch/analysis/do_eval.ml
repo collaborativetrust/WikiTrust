@@ -56,10 +56,6 @@ let tag_text_start        = Str.regexp "<text xml:space=\"preserve\">"
 let tag_text_end          = Str.regexp "</text>"
 let tag_the_end           = Str.regexp "</mediawiki>"
 
-(* Magic Numbers *) 
-let end_state             = "--end"
-let done_char             = "0000"
-
 exception ProcError
 
 (* Some tiny helper functions *)
@@ -378,93 +374,3 @@ let do_multi_eval
   end done;
   !output_names
 
-let do_eval_dist 
-    (remote_host: string)
-    (remote_user: string)
-    (remote_color_dir: string)
-    (begin_url: string)
-    (done_url: string)
-    (dist_client: string)
-    (times_to_loop: int)
-    (loop_until_done: bool)
-    (factory: Page_factory.page_factory)
-    (src_dir: string)
-    (working_dir: string) 
-    (unzip_cmd: string)
-    (continue: bool) : string Vec.t = 
-  let output_files = ref Vec.empty in     
-  let all_output_files = ref Vec.empty in  
-  let input_files = ref Vec.empty in
-  let add_to_input_files s = input_files := Vec.append s !input_files in
- 
-  begin
-    let quit_loop = ref false in
-    let quit_inner_loop = ref false in
-    let count = ref 0 in    
-    while not !quit_loop do 
-      (* setup a few things for each time through the loop *)
-      count := !count + 1;
-      input_files := Vec.empty;
-      quit_inner_loop := false;
-      let in_c = Unix.open_process_in ( dist_client ^ " " ^ begin_url ^ " " 
-          ^ done_url ^ " " ^ remote_host ^ " " ^ remote_color_dir 
-          ^ " " ^ remote_user ^ " " ^ src_dir ^ " " ^ working_dir ) in    
-      try
-        while not !quit_inner_loop do 
-          let line = input_line in_c in  (* read line from in_channel and discard \n *)
-            if line = done_char then quit_inner_loop := true
-            else 
-              begin
-                add_to_input_files line;  (* add the file to the list of files to process *)      
-              end;
-            flush stdout;                (* write on the underlying device now *)                
-          done;
-        Fileinfo.close_info_in in_c                  (* close the input channel *) 
-      with e ->                      (* some unexpected exception occurs *)
-        Fileinfo.close_info_in in_c;           (* emergency closing *)
-      ;                                
-      (* Now, process the files read *)                                    
-      print_vec !input_files ;  
-           
-      print_endline "starting multi_eval";
-      output_files := ( do_multi_eval !input_files factory working_dir unzip_cmd continue);
-      print_endline "done with multi_eval";
-      
-      (* Is it time to stop ? *)
-      if loop_until_done then begin quit_loop := Vec.is_empty !input_files; end
-      else 
-        begin
-          if !count >= times_to_loop then 
-            quit_loop := true
-          else
-            quit_loop := Vec.is_empty !input_files
-       end; (* end is it time to stop part? *)
-      
-
-      all_output_files := Vec.concat !all_output_files !output_files;
-        
-      (* And send the files back to where they came *)
-      if not (Vec.is_empty !input_files) then begin
-        let copy_back = Unix.open_process_in ( dist_client ^ " " ^ begin_url ^ " " 
-            ^ done_url ^ " " ^ remote_host ^ " " ^ remote_color_dir ^ " " 
-            ^ remote_user ^ " " ^ src_dir ^ " " ^ working_dir 
-            ^ " " ^ end_state) in 
-        quit_inner_loop := false;    
-        try                                                                                 
-          while not !quit_inner_loop do                                                     
-            let line = input_line copy_back in  (* read line from in_channel and discard \n *)   
-            if line = done_char then quit_inner_loop := true  
-            else  
-              begin  
-                print_endline line; (* to see where we are in the process *) 
-              end;  
-              flush stdout;   (* write on the underlying device now *)
-          done;    
-            Fileinfo.close_info_in copy_back                  (* close the input channel *) 
-          with e ->                      (* some unexpected exception occurs *)
-            Fileinfo.close_info_in copy_back;           (* emergency closing *)
-          ;      
-      end;      
-    done; (* outer begin *)  
-  end;
-  !all_output_files

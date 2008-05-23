@@ -119,4 +119,6 @@ let default_trust_coeff = {
   max_rep = 22026.465795 -. 2.0;
   equate_anons = false;
 }
-  
+ 
+let get_default_coeff : trust_coeff_t = default_trust_coeff ;;
+
