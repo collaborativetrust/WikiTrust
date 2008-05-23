@@ -36,15 +36,6 @@ POSSIBILITY OF SUCH DAMAGE.
 (* This module contains the function do_eval, which performs the evaluation of an .xml file, 
    producing any required output. *)
 
-(* Get out our HTTP client *)
-open Http_client.Convenience 
-
-(* And the most excellent extlib lib *)
-open ExtString.String
-
-(* HTTP Seperator *)
-let http_file_dir_sep     = " "
-
 (* Tags *)
 let tag_siteinfo_start    = Str.regexp "<mediawiki"
 let tag_siteinfo_end      = Str.regexp "</siteinfo>"
@@ -377,63 +368,3 @@ let do_multi_eval
   end done;
   !output_names
 
-let do_dist_eval 
-    (remote_host: string)
-    (times_to_loop: int)
-    (loop_until_done: bool)
-    (factory: Page_factory.page_factory)
-    (src_dir: string)
-    (working_dir: string) 
-    (unzip_cmd: string)
-    (continue: bool) : string Vec.t = 
-  let output_files = ref Vec.empty in     
-  let all_output_files = ref Vec.empty in
-  let input_files = ref Vec.empty in
-  let add_to_input_files s = input_files := Vec.append s !input_files in
-  begin
-    let quit_loop = ref false in
-    let count = ref 0 in    
-    while not !quit_loop do 
-      (* setup a few things for each time through the loop *)                             
-      count := !count + 1;                                                                
-      input_files := Vec.empty;   
-
-      (* Figure out what we are going to do *)
-      let http_responce_lst =  ExtString.String.nsplit
-        (Http_client.Convenience.http_get remote_host ^ "/p=" ^ (Unix.gethostname ())) http_file_dir_sep in
-      let get_file = List.hd http_responce_lst in
-      let file_split_lst = ExtString.String.nsplit get_file "/" in
-      let file_name = List.nth file_split_lst ((List.length file_split_lst) - 1) in
-      
-      match get_file with
-        | "" -> quit_loop := true
-        | _  -> (
-        
-        (* Begin *)
-        print_endline ("running on " ^ src_dir ^ file_name);
-        add_to_input_files (src_dir ^ file_name);
-        
-        (* print_vec !input_files ;  *)
-        output_files := ( do_multi_eval !input_files factory working_dir unzip_cmd continue);
-        print_endline "done with multi_eval";
-      
-        (* Alert that we have sucessfully send the file back *)
-        ignore (Http_client.Convenience.http_get (remote_host ^ "/?file=" ^ get_file))
-      );
-
-      (* Is it time to stop ? *)
-      if loop_until_done then begin quit_loop := Vec.is_empty !input_files; end
-      else 
-        begin
-          if !count >= times_to_loop then 
-            quit_loop := true
-          else
-            quit_loop := Vec.is_empty !input_files
-       end; (* end is it time to stop part? *)
-      
-
-      all_output_files := Vec.concat !all_output_files !output_files;
-        
-    done; (* outer begin *)  
-  end;
-  !all_output_files

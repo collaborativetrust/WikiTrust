@@ -39,8 +39,6 @@ POSSIBILITY OF SUCH DAMAGE.
 let continue = ref false;; 
 let working_dir = ref "/tmp/"
 let set_working_dir s = working_dir := s
-let src_dir = ref "/tmp/"
-let set_src_dir_cmd s = src_dir := s
 let input_files = ref Vec.empty;;
 let set_input_files s = input_files := Vec.append s !input_files;;
 let unzip_cmd = ref "gunzip -c"
@@ -65,11 +63,6 @@ let command_line_format =
    ("-si", Arg.String set_single_out, "<file>: Uses stdin as input, and directs the output to the single file named <file>.  The [input_files] arguments are discarded");
    ("-unzip", Arg.String set_unzip_cmd, "<cmd>: Command to unzip the input wiki xml files (default: gunzip -c)");
    ("-continue", Arg.Set continue, "do not stop for errors on single input files");
-   ("-do_dist", Arg.Set do_dist_processing, "Perform in distributed mode");
-   ("-dist_server", Arg.String set_remote_host_cmd, "<url>: URL for controling server in dist mode (default: none)");
-   ("-times_to_loop", Arg.Int set_times_to_loop_cmd, "<number> how many times to loop getting a new batch of files to process, in distributed process mode (default 1)");
-   ("-loop_until_done", Arg.Set loop_until_done, "do not stop until there are no more files to evaluate");
-   ("-src_dir", Arg.String set_src_dir_cmd, "<dir> Where to place the src files downloaded during dist. processing -- must be different for each process");
   ] 
   @ factory#get_arg_parser
 
@@ -79,7 +72,6 @@ let _ = Arg.parse command_line_format set_input_files "Usage: evalwiki [input_fi
 if !use_stdin then begin 
   let f_out = open_out !single_out in 
   Do_eval.do_single_eval factory stdin f_out
-end else if !do_dist_processing 
-then ignore (Do_eval.do_dist_eval !remote_host !times_to_loop !loop_until_done factory !src_dir !working_dir !unzip_cmd !continue)
+end  
 else ignore (Do_eval.do_multi_eval !input_files factory !working_dir !unzip_cmd !continue);;
  
