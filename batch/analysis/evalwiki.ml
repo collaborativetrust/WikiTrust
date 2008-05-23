@@ -106,3 +106,5 @@ end else if !do_dist_processing
 then ignore (Do_eval.do_eval_dist !remote_host !remote_user !remote_color_dir !begin_url !done_url !dist_client !times_to_loop !loop_until_done factory !src_dir !working_dir !unzip_cmd !continue)
 else ignore (Do_eval.do_multi_eval !input_files factory !working_dir !unzip_cmd !continue);;
  
+(* Annotate on stdout so that one can include the info with the rest of the information *)
+print_newline (); print_endline (Fileinfo.make_xml_string ());;

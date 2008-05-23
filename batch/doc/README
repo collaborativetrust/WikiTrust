@@ -90,8 +90,6 @@ COMPUTING THE REPUTATION FROM A STATISTICS FILE:
 This generates a user reputation history file in
 ~/work/wiki-data/temp/reph.txt, and it prints some statistics on the
 predictive power of reputation out. 
-The switch -firstcut should simulate closely the reputation
-computation we used in our WWW 2007 paper. 
 The code will give a warning if the statistics file is not properly
 sorted. 
 

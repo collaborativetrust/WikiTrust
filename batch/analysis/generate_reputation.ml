@@ -39,6 +39,13 @@ POSSIBILITY OF SUCH DAMAGE.
     the predictive power of reputation for a wiki. *)
 open Evaltypes;;
 
+(* First, I want to figure out which version I am. *)
+let p = Unix.open_process_in "git show --pretty=format:\"%H\" @{0}";;
+let version_str = input_line p;;
+ignore (Unix.close_process_in p);;
+(* Then passes this information to fileinfo *)
+Fileinfo.make_info_obj version_str "";;
+
 (* Input defaults *)
 let stream_name = ref "" (* Input stream *)
 let include_anon = ref false
@@ -139,3 +146,14 @@ if !stream_name != "" then Fileinfo.close_info_in stream;;
 
 (* And prints the results *)
 r#compute_stats !user_contrib_file stdout;;
+
+(* Closes the output file *)
+match !user_contrib_file with 
+  Some f -> Fileinfo.close_info_out f
+| None -> ();;
+match !user_file with 
+  Some f -> Fileinfo.close_info_out f
+| None -> ();;
+
+(* Annotate on stdout so that one can include the info with the rest of the information *)
+print_newline (); print_endline (Fileinfo.make_xml_string ());;

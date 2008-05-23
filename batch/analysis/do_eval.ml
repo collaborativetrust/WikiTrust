@@ -319,6 +319,9 @@ let do_multi_eval
   for file_idx = 0 to (Vec.length input_files) - 1 do begin 
     (* We must set in_file, out_file *) 
     let in_file = Vec.get file_idx input_files in 
+    (* We need to add manually track of this file, since we do not read it 
+       with a normal open_in *)
+    Fileinfo.track_file in_file; 
     let local_in_file = try 
 	let pos_slash = Str.search_backward (Str.regexp "/") in_file ((String.length in_file) - 1)
 	in Str.string_after in_file pos_slash
