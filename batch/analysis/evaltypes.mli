@@ -49,6 +49,7 @@ type edit_inc_t = {
   edit_inc_d01: float;
   edit_inc_d02: float;
   edit_inc_d12: float;
+  edit_inc_dp2: float;
   edit_inc_n01: int;
   edit_inc_n12: int;
   edit_inc_t01: float;
@@ -101,11 +102,7 @@ type wiki_data_t =
 
 type params_t = {
   rep_scaling : float;
-  punish_factor : float;
   max_rep : float;
-  text_vs_edit_weight : float;
-  length_exponent : float;
-  edit_leniency : float;
 }
 
 type time_intv_t = { start_time : float; end_time : float; }
