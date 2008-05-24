@@ -268,7 +268,8 @@ class rep
   (ip_nbytes: int) (* the number of bytes to use from the user ip address *)
   (output_channel: out_channel) (* Used to print automated stuff like monthly stats *)
   (use_reputation_cap: bool) (* use reputation cap *)
-  (use_nix: bool) (* Use nixing *)
+  (use_nix: bool) (* Use nixing by higher reputation authors *)
+  (use_weak_nix: bool) (* Use nixing by anyone *)
   (nix_interval: float) (* interval in which we expect negative edits if any *)
   (n_edit_judging: int) (* n. of edit judges for each revision; used for nixing *)
   (gen_almost_truthful_rep: bool) (* use algorithm for almost truthful reputation *)
@@ -353,6 +354,9 @@ object (self)
 	    && e.edit_inc_uid2 <> e.edit_inc_uid1 
 	    && ((not do_localinc) || (do_localinc && e.edit_inc_n01 = 1))
           then begin
+	    let rep0 = user_data#get_rep e.edit_inc_uid0 in 
+	    let rep1 = user_data#get_rep e.edit_inc_uid1 in 
+	    let rep2 = user_data#get_rep e.edit_inc_uid2 in 
 	    (* This is the specific quality based on the versions v0 v1 v2 *)
             let spec_q = min 1.0 
 	      ((e.edit_inc_d02 -. e.edit_inc_d12) /. e.edit_inc_d01)
@@ -368,7 +372,9 @@ object (self)
 	      (* Decide whether we nix rev1 *)
 	      if (
 		(* Nix reason n. 1: negative feedback in the nixing interval *)
-		(spec_q < 0. && e.edit_inc_t12 <= nix_interval) || 
+		(* Unless the nix is weak, only higher reputation people can nix *)
+		(use_weak_nix && spec_q < 0. && e.edit_inc_t12 <= nix_interval) || 
+		  (rep2 > rep1 && rep0 > rep1 && spec_q < 0. && e.edit_inc_t12 <= nix_interval) || 
 		  (* Nix reason n. 2: too many edits in the nixing interval *)
                   ((e.edit_inc_n01 + e.edit_inc_n12 >= n_edit_judging) 
                     && (e.edit_inc_t01 +. e.edit_inc_t12) <= nix_interval)
@@ -409,9 +415,6 @@ object (self)
 		  then proposed_repinc 
 		  else begin 
 		    (* We cap the reputation increment *)
-		    let rep0 = user_data#get_rep e.edit_inc_uid0 in 
-		    let rep1 = user_data#get_rep e.edit_inc_uid1 in 
-		    let rep2 = user_data#get_rep e.edit_inc_uid2 in 
 		    let rep02 = min rep0 rep2 in 
 		    let r_inc = min rep02 (proposed_repinc +. rep1) in 
 		    let r_new = max rep1 r_inc in 

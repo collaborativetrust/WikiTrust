@@ -74,6 +74,7 @@ class rep :
   (* output_channel *) out_channel -> 
   (* use_reputation_cap *) bool -> 
   (* use_nix *) bool ->
+  (* use_weak_nix *) bool -> 
   (* nix_interval *) float ->
   (* n_edit_judging *) int -> 
   (* gen_almost_truthful_rep *) bool -> 

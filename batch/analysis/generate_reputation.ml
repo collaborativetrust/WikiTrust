@@ -54,6 +54,7 @@ let do_cumulative = ref false
 let do_localinc = ref false
 let gen_exact_rep = ref false
 let use_reputation_cap = ref false
+let use_weak_nix = ref false
 let use_nix = ref false
 let gen_almost_truthful_rep = ref false
 let gen_truthful_rep = ref false
@@ -118,8 +119,10 @@ let command_line_format = [("-end", Arg.String (set_end_time),
 			    "Generate an extra column in the user reputation file with exact reputation values");
 			   ("-use_reputation_cap", Arg.Set use_reputation_cap, 
 			    "Use reputation cap.");
+			   ("-use_weak_nix", Arg.Set use_weak_nix, 
+			    "Use nix by any reputation (low rep can nix high rep).");
 			   ("-use_nix", Arg.Set use_nix, 
-			    "Use nix.");
+			    "Use nix in which higher reputation users can nix lower reputation ones"); 
 			   ("-nix_inverval", Arg.Float set_nix_interval, 
 			    "Nixing interval (in seconds) for robust reputation.");
 			   ("-n_edit_judging", Arg.Int set_n_edit_judging, 
@@ -143,7 +146,7 @@ let all_time_intv = {
 };;
 
 (* This is the reputation evaluator *)
-let r = new Computerep.rep params !include_anon all_time_intv !time_intv !user_file !do_monthly !do_cumulative !do_localinc !gen_exact_rep !user_contrib_order_asc !include_domains !ip_nbytes stdout !use_reputation_cap !use_nix !nix_interval !n_edit_judging !gen_almost_truthful_rep !gen_truthful_rep;;
+let r = new Computerep.rep params !include_anon all_time_intv !time_intv !user_file !do_monthly !do_cumulative !do_localinc !gen_exact_rep !user_contrib_order_asc !include_domains !ip_nbytes stdout !use_reputation_cap !use_nix !use_weak_nix !nix_interval !n_edit_judging !gen_almost_truthful_rep !gen_truthful_rep;;
 
 (* Reads the data *)
 let stream = if !stream_name = "" 
