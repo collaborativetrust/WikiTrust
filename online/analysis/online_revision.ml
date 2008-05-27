@@ -73,10 +73,6 @@ class revision
     (* This is a Vec of previous revisions by the same author *)
     val mutable prev_by_author : 'a Vec.t = Vec.empty 
 
-    (* This counts how many revisions ago a revision was made, 
-       counting consecutive revisions by the same author as one revision only. *)
-    val mutable age : int = 0 
-
     (* These quantities keep track of the quality of a revision *)
     (* First, I have a flag that says whether I have read the quantities 
        or not.  They are not read by default; they reside in a 
@@ -211,30 +207,5 @@ class revision
       if q < min_edit_quality then min_edit_quality <- q; 
       n_edit_judges <- n_edit_judges + 1; 
       modified_quality_info <- true
-
-    (** Adds text quality information *)
-    method add_text_quality_info (q: int) : unit = 
-      if not has_quality_info then self#read_quality_info; 
-      persistent_text <- persistent_text + q; 
-      n_text_judges <- n_text_judges + 1; 
-      modified_quality_info <- true
-
-    (** Sets the amount of new text found in a revision *)
-    method set_new_text (q: int) : unit = 
-      if not has_quality_info then self#read_quality_info; 
-      new_text <- q; 
-      modified_quality_info <- true
-
-    (** Returns the amount of new text found in a revision *)
-    method get_new_text : int = 
-      if not has_quality_info then self#read_quality_info; 
-      new_text
-
-    (** Returns the amount of new text in this revision, as well as in all
-	consecutive previous revisions by the same author *)
-    method get_all_text_by_same_consecutive_author : int = 
-      let f x y = y + x#get_new_text in 
-      Vec.fold f prev_by_author 0
-
 
   end (* revision object *)

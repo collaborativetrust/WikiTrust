@@ -82,17 +82,6 @@ type trust_coeff_t = {
       effect decays at the border of a local area, into the non-local area.  A value
       of 0 is perfectly fine. *)
   mutable local_decay: float; 
-  (** How much an edit can be negative without being punished.  This is an obscure
-      coefficient, which can be understood only via optimization. *)
-  mutable edit_leniency: float; 
-  (** If 0, only the number of edits matters.  If 1, their length matters. In general, 
-      an edit of length l is raised to this exponent to decide how much it matters. *)
-  mutable length_exponent: float;
-  (** How much to punish people who do things that get a very negative edit. *)
-  mutable punish_factor: float; 
-  (** If 1, only text life matters; if 0, only edits matter.  Anything in between 
-      does the linear combination. *)
-  mutable text_vs_edit: float; 
   (** scaling for reputation increments *)
   mutable rep_scaling: float; 
   (** maximum reputation *)
