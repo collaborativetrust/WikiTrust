@@ -54,7 +54,7 @@ class page
   
   object (self) 
     (** This is the Vec of existing revisions for the page *)
-    val revs: Online_revision.revision Vec.t = Vec.empty 
+    val mutable revs: Online_revision.revision Vec.t = Vec.empty 
     (** These are the edit lists.  The position (i, j) is the edit list 
         between revision id i (source, left) and revision id j (dest, right) of the 
         revisions in revs. 
@@ -68,11 +68,13 @@ class page
     (** This is a hashtable from revision id to revision, for the revisions that 
         have been read from disc.  This hash table contains all revisions, whether 
         it is the last in a block by the same author, or not. *)
-    val revid_to_rev: (int, Online_revision.revision) Hashtbl.t = Hashtbl.create trust_coeff.n_revs_to_consider
+    val revid_to_rev: (int, Online_revision.revision) Hashtbl.t = Hashtbl.create n_revisions_to_analyze
     (** This is a hash table mapping each user id to a pair (old_rep, new_rep option). 
 	So we can keep track of both the original value, and of the updated value, if
 	any.  *)
-    val rep_cache : (int, (float, float option)) Hashtbl.t = Hashtbl.create 10
+    val rep_cache : (int, (float * float option)) Hashtbl.t = Hashtbl.create 10
+    (** Current time *)
+    val mutable curr_time = 0.
 
     (** This initializer reads the past revisions from the online database, 
         puts them into the revs Vec, and also produces the [revid_to_rev] 
@@ -98,7 +100,13 @@ class page
 	      Hashtbl.add seen_uid uid
 	    end; 
 	  end (* Some r *)
-      end done 
+      end done;
+      (* Sets the current time *)
+      let n_revs = Vec.length revs in 
+      if n_revs > 0 then begin 
+	let r = Vec.get 0 revs in 
+	curr_time <- r#get_time
+      end
  
 
     (** This method returns the current value of the user reputation *)
@@ -129,7 +137,12 @@ class page
     (** Write all new reputations to the db *)
     method write_all_reps : unit = 
       let f uid = function 
-	  (old_r, Some r) -> db#set_rep uid r
+	  (old_r, Some r) -> begin
+	    (* Writes the new reputation *)
+	    db#set_rep uid r;
+	    (* Writes the reputation change in the history *)
+	    db#set_rep_hist uid curr_time olr_r r
+	  end
 	| (old_r, None) -> ()
       in Hashtbl.iter f rep_cache
 
@@ -530,7 +543,7 @@ class page
         let rev2_uname = rev2#get_user_name in
         let rev2_time  = rev2#get_time in 
 	let rev2_rep   = self#get_rep rev2_uid in 
-	let rev2_weight = 
+	let rev2_weight = self#weight rev2_rep in 
 	(* rev1_idx goes to 1 before the last, since we should be able to compare it 
 	   to something *)
 	for rev1_idx = 1 to n_revs - 2 do begin 
@@ -545,10 +558,6 @@ class page
 	  let revp_idx = rev1_idx + 1 in 
           let revp = Vec.get revp_idx revs in 
           let revp_id    = revp#get_id in 
-          let revp_uid   = revp#get_user_id in 
-          let revp_uname = revp#get_user_name in 
-          let revp_time  = revp#get_time in 
-	  let revp_rep   = self#get_rep revp_uid in 
 	  (* delta is the edit work from revp to rev1 *)
 	  let delta = Hashtbl.find edit_dist (revp_id, rev1_id) in 
 	  (* We read a few distances, to cut down on hashtable access *)
@@ -579,7 +588,7 @@ class page
 		rev1#set_nix_bit
 	      end;
 	    (* Computes inc_local_global (see paper) *)
-	    let inc_local_global = trust_coeff.rep_scaling *. delta *. min_qual *. (self#weight rev2_rep) in 
+	    let inc_local_global = trust_coeff.rep_scaling *. delta *. min_qual *. rev2_weight in
 	    (* Applies it according to algorithm LOCAL-GLOBAL *)
 	    let new_rep = 
 	      if (!rev1_nix || rev2_time - rev0_time < trust_coeff.nix_interval) 
@@ -624,13 +633,12 @@ class page
         The trust is then computed as the maximum of the two figures. 
         The method computes also the effects on author reputation as a result of the new revision. *)
     method eval : unit = 
-      let n_revs = Vec.length revs in 
 
       (* Computes the edit distances *)
       self#compute_edit_lists; 
 
       (* Computes, and writes to disk, the trust of the newest revision *)
-      let chunk0_origin = self#compute_trust in 
+      self#compute_trust;
 
       (* We now process the reputation update. *)
       self#compute_edit_inc;

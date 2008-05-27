@@ -34,15 +34,15 @@ POSSIBILITY OF SUCH DAMAGE.
  *)
 
 (** This class provides a handle for accessing the database in the on-line 
-    implementation.
-    Ian, can you add documentation on what these values are? *)
+    implementation. *)
 
 open Dbi;;
+open Online_types;;
 
 class db : 
-  string -> 
-  string ->
-  string -> 
+  string (* user *) -> 
+  string (* auth *) ->
+  string (* database name *) -> 
 
   object
 
@@ -52,7 +52,6 @@ class db :
         Text.ml used for splitting the text, and in the edit list proper.
         The return type is an option: the db should return None if no such row for 
         revid1 and revid2 can be found in the database. *)
-    (* TODO IMPLEMENT option *)
     method read_edit_diff : int -> int -> (string * (Editlist.edit list)) option  
 
     (** [write_edit_diff revid1 revid2 vers elist] writes to the database the edit list 
@@ -104,54 +103,13 @@ class db :
 	with the page [page_id]. *)
     method read_dead_page_chunks : int -> Online_types.chunk_t list
 
-    (** The database should contain a table about user to user feedback, as follows: 
-	(revid1, userid1, revid2, userid2, timestamp, q), where: 
-	- revid1, userid1 is the judge revision
-	- revid2, userid2 is the judged revision
-	- timestamp is the time of the judgement
-	- q is the reputation increase quantity (can be negative). 
-	- voided is a flag that, if true, indicates that this reputation operation 
-	  has been later reverted. 
+    (** [write_quality_info rev_id qual_info] writes that the revision with 
+	id [rev_id] has quality as described in [qual_info]. *)
+    method write_quality_info : int -> qual_info_t -> unit
 
-	Make sure this table is widely indexed, as we may like to use it for data
-	analysis.  Note that I can get userid1 and userid2 via joins, but I believe it 
-	is more efficient to have such fields already in the table.  Otherwise, we need 
-	too many accesses every time a new revision is made. 
-
-	[write_feedback revid1 userid1, revid2, userid2, timestamp, q, voided] adds one such tuple 
-	to the db. 
-
-        NOTE: [revid1, revid2] is a key pair to the db, so that if a row with the same
-        values for [revid1] and [revid2] exists in the db already, the values are 
-        overwritten. *)
-    method write_feedback : int -> int -> int -> int -> float -> float -> bool -> unit
-
-    (** [read_feedback_by revid1] reads from the db all the (revid2, userid2,  timestamp, q, reverted) that 
-	have been caused by the revision with id [revid1]. *)
-    method read_feedback_by : int -> (int * int * float * float * bool) list
-
-    (** [write_quality_info rev_id n_edit_judges total_edit_quality min_edit_quality
-	  n_text_judges new_text persistent_text] writes in a table on disk indexed by [rev_id]
-	the tuple (rev_id  n_edit_judges total_edit_quality min_edit_quality
-	  n_text_judges new_text persistent_text). *)
-    method write_quality_info : int -> int -> float -> float -> int -> int -> int -> unit
-
-    (** [read_quality_info rev_id] returns the tuple 
-	(n_edit_judges total_edit_quality min_edit_quality
-	  n_text_judges new_text persistent_text)
-	associated with the revision with id [rev_id]. *)
-    method read_quality_info : int -> (int * float * float * int * int * int)
-
-    (** [mark_rev_colored rev_id] marks a revision as having been colored *)
-    method mark_rev_colored : int -> unit
-
-    (** [mark_rev_uncolored revid] removed the marking of a revision as having
-    been colored *)
-    method mark_rev_uncolored : int -> unit
-        
-    (** [prepare_cached statement] Passes the given statment into the dbh
-    handle, then returns a prepared and executable statement *)
-    method prepare_cached : string -> Dbi.statement
+    (** [read_quality_info rev_id] returns a record of type quality_info_t 
+	containing quality information for a revision *)
+    method read_quality_info : int -> qual_info_t
 
     (** Totally clear out the db structure -- THIS IS INTENDED ONLY FOR UNIT
     TESTING *)

@@ -88,7 +88,21 @@ type trust_coeff_t = {
   mutable max_rep: float;
   (** Whether to equate anonymous users, regardless of their IP. *)
   mutable equate_anons: bool; 
+  (** Interval of time for nixing *)
+  mutable nix_interval: float; 
 }
 
 (** Returns an instance of the trust_coeff with all default values *)
 val get_default_coeff : trust_coeff_t
+
+(** This is the quality information we store with revisions *)
+type quality_info_t = {
+  (** Number of times the revision has been judged *)
+  mutable n_edit_judges: int; 
+  (** Total edit quality: the average is given by dividing by n_edit_judges *)
+  mutable total_edit_quality: float;
+  (** Minimum edit quality of all judgements *)
+  mutable min_edit_quality: float; 
+  (** Nix bit (see the techrep) *)
+  mutable nix_bit: bool;
+}

@@ -88,6 +88,8 @@ type trust_coeff_t = {
   mutable max_rep: float;
   (** Whether to equate anonymous users, regardless of their IP. *)
   mutable equate_anons: bool; 
+  (** Interval of time for nixing *)
+  mutable nix_interval: float; 
 }
 
 let default_trust_coeff = {
@@ -100,14 +102,22 @@ let default_trust_coeff = {
   kill_decrease = (log 2.0) /. 9.0;
   cut_rep_radius = 4.0;
   local_decay = 2.0; 
-  edit_leniency = 2.2; 
-  length_exponent = 0.6;
-  punish_factor =  exp (3.0) -. 1.0;
-  text_vs_edit = 0.6;
-  rep_scaling = 13.084503;
+  rep_scaling = 75.0;
   max_rep = 22026.465795 -. 2.0;
   equate_anons = false;
+  nix_interval = 24. *. 3600.
 }
  
 let get_default_coeff : trust_coeff_t = default_trust_coeff ;;
 
+(** This is the quality information we store with revisions *)
+type quality_info_t = {
+  (** Number of times the revision has been judged *)
+  mutable n_edit_judges: int; 
+  (** Total edit quality: the average is given by dividing by n_edit_judges *)
+  mutable total_edit_quality: float;
+  (** Minimum edit quality of all judgements *)
+  mutable min_edit_quality: float; 
+  (** Nix bit (see the techrep) *)
+  mutable nix_bit: bool;
+}

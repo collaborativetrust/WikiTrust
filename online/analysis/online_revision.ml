@@ -34,8 +34,10 @@ POSSIBILITY OF SUCH DAMAGE.
  *)
 
 open Vec;;
+open Online_types;;
 type word = string;;
 exception ReadTextError
+
 
 (** This is the revision object used for the on-line author reputation and text trust evaluation *)
 class revision 
@@ -50,17 +52,6 @@ class revision
   =
   object (self : 'a)
     val is_anon : bool = (user_id = 0)
-
-      (* Things to store: 
-	 tot_edit_qual
-	 n_edit_judges (these two allow the computation of the edit longevity)
-	 tot_rep (total earned reputation )
-         A list of revisions and authors to which the current revision gave a 
-	 reputation increase, so that the same increase can be undone 
-	 total_text  
-	 n_text_judges
-
-       *)
       (* These have to do with the revision text.  There is nothing in this, 
 	 since we do not necessarily read the text of all the revisions we 
 	 may want to keep track: reading the text is expensive. *)
@@ -74,20 +65,9 @@ class revision
     (* First, I have a flag that says whether I have read the quantities 
        or not.  They are not read by default; they reside in a 
        separate table from standard revision data. *)
-    val mutable has_quality_info : bool = false
+    val mutable quality_info_opt: quality_info_t = None 
     (* Dirty bit to avoid writing back unchanged stuff *)
     val mutable modified_quality_info : bool = false
-
-    (* Edit *)
-    (* Number of revisions that act as edit judges of the current one *)
-    val mutable n_edit_judges : int  = 0
-    (* Total edit quality of the revision *)
-    val mutable total_edit_quality : float = 0.
-    (* Minimum edit quality the revision has received so far *)
-    val mutable min_edit_quality : float = 0.
-
-    (* Nix bit *)
-    val mutable nix_bit = false 
 
     (* Basic access methods *)
     method get_id : int = rev_id
@@ -159,31 +139,43 @@ class revision
 	end
 
     (** Reads the quality info from the database *)
-    method read_quality_info : unit = 
-      if not has_quality_info then begin 
-	let (n_ed_j, t_ed_q, m_ed_q, nix_b) = db#read_quality_info rev_id in 
-	n_edit_judges <- n_ed_j; 
-	total_edit_quality <- t_ed_q; 
-	min_edit_quality <- m_ed_q; 
-	nix_bit <- nix_b; 
-	has_quality_info <- true;
-	modified_quality_info <- false
-      end
+    method read_quality_info : quality_info_t = 
+      match quality_info_opt with 
+	None -> begin 
+	  let q = db#read_quality_info rev_id in 
+	  qual_info_opt <- Some q;
+	  modified_quality_info <- false;
+	  q
+	end
+      | Some q -> q
 
     (** Writes quality info to the database *)
     method write_quality_info : unit = 
-      if has_quality_info && modified_quality_info then begin 
-	db#write_quality_info rev_id n_edit_judges total_edit_quality min_edit_quality
-	  n_text_judges new_text persistent_text; 
-	modified_quality_info <- false
+      if modified_quality_info then begin
+	match qual_info_opt with 
+	  None -> ()
+	| Some qual_info -> begin 
+	    db#write_quality_info rev_id qual_info;
+	    modified_quality_info <- false;
+	  end
       end
 
     (** Adds edit quality information *)
-    method add_edit_quality_info (q: float) : unit = 
-      if not has_quality_info then self#read_quality_info; 
-      total_edit_quality <- total_edit_quality +. q; 
-      if q < min_edit_quality then min_edit_quality <- q; 
-      n_edit_judges <- n_edit_judges + 1; 
+    method add_edit_quality_info (new_q: float) : unit = 
+      let q = self#read_quality_info in 
+      q.total_edit_quality <- q.total_edit_quality +. new_q; 
+      if q < q.min_edit_quality then q.min_edit_quality <- new_q; 
+      q.n_edit_judges <- q.n_edit_judges + 1; 
       modified_quality_info <- true
+
+    method get_nix : bool = 
+      let q = self#read_quality_info in 
+      q.nix_bit
+
+    method set_nix_bit : unit = 
+      let q = self#read_quality_info in 
+      q.nix_bit <- true;
+      modified_quality_info <- true
+
 
   end (* revision object *)
