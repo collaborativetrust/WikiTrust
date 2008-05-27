@@ -48,16 +48,20 @@ POSSIBILITY OF SUCH DAMAGE.
 
 class page :
   (** Database handle *)
-  Online_db.db ->
+  (* db *) Online_db.db ->
   (** Logger handle *)
   Online_log.logger ->
   (** page_id of the page to analyze *)
-  int ->
+  (* logger *) int ->
   (** revision id of the revision to analyze. All previous revisions should
       have been already evaluated. *)
-  int ->
+  (* page_id *) int ->
+  (** Maximum number of revisions to read from disk *)
+  (* revid_to_analyze *) int ->
+  (** Number of different users we should try to consider *)
+  (* users_to_analyze *) int -> 
   (** Coefficients to be used for the evaluation *)
-  Online_types.trust_coeff_t ->
+  (* trust_coeff *) Online_types.trust_coeff_t ->
   object
     (** Call this method exactly once! *)
     method eval : unit

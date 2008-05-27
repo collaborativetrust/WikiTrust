@@ -70,9 +70,6 @@ class revision
     val mutable seps  : Text.sep_t array option = None 
     val mutable sep_word_idx : int array option = None 
 
-    (* This is a Vec of previous revisions by the same author *)
-    val mutable prev_by_author : 'a Vec.t = Vec.empty 
-
     (* These quantities keep track of the quality of a revision *)
     (* First, I have a flag that says whether I have read the quantities 
        or not.  They are not read by default; they reside in a 
@@ -89,13 +86,8 @@ class revision
     (* Minimum edit quality the revision has received so far *)
     val mutable min_edit_quality : float = 0.
 
-    (* Text *)
-    (* Number of revisions that act as text judges of the current one *)
-    val mutable n_text_judges : int  = 0
-    (* Amount of text created in the revision *)
-    val mutable new_text : int = 0
-    (* Total amount of left-over text *)
-    val mutable persistent_text : int = 0
+    (* Nix bit *)
+    val mutable nix_bit = false 
 
     (* Basic access methods *)
     method get_id : int = rev_id
@@ -105,8 +97,6 @@ class revision
     method get_user_id : int = user_id
     method get_user_name : string = username 
     method get_is_anon : bool = is_anon
-    method set_age (n: int) : unit = age <- n 
-    method get_age : int = age
 
       (* Reads the revision text from the db, and splits it appropriately *)
     method read_text : unit = 
@@ -168,26 +158,14 @@ class revision
 	  | None -> raise ReadTextError
 	end
 
-    (** This method adds to the revision immediately preceding revisions by the same author. *)
-    method add_by_same_author (r: 'a) : unit = 
-      prev_by_author <- Vec.append r prev_by_author
-
-    (** This method returns the immediately preceding revision by the same author, if any *)
-    method get_preceding_by_same_author : 'a option = 
-      if Vec.length prev_by_author = 0 
-      then None
-      else Some (Vec.get 0 prev_by_author)
-
     (** Reads the quality info from the database *)
     method read_quality_info : unit = 
       if not has_quality_info then begin 
-	let (n_ed_j, t_ed_q, m_ed_q, n_tx_j, new_tx, tot_tx) = db#read_quality_info rev_id in 
+	let (n_ed_j, t_ed_q, m_ed_q, nix_b) = db#read_quality_info rev_id in 
 	n_edit_judges <- n_ed_j; 
 	total_edit_quality <- t_ed_q; 
 	min_edit_quality <- m_ed_q; 
-	n_text_judges <- n_tx_j; 
-	new_text <- new_tx; 
-	persistent_text <- tot_tx;
+	nix_bit <- nix_b; 
 	has_quality_info <- true;
 	modified_quality_info <- false
       end
