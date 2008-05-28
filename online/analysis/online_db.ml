@@ -48,112 +48,126 @@ class db
   (auth : string)
   (database : string) =
  
-  let dbh = Dbi_mysql.connect ~user:user ~password:auth database in
-    
+  let db_param = {dbhost = None;
+                  dbport = None;
+                  dbname = Some database; 
+                  dbpwd = Some auth;
+                  dbuser = Some user} in
+  let dbh = (Mysql.connect db_param) in
+  let rec format_string (str : string) (vals : string list) : string =
+    match vals with
+      | [] -> str
+      | hd::tl -> (match (ExtString.String.replace str "?" hd) with
+        | (true, newstr) -> format_string newstr tl
+        | (false, newstr) -> newstr)
+  in
+
+   
   object(self)
     
     (* HERE are all of the prepaired sql statments used below *)
-    val sth_select_edit_list = dbh#prepare_cached "SELECT edit_type, val1,
+    val sth_select_edit_list = "SELECT edit_type, val1,
           val2, val3, version FROM edit_lists WHERE 
           from_revision = ? AND to_revision  = ?"
-    val sth_delete_edit_list = dbh#prepare_cached "DELETE FROM edit_lists WHERE
+    val sth_delete_edit_list = "DELETE FROM edit_lists WHERE
           from_revision = ? AND to_revision = ? AND edit_type = ?"      
-    val sth_ins_ins_edit_lists = dbh#prepare_cached "INSERT INTO edit_lists (from_revision,
+    val sth_ins_ins_edit_lists = "INSERT INTO edit_lists (from_revision,
           to_revision, edit_type, version, val1, val2 ) VALUES (?, ?, 'Ins', ?, ?, ?) " 
-    val sth_ins_mov_edit_lists = dbh#prepare_cached "INSERT INTO edit_lists (from_revision,
+    val sth_ins_mov_edit_lists = "INSERT INTO edit_lists (from_revision,
           to_revision, edit_type, version, val1, val2, val3 ) VALUES (?, ?, 'Mov', ?, ?,
           ?, ?) " 
-    val sth_ins_del_edit_lists = dbh#prepare_cached "INSERT INTO edit_lists (from_revision,
+    val sth_ins_del_edit_lists = "INSERT INTO edit_lists (from_revision,
           to_revision, edit_type, version, val1, val2 ) VALUES (?, ?, 'Del', ?, ?, ?) " 
-    val sth_select_user_rep = dbh#prepare_cached "SELECT user_rep FROM trust_user_rep 
+    val sth_select_user_rep = "SELECT user_rep FROM trust_user_rep 
           WHERE user_id = ?" 
-    val sth_update_user_rep = dbh#prepare_cached "UPDATE trust_user_rep SET user_rep = 
+    val sth_update_user_rep = "UPDATE trust_user_rep SET user_rep = 
           ? WHERE user_id = ?" 
-    val sth_insert_user_rep = dbh#prepare_cached "INSERT INTO trust_user_rep
+    val sth_insert_user_rep = "INSERT INTO trust_user_rep
           (user_id,  user_rep) VALUES (?, ?)" 
-    val sth_delete_hist = dbh#prepare_cached "DELETE FROM user_rep_history WHERE 
+    val sth_delete_hist = "DELETE FROM user_rep_history WHERE 
           user_id = ? AND change_time = ?" 
-    val sth_insert_hist = dbh#prepare_cached "INSERT INTO user_rep_history 
+    val sth_insert_hist = "INSERT INTO user_rep_history 
           (user_id, rep_before, rep_after, change_time) VALUES
           (?, ?, ?, ?)" 
-    val sth_delete_markup = dbh#prepare_cached "DELETE FROM colored_markup WHERE 
+    val sth_delete_markup = "DELETE FROM colored_markup WHERE 
           revision_id = ?" 
-    val sth_insert_markup = dbh#prepare_cached "INSERT INTO colored_markup 
+    val sth_insert_markup = "INSERT INTO colored_markup 
           (revision_id, revision_text) VALUES (?, ?) " 
-    val sth_select_markup = dbh#prepare_cached "SELECT revision_text FROM 
+    val sth_select_markup = "SELECT revision_text FROM 
           colored_markup WHERE revision_id = ?" 
-    val sth_select_text_id = dbh#prepare_cached "SELECT text_id FROM 
+    val sth_select_text_id = "SELECT text_id FROM 
             chunk_text WHERE chunk_text = ?"
-    val sth_select_trust_id = dbh#prepare_cached "SELECT trust_id FROM
+    val sth_select_trust_id = "SELECT trust_id FROM
             chunk_trust WHERE chunk_trust = ?"
-    val sth_select_origin_id = dbh#prepare_cached "SELECT origin_id
+    val sth_select_origin_id =  "SELECT origin_id
             FROM chunk_origin WHERE chunk_origin = ?"
-    val sth_insert_text = dbh#prepare_cached "INSERT INTO chunk_text
+    val sth_insert_text = "INSERT INTO chunk_text
             (chunk_text) values (?)"
-    val sth_insert_trust = dbh#prepare_cached "INSERT INTO chunk_trust
+    val sth_insert_trust = "INSERT INTO chunk_trust
             (chunk_trust) VALUES (?)"
-    val sth_insert_origin = dbh#prepare_cached "INSERT INTO chunk_origin
+    val sth_insert_origin = "INSERT INTO chunk_origin
             (chunk_origin) VALUES (?)"
-    val sth_insert_chunk_map = dbh#prepare_cached "INSERT INTO
+    val sth_insert_chunk_map = "INSERT INTO
             dead_page_chunk_map (chunk_id, text_id, trust_id, origin_id,
             chunk_posit ) VALUES (?, ?, ?, ?, ?)"
-    val sth_insert_chunk = dbh#prepare_cached "INSERT INTO dead_page_chunks 
+    val sth_insert_chunk = "INSERT INTO dead_page_chunks 
             (page_id, timestamp, n_del_revs, n_chunks) VALUES (?, ?, ?, ?)"
-    val sth_select_chunk_id = dbh#prepare_cached "SELECT chunk_id FROM 
+    val sth_select_chunk_id = "SELECT chunk_id FROM 
             dead_page_chunks WHERE page_id = ? ORDER BY addedon DESC LIMIT 1"
-    val sth_select_dead_chunks = dbh#prepare_cached "SELECT chunk_id,
+    val sth_select_dead_chunks = "SELECT chunk_id,
       timestamp, n_del_revs, n_chunks FROM dead_page_chunks WHERE page_id = ?"
-    val sth_select_chunk_arr_vals = dbh#prepare_cached "SELECT A.chunk_posit,
+    val sth_select_chunk_arr_vals = "SELECT A.chunk_posit,
       B.chunk_text, C.chunk_trust, D.chunk_origin  FROM dead_page_chunk_map as A
       LEFT JOIN chunk_text as B ON A.text_id = B.text_id  LEFT JOIN chunk_trust 
       AS C ON A.trust_id = C.trust_id LEFT JOIN chunk_origin AS D ON A.origin_id 
       = D.origin_id WHERE A.chunk_id = ?" 
-    val sth_delete_feedback = dbh#prepare_cached "DELETE FROM feedback WHERE revid1 
+    val sth_delete_feedback = "DELETE FROM feedback WHERE revid1 
           = ? AND revid2 = ?"
-    val sth_insert_feedback = dbh#prepare_cached "INSERT INTO feedback (revid1, 
+    val sth_insert_feedback = "INSERT INTO feedback (revid1, 
           userid1, revid2, userid2, timestamp, q, voided) 
           VALUES (?, ?, ?, ?, ?, ?, ?)"  
-    val sth_select_feedback = dbh#prepare_cached "SELECT revid2, userid2, timestamp, 
+    val sth_select_feedback = "SELECT revid2, userid2, timestamp, 
           q, voided FROM feedback WHERE revid1 = ?"   
-    val sth_delete_quality = dbh#prepare_cached "DELETE FROM quality_info WHERE
+    val sth_delete_quality = "DELETE FROM quality_info WHERE
           rev_id = ?"
-    val sth_insert_quality = dbh#prepare_cached "INSERT INTO quality_info
+    val sth_insert_quality = "INSERT INTO quality_info
           (rev_id, n_edit_judges, total_edit_quality, min_edit_quality, 
           n_text_judges, new_text, persistent_text ) VALUES (?, ?, ?, ?, ?, ?, ?)" 
-    val sth_select_quality = dbh#prepare_cached "SELECT rev_id, n_edit_judges,
+    val sth_select_quality = "SELECT rev_id, n_edit_judges,
           total_edit_quality, min_edit_quality, n_text_judges, new_text,
           persistent_text FROM quality_info WHERE rev_id = ?" 
-    val sth_set_colored = dbh#prepare_cached "UPDATE revision SET 
+    val sth_set_colored = "UPDATE revision SET 
           trust_rev_colored = TRUE WHERE rev_id = ?"
-    val sth_revert_colored = dbh#prepare_cached "UPDATE revision set
+    val sth_revert_colored = "UPDATE revision set
           trust_rev_colored = FALSE WHERE rev_id = ?"
-
+  
     (** [read_edit_diff revid1 revid2] reads from the database the edit list 
 	from the (live) text of revision [revid1] to revision [revid2]. *)
     method read_edit_diff (revid1 : int) (revid2 : int) : 
       (string * (Editlist.edit list)) option =
       
-      sth_select_edit_list#execute [`Int revid1; `Int revid2];
+      let result = Mysql.exec dbh (format_string sth_select_edit_list 
+          [Mysql.ml2int revid1; Mysql.ml2int revid2]) in
       let elist = [] in
       let p_elist = ref elist in
       let version = "" in
       let p_version = ref version in
-      let f row = (match row with
-                  | [ `String etype; `Int val1; `Int val2; `Null; `String vers ] ->
-                      ( p_version := vers;
-                    match etype with
-                    | "Ins" -> p_elist := Editlist.Ins (val1, val2) :: !p_elist
-                    | "Del" -> p_elist := Editlist.Del (val1, val2) :: !p_elist
-                    | _ -> assert false )
-                  | [ `String etype; `Int val1; `Int val2; `Int val3; `String
-                  vers ] ->
-                    ( p_version := vers;
-                    match etype with
-                    | "Mov" -> p_elist := Editlist.Mov (val1, val2, val3) :: !p_elist
-                    | _ -> assert false )
-                | _ ->
-                    assert false ) in
-      sth_select_edit_list#iter f ;
+      let handle_row row = (
+        p_version := (not_null str2ml row.(4));
+        match not_null str2ml row.(0) with
+        | "Ins" -> p_elist := Editlist.Ins (not_null int2ml row.(1), not_null 
+            int2ml row.(2)) :: !p_elist
+        | "Del" -> p_elist := Editlist.Del (not_null int2ml row.(1), not_null 
+            int2ml row.(2)) :: !p_elist
+        | "Mov" -> p_elist := Editlist.Mov (not_null int2ml row.(1), not_null 
+            int2ml row.(2), not_null int2ml row.(3)) :: !p_elist
+        | _ -> raise DB_Not_Found    
+      ) in  
+      let rec loop = function                                                               
+        | None      -> []                                                                
+        | Some x    -> handle_row x :: loop (Mysql.fetch result)                                            
+      in                                                                                    
+      ignore (loop (Mysql.fetch result));
       match List.length !p_elist with
         | 0 -> None
         | _ -> Some (!p_version, !p_elist)
@@ -166,34 +180,36 @@ class db
       let f ed =
         match ed with
           | Editlist.Ins (i, l) -> (
-            sth_delete_edit_list#execute [`Int revid1; `Int revid2; `String
-              "Ins"];
-              sth_ins_ins_edit_lists#execute [`Int revid1; 
-                `Int revid2; `String vers; `Int i; `Int l ];)
+            ignore (Mysql.exec dbh (format_string sth_delete_edit_list [ml2int revid1; ml2int revid2;
+              ml2str "Ins"]));
+            ignore (Mysql.exec dbh (format_string sth_ins_ins_edit_lists [ml2int revid1; 
+                ml2int revid2; ml2str vers; ml2int i; ml2int l ])))
 
           | Editlist.Del (i, l) -> (
-            sth_delete_edit_list#execute [`Int revid1; `Int revid2; `String "Del"];
-            sth_ins_del_edit_lists#execute [`Int revid1; 
-              `Int revid2; `String vers; `Int i; `Int l ];)
+            ignore (Mysql.exec dbh (format_string sth_delete_edit_list 
+                [ml2int revid1; ml2int revid2; ml2str "Del"]));
+            ignore (Mysql.exec dbh (format_string sth_ins_del_edit_lists 
+                [ml2int revid1; ml2int revid2; ml2str vers; ml2int i; ml2int l ];)))
 
           | Editlist.Mov (i, j, l) -> (
-            sth_delete_edit_list#execute [`Int revid1; `Int revid2; `String "Mov"]; 
-              sth_ins_mov_edit_lists#execute [`Int revid1; 
-                `Int revid2; `String vers; `Int i; `Int j; `Int l ]; ) 
+            ignore (Mysql.exec dbh (format_string sth_delete_edit_list 
+                [ml2int revid1; ml2int revid2; ml2str "Mov"])); 
+            ignore (Mysql.exec dbh (format_string sth_ins_mov_edit_lists 
+                [ml2int revid1; ml2int revid2; ml2str vers; ml2int i; ml2int j; ml2int l ]; )))
           in
       List.iter f elist
     
 
     (** [get_rep uid] gets the reputation of user [uid], from a table 
 	      relating user ids to their reputation 
-        @raise Not_found if no tuple is returned by the database.
+        @raise DB_Not_Found if no tuple is returned by the database.
     *)
     method get_rep (uid : int) : float =
-      sth_select_user_rep#execute [`Int uid];
-      let row = sth_select_user_rep#fetch1 () in
-      match row with 
-        | [ `Float rep] -> rep
-        | _ -> assert false  
+      let result = Mysql.exec dbh (format_string sth_select_user_rep [ml2int uid]) in
+      match Mysql.fetch result with 
+        | None -> raise DB_Not_Found
+        | Some x -> not_null float2ml x.(0)
+      
 
     (** [set_rep uid r] sets, in the table relating user ids to reputations, 
 	  the reputation of user [uid] to be equal to [r]. *)
@@ -201,11 +217,13 @@ class db
       (* first check to see if there exists the user already *)
       try
         ignore (self#get_rep uid ) ;
-        sth_update_user_rep#execute [`Int uid; `Float rep ]; 
+        ignore (Mysql.exec dbh (format_string sth_update_user_rep 
+            [ml2int uid; ml2float rep ])); 
       with
-        Not_found -> 
-          sth_insert_user_rep#execute [`Int uid; `Float rep ];  
-      dbh#commit()
+        DB_Not_Found -> 
+          ignore (Mysql.exec dbh (format_string sth_insert_user_rep 
+              [ml2int uid; ml2float rep ]));  
+      ignore (Mysql.exec dbh "COMMIT")
 
 
     (** [set_rep_hist uid t r0 r1] writes, in a table with keys user_id, time, 
@@ -214,12 +232,13 @@ class db
     method set_rep_hist (uid : int) (timet : float) (r0 : float) (r1 : float)
     : unit =
       (* First we delete any pre-existing text. *)
-      sth_delete_hist#execute [`Int uid; `Float timet ];
+      ignore (Mysql.exec dbh (format_string sth_delete_hist 
+          [ml2int uid; ml2float timet ]));
 
       (* Next we add in the new text. *)
-      sth_insert_hist#execute [`Int uid; `Float r0; `Float r1; `Float timet ];
-      dbh#commit ()
-
+      ignore (Mysql.exec dbh (format_string sth_insert_hist 
+          [ml2int uid; ml2float r0; ml2float r1; ml2float timet ]));
+      ignore (Mysql.exec dbh "COMMIT")
 
     (** [write_colored_markup rev_id markup] writes, in a table with columns by 
 	(revision id, string), that the string [markup] is associated with the 
@@ -234,17 +253,24 @@ class db
     (* This is currently a first cut, which will be hopefully optimized later *)
     method write_colored_markup (rev_id : int) (markup : string) : unit =
       (* First we delete any pre-existing text. *)
-      sth_delete_markup#execute [`Int rev_id ];
+      ignore (Mysql.exec dbh (format_string sth_delete_markup 
+          [ml2int rev_id ]));
       (* Next we add in the new text. *)
-      sth_insert_markup#execute [`Int rev_id; `String markup ];
-      dbh#commit ()
+      ignore (Mysql.exec dbh (format_string sth_insert_markup 
+          [ml2int rev_id; ml2str markup ]));
+      ignore (Mysql.exec dbh "COMMIT")
+
 
     (** [read_colored_markup rev_id] reads the text markup of a revision with id
 	[rev_id].  The markup is the text of the revision, annontated with trust
 	and origin information. *)
     method read_colored_markup (rev_id : int) : string =
-      sth_select_markup#execute [`Int rev_id];
-      sth_select_markup#fetch1string ()
+      let result = Mysql.exec dbh (format_string sth_select_markup 
+          [ml2int rev_id]) in
+      match Mysql.fetch result with
+        | None -> raise DB_Not_Found
+        | Some x -> not_null str2ml x.(0)
+
 
 
     (** [write_dead_page_chunks page_id chunk_list] writes, in a table indexed by 
@@ -255,72 +281,75 @@ class db
 	been deleted; the database records its existence. *)
     method write_dead_page_chunks (page_id : int) (clist : Online_types.chunk_t
     list) : unit =
-      let get_id stmnt_sel stmnt_ins tx : int = (
-          stmnt_sel#execute tx;
-           try
-             int_of_string (stmnt_sel#fetch1string ())
-           with           
-             Not_found -> ( stmnt_ins#execute tx;
-                            stmnt_sel#execute tx;
-                            int_of_string (stmnt_sel#fetch1string ())
-             )
+      let rec get_id stmnt_sel stmnt_ins tx : int = (
+          let result = Mysql.exec dbh (format_string stmnt_sel tx) in
+          match Mysql.fetch result with
+            | None -> (ignore (Mysql.exec dbh (format_string stmnt_ins tx));
+                      get_id stmnt_sel stmnt_ins tx)
+            | Some x -> not_null int2ml x.(0)
       ) in 
       let f (chk : Online_types.chunk_t) = (
-        sth_insert_chunk#execute [`Int page_id; `Float chk.timestamp; 
-                `Int chk.n_del_revisions;
-                `Int (Array.length chk.text)];
-        sth_select_chunk_id#execute [`Int page_id];
-        let dead_chunk_id = int_of_string (sth_select_chunk_id#fetch1string ()) in
+        ignore (Mysql.exec dbh (format_string sth_insert_chunk 
+            [ml2int page_id; ml2float chk.timestamp; 
+            ml2int chk.n_del_revisions;
+            ml2int (Array.length chk.text)]));
+        let result = Mysql.exec dbh (format_string sth_select_chunk_id [ml2int page_id]) in
+        let dead_chunk_id = match Mysql.fetch result with
+          | None -> raise DB_Not_Found
+          | Some x -> not_null int2ml x.(0) 
+        in  
         for i = 0 to (Array.length chk.text) - 1 do
           begin
             let text_id = get_id sth_select_text_id sth_insert_text
-                [`String chk.text.(i)] in
+                [ml2str chk.text.(i)] in
             let trust_id = get_id sth_select_trust_id sth_insert_trust 
-                [`Float chk.trust.(i)] in
+                [ml2float chk.trust.(i)] in
             let origin_id = get_id sth_select_origin_id sth_insert_origin 
-                [`Int chk.origin.(i)] in
-
-            sth_insert_chunk_map#execute [`Int dead_chunk_id; `Int text_id;
-                `Int trust_id; `Int origin_id; `Int i ];  
+                [ml2int chk.origin.(i)] in
+            ignore (Mysql.exec dbh (format_string sth_insert_chunk_map 
+                [ml2int dead_chunk_id; ml2int text_id;
+                ml2int trust_id; ml2int origin_id; ml2int i ]));  
           end;
         done;  
       ) in
       List.iter f clist;
-      dbh#commit ()
+      ignore (Mysql.exec dbh "COMMIT")
 
     (** [read_dead_page_chunks page_id] returns the list of dead chunks associated
 	with the page [page_id]. *)
     method read_dead_page_chunks (page_id : int) : Online_types.chunk_t list =
-      let chunks = [] in
-      let p_chunks = ref chunks in
-      let f row = (match row with
-        | [`String chunk_id; `Float timet; `Int n_rel_revs; `Int n_chunks] -> (
-          let texta = Array.make n_chunks "" in
-          let trusta = Array.make n_chunks 0.0 in
-          let origina = Array.make n_chunks 0 in
-          let chunk_id_int = int_of_string chunk_id in
-          let get_arr crow = (match crow with
-            | [`Int posit; `String text; `Float trust; `Int origin] -> (
-                texta.(posit) <- text;
-                trusta.(posit) <- trust;
-                origina.(posit) <- origin
-              )
-            | _ -> assert false
-          ) in
-          sth_select_chunk_arr_vals#execute [`Int chunk_id_int];
-          sth_select_chunk_arr_vals#iter get_arr;
-          p_chunks := { timestamp = timet;
-                      n_del_revisions = n_rel_revs;
-                      text = texta;
-                      trust = trusta;
-                      origin = origina
-          } :: !p_chunks;
-        )
-        | _ -> assert false
+      let handle_row row = (
+        let n_chunks = not_null int2ml row.(3) in
+        let timet = not_null float2ml row.(1) in
+        let n_rel_revs = not_null int2ml row.(2) in
+        let texta = Array.make n_chunks "" in
+        let trusta = Array.make n_chunks 0.0 in
+        let origina = Array.make n_chunks 0 in
+        let chunk_id_int = not_null int2ml row.(0) in
+        let getarr_res = Mysql.exec dbh (format_string sth_select_chunk_arr_vals [ml2int chunk_id_int]) in
+        let rec process_array_res next_row res = ( match next_row with
+          | None -> ()
+          | Some x -> (texta.(not_null int2ml x.(0)) <- not_null str2ml x.(1);
+                      trusta.(not_null int2ml x.(0)) <- not_null float2ml x.(2);
+                      origina.(not_null int2ml x.(0)) <- not_null int2ml x.(3);
+                      process_array_res (fetch getarr_res) getarr_res;
+                      ) 
+                      ) in
+        process_array_res (fetch getarr_res) getarr_res;
+        { timestamp = timet;                                                
+          n_del_revisions = n_rel_revs;                                       
+          text = texta;                                                       
+          trust = trusta;                                                     
+          origin = origina 
+        }
       ) in
-      sth_select_dead_chunks#execute [`Int page_id ];
-      sth_select_dead_chunks#iter f;
-      !p_chunks
+      let result = Mysql.exec dbh (format_string sth_select_dead_chunks [ml2int page_id ]) in
+      let rec loop = function
+        | None      -> []
+        | Some x    -> handle_row x :: loop (Mysql.fetch result)
+      in
+      loop (Mysql.fetch result)
+      
       
 
   (** [write_quality_info rev_id n_edit_judges total_edit_quality min_edit_quality
@@ -330,11 +359,12 @@ class db
 
     method write_quality_info (rev_id : int) (q: quality_info_t) : unit = 
       (* First we delete any pre-existing text. *)
-      sth_delete_quality#execute [`Int rev_id ];
+      ignore (Mysql.exec dbh (format_string sth_delete_quality [ml2int rev_id ]));
       (* Next we add in the new text. *)
-      sth_insert_quality#execute [`Int rev_id; `Int q.n_edit_judges;
-          `Float q.total_edit_quality; `Float q.min_edit_quality; `Bool q.nix_bit];
-      dbh#commit ()
+      ignore (Mysql.exec dbh (format_string sth_insert_quality 
+          [ml2int rev_id; ml2int q.n_edit_judges;
+          ml2float q.total_edit_quality; ml2float q.min_edit_quality; if q.nix_bit then "1" else "0"]));
+      ignore (Mysql.exec dbh "COMMIT")    
 
 
     (** [read_quality_info rev_id] returns the tuple 
@@ -344,39 +374,40 @@ class db
     *)
 
     method read_quality_info (rev_id : int) : quality_info_t option = 
-      sth_select_quality#execute [`Int rev_id];
-      match (sth_select_quality#fetch1 ()) with
-        | [`Int r; `Int ned; `Float tq; `Float mq; `Int ntx ] ->
-	    Some {n_edit_judges = ned; 
-	          total_edit_quality = tq; 
-	          min_edit_quality = mq;
-	          nix_bit = (ntx > 0)}
-        | _ -> None 
+      let result = Mysql.exec dbh (format_string sth_select_quality [ml2int rev_id]) in
+      match fetch result with
+        | None -> None
+        | Some x -> Some {n_edit_judges = not_null int2ml x.(1); 
+                          total_edit_quality = not_null float2ml x.(2); 
+                          min_edit_quality = not_null float2ml x.(3);
+                          nix_bit = (not_null int2ml x.(4) > 0)}
+
 
     (** [mark_rev_colored rev_id] marks a revision as having been colored *)
+    (*
     method mark_rev_colored (rev_id : int) : unit =
-      sth_set_colored#execute [`Int rev_id];
+      ignore (Mysql.exec dbh (format_string sth_set_colored [ml2int rev_id]))*)
     (** [mark_rev_uncolored revid] removed the marking of a revision
-       as having been colored *)
+       as having been colored *)(*
     method mark_rev_uncolored (rev_id : int) : unit =
-      sth_revert_colored#execute [`Int rev_id];
-
-    method prepare_cached (sql : string) : Dbi.statement =
-      dbh#prepare_cached sql
+      ignore (Mysql.exec dbh (format_string sth_revert_colored [ml2int rev_id]))
+*)
+  (*  method prepare_cached (sql : string) : Dbi.statement =
+      dbh#prepare_cached sql*)
 
 
     (** Clear everything out -- INTENDED FOR UNIT TESTING ONLY *)
     method delete_all (really : bool) =
       match really with
         | true -> (
-            ignore (dbh#ex "DELETE FROM colored_markup" []);
-            ignore (dbh#ex "DELETE FROM dead_page_chunks" []);
-            ignore (dbh#ex "DELETE FROM edit_lists" []);
-            ignore (dbh#ex "DELETE FROM text_split_version" []); 
-            ignore (dbh#ex "DELETE FROM trust_user_rep" []);
-            ignore (dbh#ex "DELETE FROM user_rep_history" []); 
-            dbh#commit())
-        | false -> dbh#commit()
+            ignore (Mysql.exec dbh "DELETE FROM colored_markup" );
+            ignore (Mysql.exec dbh "DELETE FROM dead_page_chunks" );
+            ignore (Mysql.exec dbh "DELETE FROM edit_lists" );
+            ignore (Mysql.exec dbh "DELETE FROM text_split_version" ); 
+            ignore (Mysql.exec dbh "DELETE FROM trust_user_rep" );
+            ignore (Mysql.exec dbh "DELETE FROM user_rep_history" ); 
+            ignore (Mysql.exec dbh "COMMIT"))
+        | false -> ignore (Mysql.exec dbh "COMMIT")
 
   end;; (* online_db *)
 

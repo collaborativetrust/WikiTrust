@@ -104,7 +104,7 @@ class db :
 
     (** [write_quality_info rev_id qual_info] writes that the revision with 
 	id [rev_id] has quality as described in [qual_info]. *)
-    method write_quality_info : int -> qual_info_t -> unit
+    method write_quality_info : int -> qual_info_t -> unit 
 
     (** [read_quality_info rev_id] returns a record of type quality_info_t 
 	containing quality information for a revision *)
