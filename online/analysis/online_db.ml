@@ -34,8 +34,15 @@ POSSIBILITY OF SUCH DAMAGE.
  *)
 
 open Online_types
-open Printf
 open Mysql
+
+let rec format_string (str : string) (vals : string list) : string =                    
+  match vals with                                                                       
+    | [] -> str                                                                         
+    | hd::tl -> (match (ExtString.String.replace str "?" hd) with                       
+      | (true, newstr) -> format_string newstr tl                                       
+      | (false, newstr) -> newstr)                                                      
+;;
 
 exception DB_Not_Found
 
@@ -54,14 +61,6 @@ class db
                   dbpwd = Some auth;
                   dbuser = Some user} in
   let dbh = (Mysql.connect db_param) in
-  let rec format_string (str : string) (vals : string list) : string =
-    match vals with
-      | [] -> str
-      | hd::tl -> (match (ExtString.String.replace str "?" hd) with
-        | (true, newstr) -> format_string newstr tl
-        | (false, newstr) -> newstr)
-  in
-
    
   object(self)
     
@@ -140,7 +139,13 @@ class db
           trust_rev_colored = TRUE WHERE rev_id = ?"
     val sth_revert_colored = "UPDATE revision set
           trust_rev_colored = FALSE WHERE rev_id = ?"
+    val sth_select_revs = "SELECT rev_id, rev_page,
+          rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM            
+          revision WHERE rev_page = ? AND rev_id <= ? ORDER BY rev_id DESC"
   
+    method fetch_revs (page_id : int) (rev_id : int) : (Mysql.result) =
+      Mysql.exec dbh (format_string sth_select_revs [ml2int page_id; ml2int rev_id])
+
     (** [read_edit_diff revid1 revid2] reads from the database the edit list 
 	from the (live) text of revision [revid1] to revision [revid2]. *)
     method read_edit_diff (revid1 : int) (revid2 : int) : 
