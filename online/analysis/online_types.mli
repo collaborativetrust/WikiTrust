@@ -96,7 +96,7 @@ type trust_coeff_t = {
 val get_default_coeff : trust_coeff_t
 
 (** This is the quality information we store with revisions *)
-type quality_info_t = {
+type qual_info_t = {
   (** Number of times the revision has been judged *)
   mutable n_edit_judges: int; 
   (** Total edit quality: the average is given by dividing by n_edit_judges *)
@@ -106,3 +106,5 @@ type quality_info_t = {
   (** Nix bit (see the techrep) *)
   mutable nix_bit: bool;
 }
+
+val quality_info_default : qual_info_t

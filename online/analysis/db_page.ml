@@ -36,7 +36,6 @@ POSSIBILITY OF SUCH DAMAGE.
 open Eval_constants;;
 open Online_types;;
 open Online_revision;;
-open Dbi;;
 
 (** This class contains methods to read consecutive revisions belonging
     to a page from the database. *)

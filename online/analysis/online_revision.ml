@@ -65,7 +65,7 @@ class revision
     (* First, I have a flag that says whether I have read the quantities 
        or not.  They are not read by default; they reside in a 
        separate table from standard revision data. *)
-    val mutable quality_info_opt: quality_info_t = None 
+    val mutable quality_info_opt: qual_info_t option = None 
     (* Dirty bit to avoid writing back unchanged stuff *)
     val mutable modified_quality_info : bool = false
 
@@ -139,14 +139,14 @@ class revision
 	end
 
     (** Reads the quality info from the database *)
-    method read_quality_info : quality_info_t = 
+    method private read_quality_info : qual_info_t = 
       match quality_info_opt with 
 	None -> begin 
 	  let q = match db#read_quality_info rev_id with 
 	      Some qq -> qq
 	    | None -> quality_info_default
 	  in 
-	  qual_info_opt <- Some q;
+	  quality_info_opt <- Some q;
 	  modified_quality_info <- false;
 	  q
 	end
@@ -155,7 +155,7 @@ class revision
     (** Writes quality info to the database *)
     method write_quality_info : unit = 
       if modified_quality_info then begin
-	match qual_info_opt with 
+	match quality_info_opt with 
 	  None -> ()
 	| Some qual_info -> begin 
 	    db#write_quality_info rev_id qual_info;
@@ -167,7 +167,7 @@ class revision
     method add_edit_quality_info (new_q: float) : unit = 
       let q = self#read_quality_info in 
       q.total_edit_quality <- q.total_edit_quality +. new_q; 
-      if q < q.min_edit_quality then q.min_edit_quality <- new_q; 
+      if new_q < q.min_edit_quality then q.min_edit_quality <- new_q; 
       q.n_edit_judges <- q.n_edit_judges + 1; 
       modified_quality_info <- true
 

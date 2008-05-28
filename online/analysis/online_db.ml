@@ -357,7 +357,7 @@ class db
    indexed by [rev_id] the tuple (rev_id  n_edit_judges total_edit_quality
     min_edit_quality n_text_judges new_text persistent_text). *)
 
-    method write_quality_info (rev_id : int) (q: quality_info_t) : unit = 
+    method write_quality_info (rev_id : int) (q: qual_info_t) : unit = 
       (* First we delete any pre-existing text. *)
       ignore (Mysql.exec dbh (format_string sth_delete_quality [ml2int rev_id ]));
       (* Next we add in the new text. *)
@@ -373,7 +373,7 @@ class db
           associated with the revision with id [rev_id].
     *)
 
-    method read_quality_info (rev_id : int) : quality_info_t option = 
+    method read_quality_info (rev_id : int) : qual_info_t option = 
       let result = Mysql.exec dbh (format_string sth_select_quality [ml2int rev_id]) in
       match fetch result with
         | None -> None

@@ -108,7 +108,7 @@ class db :
 
     (** [read_quality_info rev_id] returns a record of type quality_info_t 
 	containing quality information for a revision *)
-    method read_quality_info : int -> qual_info_t
+    method read_quality_info : int -> qual_info_t option
 
     (** Totally clear out the db structure -- THIS IS INTENDED ONLY FOR UNIT
     TESTING *)

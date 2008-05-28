@@ -111,7 +111,7 @@ let default_trust_coeff = {
 let get_default_coeff : trust_coeff_t = default_trust_coeff ;;
 
 (** This is the quality information we store with revisions *)
-type quality_info_t = {
+type qual_info_t = {
   (** Number of times the revision has been judged *)
   mutable n_edit_judges: int; 
   (** Total edit quality: the average is given by dividing by n_edit_judges *)
