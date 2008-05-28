@@ -85,7 +85,7 @@ the stat buckets.
 COMPUTING THE REPUTATION FROM A STATISTICS FILE: 
 ===============================================
 
-./generate_reputation -firstcut -end 2007.1131 -gen_exact_rep -u ~/work/wiki-data/temp/reph.txt ~/work/wiki-data/temp/enwiki-20070206_00066.stats 
+./generate_reputation -local_global_algo -u ~/work/wiki-data/temp/reph.txt ~/work/wiki-data/temp/enwiki-20070206_00066.stats 
 
 This generates a user reputation history file in
 ~/work/wiki-data/temp/reph.txt, and it prints some statistics on the
@@ -120,6 +120,10 @@ that should be used to generate the unique user ids. For instance, the
 address 172.162.56.61, with -ip_nbytes set to 1, will generate as user id
 -172, whereas the same address with -ip_nbytes set to 3, will generate
 a user id -11313720.
+
+The generate_reputation program has many command-line options, some of
+them referring to the algorithms to be used for reputation
+computation; do ./generate_reputation -help for more information. 
 
 COLORING A WIKI ACCORDING TO TRUST: 
 ==================================
