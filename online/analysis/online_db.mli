@@ -36,7 +36,6 @@ POSSIBILITY OF SUCH DAMAGE.
 (** This class provides a handle for accessing the database in the on-line 
     implementation. *)
 
-open Dbi;;
 open Online_types;;
 
 class db : 

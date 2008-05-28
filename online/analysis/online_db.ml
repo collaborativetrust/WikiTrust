@@ -35,6 +35,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
 open Online_types
 open Printf
+open Mysql
 
 exception DB_Not_Found
 
