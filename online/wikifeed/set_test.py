@@ -51,11 +51,11 @@ import ConfigParser
 ## Ian Pye <ipye@cs.ucsc.edu>
 
 ## const globals
-MW_DUMPER = "java -Xmx600M -server -jar /home/ipye/bin/mwdumper.jar --format=sql:1.5"
+MW_DUMPER = "java -Xmx600M -server -jar mwdumper.jar --format=sql:1.5"
 DB_ENGINE = "mysql"
 BASE_DIR = "./"   
 LOG_NAME = BASE_DIR + "online_eval.log"
-INI_FILE = BASE_DIR + "pull_revision.ini"
+INI_FILE = BASE_DIR + "online_feed_test.ini"
 RUN_TEST_FEED = BASE_DIR + "run_test_feed.sh"
 NUM_TO_PULL = 10
 
@@ -63,7 +63,7 @@ revs_added = 0
 
 ## Usage method
 def usage():
-  print "Usage: python set_test.py [-h, --help, ] \
+  print "Usage: python set_test.py [-h, --help, -v ] \
                         \n--use_dump dump_file.xml \
                         \n--eval_wiki evalwiki "
 
@@ -84,7 +84,7 @@ def set_test():
   pages = [];
 
   # Switch to the pull db
-  connection.select_db(ini_config.get('db', 'pulldb'))
+  connection.select_db(ini_config.get('db', 'db'))
 
   # clear out the pull db
   curs.execute("delete from text")
@@ -95,7 +95,7 @@ def set_test():
   # Load the xml file into the sender db
   os.system(MW_DUMPER + " " + use_dump + " | " + DB_ENGINE + " -u " +
       ini_config.get('db', 'user') + " -p" + ini_config.get('db', 'pass') + " " +
-      ini_config.get('db', 'pulldb'))
+      ini_config.get('db', 'db'))
 
   ## Get the rev id's we are going to work with                                                          
   curs.execute ("select rev_id, rev_page from revision")
@@ -106,19 +106,19 @@ def set_test():
 
   connection.select_db(ini_config.get('db', 'db'))
   # Clear out the target db
-  curs.execute("delete from text")
-  curs.execute("delete from page") 
-  curs.execute("delete from revision")
-  curs.execute("delete from trust_revision_q")
-  connection.commit()
+  #curs.execute("delete from text")
+  #curs.execute("delete from page") 
+  #curs.execute("delete from revision")
+  #curs.execute("delete from trust_revision_q")
+  #connection.commit()
 
   ## Now fill up the revs
   for rev in revs:
-    curs.execute("insert into trust_revision_q (revision) values ("+str(rev)+")")
+    #curs.execute("insert into trust_revision_q (revision) values ("+str(rev)+")")
     revs_added+=1
 
   ## Now, call the script to setup the feed
-  os.system(RUN_TEST_FEED + " " + str(len(revs)) + " " + str(NUM_TO_PULL))
+  #os.system(RUN_TEST_FEED + " " + str(len(revs)) + " " + str(NUM_TO_PULL))
 
   ## finally, call the coloring script
         
