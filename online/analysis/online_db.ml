@@ -36,6 +36,8 @@ POSSIBILITY OF SUCH DAMAGE.
 open Online_types
 open Printf
 
+exception DB_Not_Found
+
 (** This class provides a handle for accessing the database in the on-line 
     implementation.
     I don't know how it is created; most likely, it would take a database 
@@ -320,52 +322,17 @@ class db
       !p_chunks
       
 
-  (*  [write_feedback revid1 userid1, revid2, userid2, timestamp, q] adds
-          one such tuple to the db. *)
-    method write_feedback (revid1 :int) (userid1 : int) (revid2 : int) (userid2
-        : int) (times : float) (q : float) (voided :  bool) : unit = 
-      (* First we delete any pre-existing text. *)
-      sth_delete_feedback#execute [`Int revid1; `Int revid2];
-      (* Next we add in the new text. *) 
-      sth_insert_feedback#execute [`Int revid1; `Int userid1; `Int revid2; 
-          `Int userid2; `Float times; `Float q; `Bool voided];
-      dbh#commit ()
-
-    (** [read_feedback_by revid1] reads from the db all the (revid2,
-      userid2,  timestamp, q) that 
-      have been caused by the revision with id [revid1]. *)
-    method read_feedback_by (revid1 : int) : (int * int * float * float * bool) list = 
-      let replist = [] in
-      let p_replist = ref replist in
-      let f row = (
-        match row with
-        | [ `Int r2; `Int u2; `Float t; `Float q; `Int v] -> (
-            match v with
-              | 0 -> p_replist := (r2, u2, t, q, false) :: !p_replist 
-              | 1 -> p_replist := (r2, u2, t, q, true) :: !p_replist 
-              | _ -> assert false
-            )
-        | _ ->
-            assert false ) in
-      sth_select_feedback#execute [`Int revid1];
-      sth_select_feedback#iter f;
-      !p_replist;
-
   (** [write_quality_info rev_id n_edit_judges total_edit_quality min_edit_quality
    n_text_judges new_text persistent_text] writes in a table on disk
    indexed by [rev_id] the tuple (rev_id  n_edit_judges total_edit_quality
     min_edit_quality n_text_judges new_text persistent_text). *)
 
-    method write_quality_info (rev_id : int) (n_edit_judges : int)
-    (total_edit_quality : float)
-    (min_edit_quality : float) (n_text_judges : int) (new_text : int)
-    (persistent_text : int) : unit =
+    method write_quality_info (rev_id : int) (q: quality_info_t) : unit = 
       (* First we delete any pre-existing text. *)
       sth_delete_quality#execute [`Int rev_id ];
       (* Next we add in the new text. *)
-      sth_insert_quality#execute [`Int rev_id; `Int n_edit_judges;
-          `Float total_edit_quality; `Float min_edit_quality; `Int n_text_judges;
-          `Int new_text; `Int persistent_text ];
+      sth_insert_quality#execute [`Int rev_id; `Int q.n_edit_judges;
+          `Float q.total_edit_quality; `Float q.min_edit_quality; `Bool q.nix_bit];
       dbh#commit ()
 
 
@@ -375,13 +342,15 @@ class db
           associated with the revision with id [rev_id].
     *)
 
-    method read_quality_info (rev_id : int) : (int * float * float * int * int
-    * int) =
+    method read_quality_info (rev_id : int) : quality_info_t option = 
       sth_select_quality#execute [`Int rev_id];
       match (sth_select_quality#fetch1 ()) with
-        | [`Int r; `Int ned; `Float tq; `Float mq; `Int ntx; `Int nt; `Int pt ] ->
-          ((ned,tq,mq,ntx,nt,pt))
-        | _ -> assert(false)
+        | [`Int r; `Int ned; `Float tq; `Float mq; `Int ntx ] ->
+	    Some {n_edit_judges = ned; 
+	          total_edit_quality = tq; 
+	          min_edit_quality = mq;
+	          nix_bit = (ntx > 0)}
+        | _ -> None 
 
     (** [mark_rev_colored rev_id] marks a revision as having been colored *)
     method mark_rev_colored (rev_id : int) : unit =
@@ -402,7 +371,6 @@ class db
             ignore (dbh#ex "DELETE FROM colored_markup" []);
             ignore (dbh#ex "DELETE FROM dead_page_chunks" []);
             ignore (dbh#ex "DELETE FROM edit_lists" []);
-            ignore (dbh#ex "DELETE FROM feedback" []);
             ignore (dbh#ex "DELETE FROM text_split_version" []); 
             ignore (dbh#ex "DELETE FROM trust_user_rep" []);
             ignore (dbh#ex "DELETE FROM user_rep_history" []); 

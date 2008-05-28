@@ -118,8 +118,14 @@ TIMECONV_OBJS = timeconv.cmo
 evalwiki: $(OUR_EVALWIKI_OBJS)
 	$(OCAMLC) -o evalwiki $(OCAML_CFLAGS) $(OUR_LD_ADD) $(OUR_EVALWIKI_OBJS)
 
+libs:	$(OUR_EVALWIKI_OBJS)
+	$(OCAMLC) -a -o evalwiki.cma $(OCAML_CFLAGS) $(OUR_LD_ADD) $(OUR_EVALWIKI_OBJS)
+
 evalwikiopt: $(OUR_OPT_EVALWIKI_OBJS)
 	$(OCAMLOPT) -o evalwiki $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) $(OUR_OPT_EVALWIKI_OBJS)
+
+libsopt: $(OUR_OPT_EVALWIKI_OBJS)
+	$(OCAMLOPT) -a -o evalwiki.cmxa $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) $(OUR_OPT_EVALWIKI_OBJS)
 
 generate_reputation:  $(OUR_GENERATE_REPUTATION_OBJS)
 	$(OCAMLC) -o generate_reputation $(OCAML_CFLAGS) $(OUR_LD_ADD) $(OUR_GENERATE_REPUTATION_OBJS)
@@ -158,7 +164,7 @@ combinestatsopt: combinestatsfiles.ml
 timeconv: $(TIMECONV_OBJS)
 	$(OCAMLC) -o timeconv $(OCAML_CFLAGS) $(OUR_LD_ADD) $(TIMECONV_OBJS)
 
-all: evalwiki generate_reputation splitwiki combinestats
+all: evalwiki generate_reputation splitwiki combinestats libs
 allopt: evalwikiopt generate_reputationopt splitwikiopt combinestatsopt
 universe: all allopt
 

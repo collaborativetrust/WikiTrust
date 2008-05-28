@@ -142,7 +142,10 @@ class revision
     method read_quality_info : quality_info_t = 
       match quality_info_opt with 
 	None -> begin 
-	  let q = db#read_quality_info rev_id in 
+	  let q = match db#read_quality_info rev_id with 
+	      Some qq -> qq
+	    | None -> quality_info_default
+	  in 
 	  qual_info_opt <- Some q;
 	  modified_quality_info <- false;
 	  q

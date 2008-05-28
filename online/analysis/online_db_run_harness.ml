@@ -86,18 +86,6 @@ let test_db dbuser dbpass dbname = (
     let db_chk_list = mydb#read_dead_page_chunks test_page_id in
     List.iter f_chk db_chk_list;
 
-    (* feedback *)
-    mydb#write_feedback revid1 userid1 revid2 userid2 time1 quality valid ;
-    let db_feedback = mydb#read_feedback_by revid1 in
-    let num_rows = 0 in
-    let p_num_rows = ref num_rows in
-    let f fd = (
-      match fd with 
-        | ((r2 : int), (u2 : int), (t1 : float), (q : float), (v : bool)) -> 
-            (p_num_rows := 1 + !p_num_rows)) in
-    List.iter f db_feedback;
-    assert( !p_num_rows > 0 );
-
   end;  
 ) ;;
 test_db "wikiuser" "wikiword" "wikitest"

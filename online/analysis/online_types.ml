@@ -121,3 +121,10 @@ type quality_info_t = {
   (** Nix bit (see the techrep) *)
   mutable nix_bit: bool;
 }
+
+let quality_info_default = {
+  n_edit_judges = 0;
+  total_edit_quality = 0.;
+  min_edit_quality = 1000.;
+  nix_bit = false
+}

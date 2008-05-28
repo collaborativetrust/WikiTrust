@@ -30,11 +30,11 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 # Vars we use in our rules to build ocaml programs
-OCAML_LDA_LIBS = vec.cmo text.cmo hashtbl_bounded.cmo revision.cmo prioq.cmo coda.cmo editlist.cmo chdiff.cmo compute_edlist.cmo intvmap.cmo eval_constants.cmo compute_trust.cmo
-OCAML_LDA_LIBS_OPT = vec.cmx text.cmx hashtbl_bounded.cmx revision.cmx prioq.cmx coda.cmx editlist.cmx chdiff.cmx compute_edlist.cmx intvmap.cmx eval_constants.cmx compute_trust.cmx
-OUR_LD_ADD = str.cma unix.cma mysql.cma dbi.cma dbi_mysql.cmo $(OCAML_LDA_LIBS)
+OCAML_LDA_LIBS = xml-light.cma ocamlldalibs.cma evalwiki.cma
+OCAML_LDA_LIBS_OPT = xml-light.cmxa ocamlldalibs.cmxa evalwiki.cmxa
+OUR_LD_ADD = str.cma unix.cma mysql.cma $(OCAML_LDA_LIBS)
 OUR_OPTLD_ADD = str.cmxa unix.cmxa $(OCAML_LDA_LIBS_OPT)
-OUR_PACKAGES = -package dbi.mysql -package extlib
+OUR_PACKAGES = -package extlib
 INCLUDES = -I ../../batch/analysis -I ../../../OcamlLdaLibs
 
 OCAMLC=ocamlc

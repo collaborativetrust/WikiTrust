@@ -1,5 +1,4 @@
 DROP TABLE text_split_version;
-DROP TABLE feedback;
 DROP TABLE edit_lists;
 DROP TABLE trust_user_rep;
 DROP TABLE user_rep_history;
@@ -17,9 +16,7 @@ CREATE TABLE quality_info (
         n_edit_judges           int NOT NULL,
         total_edit_quality      float NOT NULL,
         min_edit_quality        float NOT NULL,
-        n_text_judges           int NOT NULL,
-        new_text                int NOT NULL,
-        persistent_text         int NOT NULL
+        nix_bit                 bool NOT NULL
 );
 GRANT ALL ON quality_info TO wikiuser;
 
@@ -31,21 +28,6 @@ CREATE TABLE text_split_version (
 );
 
 GRANT ALL ON text_split_version TO wikiuser;
-
--- a place to store feedback
-CREATE TABLE feedback (
-  revid1        int NOT NULL, 
-  userid1       int NOT NULL,
-  revid2        int NOT NULL, 
-  userid2       int NOT NULL, 
-  timestamp     float NOT NULL, 
-  q             float NOT NULL,
-  voided        bool NOT NULL,
-  PRIMARY KEY (revid1, userid1, revid2, userid2, timestamp)
-);
-
-CREATE INDEX feedback_idx on feedback(revid1);
-GRANT ALL ON feedback TO wikiuser;
 
 -- now, a place to store edit lists
 CREATE TABLE edit_lists (
