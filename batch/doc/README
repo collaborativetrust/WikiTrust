@@ -87,11 +87,17 @@ COMPUTING THE REPUTATION FROM A STATISTICS FILE:
 
 ./generate_reputation -local_global_algo -u ~/work/wiki-data/temp/reph.txt ~/work/wiki-data/temp/enwiki-20070206_00066.stats 
 
-This generates a user reputation history file in
-~/work/wiki-data/temp/reph.txt, and it prints some statistics on the
-predictive power of reputation out. 
-The code will give a warning if the statistics file is not properly
-sorted. 
+Don't worry about the output; it is some testing information we use 
+to judge the performance of the reputation.  Disregard it. 
+The important thing is that the command generates a user reputation 
+history file in ~/work/wiki-data/temp/reph.txt.  This is the file you
+need to color the revision according to text trust. 
+
+Note: The code will give a warning if the statistics file is not
+properly sorted. 
+
+Note: The code will give a warning if the statistics file is not
+properly sorted. 
 
 Note: you cannot compute author reputations from only part of the
 statistics file, like the ones corresponding to a 100-article block
