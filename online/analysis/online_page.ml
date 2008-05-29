@@ -46,8 +46,7 @@ class page
   (db: Online_db.db) 
   (logger: Online_log.logger)
   (page_id: int) 
-  (n_revisions_to_analyze: int)
-  (n_users_to_analyze: int) 
+  (revision_id: int) 
   (trust_coeff: trust_coeff_t) 
 
 = 
@@ -68,7 +67,7 @@ class page
     (** This is a hashtable from revision id to revision, for the revisions that 
         have been read from disc.  This hash table contains all revisions, whether 
         it is the last in a block by the same author, or not. *)
-    val revid_to_rev: (int, Online_revision.revision) Hashtbl.t = Hashtbl.create n_revisions_to_analyze
+    val revid_to_rev: (int, Online_revision.revision) Hashtbl.t = Hashtbl.create trust_coeff.n_revs_to_consider
     (** This is a hash table mapping each user id to a pair (old_rep, new_rep option). 
 	So we can keep track of both the original value, and of the updated value, if
 	any.  *)
@@ -81,24 +80,17 @@ class page
         hash table.
      *)
     initializer 
-      (* Reads the most recent revisions, until it has seen at least users_to_analize, 
-	 or revid_to_analize *)
-      let db_p = new Db_page.page db page_id revid_to_analyze in 
-      let seen_uid : (int, unit) Hashtbl.t = Hashtbl.create 10 in 
-      let n_seen_uid = ref 0 in 
-      let n_seen_revs = ref 0 in 
-      while (!n_seen_uid < n_users_to_analyze) && (!n_seen_revs < n_revisions_to_analyze) do begin 
+      (* Reads the most recent revisions *)
+      let db_p = new Db_page.page db page_id revision_id in 
+      let i = ref trust_coeff.n_revs_to_consider in 
+      while (!i > 0) do begin 
         match db_p#get_rev with
-          None -> n_seen_revs := n_revisions_to_analyze (* We have read all revisions *)
+          None -> i := 0 (* We have read all revisions *)
         | Some r -> begin
+	    let rid = r#get_id in 
             Hashtbl.add revid_to_rev rid r;
 	    revs <- Vec.append r revs; 
-	    n_seen_revs := !n_seen_revs + 1;
-	    let uid = r#get_user_id in 
-	    if not (Hashtbl.mem seen_uid uid) then begin 
-	      n_seen_uid := !n_seen_uid + 1;
-	      Hashtbl.add seen_uid uid
-	    end; 
+	    i := !i - 1;
 	  end (* Some r *)
       end done;
       (* Sets the current time *)
@@ -110,7 +102,7 @@ class page
  
 
     (** This method returns the current value of the user reputation *)
-    method get_rep (uid: int) : float = 
+    method private get_rep (uid: int) : float = 
       if Hashtbl.mem rep_cache uid then begin 
 	let (old_rep, new_rep_opt) = Hashtbl.find rep_cache uid in 
 	match new_rep_opt with 
@@ -124,24 +116,24 @@ class page
       end
 
     (** This method sets, but does not write to disk, a new user reputation. *)
-    method set_rep (uid: int) (r: float) : unit = 
+    method private set_rep (uid: int) (r: float) : unit = 
       if Hashtbl.mem rep_cache uid then begin 
 	let (old_rep, _) = Hashtbl.find rep_cache uid in 
 	Hashtbl.replace rep_cache uid (old_rep, Some r)
       end else begin 
 	(* We have to read it from disk *)
 	let old_rep = db#get_rep uid in 
-	Hashtbl.add rep_cache (old_rep, Some r)
+	Hashtbl.add rep_cache uid (old_rep, Some r)
       end
 
     (** Write all new reputations to the db *)
-    method write_all_reps : unit = 
+    method private write_all_reps : unit = 
       let f uid = function 
 	  (old_r, Some r) -> begin
 	    (* Writes the new reputation *)
 	    db#set_rep uid r;
 	    (* Writes the reputation change in the history *)
-	    db#set_rep_hist uid curr_time olr_r r
+	    db#set_rep_hist uid curr_time old_r r
 	  end
 	| (old_r, None) -> ()
       in Hashtbl.iter f rep_cache
@@ -372,7 +364,7 @@ class page
 
 
     (** [compute_trust weight_user] computes the trust and origin of the text. *)
-    method private compute_trust (weight_user: float) : unit = 
+    method private compute_trust : unit = 
       let n_revs = Vec.length revs in 
       let rev0 = Vec.get 0 revs in 
       let rev0_id = rev0#get_id in
@@ -582,8 +574,8 @@ class page
 	    (* Adds edit quality information, for statistical analysis *)
 	    rev1#add_edit_quality_info min_qual; 
 	    (* computes the nixing bit *)
-	    if (not !rev1_nix) && (rev2_time - rev0_time < trust_coeff.nix_interval) 
-	      && ((qual_012 < 0) || (rev0_idx = n_revs - 1)) then begin 
+	    if (not !rev1_nix) && (rev2_time -. rev0_time < trust_coeff.nix_interval) 
+	      && ((qual_012 < 0.) || (rev0_idx = n_revs - 1)) then begin 
 		rev1_nix := true;
 		rev1#set_nix_bit
 	      end;
@@ -591,8 +583,8 @@ class page
 	    let inc_local_global = trust_coeff.rep_scaling *. delta *. min_qual *. rev2_weight in
 	    (* Applies it according to algorithm LOCAL-GLOBAL *)
 	    let new_rep = 
-	      if (!rev1_nix || rev2_time - rev0_time < trust_coeff.nix_interval) 
-		&& inc_local_global > 0 then begin 
+	      if (!rev1_nix || rev2_time -. rev0_time < trust_coeff.nix_interval) 
+		&& inc_local_global > 0. then begin 
 		  (* caps the reputation increment *)
 		  let cap_rep = min rev2_rep rev0_rep in
 		  let capped_rep = min cap_rep (rev1_rep +. inc_local_global) in 

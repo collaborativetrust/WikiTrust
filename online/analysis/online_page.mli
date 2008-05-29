@@ -52,14 +52,10 @@ class page :
   (** Logger handle *)
   Online_log.logger ->
   (** page_id of the page to analyze *)
-  (* logger *) int ->
+  (* page_id *) int ->
   (** revision id of the revision to analyze. All previous revisions should
       have been already evaluated. *)
-  (* page_id *) int ->
-  (** Maximum number of revisions to read from disk *)
-  (* revid_to_analyze *) int ->
-  (** Number of different users we should try to consider *)
-  (* users_to_analyze *) int -> 
+  (* revision_id *) int -> 
   (** Coefficients to be used for the evaluation *)
   (* trust_coeff *) Online_types.trust_coeff_t ->
   object
