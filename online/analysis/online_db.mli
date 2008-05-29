@@ -44,7 +44,11 @@ class db :
   string (* database name *) -> 
 
   object
-
+  
+    (** [fetch_revs pageid revid] Returns a pointer to a result set of revisions for a given 
+        page, starting at rev_id
+    *)
+    method fetch_revs : int -> int -> Mysql.result 
     (** [read_edit_diff revid1 revid2] reads from the database the edit list 
 	from the (live) text of revision [revid1] to revision [revid2]. 
         The edit list consists in a string, identifying the way revision of 

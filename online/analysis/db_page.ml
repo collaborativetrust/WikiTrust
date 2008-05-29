@@ -36,42 +36,39 @@ POSSIBILITY OF SUCH DAMAGE.
 open Eval_constants;;
 open Online_types;;
 open Online_revision;;
+open Mysql;;
 
 (** This class contains methods to read consecutive revisions belonging
     to a page from the database. *)
 
 class page 
-  (db :Online_db.db)  (* Online database containing the pages and revisions *)
+  (db : Online_db.db)  (* Online database containing the pages and revisions *)
   (page_id : int)  (* page id to which the revisions belong *)
   (rev_id : int) =  (* revision id.  This is the first revision to read; after this, 
 	    each read operation returns the previous revision (so the
 	    read is backwards. *)
 
+  let revs = db#fetch_revs page_id rev_id in
+
   object (self)
-       
-    val sth_select_revs = db#prepare_cached "SELECT rev_id, rev_page,
-      rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM 
-      revision WHERE rev_page = ? AND rev_id <= ? ORDER BY rev_id DESC"
-        
-    (* This runs after the object is built, before anything else happens *)
-    initializer sth_select_revs#execute [`Int page_id; `Int rev_id]
 
     (* This method gets, every time, the previous revision of the page, 
        starting from the revision id that was given as input. *)
     method get_rev : Online_revision.revision option =
-      try 
-        let next_rev = sth_select_revs#fetch1 () in
-        let set_is_minor ism = match ism with
-          | 0 -> false
-          | 1 -> true
-          | _ -> assert false in
-        match next_rev with
-          | [`Int rid; `Int pid; `String time; `Int uid; `String usern; `Int ism;
-            `String com] -> Some (new Online_revision.revision db rid pid
-            (float_of_string time) uid usern (set_is_minor ism)
-            com )
-          | _ -> assert false
-      with Not_found -> None
-      
-      
+      let next_rev = Mysql.fetch revs in
+      let set_is_minor ism = match ism with
+        | 0 -> false
+        | 1 -> true
+        | _ -> assert false in
+      match next_rev with
+        | None -> None
+        | Some row -> ( Some (new Online_revision.revision db 
+                             (not_null int2ml row.(0)) 
+                             (not_null int2ml row.(1))                 
+                             (float_of_string (not_null str2ml row.(2))) 
+                             (not_null int2ml row.(3)) 
+                             (not_null str2ml row.(4)) 
+                             (set_is_minor (not_null int2ml row.(5)))                           
+                             (not_null str2ml row.(6)))
+      )
   end (* End page *)

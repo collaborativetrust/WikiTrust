@@ -1,28 +1,28 @@
 
 Code which sets up an online feed from wikipedia to you. 
 
-These are at quite a preliminary stage.
+Requirements : mediawiki, mysql, with a mediawiki installation all set up.
 
-To work, first copy pull_revision.ini.sample into pull_revision.ini and 
-update the values defined there.
+To work, first copy pull_revision.ini.sample into online_feed_test and 
+update the values defined there. Point to the db created by mediawiki.
 
-SETUP AND RUN A TEST FEED EVALUATION:
+Then, run the sql file ../sql/online_analysis.sql, creating the needed tables inside the same db as
+mediawiki.
+
+Now, you are ready to go!
+
+Run with:
+
 python ./set_test.py --use_dump 'dump to color' --eval_wiki 'path to the
-eval_online_wiki' executable
+eval_online_wiki executable'
 
-CURRENT ISSUES:
+This will call the online_db code with each revision in the dump file.
 
-1) UserID is not pulled -- all userids are set to NULL 
+For examlpe:
 
-NOTES:
+ ./set_test.py -v --use_dump /home/ipye/enwiki-20080103-0020009.xml.gz --eval_wiki  \
+ ../analysis/eval_online_wiki
 
-To run:
+Note that the other files in this directory are experimental, and are not used right now.
 
-python pull_text.py -v (verbose) -d (run as deamon)
 
-python pull_revisions.py -v (verbose)
-
-These scripts assume the existance (and writablity) of the /tmp 
-directory.
-
-Additionally, mysql is a requirement.
