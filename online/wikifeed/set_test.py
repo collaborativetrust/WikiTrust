@@ -105,23 +105,13 @@ def set_test():
     pages.append(data[row][1])
 
   connection.select_db(ini_config.get('db', 'db'))
-  # Clear out the target db
-  #curs.execute("delete from text")
-  #curs.execute("delete from page") 
-  #curs.execute("delete from revision")
-  #curs.execute("delete from trust_revision_q")
-  #connection.commit()
 
   ## Now fill up the revs
   for rev in revs:
     #curs.execute("insert into trust_revision_q (revision) values ("+str(rev)+")")
     revs_added+=1
 
-  ## Now, call the script to setup the feed
-  #os.system(RUN_TEST_FEED + " " + str(len(revs)) + " " + str(NUM_TO_PULL))
-
   ## finally, call the coloring script
-        
   for rev in range(1):      
     if verbose:
       print "\nRunning eval on page " + str(pages[rev]) + ", rev " + str(revs[rev])
