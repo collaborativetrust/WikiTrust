@@ -65,6 +65,8 @@ let _ = Arg.parse command_line_format set_input_files "Usage: eval_online_wiki [
 let db = new Online_db.db !db_user !db_pass !db_name in
 let logger = new Online_log.logger !log_name !synch_log in
 let trust_coeff = Online_types.get_default_coeff in
+(* Erases old coloring *)
+db#delete_all true;
 
 (* Loops over all revisions, in chronological order *)
 let revs = db#fetch_all_revs in 

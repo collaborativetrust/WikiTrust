@@ -62,20 +62,18 @@ revs_added = 0
 ## Usage method
 def usage():
   print "Usage: python set_test.py [-h, --help, -v ] \
-                        \n--use_dump dump_file.xml \
-                        \n--eval_wiki evalwiki "
+                        \n--use_dump dump_file.xml"
+
 
 ## non-const globals
 verbose = False
 args = ""
 num_revs = 0
 use_dump = ""
-eval_wiki = ""
 
 def set_test():                                                                                            
         
   global use_dump
-  global eval_wiki
   global revs_added
   global ini_config
   revs = [];
@@ -107,27 +105,12 @@ def set_test():
   ## Now fill up the revs
   for rev in revs:
     #curs.execute("insert into trust_revision_q (revision) values ("+str(rev)+")")
-    revs_added+=1
-
-  ## finally, call the coloring script
-  for rev in range(1):      
-    if verbose:
-      print "\nRunning eval on page " + str(pages[rev]) + ", rev " + str(revs[rev])
-      print ("******\n" + eval_online_wiki + " --db_user " + ini_config.get('db', 'user') \
-            + " --db_name " + ini_config.get('db', 'db') + " --db_pass "\
-            + ini_config.get('db', 'pass') + " --page_id " + str(pages[rev]) \
-            + " --log_name " + LOG_NAME + " --synch_log\n" )
-
-    os.system(eval_online_wiki + " --db_user " + ini_config.get('db', 'user') \
-        + " --db_name " + ini_config.get('db', 'db') + " --db_pass "  \
-        + ini_config.get('db', 'pass') + " --page_id " + str(pages[rev]) \
-        + " --log_name " + LOG_NAME + " --synch_log " ) 
+    revs_added += 1
 
   return revs_added
 
 try:
-  opts, args = getopt.gnu_getopt(sys.argv[1:], "hv", ["help", "use_dump=",
-    "eval_wiki="])
+  opts, args = getopt.gnu_getopt(sys.argv[1:], "hv", ["help", "use_dump="])
 except getopt.GetoptError:
   # print help information and exit:
   usage()
@@ -140,8 +123,6 @@ for o, a in opts:
     sys.exit(2)
   if o in ("--use_dump"):
     use_dump = a
-  if o in ("--eval_wiki"):
-    eval_wiki = a
   if o in ("-v"):
     verbose = True
 
