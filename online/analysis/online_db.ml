@@ -143,7 +143,7 @@ class db
           revision WHERE rev_page = ? AND rev_id <= ? ORDER BY rev_timestamp DESC"
     val sth_select_all_revs = "SELECT rev_id, rev_page,
           rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM            
-          revision WHERE rev_page = ? AND rev_id <= ? ORDER BY rev_timestamp ASC"
+          revision ORDER BY rev_timestamp ASC"
 
     (** [fetch_all_revs] returns a cursor that points to all revisions in the database, 
 	in ascending order of timestamp. *)
@@ -433,12 +433,17 @@ class db
     method delete_all (really : bool) =
       match really with
         | true -> (
-            ignore (Mysql.exec dbh "DELETE FROM colored_markup" );
-            ignore (Mysql.exec dbh "DELETE FROM dead_page_chunks" );
-            ignore (Mysql.exec dbh "DELETE FROM edit_lists" );
-            ignore (Mysql.exec dbh "DELETE FROM text_split_version" ); 
-            ignore (Mysql.exec dbh "DELETE FROM trust_user_rep" );
-            ignore (Mysql.exec dbh "DELETE FROM user_rep_history" ); 
+            ignore (Mysql.exec dbh "TRUNCATE TABLE text_split_version" );
+            ignore (Mysql.exec dbh "TRUNCATE TABLE edit_lists" );
+            ignore (Mysql.exec dbh "TRUNCATE TABLE trust_user_rep" );
+            ignore (Mysql.exec dbh "TRUNCATE TABLE user_rep_history" ); 
+            ignore (Mysql.exec dbh "TRUNCATE TABLE colored_markup" );
+            ignore (Mysql.exec dbh "TRUNCATE TABLE dead_page_chunks" );
+            ignore (Mysql.exec dbh "TRUNCATE TABLE chunk_text" );
+            ignore (Mysql.exec dbh "TRUNCATE TABLE chunk_trust" );
+            ignore (Mysql.exec dbh "TRUNCATE TABLE chunk_origin" );
+            ignore (Mysql.exec dbh "TRUNCATE TABLE dead_page_chunk_map" );
+            ignore (Mysql.exec dbh "TRUNCATE TABLE quality_info" ); 
             ignore (Mysql.exec dbh "COMMIT"))
         | false -> ignore (Mysql.exec dbh "COMMIT")
 

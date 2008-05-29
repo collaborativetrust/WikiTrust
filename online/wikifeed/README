@@ -5,19 +5,20 @@ Requirements : mediawiki, mysql, with a mediawiki installation all set up.
 To work, first copy pull_revision.ini.sample into online_feed_test and 
 update the values defined there. Point to the db created by mediawiki.
 
-Then, run the sql file ../sql/online_analysis.sql, creating the needed tables inside the same db as
-mediawiki.
+Then, run the sql file ../sql/start_online_analysis.sql, creating the needed tables inside the same db as
+mediawiki:
+
+$ cat start_online_analysis.sql | mysql --user="root" --password="<mysql-root-password>" wikidb
 
 Now, you are ready to go!
 
 Run with:
 
-python ./set_test.py --use_dump 'dump to color' --eval_wiki 'path to the
-eval_online_wiki executable'
+python ./set_test.py
 
 This will call the online_db code with each revision in the dump file.
 
-For examlpe:
+For example:
 
  ./set_test.py -v --use_dump /home/ipye/enwiki-20080103-0020009.xml.gz --eval_wiki  \
  ../analysis/eval_online_wiki

@@ -46,20 +46,18 @@ let set_db_name d = db_name := d
 let log_name = ref ""
 let set_log_name d = log_name := d
 let synch_log = ref false
-
-let input_files = ref Vec.empty;;
-let set_input_files s = input_files := Vec.append s !input_files;;
+let noop s = ()
 
 (* Figure out what to do and how we are going to do it. *)
 let command_line_format = 
-  [("--db_user", Arg.String set_db_user, "<user>: DB user to use");
-   ("--db_name", Arg.String set_db_name, "<name>: Name of the DB to use");
-   ("--db_pass", Arg.String set_db_pass, "<pass>: DB password");
-   ("--log_name", Arg.String set_log_name, "<logger.out>: Logger output file");
-   ("--synch_log", Arg.Set synch_log, ": Runs the logger in synchnonized mode");
+  [("-db_user", Arg.String set_db_user, "<user>: DB user to use");
+   ("-db_name", Arg.String set_db_name, "<name>: Name of the DB to use");
+   ("-db_pass", Arg.String set_db_pass, "<pass>: DB password");
+   ("-log_name", Arg.String set_log_name, "<logger.out>: Logger output file");
+   ("-synch_log", Arg.Set synch_log, ": Runs the logger in synchnonized mode");
   ]
 
-let _ = Arg.parse command_line_format set_input_files "Usage: eval_online_wiki [input files]";;
+let _ = Arg.parse command_line_format noop "Usage: eval_online_wiki";;
 
 (* Does all the work of processing the given page and revision *)
 let db = new Online_db.db !db_user !db_pass !db_name in
@@ -78,6 +76,7 @@ while !domore do begin
       let rev = Online_revision.make_revision r db in 
       let page_id = rev#get_page_id in 
       let rev_id  = rev#get_id in 
+      Printf.printf "Evaluating revision %d of page %d\n" rev_id page_id;
       let page = new Online_page.page db logger page_id rev_id trust_coeff in
       page#eval
     end
