@@ -1,5 +1,4 @@
-
-Code which sets up an online feed from wikipedia to you. 
+Test harness for on-line code. 
 
 Requirements : mediawiki, mysql, with a mediawiki installation all set up.
 

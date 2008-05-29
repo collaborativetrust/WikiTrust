@@ -373,8 +373,10 @@ class page
       let rev0_time = rev0#get_time in 
       let rev0_l = Array.length rev0_t in 
       let rev0_seps = rev0#get_seps in 
-      (* Gets the author reputation from the db *)
-      let weight_user = self#weight (self#get_rep rev0_uid) in 
+      (* Gets the author reputation from the db. 
+         As we are not holding the reputation lock at this point, we do not use
+         the internal method to get the reputation. *)
+      let weight_user = self#weight (db#get_rep rev0_uid) in 
 
       (* Now we proceed by cases, depending on whether this is the first revision of the 
          page, or whether there have been revisions before. *)
@@ -626,23 +628,36 @@ class page
         The method computes also the effects on author reputation as a result of the new revision. *)
     method eval : unit = 
 
-      (* Computes the edit distances *)
-      self#compute_edit_lists; 
-
-      (* Computes, and writes to disk, the trust of the newest revision *)
-      self#compute_trust;
-
-      (* We now process the reputation update. *)
-      self#compute_edit_inc;
-      (* and we write them to disk *)
-      self#write_all_reps;
+      (* Gets the page lock *)
+      db#get_page_lock page_id; 
+      begin 
+	(* Computes the edit distances *)
+	self#compute_edit_lists; 
+	(* Computes, and writes to disk, the trust of the newest revision *)
+	self#compute_trust;
+	
       
-      (* Finally, we write back to disc the quality information of all revisions *)
-      (* The function f is iterated on revid_to_rev *)
-      let f (revid: int) (r: Online_revision.revision) : unit = 
-        r#write_quality_info 
-      in Hashtbl.iter f revid_to_rev; 
-      
+	(* Gets the reputation lock *)
+	db#get_rep_lock; 
+	begin 
+	  (* We now process the reputation update. *)
+	  self#compute_edit_inc;
+	  (* and we write them to disk *)
+	  self#write_all_reps;
+	  (* Done accessing the global reputation table *)
+	  db#release_rep_lock; 
+	end;
+
+	(* Finally, we write back to disc the quality information of all revisions *)
+	(* The function f is iterated on revid_to_rev *)
+	let f (revid: int) (r: Online_revision.revision) : unit = 
+          r#write_quality_info 
+	in Hashtbl.iter f revid_to_rev; 
+	
+	(* Releases the page lock *)
+	db#release_page_lock page_id; 
+      end;
+
       (* Flushes the logger.  *)
       logger#flush;
       

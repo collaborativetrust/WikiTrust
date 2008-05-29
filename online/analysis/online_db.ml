@@ -47,9 +47,8 @@ let rec format_string (str : string) (vals : string list) : string =
 exception DB_Not_Found
 
 (** This class provides a handle for accessing the database in the on-line 
-    implementation.
-    I don't know how it is created; most likely, it would take a database 
-    name and password, or something like that, to connect to the db. *)
+    implementation. *)
+
 class db  
   (user : string)
   (auth : string)
@@ -141,9 +140,19 @@ class db
           trust_rev_colored = FALSE WHERE rev_id = ?"
     val sth_select_revs = "SELECT rev_id, rev_page,
           rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM            
-          revision WHERE rev_page = ? AND rev_id <= ? ORDER BY rev_id DESC"
+          revision WHERE rev_page = ? AND rev_id <= ? ORDER BY rev_timestamp DESC"
+    val sth_select_all_revs = "SELECT rev_id, rev_page,
+          rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM            
+          revision WHERE rev_page = ? AND rev_id <= ? ORDER BY rev_timestamp ASC"
+
+    (** [fetch_all_revs] returns a cursor that points to all revisions in the database, 
+	in ascending order of timestamp. *)
+    method fetch_all_revs : Mysql.result = 
+      Mysql.exec dbh (format_string sth_select_all_revs [])
   
-    method fetch_revs (page_id : int) (rev_id : int) : (Mysql.result) =
+    (** [fetch_revs page_id rev_id] returns a cursor that points to all revisions 
+	of page [page_id] that coincide, or precede, revision [rev_id]. *)
+    method fetch_revs (page_id : int) (rev_id : int) : Mysql.result =
       Mysql.exec dbh (format_string sth_select_revs [ml2int page_id; ml2int rev_id])
 
     (** [read_edit_diff revid1 revid2] reads from the database the edit list 
@@ -399,6 +408,25 @@ class db
 *)
   (*  method prepare_cached (sql : string) : Dbi.statement =
       dbh#prepare_cached sql*)
+
+
+    (** [get_page_lock page_id] gets a lock for page [page_id], to guarantee 
+	mutual exclusion on the updates for page [page_id]. *)
+    method get_page_lock (page_id: int) = ()
+
+    (** [release_page_lock page_id] releases the lock for page [page_id], to guarantee 
+	mutual exclusion on the updates for page [page_id]. *)
+    method release_page_lock (page_id: int) = ()
+
+    (** [get_rep_lock] gets a lock for the global table of user reputations, to guarantee 
+	serializability of the updates. *)
+    method get_rep_lock = ()
+
+    (** [release_rep_lock] releases a lock for the global table of user reputations, to guarantee 
+	serializability of the updates. *)
+    method release_rep_lock = ()
+
+
 
 
     (** Clear everything out -- INTENDED FOR UNIT TESTING ONLY *)

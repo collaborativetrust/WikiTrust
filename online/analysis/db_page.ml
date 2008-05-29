@@ -62,13 +62,5 @@ class page
         | _ -> assert false in
       match next_rev with
         | None -> None
-        | Some row -> ( Some (new Online_revision.revision db 
-                             (not_null int2ml row.(0)) 
-                             (not_null int2ml row.(1))                 
-                             (float_of_string (not_null str2ml row.(2))) 
-                             (not_null int2ml row.(3)) 
-                             (not_null str2ml row.(4)) 
-                             (set_is_minor (not_null int2ml row.(5)))                           
-                             (not_null str2ml row.(6)))
-      )
+        | Some row -> Some (Online_revision.make_revision row db)
   end (* End page *)

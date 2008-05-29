@@ -45,8 +45,12 @@ class db :
 
   object
   
+    (** [fetch_all_revs] Returns a pointer to a result set consisting in all the 
+	revisions of the database, in ascending temporal order. *)
+    method fetch_all_revs : Mysql.result
+
     (** [fetch_revs pageid revid] Returns a pointer to a result set of revisions for a given 
-        page, starting at rev_id
+        page, starting at rev_id, and going back in time. 
     *)
     method fetch_revs : int -> int -> Mysql.result 
     (** [read_edit_diff revid1 revid2] reads from the database the edit list 
@@ -113,6 +117,22 @@ class db :
     (** [read_quality_info rev_id] returns a record of type quality_info_t 
 	containing quality information for a revision *)
     method read_quality_info : int -> qual_info_t option
+
+    (** [get_page_lock page_id] gets a lock for page [page_id], to guarantee 
+	mutual exclusion on the updates for page [page_id]. *)
+    method get_page_lock : int -> unit
+
+    (** [release_page_lock page_id] releases the lock for page [page_id], to guarantee 
+	mutual exclusion on the updates for page [page_id]. *)
+    method release_page_lock : int -> unit
+
+    (** [get_rep_lock] gets a lock for the global table of user reputations, to guarantee 
+	serializability of the updates. *)
+    method get_rep_lock : unit
+
+    (** [release_rep_lock] releases a lock for the global table of user reputations, to guarantee 
+	serializability of the updates. *)
+    method release_rep_lock : unit
 
     (** Totally clear out the db structure -- THIS IS INTENDED ONLY FOR UNIT
     TESTING *)

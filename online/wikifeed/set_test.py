@@ -48,8 +48,6 @@ import StringIO
 import xml.parsers.expat
 import ConfigParser
 
-## Ian Pye <ipye@cs.ucsc.edu>
-
 ## const globals
 MW_DUMPER = "java -Xmx600M -server -jar mwdumper.jar --format=sql:1.5"
 DB_ENGINE = "mysql"
@@ -115,16 +113,14 @@ def set_test():
   for rev in range(1):      
     if verbose:
       print "\nRunning eval on page " + str(pages[rev]) + ", rev " + str(revs[rev])
-      print ("******\n" + eval_wiki + " --db_user " + ini_config.get('db', 'user') \
+      print ("******\n" + eval_online_wiki + " --db_user " + ini_config.get('db', 'user') \
             + " --db_name " + ini_config.get('db', 'db') + " --db_pass "\
             + ini_config.get('db', 'pass') + " --page_id " + str(pages[rev]) \
-            + " --rev_id " + str(revs[rev])  \
             + " --log_name " + LOG_NAME + " --synch_log\n" )
 
-    os.system(eval_wiki + " --db_user " + ini_config.get('db', 'user') \
+    os.system(eval_online_wiki + " --db_user " + ini_config.get('db', 'user') \
         + " --db_name " + ini_config.get('db', 'db') + " --db_pass "  \
         + ini_config.get('db', 'pass') + " --page_id " + str(pages[rev]) \
-        + " --rev_id " + str(revs[rev])  \
         + " --log_name " + LOG_NAME + " --synch_log " ) 
 
   return revs_added

@@ -3,7 +3,7 @@
 Copyright (c) 2007-2008 The Regents of the University of California
 All rights reserved.
 
-Authors: Luca de Alfaro, B. Thomas Adler, Vishwanath Raman, Ian Pye
+Authors: Luca de Alfaro, B. Thomas Adler, Ian Pye
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -35,7 +35,8 @@ POSSIBILITY OF SUCH DAMAGE.
 
 open Printf
 
-(* This is the top-level code of the wiki online xml evaluation.  *)
+(** This is the top-level code of the wiki online xml evaluation. 
+    This is used for testing only: *)
 let db_user = ref ""
 let set_db_user u = db_user := u
 let db_pass = ref ""
@@ -45,10 +46,6 @@ let set_db_name d = db_name := d
 let log_name = ref ""
 let set_log_name d = log_name := d
 let synch_log = ref false
-let page_id = ref 0
-let set_page_id i = page_id := i
-let rev_id = ref 0
-let set_rev_id i = rev_id := i
 
 let input_files = ref Vec.empty;;
 let set_input_files s = input_files := Vec.append s !input_files;;
@@ -58,8 +55,6 @@ let command_line_format =
   [("--db_user", Arg.String set_db_user, "<user>: DB user to use");
    ("--db_name", Arg.String set_db_name, "<name>: Name of the DB to use");
    ("--db_pass", Arg.String set_db_pass, "<pass>: DB password");
-   ("--page_id", Arg.Int set_page_id, "<page_id>: Page id to process");
-   ("--rev_id", Arg.Int set_rev_id, "<rev_id>: Revision_id to start processing on");
    ("--log_name", Arg.String set_log_name, "<logger.out>: Logger output file");
    ("--synch_log", Arg.Set synch_log, ": Runs the logger in synchnonized mode");
   ]
@@ -70,6 +65,20 @@ let _ = Arg.parse command_line_format set_input_files "Usage: eval_online_wiki [
 let db = new Online_db.db !db_user !db_pass !db_name in
 let logger = new Online_log.logger !log_name !synch_log in
 let trust_coeff = Online_types.get_default_coeff in
-let page = new Online_page.page db logger !page_id !rev_id trust_coeff in
-page#eval
+
+(* Loops over all revisions, in chronological order *)
+let revs = db#fetch_all_revs in 
+let domore = ref true in 
+while !domore do begin 
+  match Mysql.fetch revs with 
+    None -> domore := false
+  | Some r -> begin 
+      let rev = Online_revision.make_revision r db in 
+      let page_id = rev#get_page_id in 
+      let rev_id  = rev#get_id in 
+      let page = new Online_page.page db logger page_id rev_id trust_coeff in
+      page#eval
+    end
+end done;;
+
 
