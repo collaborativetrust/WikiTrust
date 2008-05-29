@@ -38,89 +38,47 @@ POSSIBILITY OF SUCH DAMAGE.
 import MySQLdb
 import sys
 import getopt
-import urllib
-import urllib2
-import gzip
 import os
-import re
-import time
-import StringIO
-import xml.parsers.expat
 import ConfigParser
 
 ## const globals
 MW_DUMPER = "java -Xmx600M -server -jar mwdumper.jar --format=sql:1.5"
 DB_ENGINE = "mysql"
 BASE_DIR = "./"   
-LOG_NAME = BASE_DIR + "online_eval.log"
 INI_FILE = BASE_DIR + "online_feed_test.ini"
-RUN_TEST_FEED = BASE_DIR + "run_test_feed.sh"
-NUM_TO_PULL = 10
-
-revs_added = 0
 
 ## Usage method
 def usage():
-  print "Usage: python set_test.py [-h, --help, -v ] \
-                        \n--use_dump dump_file.xml \
-                        \n--evalwiki evalwiki"
+  print "Usage: python set_test.py [-h, --help] dump1 dump2 ... dumpn "
 
 
-## non-const globals
-verbose = False
-args = ""
-num_revs = 0
-use_dump = ""
-evalwiki = "eval_online_wiki"
+## A list of files to load
+dumps = []
 
-def set_test():                                                                                            
+def load_dump(dump):                                                                                            
         
-  global use_dump
-  global revs_added
   global ini_config
-  global evalwiki
-
-  # Switch to the pull db
-  connection.select_db(ini_config.get('db', 'db'))
-
-  # clear out the pull db
-  curs.execute("delete from text")
-  curs.execute("delete from page")
-  curs.execute("delete from revision")
-  connection.commit()
 
   # Load the xml file into the sender db
-  os.system(MW_DUMPER + " " + use_dump + " | " + DB_ENGINE + " -u " +
+  os.system(MW_DUMPER + " " + dump + " | " + DB_ENGINE + " -u " +
       ini_config.get('db', 'user') + " -p" + ini_config.get('db', 'pass') + " " +
       ini_config.get('db', 'db'))
 
-  # Run evalwiki
-  os.system(evalwiki + " --db_user " + ini_config.get('db', 'user') + " --db_name " + ini_config.get('db', 'db') 
-      + " --db_pass " + ini_config.get('db', 'pass') )
   return
 
 try:
-  opts, args = getopt.gnu_getopt(sys.argv[1:], "hv", ["help", "use_dump=", "evalwiki="])
+  opts, args = getopt.gnu_getopt(sys.argv[1:], "h", ["help"])
 except getopt.GetoptError:
   # print help information and exit:
   usage()
   sys.exit(2)
+
 for a in args:
-  args = a
+  dumps.append(a)
 for o, a in opts:
   if o in ("-h", "--help"):
     usage()
     sys.exit(2)
-  if o in ("--use_dump"):
-    use_dump = a
-  if o in ("--evalwiki"):                                                                 
-    evalwiki = a 
-  if o in ("-v"):
-    verbose = True
-
-if use_dump == "":
-  usage()
-  sys.exit(2)
 
 ## parse the ini file
 ini_config = ConfigParser.ConfigParser()
@@ -132,5 +90,12 @@ user=ini_config.get('db', 'user'), passwd=ini_config.get('db', 'pass') \
     , db=ini_config.get('db', 'db') )
 curs = connection.cursor()
 
-set_test() 
+# clear out the pull db                                                                 
+curs.execute("delete from text")                                                        
+curs.execute("delete from page")                                                        
+curs.execute("delete from revision")                                                    
+connection.commit()   
+
+for dump in dumps:
+  load_dump(dump) 
 
