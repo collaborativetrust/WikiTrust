@@ -62,7 +62,8 @@ revs_added = 0
 ## Usage method
 def usage():
   print "Usage: python set_test.py [-h, --help, -v ] \
-                        \n--use_dump dump_file.xml"
+                        \n--use_dump dump_file.xml \
+                        \n--evalwiki evalwiki"
 
 
 ## non-const globals
@@ -70,14 +71,14 @@ verbose = False
 args = ""
 num_revs = 0
 use_dump = ""
+evalwiki = "eval_online_wiki"
 
 def set_test():                                                                                            
         
   global use_dump
   global revs_added
   global ini_config
-  revs = [];
-  pages = [];
+  global evalwiki
 
   # Switch to the pull db
   connection.select_db(ini_config.get('db', 'db'))
@@ -93,24 +94,13 @@ def set_test():
       ini_config.get('db', 'user') + " -p" + ini_config.get('db', 'pass') + " " +
       ini_config.get('db', 'db'))
 
-  ## Get the rev id's we are going to work with                                                          
-  curs.execute ("select rev_id, rev_page from revision")
-  data = curs.fetchall()                                                                                    
-  for row in range(len(data)):   
-    revs.append(data[row][0])
-    pages.append(data[row][1])
-
-  connection.select_db(ini_config.get('db', 'db'))
-
-  ## Now fill up the revs
-  for rev in revs:
-    #curs.execute("insert into trust_revision_q (revision) values ("+str(rev)+")")
-    revs_added += 1
-
-  return revs_added
+  # Run evalwiki
+  os.system(evalwiki + " --db_user " + ini_config.get('db', 'user') + " --db_name " + ini_config.get('db', 'db') 
+      + " --db_pass " + ini_config.get('db', 'pass') )
+  return
 
 try:
-  opts, args = getopt.gnu_getopt(sys.argv[1:], "hv", ["help", "use_dump="])
+  opts, args = getopt.gnu_getopt(sys.argv[1:], "hv", ["help", "use_dump=", "evalwiki="])
 except getopt.GetoptError:
   # print help information and exit:
   usage()
@@ -123,10 +113,12 @@ for o, a in opts:
     sys.exit(2)
   if o in ("--use_dump"):
     use_dump = a
+  if o in ("--evalwiki"):                                                                 
+    evalwiki = a 
   if o in ("-v"):
     verbose = True
 
-if use_dump == "" or eval_wiki == "":
+if use_dump == "":
   usage()
   sys.exit(2)
 
@@ -142,5 +134,3 @@ curs = connection.cursor()
 
 set_test() 
 
-if verbose:
-  print "Created a new test instance with " + str(revs_added) + " revisions."
