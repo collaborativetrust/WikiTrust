@@ -68,7 +68,8 @@ GRANT ALL ON user_rep_history TO wikiuser;
 -- place a store colored markup
 CREATE TABLE colored_markup (
         revision_id     int PRIMARY KEY,
-        revision_text   text NOT NULL
+        revision_text   text NOT NULL,
+        coloredon       timestamp NOT NULL DEFAULT now()
 );
 GRANT ALL ON colored_markup TO wikiuser;
 

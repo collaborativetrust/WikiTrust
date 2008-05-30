@@ -46,7 +46,12 @@ class db :
   string (* database name *) -> 
 
   object
-  
+   
+    (** [fetch_last_colored_rev : (rev_id, page_id)]] Returns the revid and page
+        id of the last colored revision. Raises DB_Not_Found if no revisions have been colored.
+    *)    
+    method fetch_last_colored_rev : (int * int)
+
     (** [fetch_all_revs] Returns a pointer to a result set consisting in all the 
 	revisions of the database, in ascending temporal order. *)
     method fetch_all_revs : Mysql.result
