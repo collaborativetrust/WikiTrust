@@ -83,6 +83,7 @@ class page
       (* Reads the most recent revisions *)
       let db_p = new Db_page.page db page_id revision_id in 
       let i = ref trust_coeff.n_revs_to_consider in 
+      let first = ref true in 
       while (!i > 0) do begin 
         match db_p#get_rev with
           None -> i := 0 (* We have read all revisions *)
@@ -91,6 +92,15 @@ class page
             Hashtbl.add revid_to_rev rid r;
 	    revs <- Vec.append r revs; 
 	    i := !i - 1;
+	    (* Reads the revision text, as we will need it, and there are advantages in 
+	       reading it now.  For the most recent revision, we read the normal text; 
+	       for the others, the colored text *)
+	    if !first then begin 
+	      ignore (r#get_words); 
+	      first := false
+	    end else begin 
+	      ignore (r#get_trust)
+	    end
 	  end (* Some r *)
       end done;
       (* Sets the current time *)

@@ -136,14 +136,15 @@ class db
           persistent_text FROM quality_info WHERE rev_id = ?" 
     val sth_set_colored = "UPDATE revision SET 
           trust_rev_colored = TRUE WHERE rev_id = ?"
-    val sth_revert_colored = "UPDATE revision set
+   val sth_revert_colored = "UPDATE revision set
           trust_rev_colored = FALSE WHERE rev_id = ?"
-    val sth_select_revs = "SELECT rev_id, rev_page,
+    val sth_select_revs = "SELECT rev_id, rev_page, rev_text_id, 
           rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM            
           revision WHERE rev_page = ? AND rev_id <= ? ORDER BY rev_timestamp DESC"
-    val sth_select_all_revs = "SELECT rev_id, rev_page,
+    val sth_select_all_revs = "SELECT rev_id, rev_page, rev_text_id, 
           rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM            
           revision ORDER BY rev_timestamp ASC"
+    val sth_select_text = "SELECT old_text FROM text WHERE old_id = ?"
 
     (** [fetch_all_revs] returns a cursor that points to all revisions in the database, 
 	in ascending order of timestamp. *)
@@ -213,6 +214,14 @@ class db
           in
       List.iter f elist
     
+   
+    (** [get_rev_text text_id] returns the text associated with text id [text_id] *)
+    method read_rev_text (text_id: int) : string = 
+      let result = Mysql.exec dbh (format_string sth_select_text [ml2int text_id]) in 
+      match Mysql.fetch result with 
+	None -> raise DB_Not_Found
+      | Some y -> not_null str2ml y.(1)
+
 
     (** [get_rep uid] gets the reputation of user [uid], from a table 
 	      relating user ids to their reputation 

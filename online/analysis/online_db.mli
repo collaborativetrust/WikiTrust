@@ -68,6 +68,9 @@ class db :
 	previous values should be over-written. *)
     method write_edit_diff : int -> int -> string -> (Editlist.edit list) -> unit
 
+    (** [get_rev_text text_id] returns the text associated with text id [text_id] *)
+    method read_rev_text : int -> string 
+
     (** [get_rep uid] gets the reputation of user [uid], from a table 
 	relating user ids to their reputation *)
     method get_rep : int -> float

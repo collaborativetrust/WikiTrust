@@ -46,6 +46,7 @@ class revision
   (db: Online_db.db)
   (rev_id: int) (* revision id *)
   (page_id: int) (* page id *)
+  (text_id: int) (* text id, we need it to save a db access later on *)
   (time: float) (* time, as a floating point *)
   (user_id: int) (* user id *)
   (username: string) (* name of the user *)
@@ -80,8 +81,8 @@ class revision
     method get_user_name : string = username 
     method get_is_anon : bool = is_anon
 
-      (* Reads the revision text from the db, and splits it appropriately *)
-    method read_text : unit = 
+      (* Reads the colored revision text from the db, and splits it appropriately *)
+    method private read_colored_text : unit = 
       let text_vec = Vec.singleton (db#read_colored_markup rev_id) in 
       let (w, t, o, s_idx, s) = Text.split_into_words_seps_and_info text_vec in 
       words <- Some w; 
@@ -89,6 +90,15 @@ class revision
       origin <- Some o; 
       seps <- Some s; 
       sep_word_idx <- Some s_idx
+
+      (* Reads the revision text from the db, and splits it appropriately *)
+    method private read_text : unit = 
+      let text_vec = Vec.singleton (db#read_rev_text text_id) in 
+      let (w, t, o, s_idx, s) = Text.split_into_words_seps_and_info text_vec in 
+      words <- Some w; 
+      seps <- Some s; 
+      sep_word_idx <- Some s_idx
+      
 
     method get_words : word array =
       match words with 
@@ -104,7 +114,7 @@ class revision
       match trust with 
 	Some w -> w
       | None -> begin 
-	  self#read_text;
+	  self#read_colored_text;
 	  match trust with 
 	    Some w -> w
 	  | None -> raise ReadTextError
@@ -114,7 +124,7 @@ class revision
       match origin with 
 	Some w -> w
       | None -> begin 
-	  self#read_text;
+	  self#read_colored_text;
 	  match origin with 
 	    Some w -> w
 	  | None -> raise ReadTextError
@@ -124,7 +134,7 @@ class revision
       match seps with 
 	Some w -> w
       | None -> begin 
-	  self#read_text;
+	  self#read_colored_text;
 	  match seps with 
 	    Some w -> w
 	  | None -> raise ReadTextError
@@ -134,7 +144,7 @@ class revision
       match sep_word_idx with 
 	Some w -> w
       | None -> begin 
-	  self#read_text;
+	  self#read_colored_text;
 	  match sep_word_idx with 
 	    Some w -> w
 	  | None -> raise ReadTextError
@@ -193,8 +203,9 @@ let make_revision row db: revision =
   new revision db 
     (not_null int2ml row.(0)) 
     (not_null int2ml row.(1))                 
-    (float_of_string (not_null str2ml row.(2))) 
-    (not_null int2ml row.(3)) 
-    (not_null str2ml row.(4)) 
-    (set_is_minor (not_null int2ml row.(5)))                           
-    (not_null str2ml row.(6))
+    (not_null int2ml row.(2))
+    (float_of_string (not_null str2ml row.(3))) 
+    (not_null int2ml row.(4)) 
+    (not_null str2ml row.(5)) 
+    (set_is_minor (not_null int2ml row.(6)))                           
+    (not_null str2ml row.(7))
