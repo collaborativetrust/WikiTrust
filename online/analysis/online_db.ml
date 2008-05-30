@@ -144,6 +144,15 @@ class db
     val sth_select_all_revs = "SELECT rev_id, rev_page,
           rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM            
           revision ORDER BY rev_timestamp ASC"
+    val sth_select_last_colored_rev = "SELECT A.revision_id, B.rev_page FROM 
+          colored_markup AS A JOIN revision AS B ON (A.revision_id = B.rev_id) 
+          ORDER BY coloredon DESC LIMIT 1"
+
+    (* Returns the last colored rev, if any *)
+    method fetch_last_colored_rev : (int * int) =
+      match fetch (Mysql.exec dbh sth_select_last_colored_rev) with
+        | None -> raise DB_Not_Found
+        | Some row -> (not_null int2ml row.(0), not_null int2ml row.(1))
 
     (** [fetch_all_revs] returns a cursor that points to all revisions in the database, 
 	in ascending order of timestamp. *)
@@ -162,29 +171,24 @@ class db
       
       let result = Mysql.exec dbh (format_string sth_select_edit_list 
           [Mysql.ml2int revid1; Mysql.ml2int revid2]) in
-      let elist = [] in
-      let p_elist = ref elist in
-      let version = "" in
-      let p_version = ref version in
-      let handle_row row = (
-        p_version := (not_null str2ml row.(4));
+      
+      let handle_head row =
         match not_null str2ml row.(0) with
-        | "Ins" -> p_elist := Editlist.Ins (not_null int2ml row.(1), not_null 
-            int2ml row.(2)) :: !p_elist
-        | "Del" -> p_elist := Editlist.Del (not_null int2ml row.(1), not_null 
-            int2ml row.(2)) :: !p_elist
-        | "Mov" -> p_elist := Editlist.Mov (not_null int2ml row.(1), not_null 
-            int2ml row.(2), not_null int2ml row.(3)) :: !p_elist
-        | _ -> raise DB_Not_Found    
-      ) in  
-      let rec loop = function                                                               
-        | None      -> []                                                                
-        | Some x    -> handle_row x :: loop (Mysql.fetch result)                                            
-      in                                                                                    
-      ignore (loop (Mysql.fetch result));
-      match List.length !p_elist with
-        | 0 -> None
-        | _ -> Some (!p_version, !p_elist)
+          | "Ins" -> Editlist.Ins (not_null int2ml row.(1), not_null int2ml row.(2))
+          | "Del" -> Editlist.Del (not_null int2ml row.(1), not_null int2ml row.(2))
+          | "Mov" -> Editlist.Mov (not_null int2ml row.(1), not_null int2ml row.(2),
+              not_null int2ml row.(3))
+          | _     -> raise DB_Not_Found    
+      in        
+      let rec handle_tail res =
+        match res with
+          | None -> []
+          | Some row -> handle_head row :: handle_tail (Mysql.fetch result) 
+      in    
+      match Mysql.fetch result with 
+          | None -> None
+          | Some row -> Some (not_null str2ml row.(4), handle_head row :: 
+              handle_tail (Mysql.fetch result))
       
      
     (** [wrte_edit_diff revid1 revid2 elist] writes to the database the edit list 
