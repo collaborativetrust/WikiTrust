@@ -120,7 +120,10 @@ class page
 	| None -> old_rep
       end else begin 
 	(* We have to read it from disk *)
-	let r = db#get_rep uid in 
+	let r = 
+ 	  try db#get_rep uid
+	  with Online_db.DB_Not_Found -> 0.
+	in 
 	Hashtbl.add rep_cache uid (r, None); 
 	r
       end
@@ -132,7 +135,10 @@ class page
 	Hashtbl.replace rep_cache uid (old_rep, Some r)
       end else begin 
 	(* We have to read it from disk *)
-	let old_rep = db#get_rep uid in 
+	let old_rep = 
+	  try db#get_rep uid
+	  with Online_db.DB_Not_Found -> 0.
+	in 
 	Hashtbl.add rep_cache uid (old_rep, Some r)
       end
 
@@ -386,7 +392,11 @@ class page
       (* Gets the author reputation from the db. 
          As we are not holding the reputation lock at this point, we do not use
          the internal method to get the reputation. *)
-      let weight_user = self#weight (db#get_rep rev0_uid) in 
+      let rep_user = 
+ 	try db#get_rep rev0_uid
+	with Online_db.DB_Not_Found -> 0.
+      in 
+      let weight_user = self#weight (rep_user) in 
 
       (* Now we proceed by cases, depending on whether this is the first revision of the 
          page, or whether there have been revisions before. *)

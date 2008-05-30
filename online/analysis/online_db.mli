@@ -38,6 +38,8 @@ POSSIBILITY OF SUCH DAMAGE.
 
 open Online_types;;
 
+exception DB_Not_Found;;
+
 class db : 
   string (* user *) -> 
   string (* auth *) ->

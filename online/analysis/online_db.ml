@@ -220,7 +220,7 @@ class db
       let result = Mysql.exec dbh (format_string sth_select_text [ml2int text_id]) in 
       match Mysql.fetch result with 
 	None -> raise DB_Not_Found
-      | Some y -> not_null str2ml y.(1)
+      | Some y -> not_null str2ml y.(0)
 
 
     (** [get_rep uid] gets the reputation of user [uid], from a table 

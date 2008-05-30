@@ -55,12 +55,7 @@ class page
     (* This method gets, every time, the previous revision of the page, 
        starting from the revision id that was given as input. *)
     method get_rev : Online_revision.revision option =
-      let next_rev = Mysql.fetch revs in
-      let set_is_minor ism = match ism with
-        | 0 -> false
-        | 1 -> true
-        | _ -> assert false in
-      match next_rev with
+      match Mysql.fetch revs with
         | None -> None
         | Some row -> Some (Online_revision.make_revision row db)
   end (* End page *)
