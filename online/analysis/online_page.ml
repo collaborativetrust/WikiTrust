@@ -83,7 +83,6 @@ class page
       (* Reads the most recent revisions *)
       let db_p = new Db_page.page db page_id revision_id in 
       let i = ref trust_coeff.n_revs_to_consider in 
-      let first = ref true in 
       while (!i > 0) do begin 
         match db_p#get_rev with
           None -> i := 0 (* We have read all revisions *)
@@ -92,15 +91,6 @@ class page
             Hashtbl.add revid_to_rev rid r;
 	    revs <- Vec.append r revs; 
 	    i := !i - 1;
-	    (* Reads the revision text, as we will need it, and there are advantages in 
-	       reading it now.  For the most recent revision, we read the normal text; 
-	       for the others, the colored text *)
-	    if !first then begin 
-	      ignore (r#get_words); 
-	      first := false
-	    end else begin 
-	      ignore (r#get_trust)
-	    end
 	  end (* Some r *)
       end done;
       (* Sets the current time *)
@@ -108,8 +98,16 @@ class page
       if n_revs > 0 then begin 
 	let r = Vec.get 0 revs in 
 	curr_time <- r#get_time
-      end
- 
+      end;
+      (* Reads the revision text, as we will need it, and there are advantages in 
+	 reading it now.  For the most recent revision, we read the normal text; 
+	 for the others, the colored text *)
+      (* TO DO: this is the place where we can detect "holes" in the coloring.
+         For this reason it is best to start from the oldest (n_revs - 1) revision. *)
+      for i = n_revs - 1 downto 0 do begin 
+	let r = Vec.get i revs in
+	if i = 0 then ignore (r#get_words) else ignore (r#get_trust)
+      end done
 
     (** This method returns the current value of the user reputation *)
     method private get_rep (uid: int) : float = 
@@ -437,7 +435,7 @@ class page
         let d_prev = Hashtbl.find edit_dist (rev1_id, rev0_id) in 
         let close_idx = ref 1 in 
         let closest_d = ref d_prev in 
-        for i = 2 to n_revs do begin 
+        for i = 2 to n_revs - 1 do begin 
           let revi = Vec.get i revs in 
           let revi_id = revi#get_id in 
           let d = Hashtbl.find edit_dist (revi_id, rev0_id) in  
@@ -652,8 +650,10 @@ class page
       db#get_page_lock page_id; 
       begin 
 	(* Computes the edit distances *)
+	print_string "   Computing edit lists...\n"; flush stdout; (* debug *)
 	self#compute_edit_lists; 
 	(* Computes, and writes to disk, the trust of the newest revision *)
+	print_string "   Computing trust...\n"; flush stdout; (* debug *)
 	self#compute_trust;
 	
       
@@ -661,8 +661,10 @@ class page
 	db#get_rep_lock; 
 	begin 
 	  (* We now process the reputation update. *)
+	  print_string "   Computing edit incs...\n"; flush stdout; (* debug *)
 	  self#compute_edit_inc;
 	  (* and we write them to disk *)
+	  print_string "   Writing the reputations...\n"; flush stdout; (* debug *)
 	  self#write_all_reps;
 	  (* Done accessing the global reputation table *)
 	  db#release_rep_lock; 
@@ -670,6 +672,7 @@ class page
 
 	(* Finally, we write back to disc the quality information of all revisions *)
 	(* The function f is iterated on revid_to_rev *)
+	print_string "   Writing the quality information...\n"; flush stdout; (* debug *)
 	let f (revid: int) (r: Online_revision.revision) : unit = 
           r#write_quality_info 
 	in Hashtbl.iter f revid_to_rev; 
@@ -680,7 +683,9 @@ class page
 
       (* Flushes the logger.  *)
       logger#flush;
-      
+
+      print_string "   All done!\n"; flush stdout; (* debug *)
+	
 
   end (* class *)
 
