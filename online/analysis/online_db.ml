@@ -36,9 +36,11 @@ POSSIBILITY OF SUCH DAMAGE.
 open Online_types
 open Mysql
 
+let debug_mode = true;;
+
 let rec format_string (str : string) (vals : string list) : string =                    
   match vals with                                                                       
-    | [] -> str                                                                         
+    | [] -> if debug_mode then print_endline str; str
     | hd::tl -> (match (ExtString.String.replace str "?" hd) with                       
       | (true, newstr) -> format_string newstr tl                                       
       | (false, newstr) -> newstr)                                                      
@@ -129,11 +131,11 @@ class db
     val sth_delete_quality = "DELETE FROM quality_info WHERE
           rev_id = ?"
     val sth_insert_quality = "INSERT INTO quality_info
-          (rev_id, n_edit_judges, total_edit_quality, min_edit_quality, 
-          n_text_judges, new_text, persistent_text ) VALUES (?, ?, ?, ?, ?, ?, ?)" 
+          (rev_id, n_edit_judges, total_edit_quality, min_edit_quality, nix_bit
+          ) VALUES (?, ?, ?, ?, ?)" 
     val sth_select_quality = "SELECT rev_id, n_edit_judges,
-          total_edit_quality, min_edit_quality, n_text_judges, new_text,
-          persistent_text FROM quality_info WHERE rev_id = ?" 
+          total_edit_quality, min_edit_quality, nix_bit
+          FROM quality_info WHERE rev_id = ?" 
     val sth_set_colored = "UPDATE revision SET 
           trust_rev_colored = TRUE WHERE rev_id = ?"
    val sth_revert_colored = "UPDATE revision set
@@ -439,10 +441,7 @@ class db
 	serializability of the updates. *)
     method release_rep_lock = ()
 
-
-
-
-    (** Clear everything out -- INTENDED FOR UNIT TESTING ONLY *)
+    (** Clear everything out *)
     method delete_all (really : bool) =
       match really with
         | true -> (

@@ -1,3 +1,4 @@
+
 DROP TABLE text_split_version;
 DROP TABLE edit_lists;
 DROP TABLE trust_user_rep;
@@ -113,7 +114,7 @@ CREATE TABLE dead_page_chunk_map (
         origin_id int REFERENCES chunk_origin(origin_id)  ON DELETE CASCADE ON 
                UPDATE CASCADE,
         chunk_posit int NOT NULL,
-        PRIMARY KEY (chunk_id, text_id, trust_id, origin_id)
+        PRIMARY KEY (chunk_id, text_id, trust_id, origin_id, chunk_posit)
 );
 
 CREATE INDEX dead_chunk_map_posit_id ON dead_page_chunk_map (chunk_posit);
