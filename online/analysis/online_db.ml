@@ -36,7 +36,7 @@ POSSIBILITY OF SUCH DAMAGE.
 open Online_types
 open Mysql
 
-let debug_mode = true;;
+let debug_mode = false;;
 
 let rec format_string (str : string) (vals : string list) : string =                    
   match vals with                                                                       
@@ -95,32 +95,12 @@ class db
           (revision_id, revision_text) VALUES (?, ?) " 
     val sth_select_markup = "SELECT revision_text FROM 
           colored_markup WHERE revision_id = ?" 
-    val sth_select_text_id = "SELECT text_id FROM 
-            chunk_text WHERE chunk_text = ?"
-    val sth_select_trust_id = "SELECT trust_id FROM
-            chunk_trust WHERE chunk_trust = ?"
-    val sth_select_origin_id =  "SELECT origin_id
-            FROM chunk_origin WHERE chunk_origin = ?"
-    val sth_insert_text = "INSERT INTO chunk_text
-            (chunk_text) values (?)"
-    val sth_insert_trust = "INSERT INTO chunk_trust
-            (chunk_trust) VALUES (?)"
-    val sth_insert_origin = "INSERT INTO chunk_origin
-            (chunk_origin) VALUES (?)"
-    val sth_insert_chunk_map = "INSERT INTO
-            dead_page_chunk_map (chunk_id, text_id, trust_id, origin_id,
-            chunk_posit ) VALUES (?, ?, ?, ?, ?)"
-    val sth_insert_chunk = "INSERT INTO dead_page_chunks 
-            (page_id, timestamp, n_del_revs, n_chunks) VALUES (?, ?, ?, ?)"
-    val sth_select_chunk_id = "SELECT chunk_id FROM 
-            dead_page_chunks WHERE page_id = ? ORDER BY addedon DESC LIMIT 1"
-    val sth_select_dead_chunks = "SELECT chunk_id,
-      timestamp, n_del_revs, n_chunks FROM dead_page_chunks WHERE page_id = ?"
-    val sth_select_chunk_arr_vals = "SELECT A.chunk_posit,
-      B.chunk_text, C.chunk_trust, D.chunk_origin  FROM dead_page_chunk_map as A
-      LEFT JOIN chunk_text as B ON A.text_id = B.text_id  LEFT JOIN chunk_trust 
-      AS C ON A.trust_id = C.trust_id LEFT JOIN chunk_origin AS D ON A.origin_id 
-      = D.origin_id WHERE A.chunk_id = ?" 
+    val sth_select_dead_chunks_flat = "SELECT timestamp, n_del_revs, ser_text, 
+      ser_trust, ser_origin FROM dead_page_chunk_flat WHERE page_id = ?"
+    val sth_delete_chunks_flat = "DELETE FROM dead_page_chunk_flat WHERE page_id = ?"
+    val sth_insert_chunks_flat = "INSERT INTO dead_page_chunk_flat (page_id,
+       timestamp, n_del_revs, ser_trust, ser_origin, ser_text)
+       VALUES (?, ?, ?, ?, ?, ?)"
     val sth_delete_feedback = "DELETE FROM feedback WHERE revid1 
           = ? AND revid2 = ?"
     val sth_insert_feedback = "INSERT INTO feedback (revid1, 
@@ -310,36 +290,17 @@ class db
 	been deleted; the database records its existence. *)
     method write_dead_page_chunks (page_id : int) (clist : Online_types.chunk_t
     list) : unit =
-      let rec get_id stmnt_sel stmnt_ins tx : int = (
-          let result = Mysql.exec dbh (format_string stmnt_sel tx) in
-          match Mysql.fetch result with
-            | None -> (ignore (Mysql.exec dbh (format_string stmnt_ins tx));
-                      get_id stmnt_sel stmnt_ins tx)
-            | Some x -> not_null int2ml x.(0)
-      ) in 
-      let f (chk : Online_types.chunk_t) = (
-        ignore (Mysql.exec dbh (format_string sth_insert_chunk 
-            [ml2int page_id; ml2float chk.timestamp; 
+      let f (chk : Online_types.chunk_t) = ( 
+            ignore (Mysql.exec dbh (format_string sth_delete_chunks_flat
+                [ml2int page_id]));
+            ignore (Mysql.exec dbh (format_string sth_insert_chunks_flat
+            [ml2int page_id; 
+            ml2float chk.timestamp; 
             ml2int chk.n_del_revisions;
-            ml2int (Array.length chk.text)]));
-        let result = Mysql.exec dbh (format_string sth_select_chunk_id [ml2int page_id]) in
-        let dead_chunk_id = match Mysql.fetch result with
-          | None -> raise DB_Not_Found
-          | Some x -> not_null int2ml x.(0) 
-        in  
-        for i = 0 to (Array.length chk.text) - 1 do
-          begin
-            let text_id = get_id sth_select_text_id sth_insert_text
-                [ml2str chk.text.(i)] in
-            let trust_id = get_id sth_select_trust_id sth_insert_trust 
-                [ml2float chk.trust.(i)] in
-            let origin_id = get_id sth_select_origin_id sth_insert_origin 
-                [ml2int chk.origin.(i)] in
-            ignore (Mysql.exec dbh (format_string sth_insert_chunk_map 
-                [ml2int dead_chunk_id; ml2int text_id;
-                ml2int trust_id; ml2int origin_id; ml2int i ]));  
-          end;
-        done;  
+            ml2str (Marshal.to_string chk.trust [Marshal.No_sharing]);
+            ml2str (Marshal.to_string chk.origin [Marshal.No_sharing]);
+            ml2str (Marshal.to_string chk.text [Marshal.No_sharing])
+            ]));
       ) in
       List.iter f clist;
       ignore (Mysql.exec dbh "COMMIT")
@@ -348,31 +309,15 @@ class db
 	with the page [page_id]. *)
     method read_dead_page_chunks (page_id : int) : Online_types.chunk_t list =
       let handle_row row = (
-        let n_chunks = not_null int2ml row.(3) in
-        let timet = not_null float2ml row.(1) in
-        let n_rel_revs = not_null int2ml row.(2) in
-        let texta = Array.make n_chunks "" in
-        let trusta = Array.make n_chunks 0.0 in
-        let origina = Array.make n_chunks 0 in
-        let chunk_id_int = not_null int2ml row.(0) in
-        let getarr_res = Mysql.exec dbh (format_string sth_select_chunk_arr_vals [ml2int chunk_id_int]) in
-        let rec process_array_res next_row res = ( match next_row with
-          | None -> ()
-          | Some x -> (texta.(not_null int2ml x.(0)) <- not_null str2ml x.(1);
-                      trusta.(not_null int2ml x.(0)) <- not_null float2ml x.(2);
-                      origina.(not_null int2ml x.(0)) <- not_null int2ml x.(3);
-                      process_array_res (fetch getarr_res) getarr_res;
-                      ) 
-                      ) in
-        process_array_res (fetch getarr_res) getarr_res;
-        { timestamp = timet;                                                
-          n_del_revisions = n_rel_revs;                                       
-          text = texta;                                                       
-          trust = trusta;                                                     
-          origin = origina 
+        { timestamp = not_null float2ml row.(0);
+          n_del_revisions = not_null int2ml row.(1);
+          text = Marshal.from_string (not_null str2ml row.(2)) 0;
+          trust = Marshal.from_string (not_null str2ml row.(3)) 0;
+          origin = Marshal.from_string (not_null str2ml row.(4)) 0;
         }
       ) in
-      let result = Mysql.exec dbh (format_string sth_select_dead_chunks [ml2int page_id ]) in
+      let result = Mysql.exec dbh (format_string sth_select_dead_chunks_flat 
+          [ml2int page_id ]) in
       let rec loop = function
         | None      -> []
         | Some x    -> handle_row x :: loop (Mysql.fetch result)

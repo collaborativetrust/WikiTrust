@@ -1,4 +1,5 @@
 
+BEGIN;
 DROP TABLE text_split_version;
 DROP TABLE edit_lists;
 DROP TABLE trust_user_rep;
@@ -9,7 +10,11 @@ DROP TABLE chunk_text;
 DROP TABLE chunk_trust;
 DROP TABLE chunk_origin;
 DROP TABLE dead_page_chunk_map;
+DROP TABLE dead_page_chunk_flat;
 DROP TABLE quality_info;
+COMMIT;
+
+BEGIN; 
 
 -- quality info?
 CREATE TABLE quality_info (
@@ -119,6 +124,20 @@ CREATE TABLE dead_page_chunk_map (
 
 CREATE INDEX dead_chunk_map_posit_id ON dead_page_chunk_map (chunk_posit);
 GRANT ALL ON dead_page_chunk_map TO wikiuser;
+
+CREATE TABLE dead_page_chunk_flat (
+  chunk_id    serial PRIMARY KEY,
+  timestamp   float NOT NULL,
+  page_id     int NOT NULL,
+  n_del_revs  int NOT NULL,
+  ser_text    text NOT NULL,
+  ser_trust   text NOT NULL,
+  ser_origin  text NOT NULL
+);
+
+CREATE INDEX dead_page_chunk_flat_page_idx on dead_page_chunk_flat (page_id);
+GRANT ALL ON dead_page_chunk_flat TO wikiuser;
+
 
 
 
