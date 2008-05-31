@@ -67,7 +67,7 @@ CREATE TABLE user_rep_history(
         rep_before  float NOT NULL,
         rep_after   float NOT NULL,
         change_time float NOT NULL,
-        primary key (user_id, change_time)
+	event_id    int NOT NULL AUTO_INCREMENT PRIMARY KEY
 );
 GRANT ALL ON user_rep_history TO wikiuser;
 

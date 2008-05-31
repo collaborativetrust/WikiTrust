@@ -84,11 +84,9 @@ class db
           ? WHERE user_id = ?" 
     val sth_insert_user_rep = "INSERT INTO trust_user_rep
           (user_id,  user_rep) VALUES (?, ?)" 
-    val sth_delete_hist = "DELETE FROM user_rep_history WHERE 
-          user_id = ? AND change_time = ?" 
     val sth_insert_hist = "INSERT INTO user_rep_history 
-          (user_id, rep_before, rep_after, change_time) VALUES
-          (?, ?, ?, ?)" 
+          (user_id, rep_before, rep_after, change_time, event_id) VALUES
+          (?, ?, ?, ?, NULL)" 
     val sth_delete_markup = "DELETE FROM colored_markup WHERE 
           revision_id = ?" 
     val sth_insert_markup = "INSERT INTO colored_markup 
@@ -227,7 +225,7 @@ class db
       try
         ignore (self#get_rep uid ) ;
         ignore (Mysql.exec dbh (format_string sth_update_user_rep 
-            [ml2int uid; ml2float rep ])); 
+            [ml2float rep; ml2int uid ])); 
       with
         DB_Not_Found -> 
           ignore (Mysql.exec dbh (format_string sth_insert_user_rep 
@@ -240,11 +238,6 @@ class db
 	[r0] to [r1]. *)
     method set_rep_hist (uid : int) (timet : float) (r0 : float) (r1 : float)
     : unit =
-      (* First we delete any pre-existing text. *)
-      ignore (Mysql.exec dbh (format_string sth_delete_hist 
-          [ml2int uid; ml2float timet ]));
-
-      (* Next we add in the new text. *)
       ignore (Mysql.exec dbh (format_string sth_insert_hist 
           [ml2int uid; ml2float r0; ml2float r1; ml2float timet ]));
       ignore (Mysql.exec dbh "COMMIT")

@@ -128,16 +128,19 @@ class page
 
     (** This method sets, but does not write to disk, a new user reputation. *)
     method private set_rep (uid: int) (r: float) : unit = 
+      (* Reputations must be in the interval [0...maxrep] *)
+      let r' = max 0. (min trust_coeff.max_rep r) in 
+      Printf.printf "set_rep uid: %d r: %f\n" uid r'; (* debug *)
       if Hashtbl.mem rep_cache uid then begin 
 	let (old_rep, _) = Hashtbl.find rep_cache uid in 
-	Hashtbl.replace rep_cache uid (old_rep, Some r)
+	Hashtbl.replace rep_cache uid (old_rep, Some r')
       end else begin 
 	(* We have to read it from disk *)
 	let old_rep = 
 	  try db#get_rep uid
 	  with Online_db.DB_Not_Found -> 0.
 	in 
-	Hashtbl.add rep_cache uid (old_rep, Some r)
+	Hashtbl.add rep_cache uid (old_rep, Some r')
       end
 
     (** Write all new reputations to the db *)
@@ -542,7 +545,10 @@ class page
         We use as input the reputation weight of the last user, who acts as the judge. *)
     method private compute_edit_inc : unit = 
       (* The Qual function (see paper) *)
-      let qual d01 d12 d02 = (d02 -. d12) /. d01 in 
+      let qual d01 d12 d02 = begin 
+	let qq = if d01 > 0. then (d02 -. d12) /. d01 else 1.
+	in max (-1.) (min 1. qq)
+      end in 
  
       let n_revs = Vec.length revs in 
       (* The "triangle" of revisions is formed as follows: rev2 (newest, and judge); rev1 (judged),
