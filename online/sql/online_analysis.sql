@@ -2,6 +2,7 @@
 BEGIN;
 DROP TABLE text_split_version;
 DROP TABLE edit_lists;
+DROP TABLE edit_lists_flat;
 DROP TABLE trust_user_rep;
 DROP TABLE user_rep_history;
 DROP TABLE colored_markup;
@@ -50,6 +51,16 @@ CREATE TABLE edit_lists (
 
 CREATE INDEX edit_lists_idx ON edit_lists (from_revision, to_revision);
 GRANT ALL ON edit_lists TO wikiuser;
+
+-- flattened edit lists
+CREATE TABLE edit_lists_flat (
+        version         text NOT NULL,
+        from_revision   int ,
+        to_revision     int,
+        edits           text,
+        PRIMARY KEY (from_revision, to_revision)
+);
+GRANT ALL ON edit_lists_flat TO wikiuser;
 
 -- Reputation of a user
 -- first, a table with all known user names and ids

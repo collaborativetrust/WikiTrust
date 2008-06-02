@@ -36,8 +36,11 @@ POSSIBILITY OF SUCH DAMAGE.
 open Online_types
 open Mysql
 open Sexplib.Conv
+open Sexplib.Sexp
 
 let debug_mode = false;;
+
+let identity x = x;;
 
 let rec format_string (str : string) (vals : string list) : string =                    
   match vals with                                                                       
@@ -67,18 +70,12 @@ class db
   object(self)
     
     (* HERE are all of the prepaired sql statments used below *)
-    val sth_select_edit_list = "SELECT edit_type, val1,
-          val2, val3, version FROM edit_lists WHERE 
-          from_revision = ? AND to_revision  = ?"
-    val sth_delete_edit_list = "DELETE FROM edit_lists WHERE
-          from_revision = ? AND to_revision = ? AND edit_type = ?"      
-    val sth_ins_ins_edit_lists = "INSERT INTO edit_lists (from_revision,
-          to_revision, edit_type, version, val1, val2 ) VALUES (?, ?, 'Ins', ?, ?, ?) " 
-    val sth_ins_mov_edit_lists = "INSERT INTO edit_lists (from_revision,
-          to_revision, edit_type, version, val1, val2, val3 ) VALUES (?, ?, 'Mov', ?, ?,
-          ?, ?) " 
-    val sth_ins_del_edit_lists = "INSERT INTO edit_lists (from_revision,
-          to_revision, edit_type, version, val1, val2 ) VALUES (?, ?, 'Del', ?, ?, ?) " 
+    val sth_select_edit_list_flat = "SELECT version, edits FROM edit_lists_flat 
+        WHERE from_revision = ? AND to_revision  = ?"
+    val sth_delete_edit_list_flat = "DELETE FROM edit_lists_flat WHERE 
+        from_revision = ? AND to_revision  = ?"
+    val sth_insert_edit_list_flat = "INSERT INTO edit_lists_flat (version, edits, 
+        from_revision, to_revision) VALUES (?, ?, ?, ?)"
     val sth_select_user_rep = "SELECT user_rep FROM trust_user_rep 
           WHERE user_id = ?" 
     val sth_update_user_rep = "UPDATE trust_user_rep SET user_rep = 
@@ -151,61 +148,57 @@ class db
     method read_edit_diff (revid1 : int) (revid2 : int) : 
       (string * (Editlist.edit list)) option =
       
-      let result = Mysql.exec dbh (format_string sth_select_edit_list 
-          [Mysql.ml2int revid1; Mysql.ml2int revid2]) in
-      
-      let handle_head row =
-        match not_null str2ml row.(0) with
-          | "Ins" -> Editlist.Ins (not_null int2ml row.(1), not_null int2ml row.(2))
-          | "Del" -> Editlist.Del (not_null int2ml row.(1), not_null int2ml row.(2))
-          | "Mov" -> Editlist.Mov (not_null int2ml row.(1), not_null int2ml row.(2),
-              not_null int2ml row.(3))
-          | _     -> raise DB_Not_Found    
-      in        
-      let rec handle_tail res =
-        match res with
-          | None -> []
-          | Some row -> handle_head row :: handle_tail (Mysql.fetch result) 
-      in    
+      let sexp2edit (s) : Editlist.edit = 
+        match pair_of_sexp string_of_sexp identity s with
+          | ("Ins", i) -> (match (pair_of_sexp int_of_sexp int_of_sexp i) with
+                          | (a,b) -> Editlist.Ins (a,b))
+          | ("Del", i) -> (match pair_of_sexp int_of_sexp int_of_sexp i with
+                          | (a,b) -> Editlist.Del (a,b))
+          | ("Mov", i) -> (match triple_of_sexp int_of_sexp int_of_sexp int_of_sexp i with
+                          | (a,b,c) -> Editlist.Mov (a,b,c))
+          | _ -> raise DB_Not_Found
+      in
+      let result = Mysql.exec dbh (format_string sth_select_edit_list_flat
+          [Mysql.ml2int revid1; Mysql.ml2int revid2]) 
+      in
       match Mysql.fetch result with 
           | None -> None
-          | Some row -> Some (not_null str2ml row.(4), handle_head row :: 
-              handle_tail (Mysql.fetch result))
+          | Some row -> Some (not_null str2ml row.(0),
+              of_string__of__of_sexp (list_of_sexp sexp2edit) 
+              (not_null str2ml row.(1)))
       
      
     (** [wrte_edit_diff revid1 revid2 elist] writes to the database the edit list 
 	[elist] from the (live) text of revision [revid1] to revision [revid2]. *)
-    method write_edit_diff (revid1 : int) (revid2 : int) (vers : string) (elist : Editlist.edit
-    list) : unit = 
-      let f ed =
-        match ed with
-          | Editlist.Ins (i, l) -> (
-            ignore (Mysql.exec dbh (format_string sth_delete_edit_list [ml2int revid1; ml2int revid2;
-              ml2str "Ins"]));
-            ignore (Mysql.exec dbh (format_string sth_ins_ins_edit_lists [ml2int revid1; 
-                ml2int revid2; ml2str vers; ml2int i; ml2int l ])))
+    method write_edit_diff (revid1 : int) (revid2 : int) (vers : string) 
+        (elist : Editlist.edit list) : unit = 
+  
+      let edit2sexp e = match e with
+        | Editlist.Ins (a,b) -> sexp_of_pair sexp_of_string identity
+          ("Ins", (sexp_of_pair sexp_of_int sexp_of_int) (a, b))
+        | Editlist.Del (a,b) -> sexp_of_pair sexp_of_string identity
+          ("Del", (sexp_of_pair sexp_of_int sexp_of_int) (a, b))
+        | Editlist.Mov (a,b,c)-> sexp_of_pair sexp_of_string identity
+          ("Mov", (sexp_of_triple sexp_of_int sexp_of_int sexp_of_int) (a, b, c))
+      in
 
-          | Editlist.Del (i, l) -> (
-            ignore (Mysql.exec dbh (format_string sth_delete_edit_list 
-                [ml2int revid1; ml2int revid2; ml2str "Del"]));
-            ignore (Mysql.exec dbh (format_string sth_ins_del_edit_lists 
-                [ml2int revid1; ml2int revid2; ml2str vers; ml2int i; ml2int l ];)))
+      (* First we delete any pre-existing text. *)
+      ignore (Mysql.exec dbh (format_string sth_delete_edit_list_flat
+          [ml2int revid1; ml2int revid2]));
+      (* Next we add in the new text. *)
+      ignore (Mysql.exec dbh (format_string sth_insert_edit_list_flat
+          [ml2str vers; 
+          ml2str (string_of__of__sexp_of (sexp_of_list edit2sexp) elist);
+          ml2int revid1; 
+          ml2int revid2 ]));
+      ignore (Mysql.exec dbh "COMMIT")
 
-          | Editlist.Mov (i, j, l) -> (
-            ignore (Mysql.exec dbh (format_string sth_delete_edit_list 
-                [ml2int revid1; ml2int revid2; ml2str "Mov"])); 
-            ignore (Mysql.exec dbh (format_string sth_ins_mov_edit_lists 
-                [ml2int revid1; ml2int revid2; ml2str vers; ml2int i; ml2int j; ml2int l ]; )))
-          in
-      List.iter f elist
-    
-   
     (** [get_rev_text text_id] returns the text associated with text id [text_id] *)
     method read_rev_text (text_id: int) : string = 
       let result = Mysql.exec dbh (format_string sth_select_text [ml2int text_id]) in 
       match Mysql.fetch result with 
-	None -> raise DB_Not_Found
-      | Some y -> not_null str2ml y.(0)
+        | None -> raise DB_Not_Found
+        | Some y -> not_null str2ml y.(0)
 
 
     (** [get_rep uid] gets the reputation of user [uid], from a table 
@@ -388,6 +381,7 @@ class db
       match really with
         | true -> (
             ignore (Mysql.exec dbh "TRUNCATE TABLE text_split_version" );
+            ignore (Mysql.exec dbh "TRUNCATE TABLE edit_lists_flat" );
             ignore (Mysql.exec dbh "TRUNCATE TABLE edit_lists" );
             ignore (Mysql.exec dbh "TRUNCATE TABLE trust_user_rep" );
             ignore (Mysql.exec dbh "TRUNCATE TABLE user_rep_history" ); 
