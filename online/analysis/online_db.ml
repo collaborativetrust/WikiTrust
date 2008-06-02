@@ -35,6 +35,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
 open Online_types
 open Mysql
+open Sexplib.Conv
 
 let debug_mode = false;;
 
@@ -290,9 +291,9 @@ class db
             [ml2int page_id; 
             ml2float chk.timestamp; 
             ml2int chk.n_del_revisions;
-            ml2str (Marshal.to_string chk.trust [Marshal.No_sharing]);
-            ml2str (Marshal.to_string chk.origin [Marshal.No_sharing]);
-            ml2str (Marshal.to_string chk.text [Marshal.No_sharing])
+            ml2str (string_of__of__sexp_of (sexp_of_array sexp_of_float) chk.trust);
+            ml2str (string_of__of__sexp_of (sexp_of_array sexp_of_int) chk.origin);
+            ml2str (string_of__of__sexp_of (sexp_of_array sexp_of_string) chk.text)
             ]));
       ) in
       List.iter f clist;
@@ -304,12 +305,15 @@ class db
       let handle_row row = (
         { timestamp = not_null float2ml row.(0);
           n_del_revisions = not_null int2ml row.(1);
-          text = Marshal.from_string (not_null str2ml row.(2)) 0;
-          trust = Marshal.from_string (not_null str2ml row.(3)) 0;
-          origin = Marshal.from_string (not_null str2ml row.(4)) 0;
+          text = (of_string__of__of_sexp (array_of_sexp string_of_sexp)
+              (not_null str2ml row.(2)));
+          trust = (of_string__of__of_sexp (array_of_sexp float_of_sexp)
+              (not_null str2ml row.(3)));
+          origin = (of_string__of__of_sexp (array_of_sexp int_of_sexp) 
+              (not_null str2ml row.(4)));
         }
       ) in
-      let result = Mysql.exec dbh (format_string sth_select_dead_chunks_flat 
+      let result = Mysql.exec dbh (format_string sth_select_dead_chunks_flat
           [ml2int page_id ]) in
       let rec loop = function
         | None      -> []
@@ -394,6 +398,7 @@ class db
             ignore (Mysql.exec dbh "TRUNCATE TABLE chunk_origin" );
             ignore (Mysql.exec dbh "TRUNCATE TABLE dead_page_chunk_map" );
             ignore (Mysql.exec dbh "TRUNCATE TABLE quality_info" ); 
+            ignore (Mysql.exec dbh "TRUNCATE TABLE dead_page_chunk_flat" ); 
             ignore (Mysql.exec dbh "COMMIT"))
         | false -> ignore (Mysql.exec dbh "COMMIT")
 
