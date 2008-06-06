@@ -72,10 +72,9 @@ class db
     (* HERE are all of the prepaired sql statments used below *)
     val sth_select_edit_list_flat = "SELECT version, edits FROM edit_lists_flat 
         WHERE from_revision = ? AND to_revision  = ?"
-    val sth_delete_edit_list_flat = "DELETE FROM edit_lists_flat WHERE 
-        from_revision = ? AND to_revision  = ?"
     val sth_insert_edit_list_flat = "INSERT INTO edit_lists_flat (version, edits, 
-        from_revision, to_revision) VALUES (?, ?, ?, ?)"
+        from_revision, to_revision) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE
+        version = ?, edits = ?"
     val sth_select_user_rep = "SELECT user_rep FROM trust_user_rep 
           WHERE user_id = ?" 
     val sth_update_user_rep = "UPDATE trust_user_rep SET user_rep = 
@@ -85,30 +84,27 @@ class db
     val sth_insert_hist = "INSERT INTO user_rep_history 
           (user_id, rep_before, rep_after, change_time, event_id) VALUES
           (?, ?, ?, ?, NULL)" 
-    val sth_delete_markup = "DELETE FROM colored_markup WHERE 
-          revision_id = ?" 
     val sth_insert_markup = "INSERT INTO colored_markup 
-          (revision_id, revision_text) VALUES (?, ?) " 
+          (revision_id, revision_text) VALUES (?, ?) ON DUPLICATE KEY UPDATE revision_text = ?" 
     val sth_select_markup = "SELECT revision_text FROM 
           colored_markup WHERE revision_id = ?" 
     val sth_select_dead_chunks_flat = "SELECT timestamp, n_del_revs, ser_text, 
       ser_trust, ser_origin FROM dead_page_chunk_flat WHERE page_id = ?"
-    val sth_delete_chunks_flat = "DELETE FROM dead_page_chunk_flat WHERE page_id = ?"
     val sth_insert_chunks_flat = "INSERT INTO dead_page_chunk_flat (page_id,
        timestamp, n_del_revs, ser_trust, ser_origin, ser_text)
-       VALUES (?, ?, ?, ?, ?, ?)"
-    val sth_delete_feedback = "DELETE FROM feedback WHERE revid1 
-          = ? AND revid2 = ?"
+       VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE timestamp = ?, n_del_revs = ?,
+       ser_trust = ?, ser_origin = ?, ser_text = ?"
     val sth_insert_feedback = "INSERT INTO feedback (revid1, 
           userid1, revid2, userid2, timestamp, q, voided) 
-          VALUES (?, ?, ?, ?, ?, ?, ?)"  
+          VALUES (?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE userid1 = ?, userid2 = ?,
+          timestamp = ?, q = ?, voided = ?"  
     val sth_select_feedback = "SELECT revid2, userid2, timestamp, 
           q, voided FROM feedback WHERE revid1 = ?"   
-    val sth_delete_quality = "DELETE FROM quality_info WHERE
-          rev_id = ?"
     val sth_insert_quality = "INSERT INTO quality_info
           (rev_id, n_edit_judges, total_edit_quality, min_edit_quality, nix_bit
-          ) VALUES (?, ?, ?, ?, ?)" 
+          ) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE n_edit_judges = ?,
+          total_edit_quality = ?, min_edit_quality = ?, 
+          nix_bit = ?" 
     val sth_select_quality = "SELECT rev_id, n_edit_judges,
           total_edit_quality, min_edit_quality, nix_bit
           FROM quality_info WHERE rev_id = ?" 
@@ -182,15 +178,15 @@ class db
           ("Mov", (sexp_of_triple sexp_of_int sexp_of_int sexp_of_int) (a, b, c))
       in
 
-      (* First we delete any pre-existing text. *)
-      ignore (Mysql.exec dbh (format_string sth_delete_edit_list_flat
-          [ml2int revid1; ml2int revid2]));
       (* Next we add in the new text. *)
       ignore (Mysql.exec dbh (format_string sth_insert_edit_list_flat
           [ml2str vers; 
           ml2str (string_of__of__sexp_of (sexp_of_list edit2sexp) elist);
           ml2int revid1; 
-          ml2int revid2 ]));
+          ml2int revid2;
+          ml2str vers;
+          ml2str (string_of__of__sexp_of (sexp_of_list edit2sexp) elist);
+          ]));
       ignore (Mysql.exec dbh "COMMIT")
 
     (** [get_rev_text text_id] returns the text associated with text id [text_id] *)
@@ -248,12 +244,9 @@ class db
 	may be highly advisable. *)
     (* This is currently a first cut, which will be hopefully optimized later *)
     method write_colored_markup (rev_id : int) (markup : string) : unit =
-      (* First we delete any pre-existing text. *)
-      ignore (Mysql.exec dbh (format_string sth_delete_markup 
-          [ml2int rev_id ]));
       (* Next we add in the new text. *)
       ignore (Mysql.exec dbh (format_string sth_insert_markup 
-          [ml2int rev_id; ml2str markup ]));
+          [ml2int rev_id; ml2str markup; ml2str markup ]));
       ignore (Mysql.exec dbh "COMMIT")
 
 
@@ -278,14 +271,17 @@ class db
     method write_dead_page_chunks (page_id : int) (clist : Online_types.chunk_t
     list) : unit =
       let f (chk : Online_types.chunk_t) = ( 
-            ignore (Mysql.exec dbh (format_string sth_delete_chunks_flat
-                [ml2int page_id]));
             ignore (Mysql.exec dbh (format_string sth_insert_chunks_flat
             [ml2int page_id; 
             ml2float chk.timestamp; 
             ml2int chk.n_del_revisions;
             ml2str (string_of__of__sexp_of (sexp_of_array sexp_of_float) chk.trust);
             ml2str (string_of__of__sexp_of (sexp_of_array sexp_of_int) chk.origin);
+            ml2str (string_of__of__sexp_of (sexp_of_array sexp_of_string) chk.text);
+            ml2float chk.timestamp;                                                       
+            ml2int chk.n_del_revisions; 
+            ml2str (string_of__of__sexp_of (sexp_of_array sexp_of_float) chk.trust);      
+            ml2str (string_of__of__sexp_of (sexp_of_array sexp_of_int) chk.origin);       
             ml2str (string_of__of__sexp_of (sexp_of_array sexp_of_string) chk.text)
             ]));
       ) in
@@ -322,12 +318,13 @@ class db
     min_edit_quality n_text_judges new_text persistent_text). *)
 
     method write_quality_info (rev_id : int) (q: qual_info_t) : unit = 
-      (* First we delete any pre-existing text. *)
-      ignore (Mysql.exec dbh (format_string sth_delete_quality [ml2int rev_id ]));
       (* Next we add in the new text. *)
       ignore (Mysql.exec dbh (format_string sth_insert_quality 
           [ml2int rev_id; ml2int q.n_edit_judges;
-          ml2float q.total_edit_quality; ml2float q.min_edit_quality; if q.nix_bit then "1" else "0"]));
+          ml2float q.total_edit_quality; ml2float q.min_edit_quality; if q.nix_bit then "1" else "0";
+          ml2int q.n_edit_judges;
+          ml2float q.total_edit_quality; ml2float q.min_edit_quality; if q.nix_bit then "1" else "0"
+          ]));
       ignore (Mysql.exec dbh "COMMIT")    
 
 
