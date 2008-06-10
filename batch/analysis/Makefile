@@ -30,14 +30,15 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 # Vars we use in our rules to build ocaml programs
-OCAML_LDA_LIBS = xml-light.cma ocamlldalibs.cma 
-OCAML_LDA_LIBS_OPT = xml-light.cmxa ocamlldalibs.cmxa 
+OCAML_LDA_LIBS =  
+OCAML_LDA_LIBS_OPT =   
 OUR_LD_ADD = str.cma unix.cma $(OCAML_LDA_LIBS)
 OUR_OPTLD_ADD = str.cmxa unix.cmxa $(OCAML_LDA_LIBS_OPT)
-INCLUDES = -I ../../../OcamlLdaLibs -I ../../../OcamlLdaLibs/xml-light
+#INCLUDES = -package xml-light -package vec -package mapmin -package hashtbl_bounded -package fileinfo -package intvmap
+INCLUDES = -package xml-light -package unix -package ocamlldalibs
 
-OCAMLC=ocamlc
-OCAMLOPT=ocamlopt
+OCAMLC=ocamlfind ocamlc
+OCAMLOPT=ocamlfind ocamlopt
 OCAMLMKTOP=ocamlmktop
 
 OCAMLLEX=ocamllex
@@ -54,8 +55,8 @@ SUFFIXES= .ml .cmo .cmi .cmx
 OCAMLDEBUG = -g
 
 # Flags for commands, depending on optimization/debugging
-OCAML_CFLAGS=$(INCLUDES) $(OCAMLDEBUG)
-OCAMLOPT_FLAGS=$(INCLUDES) 
+OCAML_CFLAGS=$(INCLUDES) $(OCAMLDEBUG) `ocamlfind query ocamlldalibs`/ocamlldalibs.cma
+OCAMLOPT_FLAGS=$(INCLUDES) `ocamlfind query ocamlldalibs`/ocamlldalibs.cmxa
 
 %.cmo: %.ml
 	@echo '$(OCAMLC) $(OCAML_CFLAGS) -c $<'; \
@@ -116,7 +117,7 @@ TIMECONV_OBJS = timeconv.cmo
 # Evaluates a wiki 
 
 evalwiki: $(OUR_EVALWIKI_OBJS)
-	$(OCAMLC) -o evalwiki $(OCAML_CFLAGS) $(OUR_LD_ADD) $(OUR_EVALWIKI_OBJS)
+	$(OCAMLC) -o evalwiki $(OCAML_CFLAGS) $(OUR_LD_ADD) $(OUR_EVALWIKI_OBJS) -linkpkg
 
 libs:	$(OUR_EVALWIKI_OBJS)
 	$(OCAMLC) -a -o evalwiki.cma $(OCAML_CFLAGS) $(OUR_LD_ADD) $(OUR_EVALWIKI_OBJS)
@@ -128,7 +129,7 @@ libsopt: $(OUR_OPT_EVALWIKI_OBJS)
 	$(OCAMLOPT) -a -o evalwiki.cmxa $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) $(OUR_OPT_EVALWIKI_OBJS)
 
 generate_reputation:  $(OUR_GENERATE_REPUTATION_OBJS)
-	$(OCAMLC) -o generate_reputation $(OCAML_CFLAGS) $(OUR_LD_ADD) $(OUR_GENERATE_REPUTATION_OBJS)
+	$(OCAMLC) -o generate_reputation $(OCAML_CFLAGS) $(OUR_LD_ADD) $(OUR_GENERATE_REPUTATION_OBJS) -linkpkg
 
 generate_reputationopt:  $(OUR_OPT_GENERATE_REPUTATION_OBJS)
 	$(OCAMLOPT) -o generate_reputation $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) $(OUR_OPT_GENERATE_REPUTATION_OBJS)
