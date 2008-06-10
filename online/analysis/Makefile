@@ -34,8 +34,8 @@ OCAML_LDA_LIBS = xml-light.cma ocamlldalibs.cma evalwiki.cma
 OCAML_LDA_LIBS_OPT = xml-light.cmxa ocamlldalibs.cmxa evalwiki.cmxa
 OUR_LD_ADD = str.cma unix.cma mysql.cma $(OCAML_LDA_LIBS)
 OUR_OPTLD_ADD = str.cmxa unix.cmxa $(OCAML_LDA_LIBS_OPT)
-OUR_PACKAGES = -package extlib -package mysql -package sexplib
-INCLUDES = -I ../../batch/analysis -I ../../../OcamlLdaLibs -I ../../../OcamlLdaLibs/xml-light
+OUR_PACKAGES = -package extlib -package mysql -package sexplib -package ocamlldalibs
+INCLUDES = -I ../../batch/analysis 
 
 OCAMLC=ocamlc
 OCAMLOPT=ocamlopt
