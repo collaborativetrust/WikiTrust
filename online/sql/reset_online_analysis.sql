@@ -1,11 +1,6 @@
-TRUNCATE TABLE text_split_version;
 TRUNCATE TABLE edit_lists;
 TRUNCATE TABLE trust_user_rep;
 TRUNCATE TABLE user_rep_history;
 TRUNCATE TABLE colored_markup;
 TRUNCATE TABLE dead_page_chunks;
-TRUNCATE TABLE chunk_text;
-TRUNCATE TABLE chunk_trust;
-TRUNCATE TABLE chunk_origin;
-TRUNCATE TABLE dead_page_chunk_map;
 TRUNCATE TABLE quality_info;

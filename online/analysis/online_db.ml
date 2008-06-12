@@ -71,9 +71,9 @@ class db
   object(self)
     
     (* HERE are all of the prepaired sql statments used below *)
-    val sth_select_edit_list_flat = "SELECT version, edits FROM edit_lists_flat 
+    val sth_select_edit_list_flat = "SELECT version, edits FROM edit_lists
         WHERE from_revision = ? AND to_revision  = ?"
-    val sth_insert_edit_list_flat = "INSERT INTO edit_lists_flat (version, edits, 
+    val sth_insert_edit_list_flat = "INSERT INTO edit_lists (version, edits, 
         from_revision, to_revision) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE
         version = ?, edits = ?"
     val sth_select_user_rep = "SELECT user_rep FROM trust_user_rep 
@@ -94,12 +94,6 @@ class db
     val sth_insert_dead_chunks = "INSERT INTO dead_page_chunks (page_id, chunks) 
        VALUES (?, ?) ON DUPLICATE KEY UPDATE chunks = ?"
 
-    val sth_insert_feedback = "INSERT INTO feedback (revid1, 
-          userid1, revid2, userid2, timestamp, q, voided) 
-          VALUES (?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE userid1 = ?, userid2 = ?,
-          timestamp = ?, q = ?, voided = ?"  
-    val sth_select_feedback = "SELECT revid2, userid2, timestamp, 
-          q, voided FROM feedback WHERE revid1 = ?"   
     val sth_insert_quality = "INSERT INTO quality_info
           (rev_id, n_edit_judges, total_edit_quality, min_edit_quality, nix_bit
           ) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE n_edit_judges = ?,
@@ -108,10 +102,6 @@ class db
     val sth_select_quality = "SELECT rev_id, n_edit_judges,
           total_edit_quality, min_edit_quality, nix_bit
           FROM quality_info WHERE rev_id = ?" 
-    val sth_set_colored = "UPDATE revision SET 
-          trust_rev_colored = TRUE WHERE rev_id = ?"
-   val sth_revert_colored = "UPDATE revision set
-          trust_rev_colored = FALSE WHERE rev_id = ?"
     val sth_select_revs = "SELECT rev_id, rev_page, rev_text_id, 
           rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM            
           revision WHERE rev_page = ? AND rev_id <= ? ORDER BY rev_timestamp DESC"
@@ -343,19 +333,6 @@ class db
                           nix_bit = (not_null int2ml x.(4) > 0)}
 
 
-    (** [mark_rev_colored rev_id] marks a revision as having been colored *)
-    (*
-    method mark_rev_colored (rev_id : int) : unit =
-      ignore (Mysql.exec dbh (format_string sth_set_colored [ml2int rev_id]))*)
-    (** [mark_rev_uncolored revid] removed the marking of a revision
-       as having been colored *)(*
-    method mark_rev_uncolored (rev_id : int) : unit =
-      ignore (Mysql.exec dbh (format_string sth_revert_colored [ml2int rev_id]))
-*)
-  (*  method prepare_cached (sql : string) : Dbi.statement =
-      dbh#prepare_cached sql*)
-
-
     (** [get_page_lock page_id] gets a lock for page [page_id], to guarantee 
 	mutual exclusion on the updates for page [page_id]. *)
     method get_page_lock (page_id: int) = ()
@@ -376,16 +353,11 @@ class db
     method delete_all (really : bool) =
       match really with
         | true -> (
-            ignore (Mysql.exec dbh "TRUNCATE TABLE text_split_version" );
-            ignore (Mysql.exec dbh "TRUNCATE TABLE edit_lists_flat" );
             ignore (Mysql.exec dbh "TRUNCATE TABLE edit_lists" );
             ignore (Mysql.exec dbh "TRUNCATE TABLE trust_user_rep" );
             ignore (Mysql.exec dbh "TRUNCATE TABLE user_rep_history" ); 
             ignore (Mysql.exec dbh "TRUNCATE TABLE colored_markup" );
             ignore (Mysql.exec dbh "TRUNCATE TABLE dead_page_chunks" );
-            ignore (Mysql.exec dbh "TRUNCATE TABLE chunk_text" );
-            ignore (Mysql.exec dbh "TRUNCATE TABLE chunk_trust" );
-            ignore (Mysql.exec dbh "TRUNCATE TABLE chunk_origin" );
             ignore (Mysql.exec dbh "TRUNCATE TABLE quality_info" ); 
             ignore (Mysql.exec dbh "COMMIT"))
         | false -> ignore (Mysql.exec dbh "COMMIT")

@@ -1,15 +1,10 @@
 
 BEGIN;
-DROP TABLE text_split_version;
 DROP TABLE edit_lists;
-DROP TABLE edit_lists_flat;
 DROP TABLE trust_user_rep;
 DROP TABLE user_rep_history;
 DROP TABLE colored_markup;
 DROP TABLE dead_page_chunks;
-DROP TABLE chunk_text;
-DROP TABLE chunk_trust;
-DROP TABLE chunk_origin;
 DROP TABLE quality_info;
 COMMIT;
 
@@ -25,33 +20,9 @@ CREATE TABLE quality_info (
 );
 GRANT ALL ON quality_info TO wikiuser;
 
--- maps page_id to text of the most recently added revision
-CREATE TABLE text_split_version (
-        page_id                 int PRIMARY KEY,
-        current_rev_text        text NOT NULL,
-        updatedon               timestamp DEFAULT now()
-);
-
 GRANT ALL ON text_split_version TO wikiuser;
 
--- now, a place to store edit lists
 CREATE TABLE edit_lists (
-        from_revision   int , 
-        to_revision     int,
-        edit_type       enum ('Ins','Del','Mov'),
-        version         text NOT NULL,
-        val1            int NOT NULL,
-        val2            int NOT NULL,
-        val3            int,
-        updatedon       timestamp DEFAULT now(),
-        PRIMARY KEY (from_revision, to_revision, edit_type)
-);
-
-CREATE INDEX edit_lists_idx ON edit_lists (from_revision, to_revision);
-GRANT ALL ON edit_lists TO wikiuser;
-
--- flattened edit lists
-CREATE TABLE edit_lists_flat (
         version         text NOT NULL,
         from_revision   int ,
         to_revision     int,
@@ -88,32 +59,13 @@ CREATE TABLE colored_markup (
 );
 GRANT ALL ON colored_markup TO wikiuser;
 
-CREATE TABLE chunk_text (
-        text_id serial PRIMARY KEY,
-        chunk_text text NOT NULL
-);
-GRANT ALL ON chunk_text TO wikiuser;
-/* CREATE INDEX chunk_text_idx ON chunk_text(chunk_text, 1000); */
-
-CREATE TABLE chunk_trust (
-        trust_id serial PRIMARY KEY,
-        chunk_trust float  NOT NULL
-);
-GRANT ALL ON chunk_trust TO wikiuser;
-
-CREATE TABLE chunk_origin (
-        origin_id serial PRIMARY KEY,
-        chunk_origin int  NOT NULL
-);
-GRANT ALL ON chunk_origin TO wikiuser;
-
 CREATE TABLE dead_page_chunks (
   page_id     int PRIMARY KEY,
   chunks      text
 );
 GRANT ALL ON dead_page_chunks TO wikiuser;
 
-
+COMMIT;
 
 
 
