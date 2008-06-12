@@ -1,6 +1,6 @@
-TRUNCATE TABLE edit_lists;
-TRUNCATE TABLE trust_user_rep;
-TRUNCATE TABLE user_rep_history;
-TRUNCATE TABLE colored_markup;
-TRUNCATE TABLE dead_page_chunks;
-TRUNCATE TABLE quality_info;
+TRUNCATE TABLE wikitrust_edit_lists;
+TRUNCATE TABLE wikitrust_trust_user_rep;
+TRUNCATE TABLE wikitrust_user_rep_history;
+TRUNCATE TABLE wikitrust_colored_markup;
+TRUNCATE TABLE wikitrust_dead_page_chunks;
+TRUNCATE TABLE wikitrust_quality_info;

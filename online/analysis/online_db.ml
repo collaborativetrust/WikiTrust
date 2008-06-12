@@ -71,46 +71,44 @@ class db
   object(self)
     
     (* HERE are all of the prepaired sql statments used below *)
-    val sth_select_edit_list_flat = "SELECT version, edits FROM edit_lists
+    val sth_select_edit_list_flat = "SELECT version, edits FROM wikitrust_edit_lists
         WHERE from_revision = ? AND to_revision  = ?"
-    val sth_insert_edit_list_flat = "INSERT INTO edit_lists (version, edits, 
+    val sth_insert_edit_list_flat = "INSERT INTO wikitrust_edit_lists (version, edits, 
         from_revision, to_revision) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE
         version = ?, edits = ?"
-    val sth_select_user_rep = "SELECT user_rep FROM trust_user_rep 
+    val sth_select_user_rep = "SELECT user_rep FROM wikitrust_trust_user_rep 
           WHERE user_id = ?" 
-    val sth_update_user_rep = "UPDATE trust_user_rep SET user_rep = 
+    val sth_update_user_rep = "UPDATE wikitrust_trust_user_rep SET user_rep = 
           ? WHERE user_id = ?" 
-    val sth_insert_user_rep = "INSERT INTO trust_user_rep
+    val sth_insert_user_rep = "INSERT INTO wikitrust_trust_user_rep
           (user_id,  user_rep) VALUES (?, ?)" 
-    val sth_insert_hist = "INSERT INTO user_rep_history 
+    val sth_insert_hist = "INSERT INTO wikitrust_user_rep_history 
           (user_id, rep_before, rep_after, change_time, event_id) VALUES
           (?, ?, ?, ?, NULL)" 
-    val sth_insert_markup = "INSERT INTO colored_markup 
+    val sth_insert_markup = "INSERT INTO wikitrust_colored_markup 
           (revision_id, revision_text) VALUES (?, ?) ON DUPLICATE KEY UPDATE revision_text = ?" 
-    val sth_select_markup = "SELECT revision_text FROM 
-          colored_markup WHERE revision_id = ?" 
-
-    val sth_select_dead_chunks = "SELECT chunks FROM dead_page_chunks WHERE page_id = ?"
-    val sth_insert_dead_chunks = "INSERT INTO dead_page_chunks (page_id, chunks) 
+    val sth_select_markup = "SELECT revision_text FROM wikitrust_colored_markup 
+          WHERE revision_id = ?" 
+    val sth_select_dead_chunks = "SELECT chunks FROM wikitrust_dead_page_chunks WHERE page_id = ?"
+    val sth_insert_dead_chunks = "INSERT INTO wikitrust_dead_page_chunks (page_id, chunks) 
        VALUES (?, ?) ON DUPLICATE KEY UPDATE chunks = ?"
-
-    val sth_insert_quality = "INSERT INTO quality_info
+    val sth_insert_quality = "INSERT INTO wikitrust_quality_info
           (rev_id, n_edit_judges, total_edit_quality, min_edit_quality, nix_bit
           ) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE n_edit_judges = ?,
           total_edit_quality = ?, min_edit_quality = ?, 
           nix_bit = ?" 
     val sth_select_quality = "SELECT rev_id, n_edit_judges,
           total_edit_quality, min_edit_quality, nix_bit
-          FROM quality_info WHERE rev_id = ?" 
+          FROM wikitrust_quality_info WHERE rev_id = ?" 
     val sth_select_revs = "SELECT rev_id, rev_page, rev_text_id, 
-          rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM            
-          revision WHERE rev_page = ? AND rev_id <= ? ORDER BY rev_timestamp DESC"
+          rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment 
+          FROM revision WHERE rev_page = ? AND rev_id <= ? ORDER BY rev_timestamp DESC"
     val sth_select_all_revs = "SELECT rev_id, rev_page, rev_text_id, 
-          rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM            
-          revision ORDER BY rev_timestamp ASC"
+          rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment 
+          FROM revision ORDER BY rev_timestamp ASC"
     val sth_select_text = "SELECT old_text FROM text WHERE old_id = ?"
-    val sth_select_last_colored_rev = "SELECT A.revision_id, B.rev_page FROM 
-          colored_markup AS A JOIN revision AS B ON (A.revision_id = B.rev_id) 
+    val sth_select_last_colored_rev = "SELECT A.revision_id, B.rev_page 
+          FROM wikitrust_colored_markup AS A JOIN revision AS B ON (A.revision_id = B.rev_id) 
           ORDER BY coloredon DESC LIMIT 1"
 
     (* Returns the last colored rev, if any *)
