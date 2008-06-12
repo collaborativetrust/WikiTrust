@@ -267,7 +267,7 @@ class db
 	sexp_of_list identity l 
       in 
       let c_list_to_sexp cl = sexp_of_list chunk_to_sexp cl in 
-      let chunks_string = string_of__of__sexp_of c_list_to_sexp c_list in 
+      let chunks_string = ml2str (string_of__of__sexp_of c_list_to_sexp c_list) in 
       ignore (Mysql.exec dbh (format_string sth_insert_dead_chunks 
 	[ml2int page_id; chunks_string; chunks_string])); 
       ignore (Mysql.exec dbh "COMMIT")
@@ -351,12 +351,12 @@ class db
     method delete_all (really : bool) =
       match really with
         | true -> (
-            ignore (Mysql.exec dbh "TRUNCATE TABLE edit_lists" );
-            ignore (Mysql.exec dbh "TRUNCATE TABLE trust_user_rep" );
-            ignore (Mysql.exec dbh "TRUNCATE TABLE user_rep_history" ); 
-            ignore (Mysql.exec dbh "TRUNCATE TABLE colored_markup" );
-            ignore (Mysql.exec dbh "TRUNCATE TABLE dead_page_chunks" );
-            ignore (Mysql.exec dbh "TRUNCATE TABLE quality_info" ); 
+            ignore (Mysql.exec dbh "TRUNCATE TABLE wikitrust_edit_lists" );
+            ignore (Mysql.exec dbh "TRUNCATE TABLE wikitrust_trust_user_rep" );
+            ignore (Mysql.exec dbh "TRUNCATE TABLE wikitrust_user_rep_history" ); 
+            ignore (Mysql.exec dbh "TRUNCATE TABLE wikitrust_colored_markup" );
+            ignore (Mysql.exec dbh "TRUNCATE TABLE wikitrust_dead_page_chunks" );
+            ignore (Mysql.exec dbh "TRUNCATE TABLE wikitrust_quality_info" ); 
             ignore (Mysql.exec dbh "COMMIT"))
         | false -> ignore (Mysql.exec dbh "COMMIT")
 
