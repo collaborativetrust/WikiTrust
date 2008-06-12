@@ -59,7 +59,7 @@ GRANT ALL ON wikitrust_colored_markup TO wikiuser;
 
 CREATE TABLE wikitrust_dead_page_chunks (
   page_id     int PRIMARY KEY,
-  chunks      text
+  chunks      longtext
 );
 GRANT ALL ON wikitrust_dead_page_chunks TO wikiuser;
 
