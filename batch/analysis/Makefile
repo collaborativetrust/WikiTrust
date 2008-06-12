@@ -30,32 +30,28 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 # Vars we use in our rules to build ocaml programs
-OCAML_LDA_LIBS = xml-light.cma ocamlldalibs.cma 
-OCAML_LDA_LIBS_OPT = xml-light.cmxa ocamlldalibs.cmxa 
-OUR_LD_ADD = str.cma unix.cma $(OCAML_LDA_LIBS)
-OUR_OPTLD_ADD = str.cmxa unix.cmxa $(OCAML_LDA_LIBS_OPT)
-INCLUDES = -I ../../../OcamlLdaLibs -I ../../../OcamlLdaLibs/xml-light
+PACKAGES = unix,str,vec,mapmin,hashtbl_bounded,fileinfo,intvmap
 
-OCAMLC=ocamlc
-OCAMLOPT=ocamlopt
-OCAMLMKTOP=ocamlmktop
+# OCAMLC=ocamlc
+# OCAMLOPT=ocamlopt
+OCAMLC=ocamlfind ocamlc -package $(PACKAGES)
+OCAMLOPT=ocamlfind ocamlopt -package $(PACKAGES)
 
 OCAMLLEX=ocamllex
 OCAMLYACC=ocamlyacc
 OCAMLDEP=ocamldep
 OCAMLMKLIB=ocamlmklib
 OCAMLDOC=ocamldoc
-OCAMLFIND_C=ocamlfind ocamlcp
-OCAMLFIND_COPT=ocamlfind ocamlopt
 
 SUFFIXES= .ml .cmo .cmi .cmx
 
+# For profiling
 # OCAMLDEBUG = -g -p film 
 OCAMLDEBUG = -g
 
 # Flags for commands, depending on optimization/debugging
-OCAML_CFLAGS=$(INCLUDES) $(OCAMLDEBUG)
-OCAMLOPT_FLAGS=$(INCLUDES) 
+OCAML_CFLAGS= $(OCAMLDEBUG)
+OCAMLOPT_FLAGS=
 
 %.cmo: %.ml
 	@echo '$(OCAMLC) $(OCAML_CFLAGS) -c $<'; \
@@ -116,53 +112,53 @@ TIMECONV_OBJS = timeconv.cmo
 # Evaluates a wiki 
 
 evalwiki: $(OUR_EVALWIKI_OBJS)
-	$(OCAMLC) -o evalwiki $(OCAML_CFLAGS) $(OUR_LD_ADD) $(OUR_EVALWIKI_OBJS)
+	$(OCAMLC) -linkpkg -o evalwiki $(OCAML_CFLAGS) $(OUR_LD_ADD) $(OUR_EVALWIKI_OBJS)
 
 libs:	$(OUR_EVALWIKI_OBJS)
-	$(OCAMLC) -a -o evalwiki.cma $(OCAML_CFLAGS) $(OUR_LD_ADD) $(OUR_EVALWIKI_OBJS)
+	$(OCAMLC) -linkpkg -a -o evalwiki.cma $(OCAML_CFLAGS) $(OUR_LD_ADD) $(OUR_EVALWIKI_OBJS)
 
 evalwikiopt: $(OUR_OPT_EVALWIKI_OBJS)
-	$(OCAMLOPT) -o evalwiki $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) $(OUR_OPT_EVALWIKI_OBJS)
+	$(OCAMLOPT) -linkpkg -o evalwiki $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) $(OUR_OPT_EVALWIKI_OBJS)
 
 libsopt: $(OUR_OPT_EVALWIKI_OBJS)
-	$(OCAMLOPT) -a -o evalwiki.cmxa $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) $(OUR_OPT_EVALWIKI_OBJS)
+	$(OCAMLOPT) -linkpkg -a -o evalwiki.cmxa $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) $(OUR_OPT_EVALWIKI_OBJS)
 
 generate_reputation:  $(OUR_GENERATE_REPUTATION_OBJS)
-	$(OCAMLC) -o generate_reputation $(OCAML_CFLAGS) $(OUR_LD_ADD) $(OUR_GENERATE_REPUTATION_OBJS)
+	$(OCAMLC) -linkpkg -o generate_reputation $(OCAML_CFLAGS) $(OUR_LD_ADD) $(OUR_GENERATE_REPUTATION_OBJS)
 
 generate_reputationopt:  $(OUR_OPT_GENERATE_REPUTATION_OBJS)
-	$(OCAMLOPT) -o generate_reputation $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) $(OUR_OPT_GENERATE_REPUTATION_OBJS)
+	$(OCAMLOPT) -linkpkg -o generate_reputation $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) $(OUR_OPT_GENERATE_REPUTATION_OBJS)
 
 # splitwiki is used to split a wiki xml dump file into smaller files
 
 splitwiki:  $(OUR_SPLITWIKI_OBJS)
-	$(OCAMLC) -o splitwiki $(OCAML_CFLAGS) $(OUR_LD_ADD) $(OUR_SPLITWIKI_OBJS)
+	$(OCAMLC) -linkpkg -o splitwiki $(OCAML_CFLAGS) $(OUR_LD_ADD) $(OUR_SPLITWIKI_OBJS)
 
 splitwikiopt:  $(OUR_OPT_SPLITWIKI_OBJS)
-	$(OCAMLOPT) -o splitwiki $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) $(OUR_OPT_SPLITWIKI_OBJS)
+	$(OCAMLOPT) -linkpkg -o splitwiki $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) $(OUR_OPT_SPLITWIKI_OBJS)
 
 # chdiff computes text differences, and this is used to test it. 
 
 chdiff: $(CHDIFF_OBJS)
-	$(OCAMLC) -o chdiff $(OCAML_CFLAGS) $(OUR_LD_ADD) $(CHDIFF_OBJS)
+	$(OCAMLC) -linkpkg -o chdiff $(OCAML_CFLAGS) $(OUR_LD_ADD) $(CHDIFF_OBJS)
 
 # text is used to split text into words, and this is used to test it. 
 
 text:   $(TEXT_OBJS)
-	$(OCAMLC) -o text $(OCAML_CFLAGS) $(OUR_LD_ADD) $(TEXT_OBJS)
+	$(OCAMLC) -linkpkg -o text $(OCAML_CFLAGS) $(OUR_LD_ADD) $(TEXT_OBJS)
 
 # combinestats is used to combine several sorted statistics files into a single one
 
 combinestats: combinestatsfiles.ml
-	$(OCAMLC) -o combinestats $(OCAML_CFLAGS) $(OUR_LD_ADD) combinestatsfiles.ml
+	$(OCAMLC) -linkpkg -o combinestats $(OCAML_CFLAGS) $(OUR_LD_ADD) combinestatsfiles.ml
 
 combinestatsopt: combinestatsfiles.ml
-	$(OCAMLOPT) -o combinestats $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) combinestatsfiles.ml
+	$(OCAMLOPT) -linkpkg -o combinestats $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) combinestatsfiles.ml
 
 # timeconv is used for time conversion, and this is used to test it. 
 
 timeconv: $(TIMECONV_OBJS)
-	$(OCAMLC) -o timeconv $(OCAML_CFLAGS) $(OUR_LD_ADD) $(TIMECONV_OBJS)
+	$(OCAMLC) -linkpkg -o timeconv $(OCAML_CFLAGS) $(OUR_LD_ADD) $(TIMECONV_OBJS)
 
 all: evalwiki generate_reputation splitwiki combinestats libs
 allopt: evalwikiopt generate_reputationopt splitwikiopt combinestatsopt
