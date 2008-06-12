@@ -214,17 +214,16 @@ let end_tag_6_r  = Str.regexp "</\\([a-zA-Z1-9_]+\\) *>"
 let beg_tag_7  = "\\(&lt;[a-zA-Z1-9_]+\\)"
 let end_tag_7_r  = Str.regexp "&lt;/\\([a-zA-Z1-9_]+\\) *&gt;"
  *)
-let beg_trust_8 = "\\({{#t:\\)"
+let beg_trust_8 = "{{#t:"
 let beg_trust_8_r = Str.regexp beg_trust_8
-let beg_origin_9 = "\\({{to:\\)"
+let beg_origin_9 = "{{to:"
 let beg_origin_9_r = Str.regexp beg_origin_9
 
 let tag_name_r = Str.regexp "[a-zA-Z1-9_]+"
 (* let single_close_r = Str.regexp "&gt;" *)
 (* Any of these openings *)
 let open_pattern = Str.regexp_case_fold
-  (beg_link_1 ^ "\\|" ^ beg_link_2 ^ "\\|" ^ beg_stub_3 ^ "\\|" ^ beg_link_5 ^ "\\|" ^ beg_tag_6 
-    ^ "\\|" ^ beg_trust_8 ^ "\\|" ^ beg_origin_9 )
+  (beg_link_1 ^ "\\|" ^ beg_link_2 ^ "\\|" ^ beg_stub_3 ^ "\\|" ^ beg_link_5 ^ "\\|" ^ beg_tag_6 )
 
 (* For matching *)
 (* These are the tags that close with ]] *)
@@ -237,7 +236,7 @@ let match_br_r = Str.regexp (beg_link_2  ^ "\\|" ^ end_link_2)
 let match_cbr_r = Str.regexp (beg_stub_3 ^ "\\|" ^ beg_trust_8 ^ "\\|" ^ beg_origin_9 ^ "\\|" ^ end_stub_3)
 
 let max_nested_tags = 20
-type token_t = LeftTok | OpenTag | RedirTok | TrustTok | OriginTok
+type token_t = LeftTok | OpenTag | RedirTok
 
 (* This function takes a piece_t Vec.t, and separates out the tags (see above regular expressions)
    into atomic pieces that won't be touched by coloring. *)
@@ -277,14 +276,15 @@ let separate_string_tags (pv: piece_t Vec.t) : piece_t Vec.t =
 		 Note that in case of single tags, we are looking for both 
 		 openings and closings. *)
               let (closing_token_r, tag_kind) = 
-		if s = "{{#t:" then (match_cbr_r, TrustTok)
-		else if s = "{{to:" then (match_cbr_r, OriginTok) 
-		else if s = "[[" then (match_brbr_r, LeftTok)
+		if s = "[[" then (match_brbr_r, LeftTok)
 		else if s = "[http:" then (match_br_r, LeftTok)
 		else if s = "{{" then (match_cbr_r, LeftTok)
 		else if (String.uppercase s) = "#REDIRECT " then (match_brbr_r, RedirTok)
 		else (end_tag_6_r, OpenTag) 
               in 
+	      (* These will be updated if needed *)
+	      let is_trust = ref false in 
+	      let is_origin = ref false in 
 	      match tag_kind with 
 		OpenTag -> begin 
 		  let len_opening = 1 in 
@@ -355,13 +355,26 @@ let separate_string_tags (pv: piece_t Vec.t) : piece_t Vec.t =
 		    end
 		  end (* case for a tag with matching closing tag *)
 		end (* OpenTag and OpenCodedTag *)
-	      | LeftTok | RedirTok | TrustTok | OriginTok -> begin 
-		  (* Not a tag, looks for the closing token if any. Keeps track of the open/close deficit. *)
-		  (* Careful: Redirect comes with an initial imbalance of 0 *)
+	      | LeftTok | RedirTok -> begin 
+		  let start_attempt = ref match_end_pos in 
+		  let trust_origin_num_start = ref 0 in 
+		  if tag_kind = LeftTok then begin 
+		    (* Checks whether this is a trust or origin token. *)
+		    if Str.string_match beg_trust_8_r text match_start_pos then begin 
+		      is_trust := true;
+		      start_attempt := Str.match_end ();
+		      trust_origin_num_start := !start_attempt;
+		    end else if Str.string_match beg_origin_9_r text match_start_pos then begin 
+		      is_origin := true;
+		      start_attempt := Str.match_end ();
+		      trust_origin_num_start := !start_attempt;
+		    end
+		  end;
+		  (* Looks for the closing token if any. Keeps track of the open/close deficit. *)
+		  (* Careful: Redirect comes with an initial imbalance of 0 in the start *)
 		  let n_open = if tag_kind = LeftTok then ref 1 else ref 0 in 
 		  let closing_found = ref false in 
 		  let n_attempts = ref max_nested_tags in 
-		  let start_attempt = ref match_end_pos in 
 		  while !n_attempts > 0 && not !closing_found do begin 
 		    let nextpos_opt = 
 		      try Some (Str.search_forward closing_token_r text !start_attempt)
@@ -373,9 +386,10 @@ let separate_string_tags (pv: piece_t Vec.t) : piece_t Vec.t =
 			(* Has a closing token *)
 		    | Some nextpos -> begin
 			let end_closing = Str.match_end () in 
+			let beg_closing = Str.match_beginning () in 
 			let text_tag = Str.matched_string text in 
 			(* Checks whether this is an open tag *)
-			if text_tag = "]]" || text_tag = "]" || text_tag = "}}" then begin 
+			if text_tag = "}}" || text_tag = "]]" || text_tag = "]" then begin 
 
 			  (* It must be a closing match *)
 			  n_open := !n_open - 1; 
@@ -387,13 +401,26 @@ let separate_string_tags (pv: piece_t Vec.t) : piece_t Vec.t =
 			      let piece_before = (String.sub text !start_pos (match_start_pos - !start_pos)) in 
 			      p := Vec.append (TXT_splittable piece_before) !p
 			    end; 
-			    let piece_atomic = String.sub text match_start_pos (end_closing - match_start_pos) in 
 			    let tag_atomic = match tag_kind with 
-				LeftTok -> TXT_tag piece_atomic
-			      | RedirTok -> TXT_redirect piece_atomic
+				LeftTok -> begin
+				  if !is_origin then begin
+				    let piece_atomic = String.sub text 
+				      !trust_origin_num_start (beg_closing - !trust_origin_num_start) in 
+				    INFO_origin (int_of_string piece_atomic)
+				  end else if !is_trust then begin 
+				    let piece_atomic = String.sub text 
+				      !trust_origin_num_start (beg_closing - !trust_origin_num_start) in 
+				    INFO_trust (float_of_string piece_atomic)
+				  end else begin
+				    let piece_atomic = String.sub text match_start_pos (end_closing - match_start_pos) in 
+				    TXT_tag piece_atomic
+				  end
+				end
+			      | RedirTok -> begin
+				  let piece_atomic = String.sub text match_start_pos (end_closing - match_start_pos) in 
+				  TXT_redirect piece_atomic
+				end
 			      | OpenTag -> raise Text_error (* we should not be here *)
-			      | TrustTok -> INFO_trust (float_of_string piece_atomic)
-			      | OriginTok -> INFO_origin (int_of_string piece_atomic) 
 			    in 
 			    p := Vec.append tag_atomic !p; 
 			    (* Begins from end_closing the rest of the analysis *)
@@ -928,7 +955,7 @@ if false then begin
   let s7 = "\n=== Titolo ===\nBello [[link||{{stub}} as a [[name]] long]] {{stub}} &lt;div bah=\"gog\" &gt; [[link]] </div> borom &lt;/div&gt;" in 
   let s8 = "\n==== [http://www.w3.org/TR/REC-CSS1 Cascading Style Sheets, level 1 (CSS1)], December 1996 ====\n" in 
   let s9 = "\n<pre>Sto usando tags </blah> uah <beep> con </pre> altra </beep> roba <boing> bla" in 
-  let s10 = "\nInizio [[babana [[gatto ]] pollo]] [http:// [[banna]] ] testo \n<a href=\"link con </a>\">link body</a> e resto &lt;br /&gt; #redirect [[Pollo con mandorle]] del testo" in 
+  let s10 = "{{#t:5.66}}\nInizio [[babana [[gatto ]] pollo]] [http:// [[banna]] ] testo \n<a href=\"link con </a>\">link body</a> e resto &lt;br /&gt; {{#t:1.43}}#redirect [[Pollo {{#t:6.6}}con mandorle]] del testo" in 
   let s11 = "\n==&quot;Socialism with Chinese characteristics&quot;==\n\nok\n" in
   let s12 = "\n{| style=\"background:yellow; color:green\"\n|- \n| abc || def || ghi\n|- style=\"background:red; color:white\"\n| jkl || mno || pqr\n|-\n| stu || style=\"background:silver\" | vwx || yz\n|}" in 
   let s13 = "\n{| \n| style=\"background:red; color:white\" | abc\n| def\n| bgcolor=\"red\" | &lt;font color=\"white\"&gt; ghi &lt;/font&gt;\n| jkl\n|}" in 
@@ -936,15 +963,24 @@ if false then begin
   let s15 = "\n{| <!--I can even put in junk here -->border=\"1\" cellpadding=\"5\" cellspacing=\"0\"\n|-\n! Column 1 || Column 2 || Column 3\n|-\n| rowspan=\"2\"| A\n| colspan=\"2\" align=\"center\"| B\n|-\n| C <!-- column 1 occupied by cell A -->\n| D \n|-\n| E\n| rowspan=\"2\" colspan=\"2\" align=\"center\"| F\n|- \n| G <!-- column 2+3 occupied by cell F -->\n|- \n| colspan=\"3\" align=\"center\"| H\n|}" in 
   let s16 = "\nThe kelvin (symbol:&nbsp;K) is the [[SI]] unit of temperature" in 
   let s17 = "\n&amp;nbsp; &lt;br&gt;gatto <br> pollo&lt;br&gt;gatto &lt;br&gt; gotto &lt;br/&gt;pollo &lt;br/&gt;pollo &lt;br&gt; pollo &lt;br/&gt;" in 
-  let s18 = "\n* Bullet \n*: cont \n::: ecco \n \n \n**:: non so \n##: fatto" in 
+  let s18 = "\n* Bullet \n*: cont \n::: ecco \n \n \n**:: non so \n##: fatto" in
+  let s19 = "{{to:32}} Gatto {{#t:0.12}} posso {{to:94854}} {{#t:0.12}} cane {{to:343}}" in 
 
-  let l = [s0; s1; s2; s3; s4; s5; s6; s7; s8; s9; s10; s11; s12; s13; s14; s15; s16; s17; s18] in
+  let l = [s0; s1; s2; s3; s4; s5; s6; s7; s8; s9; s10; s11; s12; s13; s14; s15; s16; s17; s18; s19] in
 
   let f x = 
     let x_v = Vec.singleton x in 
-    let (word_v, _, _, _, sep_v) = split_into_words_seps_and_info x_v in 
-    let g s = Printf.printf "%S " s in 
-    Array.iter g word_v; 
+    let (word_v, trust_v, orig_v, _, sep_v) = split_into_words_seps_and_info x_v in 
+    print_string "Words:\n";
+    let g0 s = Printf.printf "%S " s in 
+    Array.iter g0 word_v; 
+    print_string "\nTrust:\n";
+    let g1 s = Printf.printf "%f " s in 
+    Array.iter g1 trust_v; 
+    print_string "\nOrigin:\n";
+    let g2 s = Printf.printf "%d " s in 
+    Array.iter g2 orig_v; 
+
     print_string "\n\n"; 
     print_seps sep_v; 
     print_string "\n\n"; 
