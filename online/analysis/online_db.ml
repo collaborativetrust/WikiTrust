@@ -37,6 +37,7 @@ open Online_types
 open Mysql
 open Sexplib.Conv
 open Sexplib.Sexp
+open Sexplib
 
 let debug_mode = false;;
 
@@ -88,12 +89,11 @@ class db
           (revision_id, revision_text) VALUES (?, ?) ON DUPLICATE KEY UPDATE revision_text = ?" 
     val sth_select_markup = "SELECT revision_text FROM 
           colored_markup WHERE revision_id = ?" 
-    val sth_select_dead_chunks_flat = "SELECT timestamp, n_del_revs, ser_text, 
-      ser_trust, ser_origin FROM dead_page_chunk_flat WHERE page_id = ?"
-    val sth_insert_chunks_flat = "INSERT INTO dead_page_chunk_flat (page_id,
-       timestamp, n_del_revs, ser_trust, ser_origin, ser_text)
-       VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE timestamp = ?, n_del_revs = ?,
-       ser_trust = ?, ser_origin = ?, ser_text = ?"
+
+    val sth_select_dead_chunks = "SELECT chunks FROM dead_page_chunks WHERE page_id = ?"
+    val sth_insert_dead_chunks = "INSERT INTO dead_page_chunks (page_id, chunks) 
+       VALUES (?, ?) ON DUPLICATE KEY UPDATE chunks = ?"
+
     val sth_insert_feedback = "INSERT INTO feedback (revid1, 
           userid1, revid2, userid2, timestamp, q, voided) 
           VALUES (?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE userid1 = ?, userid2 = ?,
@@ -261,69 +261,70 @@ class db
         | Some x -> not_null str2ml x.(0)
 
 
-
     (** [write_dead_page_chunks page_id chunk_list] writes, in a table indexed by 
 	(page id, string list) that the page with id [page_id] is associated 
 	with the "dead" strings of text [chunk1], [chunk2], ..., where
 	[chunk_list = [chunk1, chunk2, ...] ]. 
 	The chunk_list contains text that used to be present in the article, but has 
 	been deleted; the database records its existence. *)
-    method write_dead_page_chunks (page_id : int) (clist : Online_types.chunk_t
-    list) : unit =
-      let f (chk : Online_types.chunk_t) = ( 
-            ignore (Mysql.exec dbh (format_string sth_insert_chunks_flat
-            [ml2int page_id; 
-            ml2float chk.timestamp; 
-            ml2int chk.n_del_revisions;
-            ml2str (string_of__of__sexp_of (sexp_of_array sexp_of_float) chk.trust);
-            ml2str (string_of__of__sexp_of (sexp_of_array sexp_of_int) chk.origin);
-            ml2str (string_of__of__sexp_of (sexp_of_array sexp_of_string) chk.text);
-            ml2float chk.timestamp;                                                       
-            ml2int chk.n_del_revisions; 
-            ml2str (string_of__of__sexp_of (sexp_of_array sexp_of_float) chk.trust);      
-            ml2str (string_of__of__sexp_of (sexp_of_array sexp_of_int) chk.origin);       
-            ml2str (string_of__of__sexp_of (sexp_of_array sexp_of_string) chk.text)
-            ]));
-      ) in
-      List.iter f clist;
+    method write_dead_page_chunks (page_id : int) (c_list : Online_types.chunk_t list) : unit = 
+      let chunk_to_sexp (c: Online_types.chunk_t) : Sexp.t = 
+	let l = [
+	  (sexp_of_float c.timestamp);
+	  (sexp_of_int c.n_del_revisions);
+          (sexp_of_array sexp_of_string c.text);
+	  (sexp_of_array sexp_of_float c.trust);
+          (sexp_of_array sexp_of_int c.origin);
+	] in 
+	sexp_of_list identity l 
+      in 
+      let c_list_to_sexp cl = sexp_of_list chunk_to_sexp cl in 
+      let chunks_string = string_of__of__sexp_of c_list_to_sexp c_list in 
+      ignore (Mysql.exec dbh (format_string sth_insert_dead_chunks 
+	[ml2int page_id; chunks_string; chunks_string])); 
       ignore (Mysql.exec dbh "COMMIT")
+
 
     (** [read_dead_page_chunks page_id] returns the list of dead chunks associated
 	with the page [page_id]. *)
     method read_dead_page_chunks (page_id : int) : Online_types.chunk_t list =
-      let handle_row row = (
-        { timestamp = not_null float2ml row.(0);
-          n_del_revisions = not_null int2ml row.(1);
-          text = (of_string__of__of_sexp (array_of_sexp string_of_sexp)
-              (not_null str2ml row.(2)));
-          trust = (of_string__of__of_sexp (array_of_sexp float_of_sexp)
-              (not_null str2ml row.(3)));
-          origin = (of_string__of__of_sexp (array_of_sexp int_of_sexp) 
-              (not_null str2ml row.(4)));
-        }
-      ) in
-      let result = Mysql.exec dbh (format_string sth_select_dead_chunks_flat
-          [ml2int page_id ]) in
-      let rec loop = function
-        | None      -> []
-        | Some x    -> handle_row x :: loop (Mysql.fetch result)
-      in
-      loop (Mysql.fetch result)
-      
-      
+      let result = Mysql.exec dbh (format_string sth_select_dead_chunks
+          [ml2int page_id ]) in 
+      match Mysql.fetch result with 
+	None -> raise DB_Not_Found
+      | Some x -> begin
+	  let f (c: Sexp.t) : Online_types.chunk_t = 
+	    let ll = list_of_sexp identity c in { 
+	      timestamp = float_of_sexp (List.nth ll 0); 
+	      n_del_revisions = int_of_sexp (List.nth ll 1); 
+	      text = array_of_sexp string_of_sexp (List.nth ll 2); 
+	      trust = array_of_sexp float_of_sexp (List.nth ll 3); 
+	      origin = array_of_sexp int_of_sexp (List.nth ll 4); 
+	    }
+	  in 
+	  let g (s: Sexp.t) : Online_types.chunk_t list = 
+	    List.map f (list_of_sexp identity s)
+	  in 
+	  of_string__of__of_sexp g (not_null str2ml x.(0))
+	end
 
   (** [write_quality_info rev_id n_edit_judges total_edit_quality min_edit_quality
    n_text_judges new_text persistent_text] writes in a table on disk
    indexed by [rev_id] the tuple (rev_id  n_edit_judges total_edit_quality
     min_edit_quality n_text_judges new_text persistent_text). *)
 
+
     method write_quality_info (rev_id : int) (q: qual_info_t) : unit = 
       (* Next we add in the new text. *)
       ignore (Mysql.exec dbh (format_string sth_insert_quality 
           [ml2int rev_id; ml2int q.n_edit_judges;
-          ml2float q.total_edit_quality; ml2float q.min_edit_quality; if q.nix_bit then "1" else "0";
+          ml2float q.total_edit_quality; 
+	  ml2float q.min_edit_quality; 
+	  if q.nix_bit then "1" else "0";
           ml2int q.n_edit_judges;
-          ml2float q.total_edit_quality; ml2float q.min_edit_quality; if q.nix_bit then "1" else "0"
+          ml2float q.total_edit_quality; 
+	  ml2float q.min_edit_quality; 
+	  if q.nix_bit then "1" else "0"
           ]));
       ignore (Mysql.exec dbh "COMMIT")    
 
@@ -331,9 +332,7 @@ class db
     (** [read_quality_info rev_id] returns the tuple 
        (n_edit_judges total_edit_quality min_edit_quality
              n_text_judges new_text persistent_text)
-          associated with the revision with id [rev_id].
-    *)
-
+          associated with the revision with id [rev_id]. *)
     method read_quality_info (rev_id : int) : qual_info_t option = 
       let result = Mysql.exec dbh (format_string sth_select_quality [ml2int rev_id]) in
       match fetch result with
@@ -387,9 +386,7 @@ class db
             ignore (Mysql.exec dbh "TRUNCATE TABLE chunk_text" );
             ignore (Mysql.exec dbh "TRUNCATE TABLE chunk_trust" );
             ignore (Mysql.exec dbh "TRUNCATE TABLE chunk_origin" );
-            ignore (Mysql.exec dbh "TRUNCATE TABLE dead_page_chunk_map" );
             ignore (Mysql.exec dbh "TRUNCATE TABLE quality_info" ); 
-            ignore (Mysql.exec dbh "TRUNCATE TABLE dead_page_chunk_flat" ); 
             ignore (Mysql.exec dbh "COMMIT"))
         | false -> ignore (Mysql.exec dbh "COMMIT")
 

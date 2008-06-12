@@ -10,8 +10,6 @@ DROP TABLE dead_page_chunks;
 DROP TABLE chunk_text;
 DROP TABLE chunk_trust;
 DROP TABLE chunk_origin;
-DROP TABLE dead_page_chunk_map;
-DROP TABLE dead_page_chunk_flat;
 DROP TABLE quality_info;
 COMMIT;
 
@@ -110,44 +108,11 @@ CREATE TABLE chunk_origin (
 GRANT ALL ON chunk_origin TO wikiuser;
 
 CREATE TABLE dead_page_chunks (
-        chunk_id   serial PRIMARY KEY,
-        timestamp  float NOT NULL,
-        page_id    int NOT NULL,
-        n_del_revs int NOT NULL,
-        n_chunks   int NOT NULL,
-        addedon    timestamp NOT NULL DEFAULT now()
+  page_id     int PRIMARY KEY,
+  chunks      text
 );
-CREATE INDEX dead_page_chunks_page_idx on dead_page_chunks (page_id);
 GRANT ALL ON dead_page_chunks TO wikiuser;
 
-CREATE TABLE dead_page_chunk_map (
-        chunk_id int REFERENCES dead_page_chunks(chunk_id) ON DELETE CASCADE ON
-               UPDATE CASCADE,
-        text_id int REFERENCES chunk_text(text_id) ON DELETE CASCADE ON 
-                UPDATE CASCADE,
-        trust_id int REFERENCES chunk_trust(trust_id)  ON DELETE CASCADE ON 
-                UPDATE CASCADE,
-        origin_id int REFERENCES chunk_origin(origin_id)  ON DELETE CASCADE ON 
-               UPDATE CASCADE,
-        chunk_posit int NOT NULL,
-        PRIMARY KEY (chunk_id, text_id, trust_id, origin_id, chunk_posit)
-);
-
-CREATE INDEX dead_chunk_map_posit_id ON dead_page_chunk_map (chunk_posit);
-GRANT ALL ON dead_page_chunk_map TO wikiuser;
-
-CREATE TABLE dead_page_chunk_flat (
-  chunk_id    serial PRIMARY KEY,
-  timestamp   float NOT NULL,
-  page_id     int NOT NULL,
-  n_del_revs  int NOT NULL,
-  ser_text    text NOT NULL,
-  ser_trust   text NOT NULL,
-  ser_origin  text NOT NULL
-);
-
-CREATE INDEX dead_page_chunk_flat_page_idx on dead_page_chunk_flat (page_id);
-GRANT ALL ON dead_page_chunk_flat TO wikiuser;
 
 
 

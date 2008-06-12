@@ -47,9 +47,10 @@ SUFFIXES= .ml .cmo .cmi .cmx
 # OCAMLDEBUG = -g -p film 
 OCAMLDEBUG = -g
 
+
 # Flags for commands, depending on optimization/debugging
 OCAML_CFLAGS=$(INCLUDES) $(OCAMLDEBUG)
-OCAMLOPT_FLAGS=$(INCLUDES) 
+OCAMLOPT_FLAGS=$(INCLUDES)
 
 %.cmo: %.ml
 	@echo '$(OCAMLC) $(OCAML_CFLAGS) -c $<'; \
