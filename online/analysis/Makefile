@@ -30,45 +30,39 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 # Vars we use in our rules to build ocaml programs
-OCAML_LDA_LIBS = xml-light.cma ocamlldalibs.cma evalwiki.cma
-OCAML_LDA_LIBS_OPT = xml-light.cmxa ocamlldalibs.cmxa evalwiki.cmxa
-OUR_LD_ADD = str.cma unix.cma mysql.cma $(OCAML_LDA_LIBS)
-OUR_OPTLD_ADD = str.cmxa unix.cmxa $(OCAML_LDA_LIBS_OPT)
-OUR_PACKAGES = -package extlib -package mysql -package sexplib -package ocamlldalibs
-INCLUDES = -I ../../batch/analysis 
+PACKAGES = unix,str,vec,mapmin,hashtbl_bounded,fileinfo,intvmap,extlib,mysql,sexplib
+OUR_LIBS = evalwiki.cma
+OUR_LIBS_OPT = evalwiki.cmxa
+INCLUDES = -I ../../batch/analysis
 
-OCAMLC=ocamlc
-OCAMLOPT=ocamlopt
-OCAMLMKTOP=ocamlmktop
+OCAMLC=ocamlfind ocamlc -package $(PACKAGES)
+OCAMLOPT=ocamlfind ocamlopt -package $(PACKAGES)
 
-OCAMLLEX=ocamllex
-OCAMLYACC=ocamlyacc
 OCAMLDEP=ocamldep
-OCAMLMKLIB=ocamlmklib
 OCAMLDOC=ocamldoc
-OCAMLFIND_C=ocamlfind ocamlc
-OCAMLFIND_COPT=ocamlfind ocamlopt
 
 SUFFIXES= .ml .cmo .cmi .cmx
 
+# For profiling
 # OCAMLDEBUG = -g -p film 
 OCAMLDEBUG = -g
 
+
 # Flags for commands, depending on optimization/debugging
 OCAML_CFLAGS=$(INCLUDES) $(OCAMLDEBUG)
-OCAMLOPT_FLAGS=$(INCLUDES) 
+OCAMLOPT_FLAGS=$(INCLUDES)
 
 %.cmo: %.ml
-	@echo '$(OCAMLFIND_C) $(OCAML_CFLAGS) $(OUR_PACKAGES) -c $<'; \
-	$(OCAMLFIND_C) $(OCAML_CFLAGS) $(OUR_PACKAGES) -c $<
+	@echo '$(OCAMLC) $(OCAML_CFLAGS) -c $<'; \
+	$(OCAMLC) $(OCAML_CFLAGS) -c $<
 
 %.cmi: %.mli
-	@echo '$(OCAMLFIND_C) $(OUR_PACKAGES) $(OCAML_CFLAGS) -c $<'; \
-	$(OCAMLFIND_C) $(OUR_PACKAGES) $(OCAML_CFLAGS) -c $<
+	@echo '$(OCAMLC) $(OCAML_CFLAGS) -c $<'; \
+	$(OCAMLC) $(OCAML_CFLAGS) -c $<
 
 %.cmx: %.ml
-	@echo '$(OCAMLFIND_COPT) $(OCAMLOPT_FLAGS) $(OUR_PACKAGES) -c $<'; \
-	$(OCAMLFIND_COPT) $(OCAMLOPT_FLAGS) $(OUR_PACKAGES) -c $<
+	@echo '$(OCAMLOPT) $(OCAMLOPT_FLAGS) -c $<'; \
+	$(OCAMLOPT) $(OCAMLOPT_FLAGS) -c $<
 
 .PHONY: all allopt universe clean
 
@@ -81,19 +75,12 @@ OUR_ONLINE_OBJS = online_types.cmo online_db.cmo online_revision.cmo \
 OUR_OPT_ONLINE_OBJS = online_types.cmx online_db.cmx online_revision.cmx \
 	db_page.cmx online_page.cmx online_log.cmx \
 
-# compiles the online_db stuff 
-#online_db: $(OUR_ONLINE_OBJS)
-#	$(OCAMLFIND_C) -o run_harness $(OCAML_CFLAGS) $(OUR_PACKAGES) $(OUR_LD_ADD) $(OUR_ONLINE_OBJS) online_db_run_harness.ml -linkpkg
 
-#online_dbopt: $(OUR_OPT_ONLINE_OBJS)
-#	$(OCAMLFIND_COPT) -o run_harness $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) $(OUR_PACKAGES) $(OUR_OPT_ONLINE_OBJS) online_db_run_harness.ml -linkpkg
-
-# Creates a way to run the online_eval process
 online_eval: $(OUR_ONLINE_OBJS) 
-	$(OCAMLFIND_C) -o eval_online_wiki $(OCAML_CFLAGS) $(OUR_PACKAGES) $(OUR_LD_ADD) $(OUR_ONLINE_OBJS) eval_online_wiki.ml -linkpkg
+	$(OCAMLC) -linkpkg -o eval_online_wiki $(OCAML_CFLAGS) $(OUR_LIBS) $(OUR_ONLINE_OBJS) eval_online_wiki.ml 
 
 online_evalopt: $(OUR_OPT_ONLINE_OBJS)
-	$(OCAMLFIND_COPT) -o eval_online_wiki $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) $(OUR_PACKAGES) $(OUR_OPT_ONLINE_OBJS) eval_online_wiki.ml -linkpkg
+	$(OCAMLOPT) -linkpkg -o eval_online_wiki $(OCAMLOPT_FLAGS) $(OUR_LIBS_OPT) $(OUR_OPT_ONLINE_OBJS) eval_online_wiki.ml
 
 
 all: online_eval
