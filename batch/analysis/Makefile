@@ -37,10 +37,7 @@ PACKAGES = unix,str,vec,mapmin,hashtbl_bounded,fileinfo,intvmap
 OCAMLC=ocamlfind ocamlc -package $(PACKAGES)
 OCAMLOPT=ocamlfind ocamlopt -package $(PACKAGES)
 
-OCAMLLEX=ocamllex
-OCAMLYACC=ocamlyacc
 OCAMLDEP=ocamldep
-OCAMLMKLIB=ocamlmklib
 OCAMLDOC=ocamldoc
 
 SUFFIXES= .ml .cmo .cmi .cmx
@@ -115,13 +112,13 @@ evalwiki: $(OUR_EVALWIKI_OBJS)
 	$(OCAMLC) -linkpkg -o evalwiki $(OCAML_CFLAGS) $(OUR_LD_ADD) $(OUR_EVALWIKI_OBJS)
 
 libs:	$(OUR_EVALWIKI_OBJS)
-	$(OCAMLC) -linkpkg -a -o evalwiki.cma $(OCAML_CFLAGS) $(OUR_LD_ADD) $(OUR_EVALWIKI_OBJS)
+	$(OCAMLC) -a -o evalwiki.cma $(OCAML_CFLAGS) $(OUR_LD_ADD) $(OUR_EVALWIKI_OBJS)
 
 evalwikiopt: $(OUR_OPT_EVALWIKI_OBJS)
 	$(OCAMLOPT) -linkpkg -o evalwiki $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) $(OUR_OPT_EVALWIKI_OBJS)
 
 libsopt: $(OUR_OPT_EVALWIKI_OBJS)
-	$(OCAMLOPT) -linkpkg -a -o evalwiki.cmxa $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) $(OUR_OPT_EVALWIKI_OBJS)
+	$(OCAMLOPT) -a -o evalwiki.cmxa $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) $(OUR_OPT_EVALWIKI_OBJS)
 
 generate_reputation:  $(OUR_GENERATE_REPUTATION_OBJS)
 	$(OCAMLC) -linkpkg -o generate_reputation $(OCAML_CFLAGS) $(OUR_LD_ADD) $(OUR_GENERATE_REPUTATION_OBJS)
@@ -161,7 +158,7 @@ timeconv: $(TIMECONV_OBJS)
 	$(OCAMLC) -linkpkg -o timeconv $(OCAML_CFLAGS) $(OUR_LD_ADD) $(TIMECONV_OBJS)
 
 all: evalwiki generate_reputation splitwiki combinestats libs
-allopt: evalwikiopt generate_reputationopt splitwikiopt combinestatsopt
+allopt: evalwikiopt generate_reputationopt splitwikiopt combinestatsopt libsopt
 universe: all allopt
 
 #
