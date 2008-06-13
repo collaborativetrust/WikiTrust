@@ -85,13 +85,15 @@ class db
     val sth_insert_hist = "INSERT INTO wikitrust_user_rep_history 
           (user_id, rep_before, rep_after, change_time, event_id) VALUES
           (?, ?, ?, ?, NULL)" 
+    val sth_delete_markup = "DELETE FROM wikitrust_colored_markup WHERE revision_text = ?"      
     val sth_insert_markup = "INSERT INTO wikitrust_colored_markup 
-          (revision_id, revision_text) VALUES (?, ?) ON DUPLICATE KEY UPDATE revision_text = ?" 
+          (revision_id, revision_text) VALUES (?, ?)" 
     val sth_select_markup = "SELECT revision_text FROM wikitrust_colored_markup 
           WHERE revision_id = ?" 
     val sth_select_dead_chunks = "SELECT chunks FROM wikitrust_dead_page_chunks WHERE page_id = ?"
+    val sth_delete_chunks = "DELETE FROM wikitrust_dead_page_chunks WHERE page_id = ?"
     val sth_insert_dead_chunks = "INSERT INTO wikitrust_dead_page_chunks (page_id, chunks) 
-       VALUES (?, ?) ON DUPLICATE KEY UPDATE chunks = ?"
+       VALUES (?, ?)"
     val sth_insert_quality = "INSERT INTO wikitrust_quality_info
           (rev_id, n_edit_judges, total_edit_quality, min_edit_quality, nix_bit
           ) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE n_edit_judges = ?,
@@ -233,8 +235,10 @@ class db
     (* This is currently a first cut, which will be hopefully optimized later *)
     method write_colored_markup (rev_id : int) (markup : string) : unit =
       (* Next we add in the new text. *)
+      ignore (Mysql.exec dbh (format_string sth_delete_markup
+          [ml2int rev_id ]));
       ignore (Mysql.exec dbh (format_string sth_insert_markup 
-          [ml2int rev_id; ml2str markup; ml2str markup ]));
+          [ml2int rev_id; ml2str markup ]));
       ignore (Mysql.exec dbh "COMMIT")
 
 
@@ -268,8 +272,10 @@ class db
       in 
       let c_list_to_sexp cl = sexp_of_list chunk_to_sexp cl in 
       let chunks_string = ml2str (string_of__of__sexp_of c_list_to_sexp c_list) in 
+      ignore (Mysql.exec dbh (format_string sth_delete_chunks
+        [ml2int page_id]));
       ignore (Mysql.exec dbh (format_string sth_insert_dead_chunks 
-	[ml2int page_id; chunks_string; chunks_string])); 
+	[ml2int page_id; chunks_string ])); 
       ignore (Mysql.exec dbh "COMMIT")
 
 
