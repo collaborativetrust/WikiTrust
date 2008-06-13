@@ -623,9 +623,9 @@ class page
 	    self#set_rep rev1_uid new_rep;
 
             (* For logging purposes, produces the Edit_inc line *)
-            let s = Printf.sprintf "\nEditInc %10.0f PageId: %d Delta: %7.2f rev0: %d uid0: %d uname0: %S rev1: %d uid1: %d uname1: %S rev2: %d uid2: %d uname2: %S d01: %7.2f d02: %7.2f d12: %7.2f dp2: %7.2f n01: %d n12: %d t01: %d t12: %d"
+            let s = Printf.sprintf "\nEditInc %10.0f PageId: %d Inc: %7.2f Delta: %7.2f rev0: %d uid0: %d uname0: %S rev1: %d uid1: %d uname1: %S rev2: %d uid2: %d uname2: %S d01: %7.2f d02: %7.2f d12: %7.2f dp2: %7.2f n01: %d n12: %d t01: %d t12: %d"
 	      (* time and page id *)
-	      rev2_time page_id delta
+	      rev2_time page_id inc_local_global delta
 	      (* revision and user ids *)
               rev0_id rev0_uid rev0_uname 
               rev1_id rev1_uid rev1_uname 

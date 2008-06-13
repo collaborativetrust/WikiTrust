@@ -24,7 +24,7 @@ CREATE TABLE wikitrust_edit_lists (
         version         text NOT NULL,
         from_revision   int ,
         to_revision     int,
-        edits           text,
+        edits           longtext,
         PRIMARY KEY (from_revision, to_revision)
 );
 GRANT ALL ON wikitrust_edit_lists TO wikiuser;
@@ -52,7 +52,7 @@ GRANT ALL ON wikitrust_user_rep_history TO wikiuser;
 -- place a store colored markup
 CREATE TABLE wikitrust_colored_markup (
         revision_id     int PRIMARY KEY,
-        revision_text   text NOT NULL,
+        revision_text   longtext NOT NULL,
         coloredon       timestamp NOT NULL DEFAULT now()
 );
 GRANT ALL ON wikitrust_colored_markup TO wikiuser;
