@@ -516,8 +516,11 @@ class page
             c_read_part
             trust_coeff.local_decay
           in
+	  (* debug *)
+	  let len10 = Array.length new_trust_10_a.(0) in 
+	  let len20 = Array.length new_trust_20_a.(0) in 
           (* The trust of each word is the max of the trust under both edits *)
-          for i = 0 to Array.length (new_trust_10_a.(0)) do begin 
+          for i = 0 to Array.length (new_trust_10_a.(0)) - 1 do begin 
             new_trust_10_a.(0).(i) <- max new_trust_10_a.(0).(i) new_trust_20_a.(0).(i)
           end done
         end; (* The closest version was not the immediately preceding one. *)
