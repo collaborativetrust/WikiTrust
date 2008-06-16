@@ -108,16 +108,25 @@ class db
     val sth_select_all_revs = "SELECT rev_id, rev_page, rev_text_id, 
           rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment 
           FROM revision ORDER BY rev_timestamp ASC"
+    val sth_select_all_revs_after = "SELECT rev_id, rev_page, rev_text_id, 
+          rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment 
+          FROM revision WHERE rev_timestamp > ? ORDER BY rev_timestamp ASC"      
     val sth_select_text = "SELECT old_text FROM text WHERE old_id = ?"
-    val sth_select_last_colored_rev = "SELECT A.revision_id, B.rev_page 
+    val sth_select_last_colored_rev = "SELECT A.revision_id, B.rev_page, A.coloredon 
           FROM wikitrust_colored_markup AS A JOIN revision AS B ON (A.revision_id = B.rev_id) 
           ORDER BY coloredon DESC LIMIT 1"
 
     (* Returns the last colored rev, if any *)
-    method fetch_last_colored_rev : (int * int) =
+    method fetch_last_colored_rev : (int * int * (int * int * int * int * int * int)) =
       match fetch (Mysql.exec dbh sth_select_last_colored_rev) with
         | None -> raise DB_Not_Found
-        | Some row -> (not_null int2ml row.(0), not_null int2ml row.(1))
+        | Some row -> (not_null int2ml row.(0), not_null int2ml row.(1), 
+            not_null timestamp2ml row.(2))
+  
+    (** [sth_select_all_revs_after (int * int * int * int * int * int)] returns all 
+        revs created after the given timestamp. *)
+    method fetch_all_revs_after (timesmp : (int * int * int * int * int * int)) : Mysql.result =   
+      Mysql.exec dbh (format_string sth_select_all_revs_after [ml2timestamp timesmp])
 
     (** [fetch_all_revs] returns a cursor that points to all revisions in the database, 
 	in ascending order of timestamp. *)

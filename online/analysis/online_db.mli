@@ -50,7 +50,11 @@ class db :
     (** [fetch_last_colored_rev : (rev_id, page_id)]] Returns the revid and page
         id of the last colored revision. Raises DB_Not_Found if no revisions have been colored.
     *)    
-    method fetch_last_colored_rev : (int * int)
+    method fetch_last_colored_rev : (int * int * (int * int * int * int * int * int))
+    
+    (** [sth_select_all_revs_after (int * int * int * int * int * int)] returns all 
+        revs created after the given timestamp. *)
+    method fetch_all_revs_after : (int * int * int * int * int * int) -> Mysql.result
 
     (** [fetch_all_revs] Returns a pointer to a result set consisting in all the 
 	revisions of the database, in ascending temporal order. *)
