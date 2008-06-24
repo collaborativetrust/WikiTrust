@@ -40,7 +40,7 @@ POSSIBILITY OF SUCH DAMAGE.
     The reduced statistics file is not guaranteed to be in the proper format. *)
 
 type word = string 
-open Eval_constants
+open Eval_defs
 
 
 class page

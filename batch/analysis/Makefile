@@ -68,7 +68,7 @@ OCAMLOPT_FLAGS=
 
 OUR_EVALWIKI_OBJS = text.cmo textbuf.cmo prioq.cmo \
 	coda.cmo editlist.cmo chdiff.cmo compute_edlist.cmo timeconv.cmo \
-	eval_constants.cmo rephist.cmo revision.cmo prune_analysis.cmo \
+	eval_defs.cmo rephist.cmo revision.cmo prune_analysis.cmo \
 	linear_analysis.cmo circbuf_analysis.cmo reputation_analysis.cmo \
 	compute_trust.cmo trust_analysis.cmo trust_local_color_analysis.cmo \
 	contribution_analysis.cmo revcount_analysis.cmo intertime_analysis.cmo \
@@ -77,7 +77,7 @@ OUR_EVALWIKI_OBJS = text.cmo textbuf.cmo prioq.cmo \
 
 OUR_OPT_EVALWIKI_OBJS = text.cmx textbuf.cmx prioq.cmx \
 	coda.cmx editlist.cmx chdiff.cmx compute_edlist.cmx timeconv.cmx \
-	eval_constants.cmx revision.cmx rephist.cmx prune_analysis.cmx \
+	eval_defs.cmx revision.cmx rephist.cmx prune_analysis.cmx \
 	linear_analysis.cmx circbuf_analysis.cmx reputation_analysis.cmx \
 	compute_trust.cmx trust_analysis.cmx trust_local_color_analysis.cmx \
 	contribution_analysis.cmx revcount_analysis.cmx intertime_analysis.cmx \
@@ -88,11 +88,11 @@ OUR_OPT_EVALWIKI_OBJS = text.cmx textbuf.cmx prioq.cmx \
 # Generate_Reputation computes the reputation histories
 
 OUR_GENERATE_REPUTATION_OBJS = timeconv.cmo text.cmo \
-	eval_constants.cmo rephist.cmo evaltypes.cmo wikidata.cmo \
+	eval_defs.cmo rephist.cmo evaltypes.cmo wikidata.cmo \
 	computestats.cmo computerep.cmo generate_reputation.cmo 
 
 OUR_OPT_GENERATE_REPUTATION_OBJS = timeconv.cmx text.cmx \
-	eval_constants.cmx rephist.cmx  evaltypes.cmx wikidata.cmx \
+	eval_defs.cmx rephist.cmx  evaltypes.cmx wikidata.cmx \
 	computestats.cmx computerep.cmx generate_reputation.cmx 
 
 # Splitwiki splits a wiki xml file into smaller files. 

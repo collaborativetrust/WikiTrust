@@ -37,7 +37,7 @@ POSSIBILITY OF SUCH DAMAGE.
 (** This simple page class is used to analyze the inter-edit time distribution. *)
 
 type word = string 
-open Eval_constants
+open Eval_defs
 exception Timestamps_not_in_order
 
 class page 

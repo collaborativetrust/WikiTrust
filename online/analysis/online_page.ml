@@ -676,7 +676,7 @@ class page
 	  db#release_rep_lock; 
 	end;
 
-	(* Finally, we write back to disc the quality information of all revisions *)
+	(* Finally, we write back to disk the quality information of all revisions *)
 	(* The function f is iterated on revid_to_rev *)
 	print_string "   Writing the quality information...\n"; flush stdout; (* debug *)
 	let f (revid: int) (r: Online_revision.revision) : unit = 
