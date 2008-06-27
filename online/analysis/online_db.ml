@@ -39,6 +39,10 @@ open Sexplib.Conv
 open Sexplib.Sexp
 open Sexplib
 
+TYPE_CONV_PATH "UCSC_WIKI_RESEARCH"
+
+type foo_t = int list with sexp;;
+
 let debug_mode = false;;
 
 let identity x = x;;
@@ -269,18 +273,8 @@ class db
 	The chunk_list contains text that used to be present in the article, but has 
 	been deleted; the database records its existence. *)
     method write_dead_page_chunks (page_id : int) (c_list : Online_types.chunk_t list) : unit = 
-      let chunk_to_sexp (c: Online_types.chunk_t) : Sexp.t = 
-	let l = [
-	  (sexp_of_float c.timestamp);
-	  (sexp_of_int c.n_del_revisions);
-          (sexp_of_array sexp_of_string c.text);
-	  (sexp_of_array sexp_of_float c.trust);
-          (sexp_of_array sexp_of_int c.origin);
-	] in 
-	sexp_of_list identity l 
-      in 
-      let c_list_to_sexp cl = sexp_of_list chunk_to_sexp cl in 
-      let chunks_string = ml2str (string_of__of__sexp_of c_list_to_sexp c_list) in 
+      let chunks_string = ml2str (string_of__of__sexp_of 
+          (sexp_of_list sexp_of_chunk_t) c_list) in 
       ignore (Mysql.exec dbh (format_string sth_delete_chunks
         [ml2int page_id]));
       ignore (Mysql.exec dbh (format_string sth_insert_dead_chunks 
@@ -295,21 +289,8 @@ class db
           [ml2int page_id ]) in 
       match Mysql.fetch result with 
 	None -> raise DB_Not_Found
-      | Some x -> begin
-	  let f (c: Sexp.t) : Online_types.chunk_t = 
-	    let ll = list_of_sexp identity c in { 
-	      timestamp = float_of_sexp (List.nth ll 0); 
-	      n_del_revisions = int_of_sexp (List.nth ll 1); 
-	      text = array_of_sexp string_of_sexp (List.nth ll 2); 
-	      trust = array_of_sexp float_of_sexp (List.nth ll 3); 
-	      origin = array_of_sexp int_of_sexp (List.nth ll 4); 
-	    }
-	  in 
-	  let g (s: Sexp.t) : Online_types.chunk_t list = 
-	    List.map f (list_of_sexp identity s)
-	  in 
-	  of_string__of__of_sexp g (not_null str2ml x.(0))
-	end
+      | Some x -> of_string__of__of_sexp (list_of_sexp chunk_t_of_sexp) 
+                      (not_null str2ml x.(0))
 
   (** [write_quality_info rev_id n_edit_judges total_edit_quality min_edit_quality
    n_text_judges new_text persistent_text] writes in a table on disk

@@ -55,7 +55,7 @@ type chunk_t = {
   (** This is the revision_id where each word of the text of these 
       deleted chunks was first introduced. *)
   origin: int array;
-}
+} with sexp
 
 (** These are the coefficients used for the evaluation. *)
 type trust_coeff_t = {

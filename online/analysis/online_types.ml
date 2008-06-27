@@ -36,6 +36,8 @@ POSSIBILITY OF SUCH DAMAGE.
 (** This file contains types that are used by several modules of the 
     online WikiTrust implementation. *)
 
+TYPE_CONV_PATH "UCSC_WIKI_RESEARCH"    
+
 (** A chunk is a portion of text that used to be part of an article, but that 
     has since been deleted.  We associate a chunk list with each page. *)
 type chunk_t = {
@@ -55,7 +57,7 @@ type chunk_t = {
   (** This is the revision_id where each word of the text of these 
       deleted chunks was first introduced. *)
   origin: int array;
-}
+} with sexp
 
 (** These are the coefficients used for the evaluation. *)
 type trust_coeff_t = {
