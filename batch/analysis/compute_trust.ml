@@ -38,7 +38,7 @@ POSSIBILITY OF SUCH DAMAGE.
     the attention of the revisor. *)
 
 type word = string
-open Eval_constants
+open Eval_defs
 
 (** [compute_trust_chunks chunks_trust_a new_chunks_a new_seps medit_l
     rep_float trust_coeff...] computes the new word trust values of the revision with

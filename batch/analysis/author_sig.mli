@@ -52,14 +52,3 @@ val is_author_in_sigs : int -> string -> packed_author_signature_t -> bool
 val add_author :
   int -> string -> packed_author_signature_t -> packed_author_signature_t
 
-(** [compute_auth_sig id w] computes the signature for author [id] and word [w]. *)
-val compute_auth_sig : int -> string -> author_signature_t
-
-(** [is_sig_in_sigs s sigs] returns [true] if the signature [s] is in [sigs], and
-    [false] otherwise. *)
-val is_sig_in_sigs : author_signature_t -> packed_author_signature_t -> bool
-
-(** [add_sig_to_sigs s sigs] adds the signature [s] at the beginning of the signatures 
-    [sigs], and returns the resulting packed signature. *)
-val add_sig_to_sigs :
-  author_signature_t -> packed_author_signature_t -> packed_author_signature_t

@@ -54,7 +54,7 @@ open Eval_defs
     The trust_coeff_... parameters are for trust computation. *)
 let compute_robust_trust
   (chunks_trust_a: float array array) 
-  (chunks_authorsig_a: author_signature_t array array) 
+  (chunks_authorsig_a: Author_sig.packed_author_signature_t array array) 
   (new_chunks_a: word array array) 
   (new_seps: Text.sep_t array)
   (medit_l: Editlist.medit list) 
@@ -66,8 +66,7 @@ let compute_robust_trust
   (trust_coeff_read_all: float)
   (trust_coeff_read_part: float)
   (trust_coeff_local_decay: float)
-  (signature_length: int) 
-  : (float array array * author_signature_t array array) = 
+  : (float array array * Author_sig.packed_author_signature_t array array) = 
 
   (* Produces the new trust array *)
   let f x = Array.make (Array.length x) 0.0 in 
@@ -76,7 +75,7 @@ let compute_robust_trust
   let new_live_len = Array.length new_chunks_a.(0) in
   
   (* Produces the new signature array *)
-  let f x = Array.make (Array.length x) Author_sig.empty_sig in 
+  let f x = Array.make (Array.length x) Author_sig.empty_sigs in 
   let new_chunks_authorsig_a = Array.map f new_chunks_a in 
   (* Produces two auxiliary arrays: one keeps track of whether the author can 
      increase the trust of a word, the second keeps track of whether the author
@@ -225,7 +224,7 @@ let compute_robust_trust
           new_chunks_trust_a.(0).(i) <- new_text_trust;
           looked_at.(i) <- true; 
 	  new_chunks_hasincreased_a.(0).(i) <- true;
-	  new_chunks_canincrease_a.(0).(i) <- true;
+	  (* new_chunks_canincrease_a.(0).(i) <- true; *) (* true is the default *)
         end done;
         (* One generally looks in the whole syntactic unit where one is editing *)
 	spread_look word_idx;
@@ -237,19 +236,21 @@ let compute_robust_trust
         if dst_chunk_idx = 0 then begin 
 
           (* It is live text *)
-          (* First, copies the reputation and signatures *) 
+          (* First, copies the trust and signatures *) 
           for i = 0 to l - 1 do begin 
-	    (* reputation *)
-            let rep = chunks_trust_a.(src_chunk_idx).(src_word_idx + i) in 
-            new_chunks_trust_a.(0).(dst_word_idx + i) <- rep;
-	    (* signature *)
+	    (* trust *)
+            let trust = chunks_trust_a.(src_chunk_idx).(src_word_idx + i) in 
+            new_chunks_trust_a.(0).(dst_word_idx + i) <- trust;
+	    (* This is the word under consideration *)
+	    let w = new_chunks_a.(0).(dst_word_idx + i) in 
+	    (* Packed signature of the word *)
 	    let hsig = chunks_authorsig_a.(src_chunk_idx).(src_word_idx + i) in 
-	    (* This encodes the all-important logic that decides whether a user can increase
-	       the trust of a word.  We have to be either not using signatures, or the user_id 
-	       has to be different from zero, and not present in the signature. *)
-	    new_chunks_canincrease_a.(0).(dst_word_idx + i) 
-	    <- (signature_length = 0) || ((user_id != 0) && not (List.mem user_id hsig)); 
 	    new_chunks_authorsig_a.(0).(dst_word_idx + i) <- hsig;
+	    (* This encodes the all-important logic that decides whether a user can increase
+	       the trust of a word.  The user has to be not anonymous, and not present 
+	       in the signature. *)
+	    new_chunks_canincrease_a.(0).(dst_word_idx + i) <- 
+	      (user_id != 0) && not (Author_sig.is_author_in_sigs user_id w hsig);  
 	    new_chunks_hasincreased_a.(0).(dst_word_idx + i) <- false; 
           end done; 
 
@@ -394,12 +395,12 @@ let compute_robust_trust
   end done; 
 
   (* Now adds the signature to all places where the trust has increased *)
-  if signature_length > 0 then begin 
-    for i = 0 to len0 - 1 do begin 
-      if new_chunks_hasincreased_a.(0).(i) then
-	new_chunks_authorsig_a.(0).(i) <- add_new_author new_chunks_authorsig_a.(0).(i) 
-    end done
-  end; 
+  for i = 0 to len0 - 1 do begin 
+    if new_chunks_hasincreased_a.(0).(i) then
+      let w = new_chunks_a.(0).(i) in 
+      let old_sig = new_chunks_authorsig_a.(0).(i) in 
+      new_chunks_authorsig_a.(0).(i) <- Author_sig.add_author user_id w old_sig
+  end done;
   
   (* Returns the new trust *)
   (new_chunks_trust_a, new_chunks_authorsig_a)

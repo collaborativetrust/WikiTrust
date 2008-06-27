@@ -73,19 +73,3 @@ let add_author (id: int) (w: string) (sigs: packed_author_signature_t) : packed_
   let (a0, a1, a2, a3) = unpack sigs in 
   let h = hash (id, w) in 
   pack h a0 a1 a2
-
-(** [compute_auth_sig id w] computes the signature for author [id] and word [w]. *)
-let compute_auth_sig (id: int) (w: string) : author_signature_t = hash (id, w)
-
-(** [is_sig_in_sigs s sigs] returns [true] if the signature [s] is in [sigs], and
-    [false] otherwise. *)
-let is_sig_in_sigs (s: author_signature_t) (sigs: packed_author_signature_t) : bool = 
-  let (a0, a1, a2, a3) = unpack sigs in 
-  (s = a0 || s = a1 || s = a2 || s = a3)
-  
-(** [add_sig_to_sigs s sigs] adds the signature [s] at the beginning of the signatures 
-    [sigs], and returns the resulting packed signature. *)
-let add_sig_to_sigs (s: author_signature_t) (sigs: packed_author_signature_t) 
-    : packed_author_signature_t = 
-  let (a0, a1, a2, a3) = unpack sigs in 
-  pack s a0 a1 a2

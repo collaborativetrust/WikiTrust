@@ -38,8 +38,6 @@ POSSIBILITY OF SUCH DAMAGE.
     the attention of the revisor. *)
 
 type word = string 
-(** This is the type of a hash signature *)
-type hash_signature_t 
 
 (** [compute_trust_chunks chunks_trust_a new_chunks_a new_seps medit_l
     rep_float] computes the new word trust values of the revision with
@@ -52,7 +50,7 @@ type hash_signature_t
     trust. *)
 val compute_robust_trust : 
   (* chunks_trust_a *) float array array -> 
-  (* chunks_authorsig_a *) hash_signature_t array array -> 
+  (* chunks_authorsig_a *) Author_sig.packed_author_signature_t array array -> 
   (* new_chunks_a *) word array array -> 
   (* new_seps *) Text.sep_t array -> 
   (* medit_l *) Editlist.medit list -> 
@@ -64,8 +62,7 @@ val compute_robust_trust :
   (* trust_coeff_read_all *) float ->
   (* trust_coeff_read_part *) float ->
   (* trust_coeff_local_decay *) float -> 
-  (* signature_length *) int -> 
-  (float array array * hash_signature_t array array)
+  (float array array * Author_sig.packed_author_signature_t array array)
 
 (** [compute_origin chunks_origin_a new_chunks_a medit_l revid] computes the origin of 
     the text in the chunks [new_chunks_a], belonging to a revision with id [revid]. 
