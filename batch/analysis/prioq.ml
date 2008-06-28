@@ -33,6 +33,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
+TYPE_CONV_PATH "UCSC_WIKI_RESEARCH"
 
 (** Priority Queue *)
 

@@ -33,11 +33,13 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
+TYPE_CONV_PATH "UCSC_WIKI_RESEARCH"
+
 (* editlist.ml : this file contains the types related to edit lists *)
 
 type edit = Ins of int * int         (* Ins i l means add l words at position i *)
 	    | Del of int * int       (* Del i l means delete l words from position i *)
-	    | Mov of int * int * int (* Mov i j l means move l words from pos i to pos l *)
+	    | Mov of int * int * int with sexp (* Mov i j l means move l words from pos i to pos l *)
 
 (* same as edit, but for the case when the lhs and rhs are lists of chunks *)
 type medit = Mins of int * int (* Mins i l is insert l chars at pos i of chunk 0 *)

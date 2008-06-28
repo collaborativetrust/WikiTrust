@@ -76,8 +76,9 @@ class revision
 
 let different_author 
     (equate_anons: bool) 
-    (r:  <get_user_id: int; get_ip: string; ..>) 
-    (r': <get_user_id: int; get_ip: string; ..>) 
+    (r  ) 
+    (r' )
+ (* (r': <get_user_id: int; get_ip: string; ..>) *)
     : bool = 
   let uid = r#get_user_id in 
   uid <> r'#get_user_id || ((not equate_anons) && uid = 0 && r#get_ip <> r'#get_ip)

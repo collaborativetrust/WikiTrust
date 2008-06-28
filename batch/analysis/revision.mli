@@ -59,8 +59,8 @@ class revision :
   end
 val different_author :
   bool ->
-  < get_ip : string; get_user_id : int; .. > ->
-  < get_ip : string; get_user_id : int; .. > -> bool
+  < get_ip : string; get_user_id : int; ..> ->
+  < get_ip : string; get_user_id : int; ..> -> bool
 class plain_revision :
   int ->
   int ->

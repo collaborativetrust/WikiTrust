@@ -39,7 +39,7 @@ POSSIBILITY OF SUCH DAMAGE.
 type edit = 
     Ins of int * int (* position, length *)
   | Del of int * int (* position, length *)
-  | Mov of int * int * int (* left position, right position, end *)
+  | Mov of int * int * int with sexp (* left position, right position, end *)
 
 val print_diff : edit list -> unit
 

@@ -30,14 +30,14 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 # Vars we use in our rules to build ocaml programs
-PACKAGES = unix,str,vec,mapmin,hashtbl_bounded,fileinfo,intvmap
-
+PACKAGES = unix,str,vec,mapmin,hashtbl_bounded,fileinfo,intvmap,sexplib.syntax
+SYNTAX = camlp4o
 # OCAMLC=ocamlc
 # OCAMLOPT=ocamlopt
-OCAMLC=ocamlfind ocamlc -package $(PACKAGES)
-OCAMLOPT=ocamlfind ocamlopt -package $(PACKAGES)
+OCAMLC=ocamlfind ocamlc -package $(PACKAGES) -syntax $(SYNTAX)
+OCAMLOPT=ocamlfind ocamlopt -package $(PACKAGES) -syntax $(SYNTAX)
 
-OCAMLDEP=ocamldep
+OCAMLDEP=ocamlfind ocamldep -package $(PACKAGES) -syntax $(SYNTAX)
 OCAMLDOC=ocamldoc
 
 SUFFIXES= .ml .cmo .cmi .cmx

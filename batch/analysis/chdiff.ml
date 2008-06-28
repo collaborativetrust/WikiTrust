@@ -33,6 +33,8 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
+TYPE_CONV_PATH "UCSC_WIKI_RESEARCH"
+
 (** chdiff.ml : here we compare chunks of text, to trace text through
     revisions, and to compute edit distances *)
 

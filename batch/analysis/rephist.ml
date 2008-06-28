@@ -33,6 +33,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
+TYPE_CONV_PATH "UCSC_WIKI_RESEARCH"
 
 (** RepHist.ml
     This file contains the function used to read the history of user reputations, 
