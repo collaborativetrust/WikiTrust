@@ -146,24 +146,13 @@ class db
 	from the (live) text of revision [revid1] to revision [revid2]. *)
     method read_edit_diff (revid1 : int) (revid2 : int) : 
       (string * (Editlist.edit list)) option =
-      
-      let sexp2edit (s) : Editlist.edit = 
-        match pair_of_sexp string_of_sexp identity s with
-          | ("Ins", i) -> (match (pair_of_sexp int_of_sexp int_of_sexp i) with
-                          | (a,b) -> Editlist.Ins (a,b))
-          | ("Del", i) -> (match pair_of_sexp int_of_sexp int_of_sexp i with
-                          | (a,b) -> Editlist.Del (a,b))
-          | ("Mov", i) -> (match triple_of_sexp int_of_sexp int_of_sexp int_of_sexp i with
-                          | (a,b,c) -> Editlist.Mov (a,b,c))
-          | _ -> raise DB_Not_Found
-      in
       let result = Mysql.exec dbh (format_string sth_select_edit_list_flat
           [Mysql.ml2int revid1; Mysql.ml2int revid2]) 
       in
       match Mysql.fetch result with 
           | None -> None
           | Some row -> Some (not_null str2ml row.(0),
-              of_string__of__of_sexp (list_of_sexp sexp2edit) 
+              of_string__of__of_sexp (list_of_sexp Editlist.edit_of_sexp) 
               (not_null str2ml row.(1)))
       
      
@@ -171,24 +160,14 @@ class db
 	[elist] from the (live) text of revision [revid1] to revision [revid2]. *)
     method write_edit_diff (revid1 : int) (revid2 : int) (vers : string) 
         (elist : Editlist.edit list) : unit = 
-  
-      let edit2sexp e = match e with
-        | Editlist.Ins (a,b) -> sexp_of_pair sexp_of_string identity
-          ("Ins", (sexp_of_pair sexp_of_int sexp_of_int) (a, b))
-        | Editlist.Del (a,b) -> sexp_of_pair sexp_of_string identity
-          ("Del", (sexp_of_pair sexp_of_int sexp_of_int) (a, b))
-        | Editlist.Mov (a,b,c)-> sexp_of_pair sexp_of_string identity
-          ("Mov", (sexp_of_triple sexp_of_int sexp_of_int sexp_of_int) (a, b, c))
-      in
-
       (* Next we add in the new text. *)
       ignore (Mysql.exec dbh (format_string sth_insert_edit_list_flat
           [ml2str vers; 
-          ml2str (string_of__of__sexp_of (sexp_of_list edit2sexp) elist);
+          ml2str (string_of__of__sexp_of (sexp_of_list Editlist.sexp_of_edit) elist);
           ml2int revid1; 
           ml2int revid2;
           ml2str vers;
-          ml2str (string_of__of__sexp_of (sexp_of_list edit2sexp) elist);
+          ml2str (string_of__of__sexp_of (sexp_of_list Editlist.sexp_of_edit) elist);
           ]));
       ignore (Mysql.exec dbh "COMMIT")
 
