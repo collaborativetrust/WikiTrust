@@ -1,2 +1,6 @@
 
-revision_q.sql * This is the sql expected for the online feed to work.   
+- create_wikitrust_tables.sql creates the db tables used by
+  wikitrust. 
+
+- remove_wikitrust_tables.sql removes the tables used by wikitrust. 
+

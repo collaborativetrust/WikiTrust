@@ -33,6 +33,8 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
+open Eval_defs
+
 (** Type of author signature *)
 type packed_author_signature_t = int
 type unpacked_author_signature_t = int * int * int * int
@@ -45,6 +47,9 @@ external hash_param : int -> int -> 'a -> int = "caml_hash_univ_param" "noalloc"
 let hash x = 1 + (hash_param 10 100 x) mod 127
 
 let empty_sigs = 0
+
+let sexp_of_sigs = Sexplib.Conv.sexp_of_int
+let sigs_of_sexp = Sexplib.Conv.int_of_sexp
 
 let pack (a0: int) (a1: int) (a2: int) (a3: int) : packed_author_signature_t = 
   a0 lor ((a1 lor ((a2 lor (a3 lsl offset)) lsl offset)) lsl offset)
@@ -62,14 +67,18 @@ let unpack (p: packed_author_signature_t) : unpacked_author_signature_t =
 (** [is_author_in_sigs id w sigs] returns [true] if author [id] is in the signatures [sigs] of 
     word [w], and returns [false] otherwise. *)
 let is_author_in_sigs (id: int) (w: string) (sigs: packed_author_signature_t) : bool = 
-  let (a0, a1, a2, a3) = unpack sigs in 
-  let h = hash (id, w) in 
-  (h = a0 || h = a1 || h = a2 || h = a3)
+  if is_anonymous id then true 
+  else 
+    let (a0, a1, a2, a3) = unpack sigs in 
+    let h = hash (id, w) in 
+    (h = a0 || h = a1 || h = a2 || h = a3)
 
 (** [add_author id word sigs] adds author id to the signatures [sigs] for word [word], 
     and returns the new signature.  It assumes that the author was not already in the 
     list. *)
 let add_author (id: int) (w: string) (sigs: packed_author_signature_t) : packed_author_signature_t = 
-  let (a0, a1, a2, a3) = unpack sigs in 
-  let h = hash (id, w) in 
-  pack h a0 a1 a2
+  if is_anonymous id then sigs 
+  else 
+    let (a0, a1, a2, a3) = unpack sigs in 
+    let h = hash (id, w) in 
+    pack h a0 a1 a2

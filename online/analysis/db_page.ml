@@ -33,7 +33,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
-open Eval_constants;;
+open Eval_defs;;
 open Online_types;;
 open Online_revision;;
 open Mysql;;

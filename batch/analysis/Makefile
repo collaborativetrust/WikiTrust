@@ -30,7 +30,7 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 # Vars we use in our rules to build ocaml programs
-PACKAGES = unix,str,vec,mapmin,hashtbl_bounded,fileinfo,intvmap
+PACKAGES = unix,str,vec,mapmin,hashtbl_bounded,fileinfo,intvmap,sexplib
 
 # OCAMLC=ocamlc
 # OCAMLOPT=ocamlopt

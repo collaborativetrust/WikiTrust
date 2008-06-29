@@ -42,6 +42,12 @@ type author_signature_t
 (** Empty signatures: no author has yet signed. *)
 val empty_sigs : packed_author_signature_t
 
+(** [sexp_of_sig sig] returns the sexp of a packed signature [sig] *)
+val sexp_of_sigs : packed_author_signature_t -> Sexplib.Sexp.t
+
+(** [sig_of_sexp s] returns the packed sig of a sexp [s] *)
+val sigs_of_sexp : Sexplib.Sexp.t -> packed_author_signature_t
+
 (** [is_author_in_sigs id w sigs] returns [true] if author [id] is in the signatures [sigs] of 
     word [w], and returns [false] otherwise. *)
 val is_author_in_sigs : int -> string -> packed_author_signature_t -> bool

@@ -33,6 +33,13 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
+
+(* To do: 
+   - Fix COMMITs
+   - Fix locking 
+   - Fix recovery
+ *)
+
 open Online_types
 open Mysql
 open Sexplib.Conv
@@ -85,11 +92,14 @@ class db
     val sth_insert_hist = "INSERT INTO wikitrust_user_rep_history 
           (user_id, rep_before, rep_after, change_time, event_id) VALUES
           (?, ?, ?, ?, NULL)" 
-    val sth_delete_markup = "DELETE FROM wikitrust_colored_markup WHERE revision_text = ?"      
+    val sth_delete_markup = "DELETE FROM wikitrust_colored_markup WHERE revision_id = ?"      
     val sth_insert_markup = "INSERT INTO wikitrust_colored_markup 
           (revision_id, revision_text) VALUES (?, ?)" 
     val sth_select_markup = "SELECT revision_text FROM wikitrust_colored_markup 
           WHERE revision_id = ?" 
+    val sth_select_author_sigs = "SELECT sig FROM wikitrust_sigs WHERE revision_id = ?"
+    val sth_insert_author_sigs = "INSERT INTO wikitrust_sigs (revision_id, sig) VALUES (?, ?)"
+    val sth_delete_author_sigs = "DELETE FROM wikitrust_sigs WHERE revision_id = ?"
     val sth_select_dead_chunks = "SELECT chunks FROM wikitrust_dead_page_chunks WHERE page_id = ?"
     val sth_delete_chunks = "DELETE FROM wikitrust_dead_page_chunks WHERE page_id = ?"
     val sth_insert_dead_chunks = "INSERT INTO wikitrust_dead_page_chunks (page_id, chunks) 
@@ -243,12 +253,10 @@ class db
 	may be highly advisable. *)
     (* This is currently a first cut, which will be hopefully optimized later *)
     method write_colored_markup (rev_id : int) (markup : string) : unit =
-      (* Next we add in the new text. *)
       ignore (Mysql.exec dbh (format_string sth_delete_markup
           [ml2int rev_id ]));
       ignore (Mysql.exec dbh (format_string sth_insert_markup 
-          [ml2int rev_id; ml2str markup ]));
-      ignore (Mysql.exec dbh "COMMIT")
+          [ml2int rev_id; ml2str markup ]))
 
 
     (** [read_colored_markup rev_id] reads the text markup of a revision with id
@@ -262,6 +270,38 @@ class db
         | Some x -> not_null str2ml x.(0)
 
 
+    (** [write_author_sigs rev_id sigs] writes that the author signatures 
+	for the revision [rev_id] are [sigs]. *)
+    method write_author_sigs (rev_id: int) 
+      (sigs: Author_sig.packed_author_signature_t array) : unit = 
+      let g x = sexp_of_array Author_sig.sexp_of_sigs x in 
+      let s = string_of__of__sexp_of g sigs in 
+      ignore (Mysql.exec dbh (format_string sth_delete_author_sigs 
+	[ml2int rev_id])); 
+      ignore (Mysql.exec dbh (format_string sth_insert_author_sigs
+	[ml2int rev_id; ml2str s])) 
+
+  
+    (** [read_author_sigs rev_id] reads the author signatures for the revision 
+	[rev_id]. 
+	TODO: Note that we can keep the signatures separate from the text 
+	because it is not a bit deal if we occasionally mis-align text and 
+	signatures when we change the parsing algorithm: all that can happen 
+	is that occasinally an author can give trust twice to the same piece of text. 
+	However, it is imperative that in the calling code we check that the list
+	of signatures has the same length as the list of words. 
+        *)
+    method read_author_sigs 
+      (rev_id: int) : Author_sig.packed_author_signature_t array = 
+      let result = Mysql.exec dbh (format_string sth_select_author_sigs 
+          [ml2int rev_id ]) in 
+      match Mysql.fetch result with 
+	None -> raise DB_Not_Found
+      | Some x -> begin
+	  let g sx = array_of_sexp Author_sig.sigs_of_sexp sx in 
+	  of_string__of__of_sexp g (not_null str2ml x.(0))
+	end
+
     (** [write_dead_page_chunks page_id chunk_list] writes, in a table indexed by 
 	(page id, string list) that the page with id [page_id] is associated 
 	with the "dead" strings of text [chunk1], [chunk2], ..., where
@@ -274,6 +314,7 @@ class db
 	  (sexp_of_float c.timestamp);
 	  (sexp_of_int c.n_del_revisions);
           (sexp_of_array sexp_of_string c.text);
+	  (sexp_of_array Author_sig.sexp_of_sigs c.sigs);
 	  (sexp_of_array sexp_of_float c.trust);
           (sexp_of_array sexp_of_int c.origin);
 	] in 
@@ -284,8 +325,7 @@ class db
       ignore (Mysql.exec dbh (format_string sth_delete_chunks
         [ml2int page_id]));
       ignore (Mysql.exec dbh (format_string sth_insert_dead_chunks 
-	[ml2int page_id; chunks_string ])); 
-      ignore (Mysql.exec dbh "COMMIT")
+	[ml2int page_id; chunks_string ]))
 
 
     (** [read_dead_page_chunks page_id] returns the list of dead chunks associated
@@ -302,7 +342,8 @@ class db
 	      n_del_revisions = int_of_sexp (List.nth ll 1); 
 	      text = array_of_sexp string_of_sexp (List.nth ll 2); 
 	      trust = array_of_sexp float_of_sexp (List.nth ll 3); 
-	      origin = array_of_sexp int_of_sexp (List.nth ll 4); 
+	      sigs = array_of_sexp Author_sig.sigs_of_sexp (List.nth ll 4); 
+	      origin = array_of_sexp int_of_sexp (List.nth ll 5); 
 	    }
 	  in 
 	  let g (s: Sexp.t) : Online_types.chunk_t list = 

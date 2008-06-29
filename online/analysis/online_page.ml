@@ -33,7 +33,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
-open Eval_constants;;
+open Eval_defs;;
 open Online_types;;
 type word = string
 
@@ -158,6 +158,16 @@ class page
 
     (** Computes the weight of a reputation *)
     method private weight (r: float) : float = log (1.1 +. r)
+
+
+    (** This method reads and validates a list of author signatures, checking that 
+	the length is proper, and resetting the list otherwise. *)
+    method private read_valid_author_sigs (rev_id: int) (l: int) : 
+      Author_sig.packed_author_signature_t array = 
+      let sig_a = db#read_author_sigs rev_id in 
+      if Array.length (sig_a) = l 
+      then sig_a
+      else Array.create l Author_sig.empty_sigs
 
 
     (** This method computes all the revision-to-revision edit lists and distances among the
@@ -290,12 +300,15 @@ class page
     (** Gets a list of dead chunks coming from the disk, and translates them into 
         arrays, leaving position 0 free for the current revision. *)
     method private chunks_to_array (chunk_l: chunk_t list) :
-      (word array array * float array array * int array array * int array * float array) = 
+      (word array array * float array array * 
+	Author_sig.packed_author_signature_t array array * 
+	int array array * int array * float array) = 
       let n_els = 1 + List.length chunk_l in 
-      let chunks_a = Array.make n_els (Array.make 0 "") in 
-      let trust_a  = Array.make n_els (Array.make 0 0.) in 
-      let origin_a = Array.make n_els (Array.make 0 0)  in 
-      let age_a    = Array.make n_els 0  in 
+      let chunks_a = Array.make n_els [| |] in 
+      let trust_a  = Array.make n_els [| |] in 
+      let sigs_a    = Array.make n_els [| |] in 
+      let origin_a = Array.make n_els [| |] in
+      let age_a    = Array.make n_els 0 in 
       let time_a   = Array.make n_els 0. in 
       (* Fills the arrays one by one *)
       let i = ref 0 in 
@@ -303,18 +316,20 @@ class page
       let f (c: chunk_t) : unit = begin
         i := !i + 1; 
         chunks_a.(!i) <- c.text; 
-        trust_a.(!i)  <- c.trust; 
+        trust_a.(!i)  <- c.trust;
+	sigs_a.(!i)   <- c.sigs;
         origin_a.(!i) <- c.origin; 
         age_a.(!i)    <- c.n_del_revisions; 
         time_a.(!i)   <- c.timestamp
       end in 
       List.iter f chunk_l; 
-      (chunks_a, trust_a, origin_a, age_a, time_a)
+      (chunks_a, trust_a, sigs_a, origin_a, age_a, time_a)
 
 
     (** This method computes the list of dead chunks, updating appropriately their age and 
         count, and selects the ones that are not too old. 
-        [compute_dead_chunk_list new_chunks_a new_trust_a new_origin_a original_chunk_l 
+        [compute_dead_chunk_list new_chunks_a new_trust_a new_sigs_a 
+	new_origin_a original_chunk_l 
         medit_l previous_time current_time] computes
         [(live_chunk, live_trust, live_origin, chunk_l)]. 
         [previous_time] is the time of the revision preceding the one whose list of 
@@ -323,6 +338,7 @@ class page
     method private compute_dead_chunk_list 
       (new_chunks_a: word array array)
       (new_trust_a: float array array) 
+      (new_sigs_a: Author_sig.packed_author_signature_t array array) 
       (new_origin_a: int array array)
       (original_chunk_l: chunk_t list)
       (medit_l: Editlist.medit list) 
@@ -337,6 +353,7 @@ class page
           n_del_revisions = 0; (* we will fix this later *)
           text = new_chunks_a.(i); 
           trust = new_trust_a.(i); 
+	  sigs = new_sigs_a.(i); 
           origin = new_origin_a.(i); 
         } in 
         chunk_v := Vec.append c !chunk_v
@@ -409,11 +426,19 @@ class page
         let new_text_trust = weight_user *. trust_coeff.lends_rep in 
         let chunk_0_trust = Array.make rev0_l new_text_trust in 
         let chunk_0_origin = Array.make rev0_l rev0_id in 
+	(* Produces the correct author signature; the function f is mapped on the 
+	   array of words rev0_t *)
+	let chunk_0_sigs = 
+	  let f (w: string) : Author_sig.packed_author_signature_t = 
+	      Author_sig.add_author rev0_uid w Author_sig.empty_sigs
+	  in Array.map f rev0_t
+	in 
         (* Produces the live chunk, consisting of the text of the revision, annotated
            with trust and origin information *)
         let chunk_0 = Revision.produce_annotated_markup rev0_seps chunk_0_trust chunk_0_origin true true in 
         (* And writes it out to the db *)
         db#write_colored_markup rev0_id (Buffer.contents chunk_0); 
+	db#write_author_sigs rev0_id chunk_0_sigs; 
         db#write_dead_page_chunks page_id []
 
       end else begin 
@@ -427,7 +452,7 @@ class page
         let del_chunks_list = db#read_dead_page_chunks page_id in 
         (* And makes the arrays of deleted chunks of words, trust, and origin, 
            leaving position 0 free, for the live page. *)
-        let (chunks_a, trust_a, origin_a, age_a, timestamp_a) = self#chunks_to_array del_chunks_list in 
+        let (chunks_a, trust_a, sig_a, origin_a, age_a, timestamp_a) = self#chunks_to_array del_chunks_list in 
 	(* For the origin, we always consider the immediately preceding revision. *)
         origin_a.(0) <- rev1#get_origin;
 
@@ -460,20 +485,24 @@ class page
            between revisions rev1_id --> rev0_id. Data relative to the previous revision
            is stored in the instance fields chunks_a *)
         let (new_chunks_10_a, medit_10_l) = Chdiff.text_tracking chunks_a rev0_t in 
+	(* Reads the author signatures *)
+	sig_a.(0) <- self#read_valid_author_sigs rev1_id (Array.length rev1#get_words); 
         (* Calls the function that computes the trust of the newest revision. *)
-        (* If the author is the same, we do not increase the reputation of exisiting text, 
-           to thwart a trivial attack. *)
+        (* If the author is the same, we do not increase the reputation 
+	   of exisiting text, to thwart a trivial attack. *)
         let (c_read_all, c_read_part) = 
           if rev0#get_user_id = rev1#get_user_id 
           then (0., 0.) 
           else (trust_coeff.read_all, trust_coeff.read_part)
         in 
-        let new_trust_10_a = Compute_trust.compute_trust_chunks 
+        let (new_trust_10_a, new_sigs_10_a) = Compute_robust_trust.compute_robust_trust 
           trust_a 
+	  sig_a
           new_chunks_10_a 
           rev0#get_seps 
           medit_10_l
           weight_user 
+	  rev0_uid
           trust_coeff.lends_rep 
           trust_coeff.kill_decrease 
           trust_coeff.cut_rep_radius 
@@ -491,6 +520,7 @@ class page
           let rev2 = Vec.get !close_idx revs in 
           chunks_a.(0) <- rev2#get_words; 
           trust_a.(0)  <- rev2#get_trust;
+	  sig_a.(0) <- self#read_valid_author_sigs rev2#get_id (Array.length chunks_a.(0));
           (* Calls the function that analyzes the difference 
              between revisions rev2_id --> rev0_id. Data relative to the previous revision
              is stored in the instance fields chunks_a *)
@@ -503,12 +533,14 @@ class page
             then (0., 0.) 
             else (trust_coeff.read_all, trust_coeff.read_part)
           in 
-          let new_trust_20_a = Compute_trust.compute_trust_chunks 
-            trust_a 
+          let (new_trust_20_a, new_sigs_20_a) = Compute_robust_trust.compute_robust_trust
+            trust_a
+	    sig_a
             new_chunks_20_a 
             rev0#get_seps 
             medit_20_l
             weight_user 
+	    rev0_uid
             trust_coeff.lends_rep 
             trust_coeff.kill_decrease 
             trust_coeff.cut_rep_radius 
@@ -516,23 +548,31 @@ class page
             c_read_part
             trust_coeff.local_decay
           in
-          (* The trust of each word is the max of the trust under both edits *)
-          for i = 0 to Array.length (new_trust_10_a.(0)) - 1 do begin 
-            new_trust_10_a.(0).(i) <- max new_trust_10_a.(0).(i) new_trust_20_a.(0).(i)
-          end done
+          (* The trust of each word is the max of the trust under both edits;
+	     the signature is the signature of the max. *)
+          for i = 0 to Array.length (new_trust_10_a.(0)) - 1 do
+	    if new_trust_20_a.(0).(i) > new_trust_10_a.(0).(i) then begin 
+	      new_trust_10_a.(0).(i) <- new_trust_20_a.(0).(i); 
+	      new_sigs_10_a.(0).(i) <- new_sigs_20_a.(0).(i)
+	    end
+	  done
         end; (* The closest version was not the immediately preceding one. *)
+	(* After the case split of which version was the closest one, it is the
+	   _10 variables that contain the correct values of trust and author 
+	   signatures. *)
 
         (* Computes the origin of the new text; for this, we use the immediately preceding revision. *)
         let new_origin_10_a = Compute_trust.compute_origin origin_a new_chunks_10_a medit_10_l rev0_id in 
         (* Computes the list of deleted chunks with extended information (also age, timestamp), 
            and the information for the live text *)
         let dead_chunk_l = self#compute_dead_chunk_list 
-	  new_chunks_10_a new_trust_10_a new_origin_10_a del_chunks_list medit_10_l rev1_time rev0_time
+	  new_chunks_10_a new_trust_10_a new_sigs_10_a new_origin_10_a del_chunks_list medit_10_l rev1_time rev0_time
         in 
         (* Writes the revision to disk *)
         let buf = Revision.produce_annotated_markup rev0#get_seps new_trust_10_a.(0) 
 	  new_origin_10_a.(0) true true in 
-        db#write_colored_markup rev0_id (Buffer.contents buf); 
+        db#write_colored_markup rev0_id (Buffer.contents buf);
+	db#write_author_sigs rev0_id new_sigs_10_a.(0); 
         db#write_dead_page_chunks page_id dead_chunk_l
 
       end (* method compute_trust *)

@@ -38,3 +38,6 @@ val big_distance : int
 val max_perc_to_zip : float
 val max_uncovered_to_zip : int
 val max_longevity_table : int
+
+val is_anonymous: int -> bool
+val not_anonymous: int -> bool

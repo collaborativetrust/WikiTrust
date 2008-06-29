@@ -33,7 +33,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
-open Eval_constants;;
+open Eval_defs;;
 open Online_types;;
 
 (** This class contains methods to read consecutive revisions belonging
