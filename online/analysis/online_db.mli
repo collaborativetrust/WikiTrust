@@ -42,6 +42,10 @@ open Online_types;;
     be read from the database. *)
 exception DB_Not_Found;;
 
+(** This is the type of timestamps; abstract, since we don't need to play 
+    with them now *)
+type timestamp_t
+
 class db : 
   string (* user *) -> 
   string (* auth *) ->
@@ -49,23 +53,27 @@ class db :
 
   object
    
-    (** [fetch_last_colored_rev : (rev_id, page_id)]] Returns the revid and page
-        id of the last colored revision. Raises DB_Not_Found if no revisions have been colored.
+    (** [fetch_last_colored_rev] returns a tuple 
+	[(revid, pageid, timestamp)] for the last colored revision.  
+        Raises DB_Not_Found if no revisions have been colored.
     *)    
-    method fetch_last_colored_rev : (int * int * (int * int * int * int * int * int))
+    method fetch_last_colored_rev : int * int * timestamp_t
     
     (** [sth_select_all_revs_after (int * int * int * int * int * int)] returns all 
         revs created after the given timestamp. *)
-    method fetch_all_revs_after : (int * int * int * int * int * int) -> Mysql.result
+    method fetch_all_revs_after : timestamp_t -> Mysql.result
 
     (** [fetch_all_revs] Returns a pointer to a result set consisting in all the 
 	revisions of the database, in ascending temporal order. *)
     method fetch_all_revs : Mysql.result
 
-    (** [fetch_revs pageid revid] Returns a pointer to a result set of revisions for a given 
-        page, starting at rev_id, and going back in time. 
-    *)
-    method fetch_revs : int -> int -> Mysql.result 
+    (** [fetch_revs page_id timestamp] returns a cursor that points to all 
+	revisions of page [page_id] with time prior or equal to [timestamp]. *)
+    method fetch_revs : int -> timestamp_t -> Mysql.result
+ 
+   (** [fetch_rev_timestamp rev_id] returns the timestamp of revision [rev_id] *)
+    method fetch_rev_timestamp : int -> timestamp_t
+
     (** [read_edit_diff revid1 revid2] reads from the database the edit list 
 	from the (live) text of revision [revid1] to revision [revid2]. 
         The edit list consists in a string, identifying the way revision of 

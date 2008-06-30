@@ -35,9 +35,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
 
 (* To do: 
-   - Fix COMMITs
    - Fix locking 
-   - Fix recovery
  *)
 
 open Online_types
@@ -45,6 +43,12 @@ open Mysql
 open Sexplib.Conv
 open Sexplib.Sexp
 open Sexplib
+
+(* Returned whenever something is not found *)
+exception DB_Not_Found
+
+(* Timestamp in the DB *)
+type timestamp_t = int * int * int * int * int * int
 
 let debug_mode = false;;
 
@@ -57,8 +61,6 @@ let rec format_string (str : string) (vals : string list) : string =
       | (true, newstr) -> format_string newstr tl                                       
       | (false, newstr) -> newstr)                                                      
 ;;
-
-exception DB_Not_Found
 
 (** This class provides a handle for accessing the database in the on-line 
     implementation. *)
@@ -114,7 +116,10 @@ class db
           FROM wikitrust_quality_info WHERE rev_id = ?" 
     val sth_select_revs = "SELECT rev_id, rev_page, rev_text_id, 
           rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment 
-          FROM revision WHERE rev_page = ? AND rev_id <= ? ORDER BY rev_timestamp DESC"
+          FROM revision WHERE rev_page = ? AND rev_timestamp <= ? 
+          ORDER BY rev_timestamp DESC"
+    val sth_select_rev_timestamp = "SELECT rev_timestamp FROM revision 
+          WHERE rev_id = ?"
     val sth_select_all_revs = "SELECT rev_id, rev_page, rev_text_id, 
           rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment 
           FROM revision ORDER BY rev_timestamp ASC"
@@ -127,7 +132,7 @@ class db
           ORDER BY coloredon DESC LIMIT 1"
 
     (* Returns the last colored rev, if any *)
-    method fetch_last_colored_rev : (int * int * (int * int * int * int * int * int)) =
+    method fetch_last_colored_rev : (int * int * timestamp_t) = 
       match fetch (Mysql.exec dbh sth_select_last_colored_rev) with
         | None -> raise DB_Not_Found
         | Some row -> (not_null int2ml row.(0), not_null int2ml row.(1), 
@@ -135,18 +140,26 @@ class db
   
     (** [sth_select_all_revs_after (int * int * int * int * int * int)] returns all 
         revs created after the given timestamp. *)
-    method fetch_all_revs_after (timesmp : (int * int * int * int * int * int)) : Mysql.result =   
-      Mysql.exec dbh (format_string sth_select_all_revs_after [ml2timestamp timesmp])
+    method fetch_all_revs_after (timestamp : timestamp_t) : Mysql.result =   
+      Mysql.exec dbh (format_string sth_select_all_revs_after [ml2timestamp timestamp])
 
     (** [fetch_all_revs] returns a cursor that points to all revisions in the database, 
 	in ascending order of timestamp. *)
     method fetch_all_revs : Mysql.result = 
       Mysql.exec dbh (format_string sth_select_all_revs [])
   
-    (** [fetch_revs page_id rev_id] returns a cursor that points to all revisions 
-	of page [page_id] that coincide, or precede, revision [rev_id]. *)
-    method fetch_revs (page_id : int) (rev_id : int) : Mysql.result =
-      Mysql.exec dbh (format_string sth_select_revs [ml2int page_id; ml2int rev_id])
+    (** [fetch_revs page_id timestamp] returns a cursor that points to all 
+	revisions of page [page_id] with time prior or equal to [timestamp]. *)
+    method fetch_revs (page_id : int) (timestamp: timestamp_t) : Mysql.result =
+      Mysql.exec dbh (format_string sth_select_revs [ml2int page_id; ml2timestamp timestamp])
+
+
+   (** [fetch_rev_timestamp rev_id] returns the timestamp of revision [rev_id] *)
+    method fetch_rev_timestamp (rev_id: int) : timestamp_t = 
+      let result = Mysql.exec dbh (format_string sth_select_rev_timestamp [ml2int rev_id]) in 
+      match fetch result with 
+	None -> raise DB_Not_Found
+      | Some row -> not_null timestamp2ml row.(0)
 
     (** [read_edit_diff revid1 revid2] reads from the database the edit list 
 	from the (live) text of revision [revid1] to revision [revid2]. *)
@@ -368,7 +381,6 @@ class db
 	  ml2float q.min_edit_quality; 
 	  if q.nix_bit then "1" else "0"
           ]))
-
 
 
     (** [read_quality_info rev_id] returns the tuple 

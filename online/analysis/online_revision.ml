@@ -220,3 +220,4 @@ let make_revision row db: revision =
     (not_null str2ml row.(5)) 
     (set_is_minor (not_null int2ml row.(6)))                           
     (not_null str2ml row.(7))
+
