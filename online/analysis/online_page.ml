@@ -164,10 +164,12 @@ class page
 	the length is proper, and resetting the list otherwise. *)
     method private read_valid_author_sigs (rev_id: int) (l: int) : 
       Author_sig.packed_author_signature_t array = 
-      let sig_a = db#read_author_sigs rev_id in 
-      if Array.length (sig_a) = l 
-      then sig_a
-      else Array.create l Author_sig.empty_sigs
+      try 
+	let sig_a = db#read_author_sigs rev_id in 
+	if Array.length (sig_a) = l 
+	then sig_a
+	else Array.create l Author_sig.empty_sigs
+      with Online_db.DB_Not_Found -> Array.create l Author_sig.empty_sigs
 
 
     (** This method computes all the revision-to-revision edit lists and distances among the
@@ -177,12 +179,6 @@ class page
       let n_revs = Vec.length revs in 
       (* If there is only one revision, there is nothing to do. *)
       if n_revs > 1 then begin 
-        (* Existing edit lists may be 
-           generated with an older version of the code that splits revisions
-           into words, so we need to check them, and in case, rebuild them. 
-           Gets the current version of the code. *)
-        let current_version = Text.version in 
-
         (* Now reads or computes all the triangle distances.
            It starts from the end of the Vec, and progresses towards the beginning. *)
         let last_idx = n_revs - 1 in 
@@ -203,15 +199,22 @@ class page
             let rev2_id = rev2#get_id in 
 
             (* The easiest case is when the distance can be read from the database. *)
-            let edl_opt = db#read_edit_diff rev2_id rev1_id in 
-            (* This needs to be recomputed if it cannot be found, or if it is computed 
-               with an old method. *)
-            let must_recompute = 
-              match edl_opt with 
-                None -> true
-              | Some (vers, edl) -> vers != current_version 
-            in 
-            if must_recompute then begin 
+	    let (edl, precomputed) = 
+	      try 
+		let (vers, edl) = db#read_edit_diff rev2_id rev1_id in 
+		(* Existing edit lists may be 
+		   generated with an older version of the code that splits revisions
+		   into words, so we need to check them, and in case, rebuild them. *)
+		(edl, vers = Text.version)
+	      with Online_db.DB_Not_Found -> ([], false)
+	    in 
+            if precomputed then begin
+              (* The edit list was found on disk; writes it in the hash table *)
+              Hashtbl.add edit_list (rev2_id, rev1_id) (rev2_l, rev1_l, edl);
+              let d = Editlist.edit_distance edl (max rev2_l rev1_l) in 
+              Hashtbl.add edit_dist (rev2_id, rev1_id) d;
+	      Hashtbl.add edit_dist (rev1_id, rev2_id) d
+	    end else begin 
               (* The edit list must be computed. *)
               let (edl, d) = 
                 (* Decides which method to use: zipping the lists, or 
@@ -279,19 +282,8 @@ class page
               Hashtbl.add edit_dist (rev2_id, rev1_id) d; 
 	      Hashtbl.add edit_dist (rev1_id, rev2_id) d;
               (* and writes it to disk *)
-              db#write_edit_diff rev2_id rev1_id current_version edl 
-            end else begin 
-              (* The edit list can be found on disk *)
-              match edl_opt with 
-                None -> ()
-              | Some (vers, edl) -> begin 
-                  Hashtbl.add edit_list (rev2_id, rev1_id) (rev2_l, rev1_l, edl);
-                  let d = Editlist.edit_distance edl (max rev2_l rev1_l) in 
-                  Hashtbl.add edit_dist (rev2_id, rev1_id) d;
-		  Hashtbl.add edit_dist (rev1_id, rev2_id) d
-                end
+              db#write_edit_diff rev2_id rev1_id Text.version edl 
             end
-
           end done (* for rev2_idx *)
         end done (* for rev1_idx *)
       end (* if more than one revision *)
@@ -449,7 +441,10 @@ class page
         let rev1_id = rev1#get_id in 
 	let rev1_time = rev1#get_time in 
         (* Reads from disk the deleted chunks list from the page *)
-        let del_chunks_list = db#read_dead_page_chunks page_id in 
+        let del_chunks_list = 
+	  try db#read_dead_page_chunks page_id
+	  with Online_db.DB_Not_Found -> []
+	in 
         (* And makes the arrays of deleted chunks of words, trust, and origin, 
            leaving position 0 free, for the live page. *)
         let (chunks_a, trust_a, sig_a, origin_a, age_a, timestamp_a) = self#chunks_to_array del_chunks_list in 
@@ -727,6 +722,8 @@ class page
 	db#release_page_lock page_id; 
       end;
 
+      (* Commits the transaction *)
+      db#commit; 
       (* Flushes the logger.  *)
       logger#flush;
 

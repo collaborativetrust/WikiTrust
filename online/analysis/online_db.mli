@@ -67,10 +67,8 @@ class db :
     (** [read_edit_diff revid1 revid2] reads from the database the edit list 
 	from the (live) text of revision [revid1] to revision [revid2]. 
         The edit list consists in a string, identifying the way revision of 
-        Text.ml used for splitting the text, and in the edit list proper.
-        The return type is an option: the db should return None if no such row for 
-        revid1 and revid2 can be found in the database. *)
-    method read_edit_diff : int -> int -> (string * (Editlist.edit list)) option  
+        Text.ml used for splitting the text, and in the edit list proper. *)
+    method read_edit_diff : int -> int -> (string * (Editlist.edit list))
 
     (** [write_edit_diff revid1 revid2 vers elist] writes to the database the edit list 
 	[elist] from the (live) text of revision [revid1] to revision [revid2], 
@@ -162,6 +160,9 @@ class db :
     (** [release_rep_lock] releases a lock for the global table of user reputations, to guarantee 
 	serializability of the updates. *)
     method release_rep_lock : unit
+
+    (** Commit of transaction *)
+    method commit : unit
 
     (** Totally clear out the db structure -- THIS IS INTENDED ONLY FOR UNIT
     TESTING *)

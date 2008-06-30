@@ -151,7 +151,7 @@ class db
     (** [read_edit_diff revid1 revid2] reads from the database the edit list 
 	from the (live) text of revision [revid1] to revision [revid2]. *)
     method read_edit_diff (revid1 : int) (revid2 : int) : 
-      (string * (Editlist.edit list)) option =
+      (string * (Editlist.edit list)) =
       
       let sexp2edit (s) : Editlist.edit = 
         match pair_of_sexp string_of_sexp identity s with
@@ -167,9 +167,9 @@ class db
           [Mysql.ml2int revid1; Mysql.ml2int revid2]) 
       in
       match Mysql.fetch result with 
-          | None -> None
-          | Some row -> Some (not_null str2ml row.(0),
-              of_string__of__of_sexp (list_of_sexp sexp2edit) 
+          | None -> raise DB_Not_Found
+          | Some row -> (not_null str2ml row.(0),
+            of_string__of__of_sexp (list_of_sexp sexp2edit) 
               (not_null str2ml row.(1)))
       
      
@@ -195,8 +195,7 @@ class db
           ml2int revid2;
           ml2str vers;
           ml2str (string_of__of__sexp_of (sexp_of_list edit2sexp) elist);
-          ]));
-      ignore (Mysql.exec dbh "COMMIT")
+          ]))
 
     (** [get_rev_text text_id] returns the text associated with text id [text_id] *)
     method read_rev_text (text_id: int) : string = 
@@ -228,8 +227,7 @@ class db
       with
         DB_Not_Found -> 
           ignore (Mysql.exec dbh (format_string sth_insert_user_rep 
-              [ml2int uid; ml2float rep ]));  
-      ignore (Mysql.exec dbh "COMMIT")
+              [ml2int uid; ml2float rep ]))
 
 
     (** [set_rep_hist uid t r0 r1] writes, in a table with keys user_id, time, 
@@ -238,8 +236,8 @@ class db
     method set_rep_hist (uid : int) (timet : float) (r0 : float) (r1 : float)
     : unit =
       ignore (Mysql.exec dbh (format_string sth_insert_hist 
-          [ml2int uid; ml2float r0; ml2float r1; ml2float timet ]));
-      ignore (Mysql.exec dbh "COMMIT")
+          [ml2int uid; ml2float r0; ml2float r1; ml2float timet ]))
+
 
     (** [write_colored_markup rev_id markup] writes, in a table with columns by 
 	(revision id, string), that the string [markup] is associated with the 
@@ -369,8 +367,8 @@ class db
           ml2float q.total_edit_quality; 
 	  ml2float q.min_edit_quality; 
 	  if q.nix_bit then "1" else "0"
-          ]));
-      ignore (Mysql.exec dbh "COMMIT")    
+          ]))
+
 
 
     (** [read_quality_info rev_id] returns the tuple 
@@ -403,6 +401,11 @@ class db
 	serializability of the updates. *)
     method release_rep_lock = ()
 
+
+    (** Commit of transaction *)
+    method commit = ignore (Mysql.exec dbh "COMMIT")
+
+
     (** Clear everything out *)
     method delete_all (really : bool) =
       match really with
@@ -413,6 +416,7 @@ class db
             ignore (Mysql.exec dbh "TRUNCATE TABLE wikitrust_colored_markup" );
             ignore (Mysql.exec dbh "TRUNCATE TABLE wikitrust_dead_page_chunks" );
             ignore (Mysql.exec dbh "TRUNCATE TABLE wikitrust_quality_info" ); 
+            ignore (Mysql.exec dbh "TRUNCATE TABLE wikitrust_sigs" ); 
             ignore (Mysql.exec dbh "COMMIT"))
         | false -> ignore (Mysql.exec dbh "COMMIT")
 
