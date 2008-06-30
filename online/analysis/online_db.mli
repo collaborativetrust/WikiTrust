@@ -38,6 +38,8 @@ POSSIBILITY OF SUCH DAMAGE.
 
 open Online_types;;
 
+(** All the methods uniformly return DB_Not_Found when some desired information cannot 
+    be read from the database. *)
 exception DB_Not_Found;;
 
 class db : 
@@ -143,7 +145,7 @@ class db :
 
     (** [read_quality_info rev_id] returns a record of type quality_info_t 
 	containing quality information for a revision *)
-    method read_quality_info : int -> qual_info_t option
+    method read_quality_info : int -> qual_info_t
 
     (** [get_page_lock page_id] gets a lock for page [page_id], to guarantee 
 	mutual exclusion on the updates for page [page_id]. *)

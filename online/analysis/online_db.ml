@@ -375,14 +375,14 @@ class db
        (n_edit_judges total_edit_quality min_edit_quality
              n_text_judges new_text persistent_text)
           associated with the revision with id [rev_id]. *)
-    method read_quality_info (rev_id : int) : qual_info_t option = 
+    method read_quality_info (rev_id : int) : qual_info_t = 
       let result = Mysql.exec dbh (format_string sth_select_quality [ml2int rev_id]) in
       match fetch result with
-        | None -> None
-        | Some x -> Some {n_edit_judges = not_null int2ml x.(1); 
-                          total_edit_quality = not_null float2ml x.(2); 
-                          min_edit_quality = not_null float2ml x.(3);
-                          nix_bit = (not_null int2ml x.(4) > 0)}
+        | None -> raise DB_Not_Found
+        | Some x -> {n_edit_judges = not_null int2ml x.(1); 
+                     total_edit_quality = not_null float2ml x.(2); 
+                     min_edit_quality = not_null float2ml x.(3);
+                     nix_bit = (not_null int2ml x.(4) > 0)}
 
 
     (** [get_page_lock page_id] gets a lock for page [page_id], to guarantee 

@@ -37,6 +37,8 @@ open Eval_defs;;
 open Online_types;;
 type word = string
 
+(** This exception is raised if some prior revision lacks trust information. *)
+exception Missing_trust of int * int
 
 (** This is a class representing a page, or article, at a high level. 
     Most of the functions implementing an online edit are implemented 
@@ -106,7 +108,14 @@ class page
          For this reason it is best to start from the oldest (n_revs - 1) revision. *)
       for i = n_revs - 1 downto 0 do begin 
 	let r = Vec.get i revs in
-	if i = 0 then ignore (r#get_words) else ignore (r#get_trust)
+	if i = 0 then begin 
+	  (* If a revision has no text, we have to recover this at a lower level,
+	     since text is not something we compute. *)
+	  ignore (r#get_words) 
+	end else begin
+	  try ignore (r#get_trust)
+          with Online_db.DB_Not_Found -> raise (Missing_trust (r#get_page_id, r#get_id))
+	end
       end done
 
     (** This method returns the current value of the user reputation *)
@@ -180,7 +189,12 @@ class page
       (* If there is only one revision, there is nothing to do. *)
       if n_revs > 1 then begin 
         (* Now reads or computes all the triangle distances.
-           It starts from the end of the Vec, and progresses towards the beginning. *)
+	   It computes the distance between rev1 and all the previous revisions. 
+	   We take rev1 to be the one-before-last revision, and we gradually progress
+	   rev1 towards the most recent revision, that of index 0. 
+	   This because, to compute the distance between rev1 and a previous revision rev2, 
+	   we will often use information about intermediate revisions revm, so the 
+	   chosen order of computation ensures that the distance between rev2 and revm is known. *)
         let last_idx = n_revs - 1 in 
         for rev1_idx = last_idx - 1 downto 0 do begin 
           let rev1 = Vec.get rev1_idx revs in 
@@ -219,7 +233,7 @@ class page
               let (edl, d) = 
                 (* Decides which method to use: zipping the lists, or 
                    computing the precise distance.  
-                   If rev1 is the revision before rev2, there is no choice *)
+                   If rev2 is the revision before rev1, there is no choice *)
                 if rev2_idx = rev1_idx + 1 then begin 
                   let edits  = Chdiff.edit_diff rev2_t rev1_t rev1_i in 
                   let d      = Editlist.edit_distance edits (max rev1_l rev2_l) in 

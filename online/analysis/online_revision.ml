@@ -83,6 +83,8 @@ class revision
 
       (* Reads the colored revision text from the db, and splits it appropriately *)
     method private read_colored_text : unit = 
+      (* If there is an error here, it is transmitted up, so that the 
+	 reader deals in appropriate ways with the lack of trust information *)
       let text_vec = Vec.singleton (db#read_colored_markup rev_id) in 
       let (w, t, o, s_idx, s) = Text.split_into_words_seps_and_info text_vec in 
       words <- Some w; 
@@ -93,12 +95,18 @@ class revision
 
       (* Reads the revision text from the db, and splits it appropriately *)
     method private read_text : unit = 
-      let text_vec = Vec.singleton (db#read_rev_text text_id) in 
-      let (w, t, o, s_idx, s) = Text.split_into_words_seps_and_info text_vec in 
-      words <- Some w; 
-      seps <- Some s; 
-      sep_word_idx <- Some s_idx
-      
+      try 
+	let text_vec = Vec.singleton (db#read_rev_text text_id) in 
+	let (w, t, o, s_idx, s) = Text.split_into_words_seps_and_info text_vec in 
+	words <- Some w; 
+	seps <- Some s; 
+	sep_word_idx <- Some s_idx
+      with Online_db.DB_Not_Found -> begin 
+	(* If the text has not been found, it is considered null. *)
+	words <- Some [| |];
+	seps <- Some [| |];
+	sep_word_idx <- Some [| |]
+      end
 
     method get_words : word array =
       match words with 
@@ -152,14 +160,17 @@ class revision
 
     (** Reads the quality info from the database *)
     method private read_quality_info : qual_info_t = 
+      (* We take care automatically of the case where no information can 
+	 be found. *)
       match quality_info_opt with 
-	None -> begin 
-	  let q = match db#read_quality_info rev_id with 
-	      Some qq -> qq
-	    | None -> quality_info_default
+	None -> begin
+	  (* It has not been read yet; we read it from disk *)
+	  let q = 
+	    try db#read_quality_info rev_id
+	    with Online_db.DB_Not_Found -> quality_info_default
 	  in 
-	  quality_info_opt <- Some q;
-	  modified_quality_info <- false;
+	  quality_info_opt <- Some q; 
+	  modified_quality_info <- false; 
 	  q
 	end
       | Some q -> q
