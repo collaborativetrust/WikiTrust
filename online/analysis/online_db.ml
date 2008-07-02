@@ -213,7 +213,7 @@ class db
         DB_Not_Found -> 
           ignore (Mysql.exec dbh (format_string sth_insert_user_rep 
               [ml2int uid; ml2float rep ]));  
-      ignore (Mysql.exec dbh "COMMIT")
+      if commit_frequently then ignore (Mysql.exec dbh "COMMIT")
   
     method print_stats : unit =
       print_endline ("Done in " ^ (string_of_float ((Unix.gettimeofday ()) -. start_time)));
@@ -237,7 +237,7 @@ class db
         | false -> num_changes_under_epsilon <- num_changes_under_epsilon + 1;
       ignore (Mysql.exec dbh (format_string sth_insert_hist 
           [ml2int uid; ml2float r0; ml2float r1; ml2float timet ]));
-      ignore (Mysql.exec dbh "COMMIT")
+      if commit_frequently then ignore (Mysql.exec dbh "COMMIT")
 
     (** [write_colored_markup rev_id markup] writes, in a table with columns by 
 	(revision id, string), that the string [markup] is associated with the 
@@ -256,7 +256,7 @@ class db
           [ml2int rev_id ]));
       ignore (Mysql.exec dbh (format_string sth_insert_markup 
           [ml2int rev_id; ml2str markup ]));
-      ignore (Mysql.exec dbh "COMMIT")
+      if commit_frequently then ignore (Mysql.exec dbh "COMMIT")
 
 
     (** [read_colored_markup rev_id] reads the text markup of a revision with id
@@ -283,7 +283,7 @@ class db
         [ml2int page_id]));
       ignore (Mysql.exec dbh (format_string sth_insert_dead_chunks 
 	[ml2int page_id; chunks_string ])); 
-      ignore (Mysql.exec dbh "COMMIT")
+      if commit_frequently then ignore (Mysql.exec dbh "COMMIT")
 
 
     (** [read_dead_page_chunks page_id] returns the list of dead chunks associated
@@ -314,7 +314,7 @@ class db
 	  ml2float q.min_edit_quality; 
 	  if q.nix_bit then "1" else "0"
           ]));
-      ignore (Mysql.exec dbh "COMMIT")    
+      if commit_frequently then ignore (Mysql.exec dbh "COMMIT")    
 
 
     (** [read_quality_info rev_id] returns the tuple 
