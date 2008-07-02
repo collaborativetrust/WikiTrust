@@ -47,7 +47,16 @@ class db :
 
   object
    
+    (**
+      Tells the DB to commit any open transactaions.
+    *)
+    method commit : bool 
+  
+    (**
+      Prints some information about what happened.
+    *)
     method print_stats : unit
+
     (** [fetch_last_colored_rev : (rev_id, page_id)]] Returns the revid and page
         id of the last colored revision. Raises DB_Not_Found if no revisions have been colored.
     *)    

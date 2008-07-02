@@ -46,7 +46,7 @@ type foo_t = int list with sexp;;
 let debug_mode = false;;
 
 (* Should a commit be issued after every insert? This is needed if there are multiple clients. *)
-let commit_frequently = true;;
+let commit_frequently = false;;
 
 let identity x = x;;
 
@@ -130,6 +130,13 @@ class db
     val sth_select_last_colored_rev = "SELECT A.revision_id, B.rev_page, A.coloredon 
           FROM wikitrust_colored_markup AS A JOIN revision AS B ON (A.revision_id = B.rev_id) 
           ORDER BY coloredon DESC LIMIT 1"
+    
+    (* Commits any changes to the db *)
+    method commit : bool =
+      ignore (Mysql.exec dbh "COMMIT");
+      match Mysql.status dbh with
+        | StatusError err -> false
+        | _ -> true
 
     (* Returns the last colored rev, if any *)
     method fetch_last_colored_rev : (int * int * (int * int * int * int * int * int)) =
