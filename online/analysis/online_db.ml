@@ -73,7 +73,14 @@ class db
   let dbh = (Mysql.connect db_param) in
    
   object(self)
-    
+     
+    (* Stats values *) 
+    val rep_epsilon = 0.1  
+    val mutable total_rep_change = 0.
+    val mutable num_rep_changes = 0
+    val mutable num_changes_over_epsilon= 0
+    val mutable num_changes_under_epsilon = 0
+
     (* HERE are all of the prepaired sql statments used below *)
     val sth_select_edit_list_flat = "SELECT version, edits FROM wikitrust_edit_lists
         WHERE from_revision = ? AND to_revision  = ?"
@@ -203,13 +210,26 @@ class db
           ignore (Mysql.exec dbh (format_string sth_insert_user_rep 
               [ml2int uid; ml2float rep ]));  
       ignore (Mysql.exec dbh "COMMIT")
-
+  
+    method print_stats : unit =
+      print_endline (string_of_float (total_rep_change /. (float_of_int num_rep_changes))
+          ^ " Average change.");
+      print_endline ((string_of_int num_changes_over_epsilon ) ^ " Changes over " 
+          ^ (string_of_float rep_epsilon));
+      print_endline ((string_of_int num_changes_under_epsilon ) ^ " Changes under.");
+      print_endline ((string_of_int num_rep_changes) ^ " Total changes.")
 
     (** [set_rep_hist uid t r0 r1] writes, in a table with keys user_id, time, 
 	and reputation, that at time [t] the reputation of user [uid] went from
 	[r0] to [r1]. *)
     method set_rep_hist (uid : int) (timet : float) (r0 : float) (r1 : float)
     : unit =
+      let delta = abs_float (r1 -. r0) in
+      total_rep_change <- total_rep_change +. delta;
+      num_rep_changes <- num_rep_changes + 1;
+      match (delta > rep_epsilon) with  
+        | true -> num_changes_over_epsilon <- num_changes_over_epsilon + 1 
+        | false -> num_changes_under_epsilon <- num_changes_under_epsilon + 1;
       ignore (Mysql.exec dbh (format_string sth_insert_hist 
           [ml2int uid; ml2float r0; ml2float r1; ml2float timet ]));
       ignore (Mysql.exec dbh "COMMIT")

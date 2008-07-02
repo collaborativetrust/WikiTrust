@@ -80,6 +80,9 @@ while !domore do begin
       let page = new Online_page.page db logger page_id rev_id trust_coeff in
       page#eval
     end
-end done;;
+end done;
+
+(* Print some stats on what happened. *)
+db#print_stats;;
 
 

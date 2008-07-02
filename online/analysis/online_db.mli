@@ -47,6 +47,7 @@ class db :
 
   object
    
+    method print_stats : unit
     (** [fetch_last_colored_rev : (rev_id, page_id)]] Returns the revid and page
         id of the last colored revision. Raises DB_Not_Found if no revisions have been colored.
     *)    
