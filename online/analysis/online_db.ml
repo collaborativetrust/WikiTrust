@@ -45,6 +45,9 @@ type foo_t = int list with sexp;;
 
 let debug_mode = false;;
 
+(* Should a commit be issued after every insert? This is needed if there are multiple clients. *)
+let commit_frequently = true;;
+
 let identity x = x;;
 
 let rec format_string (str : string) (vals : string list) : string =                    
@@ -76,6 +79,7 @@ class db
      
     (* Stats values *) 
     val rep_epsilon = 0.1  
+    val start_time = Unix.gettimeofday ()
     val mutable total_rep_change = 0.
     val mutable num_rep_changes = 0
     val mutable num_changes_over_epsilon= 0
@@ -176,7 +180,7 @@ class db
           ml2str vers;
           ml2str (string_of__of__sexp_of (sexp_of_list Editlist.sexp_of_edit) elist);
           ]));
-      ignore (Mysql.exec dbh "COMMIT")
+      if commit_frequently then ignore (Mysql.exec dbh "COMMIT")
 
     (** [get_rev_text text_id] returns the text associated with text id [text_id] *)
     method read_rev_text (text_id: int) : string = 
@@ -212,6 +216,7 @@ class db
       ignore (Mysql.exec dbh "COMMIT")
   
     method print_stats : unit =
+      print_endline ("Done in " ^ (string_of_float ((Unix.gettimeofday ()) -. start_time)));
       print_endline (string_of_float (total_rep_change /. (float_of_int num_rep_changes))
           ^ " Average change.");
       print_endline ((string_of_int num_changes_over_epsilon ) ^ " Changes over " 
