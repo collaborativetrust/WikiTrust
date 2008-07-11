@@ -67,20 +67,20 @@ let trust_coeff = Online_types.get_default_coeff;;
    that falls within the analysis horizon is not yet evaluated and colored
    for trust, it evaluates and colors it first. 
  *)
-let rec evaluate_revision (db: Online_db.db) (rev_id: int) (page_id: int) : unit = 
+let rec evaluate_revision (db: Online_db.db) (page_id: int) (rev_id: int) : unit = 
   Printf.printf "Evaluating revision %d of page %d\n" rev_id page_id;
   try
     let page = new Online_page.page db logger page_id rev_id trust_coeff in
     page#eval
   with Online_page.Missing_trust (page_id', rev_id') -> begin
     (* We need to evaluate page_id', rev_id' first *)
-    evaluate_revision db rev_id' page_id'; 
-    evaluate_revision db rev_id page_id
+    evaluate_revision db page_id' rev_id';
+    evaluate_revision db page_id rev_id
   end;;
 
 (* Does all the work of processing the given page and revision *)
 let db = new Online_db.db !db_user !db_pass !db_name in
-(* Erases old coloring *)
+(* debug *) (* Erases old coloring -- remove this line for production version! *)
 db#delete_all true;
 
 (* Loops over all revisions, in chronological order, since the last colored one. *)

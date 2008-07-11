@@ -50,7 +50,7 @@ GRANT ALL ON wikitrust_colored_markup TO wikiuser;
 
 CREATE TABLE wikitrust_sigs (
        revision_id      int PRIMARY KEY,
-       revision_text	longtext NOT NULL
+       sigs     	longtext NOT NULL
 );
 GRANT ALL ON wikitrust_sigs TO wikiuser;
 

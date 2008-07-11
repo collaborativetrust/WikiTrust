@@ -1,6 +1,16 @@
+1. Remove_wikitrust_tables.sql removes the tables used by wikitrust:
 
-- create_wikitrust_tables.sql creates the db tables used by
-  wikitrust. 
+mysql -u wikiuser -p wikidb
+\. remove_wikitrust_tables.sql
 
-- remove_wikitrust_tables.sql removes the tables used by wikitrust. 
+2. Create_wikitrust_tables.sql creates the db tables used by wikitrust:
+
+mysql -u root -p wikidb
+\. create_wikitrust_tables.sql
+
+To refresh the set of tables, you can also do:
+
+mysql -u root -p wikidb
+\. remove_wikitrust_tables.sql
+\. create_wikitrust_tables.sql
 

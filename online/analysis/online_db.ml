@@ -62,6 +62,11 @@ let rec format_string (str : string) (vals : string list) : string =
       | (false, newstr) -> newstr)                                                      
 ;;
 
+(* This function is used to translate a trust value into a sexp. 
+   We use this special function, as otherwise the classical function generates far too large trust values. *)
+let sexp_of_trust t = sexp_of_string (Printf.sprintf "%.2f" t);;
+
+
 (** This class provides a handle for accessing the database in the on-line 
     implementation. *)
 
@@ -99,8 +104,8 @@ class db
           (revision_id, revision_text) VALUES (?, ?)" 
     val sth_select_markup = "SELECT revision_text FROM wikitrust_colored_markup 
           WHERE revision_id = ?" 
-    val sth_select_author_sigs = "SELECT sig FROM wikitrust_sigs WHERE revision_id = ?"
-    val sth_insert_author_sigs = "INSERT INTO wikitrust_sigs (revision_id, sig) VALUES (?, ?)"
+    val sth_select_author_sigs = "SELECT sigs FROM wikitrust_sigs WHERE revision_id = ?"
+    val sth_insert_author_sigs = "INSERT INTO wikitrust_sigs (revision_id, sigs) VALUES (?, ?)"
     val sth_delete_author_sigs = "DELETE FROM wikitrust_sigs WHERE revision_id = ?"
     val sth_select_dead_chunks = "SELECT chunks FROM wikitrust_dead_page_chunks WHERE page_id = ?"
     val sth_delete_chunks = "DELETE FROM wikitrust_dead_page_chunks WHERE page_id = ?"
@@ -285,7 +290,7 @@ class db
 	for the revision [rev_id] are [sigs]. *)
     method write_author_sigs (rev_id: int) 
       (sigs: Author_sig.packed_author_signature_t array) : unit = 
-      let g x = sexp_of_array Author_sig.sexp_of_sigs x in 
+      let g = sexp_of_array Author_sig.sexp_of_sigs in 
       let s = string_of__of__sexp_of g sigs in 
       ignore (Mysql.exec dbh (format_string sth_delete_author_sigs 
 	[ml2int rev_id])); 
@@ -325,14 +330,15 @@ class db
 	  (sexp_of_float c.timestamp);
 	  (sexp_of_int c.n_del_revisions);
           (sexp_of_array sexp_of_string c.text);
+	  (sexp_of_array sexp_of_trust c.trust);
 	  (sexp_of_array Author_sig.sexp_of_sigs c.sigs);
-	  (sexp_of_array sexp_of_float c.trust);
           (sexp_of_array sexp_of_int c.origin);
 	] in 
 	sexp_of_list identity l 
       in 
-      let c_list_to_sexp cl = sexp_of_list chunk_to_sexp cl in 
-      let chunks_string = ml2str (string_of__of__sexp_of c_list_to_sexp c_list) in 
+      let c_list_to_sexp = sexp_of_list chunk_to_sexp in
+      let s = string_of__of__sexp_of c_list_to_sexp c_list in 
+      let chunks_string = ml2str s in 
       ignore (Mysql.exec dbh (format_string sth_delete_chunks
         [ml2int page_id]));
       ignore (Mysql.exec dbh (format_string sth_insert_dead_chunks 

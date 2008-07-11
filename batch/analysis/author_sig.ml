@@ -48,8 +48,19 @@ let hash x = 1 + (hash_param 10 100 x) mod 1023
 
 let empty_sigs = 0
 
+(* These are simple versions; I now use a more compact translation
 let sexp_of_sigs = Sexplib.Conv.sexp_of_int
 let sigs_of_sexp = Sexplib.Conv.int_of_sexp
+ *)
+let sexp_of_sigs x = 
+  let s = Printf.sprintf "%x" x in 
+  Sexplib.Conv.sexp_of_string s
+
+let sigs_of_sexp x = 
+  let s = Sexplib.Conv.string_of_sexp x in 
+  let get_sig y = y in 
+  Scanf.sscanf s "%x" get_sig 
+
 
 let pack (a0: int) (a1: int) (a2: int) : packed_author_signature_t = 
   a0 lor ((a1 lor (a2 lsl offset)) lsl offset)
