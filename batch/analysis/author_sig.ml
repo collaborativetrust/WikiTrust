@@ -33,10 +33,12 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
+TYPE_CONV_PATH "UCSC_WIKI_RESEARCH"
+
 open Eval_defs
 
 (** Type of author signature *)
-type packed_author_signature_t = int
+type packed_author_signature_t = int with sexp
 type unpacked_author_signature_t = int * int * int
 type author_signature_t = int 
 

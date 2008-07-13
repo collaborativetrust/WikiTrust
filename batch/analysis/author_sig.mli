@@ -34,7 +34,7 @@ POSSIBILITY OF SUCH DAMAGE.
  *)
 
 (** Type of packed signature types. *)
-type packed_author_signature_t
+type packed_author_signature_t with sexp
 
 (** Type of the signature of a single author *)
 type author_signature_t

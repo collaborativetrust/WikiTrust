@@ -409,11 +409,6 @@ class db
 	serializability of the updates. *)
     method release_rep_lock = ()
 
-
-    (** Commit of transaction *)
-    method commit = ignore (Mysql.exec dbh "COMMIT")
-
-
     (** Clear everything out *)
     method delete_all (really : bool) =
       match really with

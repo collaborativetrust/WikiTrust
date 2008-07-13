@@ -182,7 +182,7 @@ class db :
     method release_rep_lock : unit
 
     (** Commit of transaction *)
-    method commit : unit
+    method commit : bool
 
     (** Totally clear out the db structure -- THIS IS INTENDED ONLY FOR UNIT
     TESTING *)
