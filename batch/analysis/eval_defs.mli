@@ -1,9 +1,9 @@
 (*
 
-Copyright (c) 2008 The Regents of the University of California
+Copyright (c) 2007-2008 The Regents of the University of California
 All rights reserved.
 
-Authors: Luca de Alfaro, Ian Pye 
+Authors: Luca de Alfaro
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -33,23 +33,11 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
-open Eval_defs;;
-open Online_types;;
+val max_rep_val : int
+val big_distance : int
+val max_perc_to_zip : float
+val max_uncovered_to_zip : int
+val max_longevity_table : int
 
-(** This class contains methods to read consecutive revisions belonging
-    to a page from the database. *)
-
-class page : 
-  Online_db.db -> (* Online database containing the pages and revisions *)
-  int -> (* page id to which the revisions belong *)
-  int -> (* revision id.  This is the first revision to read; after this, 
-	    each read operation returns the previous revision (so the
-	    read is backwards. *)
-  object
-    (* This method gets, every time, the previous revision of the page, 
-       starting from the revision id that was given as input. 
-       The method returns a revision option, returning either (Some revision) 
-       or (None), the latter to indicate that no previous revision was 
-       present in the database. *)
-    method get_rev : Online_revision.revision option
-  end
+val is_anonymous: int -> bool
+val not_anonymous: int -> bool

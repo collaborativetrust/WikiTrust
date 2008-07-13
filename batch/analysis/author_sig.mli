@@ -33,8 +33,28 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
-val max_rep_val : int
-val big_distance : int
-val max_perc_to_zip : float
-val max_uncovered_to_zip : int
-val max_longevity_table : int
+(** Type of packed signature types. *)
+type packed_author_signature_t
+
+(** Type of the signature of a single author *)
+type author_signature_t
+
+(** Empty signatures: no author has yet signed. *)
+val empty_sigs : packed_author_signature_t
+
+(** [sexp_of_sig sig] returns the sexp of a packed signature [sig] *)
+val sexp_of_sigs : packed_author_signature_t -> Sexplib.Sexp.t
+
+(** [sig_of_sexp s] returns the packed sig of a sexp [s] *)
+val sigs_of_sexp : Sexplib.Sexp.t -> packed_author_signature_t
+
+(** [is_author_in_sigs id w sigs] returns [true] if author [id] is in the signatures [sigs] of 
+    word [w], and returns [false] otherwise. *)
+val is_author_in_sigs : int -> string -> packed_author_signature_t -> bool
+
+(** [add_author id word sigs] adds author id to the signatures [sigs] for word [word], 
+    and returns the new signature.  It assumes that the author was not already in the 
+    list. *)
+val add_author :
+  int -> string -> packed_author_signature_t -> packed_author_signature_t
+

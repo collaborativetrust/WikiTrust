@@ -38,7 +38,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
 
 type word = string 
-open Eval_constants
+open Eval_defs
 
 (** [page id title out_file keep_rev keep_rev_after require_uid_change equate_anons] 
     writes only a certain number of latest revisions of a page. 

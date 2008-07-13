@@ -37,7 +37,7 @@ POSSIBILITY OF SUCH DAMAGE.
 (** This simple page class is used to count how many revisions each page has. *)
 
 type word = string 
-open Eval_constants
+open Eval_defs
 
 let n_rev_to_keep = 100
 let n_revs_to_print = [50; 100]

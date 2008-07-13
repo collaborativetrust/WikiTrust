@@ -1,0 +1,10 @@
+The batch directory contains the tool for the analysis of wiki dump
+files; look in batch/doc/README for instructions on how to build and
+use that code. 
+
+The online directory contains the tool for the real-time analysis of
+wiki edits; look in online/doc/README for instructions on how to build
+and use that code. 
+
+The TODO file in this directory is for developers; it contains a list
+of things that needs to be done. 

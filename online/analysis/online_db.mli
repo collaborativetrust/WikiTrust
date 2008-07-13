@@ -38,7 +38,13 @@ POSSIBILITY OF SUCH DAMAGE.
 
 open Online_types;;
 
+(** All the methods uniformly return DB_Not_Found when some desired information cannot 
+    be read from the database. *)
 exception DB_Not_Found;;
+
+(** This is the type of timestamps; abstract, since we don't need to play 
+    with them now *)
+type timestamp_t
 
 class db : 
   string (* user *) -> 
@@ -57,30 +63,32 @@ class db :
     *)
     method print_stats : unit
 
-    (** [fetch_last_colored_rev : (rev_id, page_id)]] Returns the revid and page
-        id of the last colored revision. Raises DB_Not_Found if no revisions have been colored.
+    (** [fetch_last_colored_rev] returns a tuple 
+	[(revid, pageid, timestamp)] for the last colored revision.  
+        Raises DB_Not_Found if no revisions have been colored.
     *)    
-    method fetch_last_colored_rev : (int * int * (int * int * int * int * int * int))
+    method fetch_last_colored_rev : int * int * timestamp_t
     
     (** [sth_select_all_revs_after (int * int * int * int * int * int)] returns all 
         revs created after the given timestamp. *)
-    method fetch_all_revs_after : (int * int * int * int * int * int) -> Mysql.result
+    method fetch_all_revs_after : timestamp_t -> Mysql.result
 
     (** [fetch_all_revs] Returns a pointer to a result set consisting in all the 
 	revisions of the database, in ascending temporal order. *)
     method fetch_all_revs : Mysql.result
 
-    (** [fetch_revs pageid revid] Returns a pointer to a result set of revisions for a given 
-        page, starting at rev_id, and going back in time. 
-    *)
-    method fetch_revs : int -> int -> Mysql.result 
+    (** [fetch_revs page_id timestamp] returns a cursor that points to all 
+	revisions of page [page_id] with time prior or equal to [timestamp]. *)
+    method fetch_revs : int -> timestamp_t -> Mysql.result
+ 
+   (** [fetch_rev_timestamp rev_id] returns the timestamp of revision [rev_id] *)
+    method fetch_rev_timestamp : int -> timestamp_t
+
     (** [read_edit_diff revid1 revid2] reads from the database the edit list 
 	from the (live) text of revision [revid1] to revision [revid2]. 
         The edit list consists in a string, identifying the way revision of 
-        Text.ml used for splitting the text, and in the edit list proper.
-        The return type is an option: the db should return None if no such row for 
-        revid1 and revid2 can be found in the database. *)
-    method read_edit_diff : int -> int -> (string * (Editlist.edit list)) option  
+        Text.ml used for splitting the text, and in the edit list proper. *)
+    method read_edit_diff : int -> int -> (string * (Editlist.edit list))
 
     (** [write_edit_diff revid1 revid2 vers elist] writes to the database the edit list 
 	[elist] from the (live) text of revision [revid1] to revision [revid2], 
@@ -122,6 +130,21 @@ class db :
 	and origin information. *)
     method read_colored_markup : int -> string
 
+    (** [write_author_sigs rev_id sigs] writes that the author signatures 
+	for the revision [rev_id] are [sigs]. *)
+    method write_author_sigs : int -> Author_sig.packed_author_signature_t array -> unit
+
+    (** [read_author_sigs rev_id] reads the author signatures for the revision 
+	[rev_id]. 
+	TODO: Note that we can keep the signatures separate from the text 
+	because it is not a bit deal if we occasionally mis-align text and 
+	signatures when we change the parsing algorithm: all that can happen 
+	is that occasinally an author can give trust twice to the same piece of text. 
+	However, it is imperative that in the calling code we check that the list
+	of signatures has the same length as the list of words. 
+        *)
+    method read_author_sigs : int -> Author_sig.packed_author_signature_t array
+
     (** [write_dead_page_chunks page_id chunk_list] writes, in a table indexed by 
 	(page id, string list) that the page with id [page_id] is associated 
 	with the "dead" strings of text [chunk1], [chunk2], ..., where
@@ -140,7 +163,7 @@ class db :
 
     (** [read_quality_info rev_id] returns a record of type quality_info_t 
 	containing quality information for a revision *)
-    method read_quality_info : int -> qual_info_t option
+    method read_quality_info : int -> qual_info_t
 
     (** [get_page_lock page_id] gets a lock for page [page_id], to guarantee 
 	mutual exclusion on the updates for page [page_id]. *)
@@ -157,6 +180,9 @@ class db :
     (** [release_rep_lock] releases a lock for the global table of user reputations, to guarantee 
 	serializability of the updates. *)
     method release_rep_lock : unit
+
+    (** Commit of transaction *)
+    method commit : unit
 
     (** Totally clear out the db structure -- THIS IS INTENDED ONLY FOR UNIT
     TESTING *)

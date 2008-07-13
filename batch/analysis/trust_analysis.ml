@@ -40,7 +40,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
 type word = string 
 exception Ins_text_in_deleted_chunk
-open Eval_constants
+open Eval_defs
 
 (** This is the class that goes over the revisions of a page to compute the trust 
     value of all words, and that outputs the trust-colored revisions. *) 

@@ -54,6 +54,8 @@ type chunk_t = {
   text: string array; 
   (** This is the trust of the text that has been deleted. *)
   trust: float array;
+  (** These are the author signatures for the trust *)
+  sigs: Author_sig.packed_author_signature_t array;
   (** This is the revision_id where each word of the text of these 
       deleted chunks was first introduced. *)
   origin: int array;

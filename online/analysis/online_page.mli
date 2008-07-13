@@ -46,6 +46,8 @@ POSSIBILITY OF SUCH DAMAGE.
     [coeff] contains the coefficients to be used for the evaluation. 
  *)
 
+exception Missing_trust of int * int
+
 class page :
   (** Database handle *)
   (* db *) Online_db.db ->

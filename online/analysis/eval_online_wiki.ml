@@ -59,15 +59,37 @@ let command_line_format =
 
 let _ = Arg.parse command_line_format noop "Usage: eval_online_wiki";;
 
+let logger = new Online_log.logger !log_name !synch_log;;
+let trust_coeff = Online_types.get_default_coeff;;
+
+(* This is the function that evaluates a revision. 
+   The function is recursive, because if some past revision of the same page 
+   that falls within the analysis horizon is not yet evaluated and colored
+   for trust, it evaluates and colors it first. 
+ *)
+let rec evaluate_revision (db: Online_db.db) (page_id: int) (rev_id: int) : unit = 
+  Printf.printf "Evaluating revision %d of page %d\n" rev_id page_id;
+  try
+    let page = new Online_page.page db logger page_id rev_id trust_coeff in
+    page#eval
+  with Online_page.Missing_trust (page_id', rev_id') -> begin
+    (* We need to evaluate page_id', rev_id' first *)
+    evaluate_revision db page_id' rev_id';
+    evaluate_revision db page_id rev_id
+  end;;
+
 (* Does all the work of processing the given page and revision *)
 let db = new Online_db.db !db_user !db_pass !db_name in
-let logger = new Online_log.logger !log_name !synch_log in
-let trust_coeff = Online_types.get_default_coeff in
-(* Erases old coloring *)
+(* debug *) (* Erases old coloring -- remove this line for production version! *)
 db#delete_all true;
 
-(* Loops over all revisions, in chronological order *)
-let revs = db#fetch_all_revs in 
+(* Loops over all revisions, in chronological order, since the last colored one. *)
+let revs = 
+  try 
+    let (_, _, timestamp) = db#fetch_last_colored_rev in 
+    db#fetch_all_revs_after timestamp
+  with Online_db.DB_Not_Found -> db#fetch_all_revs 
+in 
 let domore = ref true in 
 while !domore do begin 
   match Mysql.fetch revs with 
@@ -76,9 +98,7 @@ while !domore do begin
       let rev = Online_revision.make_revision r db in 
       let page_id = rev#get_page_id in 
       let rev_id  = rev#get_id in 
-      Printf.printf "Evaluating revision %d of page %d\n" rev_id page_id;
-      let page = new Online_page.page db logger page_id rev_id trust_coeff in
-      page#eval
+      evaluate_revision db page_id rev_id
     end
 end done;
 

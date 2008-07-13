@@ -51,4 +51,7 @@ let max_uncovered_to_zip = 100
 (* Used for analyzing trust color performance *)
 let max_longevity_table = 24
 
+(* How do we know if an author is anonymous *)
+let is_anonymous (uid: int) : bool = (uid = 0)
+let not_anonymous (uid: int) : bool = (uid != 0)
 

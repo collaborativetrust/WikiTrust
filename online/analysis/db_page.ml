@@ -33,7 +33,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
-open Eval_constants;;
+open Eval_defs;;
 open Online_types;;
 open Online_revision;;
 open Mysql;;
@@ -44,18 +44,53 @@ open Mysql;;
 class page 
   (db : Online_db.db)  (* Online database containing the pages and revisions *)
   (page_id : int)  (* page id to which the revisions belong *)
-  (rev_id : int) =  (* revision id.  This is the first revision to read; after this, 
+  (rev_id : int)  (* revision id.  This is the first revision to read; after this, 
 	    each read operation returns the previous revision (so the
 	    read is backwards. *)
 
-  let revs = db#fetch_revs page_id rev_id in
+  = 
+  (* First, I need to get the timestamp of the current revision_id. *)
+  let timestamp = db#fetch_rev_timestamp rev_id in 
+  (* Then, I read all revisions of the page prior or equal to that timestamp *)
+  let revs_init = db#fetch_revs page_id timestamp in
 
   object (self)
+    (* This is the next revision that will be returned; None = we are done *)
+    val mutable next_rev = None 
+    val mutable revs = revs_init 
+
+    initializer 
+      (* Now, I want the first revision returned to be the one with 
+	 the specified rev_id, or less. *)
+      let greater = ref true in 
+      while !greater do begin 
+	match Mysql.fetch revs with
+          None -> begin 
+	    greater := false; 
+	    next_rev <- None
+	  end
+        | Some row -> begin 
+	    let rev = Online_revision.make_revision row db in 
+	    let fetched_rev_id = rev#get_id in 
+	    if fetched_rev_id <= rev_id then begin 
+	      next_rev <- Some rev; 
+	      greater := false
+	    end
+	  end
+      end done
 
     (* This method gets, every time, the previous revision of the page, 
        starting from the revision id that was given as input. *)
     method get_rev : Online_revision.revision option =
-      match Mysql.fetch revs with
-        | None -> None
-        | Some row -> Some (Online_revision.make_revision row db)
+      match next_rev with 
+	None -> None 
+      | Some r -> begin 
+	  begin 
+	    match Mysql.fetch revs with
+              None -> next_rev <- None 
+            | Some row -> next_rev <- Some (Online_revision.make_revision row db)
+	  end; 
+	  Some r
+	end
+
   end (* End page *)

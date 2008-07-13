@@ -35,7 +35,9 @@ POSSIBILITY OF SUCH DAMAGE.
 
 (** The functions in this module are used to compute the trust of the 
     words of a revision, taking into account the "locality effect" of
-    the attention of the revisor. *)
+    the attention of the revisor. 
+    The computation uses a robust method, that includes the consideration
+    of author signatures. *)
 
 type word = string
 open Eval_defs
@@ -50,24 +52,39 @@ open Eval_defs
     that this one takes into account syntactical units to spread the
     trust. 
     The trust_coeff_... parameters are for trust computation. *)
-let compute_trust_chunks 
+let compute_robust_trust
   (chunks_trust_a: float array array) 
+  (chunks_authorsig_a: Author_sig.packed_author_signature_t array array) 
   (new_chunks_a: word array array) 
   (new_seps: Text.sep_t array)
   (medit_l: Editlist.medit list) 
   (rep_float: float)
+  (user_id: int) 
   (trust_coeff_lends_rep: float) 
   (trust_coeff_kill_decrease: float)
   (trust_coeff_cut_rep_radius: float)
   (trust_coeff_read_all: float)
   (trust_coeff_read_part: float)
   (trust_coeff_local_decay: float)
-  : float array array = 
+  : (float array array * Author_sig.packed_author_signature_t array array) = 
 
+  (* Produces the new trust array *)
   let f x = Array.make (Array.length x) 0.0 in 
   let new_chunks_trust_a = Array.map f new_chunks_a in 
   let old_live_len = Array.length chunks_trust_a.(0) in 
   let new_live_len = Array.length new_chunks_a.(0) in
+  
+  (* Produces the new signature array *)
+  let f x = Array.make (Array.length x) Author_sig.empty_sigs in 
+  let new_chunks_authorsig_a = Array.map f new_chunks_a in 
+  (* Produces two auxiliary arrays: one keeps track of whether the author can 
+     increase the trust of a word, the second keeps track of whether the author
+     has increased the trust of a word. These are just filled with default
+     values initially. *)
+  let f x = Array.make (Array.length x) true in 
+  let new_chunks_canincrease_a = Array.map f new_chunks_a in 
+  let f x = Array.make (Array.length x) false in 
+  let new_chunks_hasincreased_a = Array.map f new_chunks_a in 
 
   (* This array keeps track of the syntactic units that have been checked 
      by the author.  It contains one bool per word, which indicates whether 
@@ -79,7 +96,7 @@ let compute_trust_chunks
   (* This array contains, for each word, the number of the sectional unit
      to which the word belongs. *)
   let section_of_word = Array.make new_live_len 0 in 
-
+  
   (* Initializes section_of_word *)
   let n_seps = Array.length seps in 
   let n_section = ref 0 in 
@@ -198,7 +215,7 @@ let compute_trust_chunks
      reading the whole page. *)
   let new_text_trust = rep_float *. trust_coeff_lends_rep in 
 
-  (* Now, goes over medit_l via f, and fills in new_chunks_trust_a properly. *)
+  (* Now, goes over medit_l via f, and fills in new_chunks_trust_a and the new signatures properly. *)
   let f = function 
       Editlist.Mins (word_idx, l) -> begin 
         (* This is text added in the current version *)
@@ -206,6 +223,8 @@ let compute_trust_chunks
         for i = word_idx to word_idx + l - 1 do begin
           new_chunks_trust_a.(0).(i) <- new_text_trust;
           looked_at.(i) <- true; 
+	  new_chunks_hasincreased_a.(0).(i) <- true;
+	  (* new_chunks_canincrease_a.(0).(i) <- true; *) (* true is the default *)
         end done;
         (* One generally looks in the whole syntactic unit where one is editing *)
 	spread_look word_idx;
@@ -217,10 +236,22 @@ let compute_trust_chunks
         if dst_chunk_idx = 0 then begin 
 
           (* It is live text *)
-          (* First, copies the reputation *)
+          (* First, copies the trust and signatures *) 
           for i = 0 to l - 1 do begin 
-            let rep = chunks_trust_a.(src_chunk_idx).(src_word_idx + i) in 
-            new_chunks_trust_a.(0).(dst_word_idx + i) <- rep 
+	    (* trust *)
+            let trust = chunks_trust_a.(src_chunk_idx).(src_word_idx + i) in 
+            new_chunks_trust_a.(0).(dst_word_idx + i) <- trust;
+	    (* This is the word under consideration *)
+	    let w = new_chunks_a.(0).(dst_word_idx + i) in 
+	    (* Packed signature of the word *)
+	    let hsig = chunks_authorsig_a.(src_chunk_idx).(src_word_idx + i) in 
+	    new_chunks_authorsig_a.(0).(dst_word_idx + i) <- hsig;
+	    (* This encodes the all-important logic that decides whether a user can increase
+	       the trust of a word.  The user has to be not anonymous, and not present 
+	       in the signature. *)
+	    new_chunks_canincrease_a.(0).(dst_word_idx + i) <- 
+	      (user_id != 0) && not (Author_sig.is_author_in_sigs user_id w hsig);  
+	    new_chunks_hasincreased_a.(0).(dst_word_idx + i) <- false; 
           end done; 
 
           (* Then, applies corrective effects. *)
@@ -246,7 +277,13 @@ let compute_trust_chunks
                 let old_trust = new_chunks_trust_a.(0).(!word_idx) in 
                 let new_trust = old_trust +. 
                   (new_text_trust -. old_trust) *. exp (-. (float_of_int d) /. trust_coeff_cut_rep_radius) in 
-                new_chunks_trust_a.(dst_chunk_idx).(!word_idx) <- new_trust;
+		if new_trust <= old_trust then begin 
+                  new_chunks_trust_a.(0).(!word_idx) <- new_trust;
+		end; 
+		if new_trust > old_trust && new_chunks_canincrease_a.(0).(!word_idx) then begin
+                  new_chunks_trust_a.(0).(!word_idx) <- new_trust;
+		  new_chunks_hasincreased_a.(0).(!word_idx) <- true;
+		end; 
 		(* Moves, but not beyond a sectional boundary *)
 		if !word_idx = dst_word_idx + l - 1 
 		then fatto := true
@@ -273,7 +310,13 @@ let compute_trust_chunks
                 let old_trust = new_chunks_trust_a.(0).(!word_idx) in 
                 let new_trust = old_trust +. 
                   (new_text_trust -. old_trust) *. exp (-. (float_of_int d) /. trust_coeff_cut_rep_radius) in 
-                new_chunks_trust_a.(dst_chunk_idx).(!word_idx) <- new_trust;
+		if new_trust <= old_trust then begin 
+                  new_chunks_trust_a.(0).(!word_idx) <- new_trust;
+		end; 
+		if new_trust > old_trust && new_chunks_canincrease_a.(0).(!word_idx) then begin
+                  new_chunks_trust_a.(0).(!word_idx) <- new_trust;
+		  new_chunks_hasincreased_a.(0).(!word_idx) <- true;
+		end; 
 		(* Moves, but not beyond a sectional boundary *)
 		if !word_idx = dst_word_idx
 		then fatto := true
@@ -286,14 +329,19 @@ let compute_trust_chunks
 	    
         end else begin 
           (* dst_chunk_idx > 0, and the text is dead *)
-          for i = 0 to l - 1 do begin 
+          for i = 0 to l - 1 do begin
+	    (* First, copies the trust *)
             let old_trust = chunks_trust_a.(src_chunk_idx).(src_word_idx + i) in 
             let new_trust = 
               if src_chunk_idx = 0 
               then old_trust *. exp (-. rep_float *. trust_coeff_kill_decrease)
               else old_trust 
             in 
-            new_chunks_trust_a.(dst_chunk_idx).(dst_word_idx + i) <- new_trust 
+            new_chunks_trust_a.(dst_chunk_idx).(dst_word_idx + i) <- new_trust;
+	    (* Then, copies the signature *)
+	    let hsig = chunks_authorsig_a.(src_chunk_idx).(src_word_idx + i) in 
+	    new_chunks_canincrease_a.(dst_chunk_idx).(dst_word_idx + i) <- false; 
+	    new_chunks_authorsig_a.(dst_chunk_idx).(dst_word_idx + i) <- hsig;
           end done
 	    
         end
@@ -323,7 +371,11 @@ let compute_trust_chunks
     if old_trust < rep_float then
       let new_trust = old_trust +. 
 	(rep_float -. old_trust) *. trust_coeff_read_part *. spread_looked_at.(i) in 
-      new_chunks_trust_a.(0).(i) <- new_trust 
+      (* Here I know that new_trust > old_trust *)
+      if new_chunks_canincrease_a.(0).(i) then begin
+        new_chunks_trust_a.(0).(i) <- new_trust;
+	new_chunks_hasincreased_a.(0).(i) <- true;
+      end
   end done;
 
   (* Now there is the last of the effects that affect text trust: 
@@ -333,13 +385,25 @@ let compute_trust_chunks
   for i = 0 to len0 - 1 do begin 
     let old_trust = new_chunks_trust_a.(0).(i) in
     if rep_float > old_trust then begin 
-      let new_trust = old_trust +. (rep_float -. old_trust) *. trust_coeff_read_all in 
-      new_chunks_trust_a.(0).(i) <- new_trust 
+      let new_trust = old_trust +. (rep_float -. old_trust) *. trust_coeff_read_all in
+      (* Here I know that new_trust > old_trust *)
+      if new_chunks_canincrease_a.(0).(i) then begin
+        new_chunks_trust_a.(0).(i) <- new_trust;
+	new_chunks_hasincreased_a.(0).(i) <- true;
+      end
     end
   end done; 
+
+  (* Now adds the signature to all places where the trust has increased *)
+  for i = 0 to len0 - 1 do begin 
+    if new_chunks_hasincreased_a.(0).(i) then
+      let w = new_chunks_a.(0).(i) in 
+      let old_sig = new_chunks_authorsig_a.(0).(i) in 
+      new_chunks_authorsig_a.(0).(i) <- Author_sig.add_author user_id w old_sig
+  end done;
   
   (* Returns the new trust *)
-  new_chunks_trust_a
+  (new_chunks_trust_a, new_chunks_authorsig_a)
 
 
 (** [compute_origin chunks_origin_a new_chunks_a medit_l revid] computes the origin of 

@@ -41,7 +41,7 @@ POSSIBILITY OF SUCH DAMAGE.
     to be able to run regression tests on new code).  DO NOT USE OTHERWISE. *)
 
 type word = string 
-open Eval_constants
+open Eval_defs
 
 type rev_info_t = {
   mutable delta: float; 

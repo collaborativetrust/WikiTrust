@@ -41,7 +41,7 @@ POSSIBILITY OF SUCH DAMAGE.
        in the DB for a wiki installation. *)
 
 type word = string 
-open Eval_constants
+open Eval_defs
 
 (* This creates the directory name, and the directory *)
 let make_dir_name (id: int) (base_name: string) : string = 

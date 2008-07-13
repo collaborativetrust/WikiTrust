@@ -40,7 +40,7 @@ POSSIBILITY OF SUCH DAMAGE.
 type word = string 
 exception Ins_text_in_deleted_chunk
 exception Del_text_already_del
-open Eval_constants
+open Eval_defs
 
 
 class page 
