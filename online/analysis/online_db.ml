@@ -188,13 +188,13 @@ class db
     (** [read_edit_diff revid1 revid2] reads from the database the edit list 
 	from the (live) text of revision [revid1] to revision [revid2]. *)
     method read_edit_diff (revid1 : int) (revid2 : int) : 
-      (string * (Editlist.edit list)) option =
+      (string * (Editlist.edit list)) =
       let result = Mysql.exec dbh (format_string sth_select_edit_list_flat
           [Mysql.ml2int revid1; Mysql.ml2int revid2]) 
       in
       match Mysql.fetch result with 
-          | None -> None
-          | Some row -> Some (not_null str2ml row.(0),
+          | None -> raise DB_Not_Found
+          | Some row -> (not_null str2ml row.(0),
               of_string__of__of_sexp (list_of_sexp Editlist.edit_of_sexp) 
               (not_null str2ml row.(1)))
       
