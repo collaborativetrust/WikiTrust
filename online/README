@@ -1,2 +1,65 @@
 This directory is where we will develop the on-line system that colors
 edits according to trust in real-time, as they are made. 
+
+To have the code work, you need: 
+
+- Install mysql and mediawiki
+
+- Install the following packages: 
+    ocaml-findlib
+    libmysql-ocaml
+    libmysql-ocaml-dev
+    libextlib-ocaml-dev
+    python-mysqldb
+
+- Make OcamlLdaLibs and install them (see instructions there). 
+
+- Make batch/analysis (see instructions there); installation is not
+  necessary. 
+
+- Make online/analysis (see instructions there); installation is not
+  necessary. 
+
+- Populate the mysql db with some test data.  To do so:
+
+  $ cd online/wikifeed
+  $ cp db_access_data.ini.sample db_access_data.ini
+  $ nano db_access_data.ini
+
+  and fill db_access_data.ini with the data to access your database: 
+  host: you can use "localhost"
+  user: this is the wiki user name.  Usually, this is "wikiuser". 
+  pass: this is the password that you gave for mysql when installing
+  mediawiki. 
+  db: the mediawiki db, usually "wikidb". 
+
+  Then, go to the test-data directory, and fill the database with
+  data.  Precisely: 
+
+  $ cd ../test-data
+  $ cp script.sh.template script.sh
+  $ nano script.sh 
+
+  and insert the mysql root password where required. 
+  Optionally, comment out the last "ocamldebug" line if you wish; you
+  can always execute eval_online_wiki separately. 
+  Then, execute the script: 
+
+  $ ./script.sh
+
+- From here on, all you need to do is run
+  online/analysis/eval_online_wiki, and this will color the wiki
+  revisions in the database: 
+
+  $ ./eval_online_wiki -db_user wikiuser -db_pass <pwd> -db_name wikidb -log_name ~/temp/color.log
+
+- If the database tables to be used for the coloring ever change,
+  remove the old ones with sql/remove_wikitrust_tables.sql, as in: 
+
+  $ cd ../sql
+  $ mysql -u wikiuser -p wikidb
+  mysql> \. remove_wikitrust_tables.sql
+  mysql> \. create_wikitrust_tables.sql
+ 
+
+  
