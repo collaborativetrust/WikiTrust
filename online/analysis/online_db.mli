@@ -61,7 +61,19 @@ class db :
     (**
       Prints some information about what happened.
     *)
-    method print_stats : unit
+    method print_stats : unit 
+
+    (**  
+	 [get_histiogram] Returns a histogram showing the number of users 
+	 at each reputation level, and the median.
+    *)
+    method get_histiogram : float array * float
+    
+    (**
+       [set_histiogram hist median]
+       Sets the user reputation histiogram.
+    *)
+    method set_histiogram : float array -> unit
 
     (** [fetch_last_colored_rev] returns a tuple 
 	[(revid, pageid, timestamp)] for the last colored revision.  

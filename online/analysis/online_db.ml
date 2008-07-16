@@ -53,6 +53,21 @@ type timestamp_t = int * int * int * int * int * int
 
 let debug_mode = false;;
 
+(* Median of an array *)
+let median_of_array a =
+  let rec calc lst top bot cell 
+      = match lst with
+    | [] -> (match top /. 2. with 
+	       | 0. -> (top +. 1. /. bot)
+	       | _ -> (top /. bot)
+	    )
+    | hd::rst -> calc rst (top +. (hd *. (float_of_int cell))) 
+	(bot +. (float_of_int cell)) cell 
+  in
+    calc (Array.to_list a) 0. 0. 0
+;;
+
+
 (* Should a commit be issued after every insert? This is needed if there are multiple clients. *)
 let commit_frequently = false;;
 
@@ -147,13 +162,41 @@ class db
     val sth_select_last_colored_rev = "SELECT A.revision_id, B.rev_page, A.coloredon 
           FROM wikitrust_colored_markup AS A JOIN revision AS B ON (A.revision_id = B.rev_id) 
           ORDER BY coloredon DESC LIMIT 1"
-    
+    val sth_update_hist = "UPDATE wikitrust_histiogram SET median = ?, rep_0 = ?, rep_1 = ?, rep_2 = ?, rep_3 = ?, rep_4 = ?, rep_5 = ?, rep_6 = ?, rep_7 = ?, rep_8 = ?, rep_9 =?"
+    val sth_select_hist = "SELECT * FROM wikitrust_histiogram"
+      
     (* Commits any changes to the db *)
     method commit : bool =
       ignore (Mysql.exec dbh "COMMIT");
       match Mysql.status dbh with
         | StatusError err -> false
         | _ -> true
+	    
+    (**  
+	 [get_histiogram] Returns a histogram showing the number of users 
+	 at each reputation level, and the median.
+    *)
+    method get_histiogram : float array * float =
+      match fetch (Mysql.exec dbh sth_select_hist) with
+        | None -> raise DB_Not_Found
+        | Some row -> ([| not_null float2ml row.(2); not_null float2ml row.(2); 
+			  not_null float2ml row.(3);  not_null float2ml row.(3);
+			  not_null float2ml row.(4);  not_null float2ml row.(5);
+			  not_null float2ml row.(6);  not_null float2ml row.(7);
+			  not_null float2ml row.(8);  not_null float2ml row.(9);
+		       |], not_null float2ml row.(0))
+    
+    (**
+       [set_histiogram hist median]
+       Sets the user reputation histiogram.
+    *)
+    method set_histiogram (vals : float array) : unit = 
+      let sql = (format_string sth_update_hist 
+				((ml2float (median_of_array vals)) :: 
+				   Array.to_list (Array.map ml2float vals))) in
+	print_endline sql;
+	ignore (Mysql.exec dbh sql);
+      if commit_frequently then ignore (Mysql.exec dbh "COMMIT")      
 
     (* Returns the last colored rev, if any *)
     method fetch_last_colored_rev : (int * int * timestamp_t) = 

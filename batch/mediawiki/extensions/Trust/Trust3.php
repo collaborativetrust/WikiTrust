@@ -48,6 +48,8 @@ $wgExtensionFunctions[] = 'wfColorTrust_Setup';
 
 $wgHooks['LanguageGetMagic'][]       = 'wfColorTrust_Magic';
  
+$wgHooks['ParserBeforeStrip'][] = 'ucscSeeIfColored';
+
 function wfColorTrust_Setup() {
   global $wgParser;
   # Set a function hook associating the "example" magic word with our function
