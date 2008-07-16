@@ -37,7 +37,8 @@ open Eval_defs;;
 open Online_types;;
 type word = string
 
-(** This exception is raised if some prior revision lacks trust information. *)
+(** This exception is raised if some prior revision lacks trust information. 
+    It returns a pair (page_id, revision_id) *)
 exception Missing_trust of int * int
 
 (** This is a class representing a page, or article, at a high level. 
@@ -737,7 +738,8 @@ class page
       end;
 
       (* Commits the transaction *)
-      db#commit; 
+      if not db#commit then raise (Missing_trust (page_id, revision_id));
+
       (* Flushes the logger.  *)
       logger#flush;
 

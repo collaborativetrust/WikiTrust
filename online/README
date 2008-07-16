@@ -57,7 +57,7 @@ To have the code work, you need:
   remove the old ones with sql/remove_wikitrust_tables.sql, as in: 
 
   $ cd ../sql
-  $ mysql -u wikiuser -p wikidb
+  $ mysql -u root -p wikidb
   mysql> \. remove_wikitrust_tables.sql
   mysql> \. create_wikitrust_tables.sql
  
