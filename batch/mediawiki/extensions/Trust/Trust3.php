@@ -60,11 +60,26 @@ $wgHooks['LanguageGetMagic'][] = 'wfColorTrust_Magic';
 # And add a hook so the colored text is found. 
 $wgHooks['ParserBeforeStrip'][] = 'ucscSeeIfColored';
 
+$wgHooks['SkinTemplateTabs'][] = 'ucscTrustTemplate';
+
+function ucscTrustTemplate($skin, &$content_actions) { 
+  $content_actions['trust'] = array ( 'class' => '',
+				      'text' => 'Trust Colored',
+				      'href' => $content_actions['nstab-main']['href'] . "?trust=1" );
+  return true;
+}
+
 /**
  If colored text exists, use it instead of the normal text.
  TODO: make this optional.
  */
 function ucscSeeIfColored(&$parser, &$text, &$strip_state) { 
+
+  //if($_GET['trust'] == ""){
+  //  print $_GET['trust'];
+  //  return true;
+  // }
+
   $dbr =& wfGetDB( DB_SLAVE );
   $rev_id = $parser->mRevisionId;
   
