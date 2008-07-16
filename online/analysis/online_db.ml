@@ -57,14 +57,15 @@ let debug_mode = false;;
 let median_of_array a =
   let rec calc lst top bot cell 
       = match lst with
-    | [] -> (match top /. 2. with 
-	       | 0. -> (top +. 1. /. bot)
+    | [] -> (match (int_of_float top) / 2 with 
+	       | 0 -> (top +. 1. /. bot)
 	       | _ -> (top /. bot)
 	    )
     | hd::rst -> calc rst (top +. (hd *. (float_of_int cell))) 
-	(bot +. (float_of_int cell)) cell 
+	(bot +. (float_of_int cell)) 
+	  (cell + 1) 
   in
-    calc (Array.to_list a) 0. 0. 0
+    calc (Array.to_list a) 0. 0. 1 
 ;;
 
 
@@ -179,11 +180,11 @@ class db
     method get_histiogram : float array * float =
       match fetch (Mysql.exec dbh sth_select_hist) with
         | None -> raise DB_Not_Found
-        | Some row -> ([| not_null float2ml row.(2); not_null float2ml row.(2); 
-			  not_null float2ml row.(3);  not_null float2ml row.(3);
+        | Some row -> ([| not_null float2ml row.(2); not_null float2ml row.(3); 
 			  not_null float2ml row.(4);  not_null float2ml row.(5);
 			  not_null float2ml row.(6);  not_null float2ml row.(7);
 			  not_null float2ml row.(8);  not_null float2ml row.(9);
+			  not_null float2ml row.(10);  not_null float2ml row.(11);
 		       |], not_null float2ml row.(0))
     
     (**
@@ -191,12 +192,11 @@ class db
        Sets the user reputation histiogram.
     *)
     method set_histiogram (vals : float array) : unit = 
-      let sql = (format_string sth_update_hist 
-				((ml2float (median_of_array vals)) :: 
-				   Array.to_list (Array.map ml2float vals))) in
-	print_endline sql;
+      let sql = format_string sth_update_hist 
+		   ((ml2float (median_of_array vals)) :: 
+		      Array.to_list (Array.map ml2float vals)) in
 	ignore (Mysql.exec dbh sql);
-      if commit_frequently then ignore (Mysql.exec dbh "COMMIT")      
+	if commit_frequently then ignore (Mysql.exec dbh "COMMIT")      
 
     (* Returns the last colored rev, if any *)
     method fetch_last_colored_rev : (int * int * timestamp_t) = 

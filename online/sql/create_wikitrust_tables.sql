@@ -24,7 +24,7 @@ CREATE TABLE wikitrust_histiogram (
 );
 GRANT ALL ON wikitrust_histiogram TO wikiuser;
 
-INSERT INTO wikitrust_histiogram VALUES (0,9,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0);
+INSERT INTO wikitrust_histiogram VALUES (0,9,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0);
 
 -- quality info?
 CREATE TABLE wikitrust_quality_info (
