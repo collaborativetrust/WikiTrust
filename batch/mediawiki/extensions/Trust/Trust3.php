@@ -41,14 +41,46 @@ $COLORS = array(
     "trust10",
 );
 
+# Credits
+$wgExtensionCredits['parserhook'][] = array(
+					    'name' => 'Trust Coloring',
+					    'author' =>'Ian Pye', 
+					    'url' => 
+					    'http://trust.cse.ucsc.edu', 
+					    'description' => 'This Extension 
+colors text according to trust.'
+       );
+
 # Define a setup function
 $wgExtensionFunctions[] = 'wfColorTrust_Setup';
 
 # Add a hook to initialise the magic word
+$wgHooks['LanguageGetMagic'][] = 'wfColorTrust_Magic';
 
-$wgHooks['LanguageGetMagic'][]       = 'wfColorTrust_Magic';
- 
+# And add a hook so the colored text is found. 
 $wgHooks['ParserBeforeStrip'][] = 'ucscSeeIfColored';
+
+/**
+ If colored text exists, use it instead of the normal text.
+ TODO: make this optional.
+ */
+function ucscSeeIfColored(&$parser, &$text, &$strip_state) { 
+  $dbr =& wfGetDB( DB_SLAVE );
+  $rev_id = $parser->mRevisionId;
+  
+  $res = $dbr->select('wikitrust_colored_markup', 'revision_text',
+	       array( 'revision_id' => $rev_id ), array());
+  if ($res){
+    $row = $dbr->fetchRow($res);
+    $colored_text = $row['revision_text'];
+    if ($colored_text){
+      $text = $colored_text;
+    } 
+  } 
+  
+  $dbr->freeResult( $res );
+  return true;
+}
 
 function wfColorTrust_Setup() {
   global $wgParser;
@@ -78,9 +110,14 @@ function wfColorTrust_Render( &$parser, $value = 0 ) {
   # The parser function itself
   # The input parameters are wikitext with templates expanded
   # The output should be wikitext too
-  $class = computeColor3($value);
+  $class = computeColorFromFloat($value);
   $output = "<span class=$class>";
   return array ( $output, "noparse" => false, "isHTML" => false );
+}
+
+function computeColorFromFloat($value){
+  $value = $value * 10;
+  return computeColor3(intval($value));
 }
 
 ## this function maps a trust value to a HTML color representing the trust value
