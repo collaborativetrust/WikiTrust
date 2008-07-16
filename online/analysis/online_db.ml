@@ -55,7 +55,10 @@ type timestamp_t = int * int * int * int * int * int
 let debug_mode = false;;
 
 (* This is the function that sexplib uses to convert floats *)
-Sexplib.Conv.default_string_of_float := (fun n -> sprintf "%.4G" n)
+Sexplib.Conv.default_string_of_float := (fun n -> sprintf "%.4G" n);;
+
+(* This is the function that sexplib uses to convert strings *)
+Sexplib.Conv.default_string_of_string := (fun str -> sprintf "%s" str);;
 
 (* Median of an array *)
 let median_of_array a =
