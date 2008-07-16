@@ -170,8 +170,8 @@ class db
     val sth_select_last_colored_rev = "SELECT A.revision_id, B.rev_page, A.coloredon 
           FROM wikitrust_colored_markup AS A JOIN revision AS B ON (A.revision_id = B.rev_id) 
           ORDER BY coloredon DESC LIMIT 1"
-    val sth_update_hist = "UPDATE wikitrust_histiogram SET median = ?, rep_0 = ?, rep_1 = ?, rep_2 = ?, rep_3 = ?, rep_4 = ?, rep_5 = ?, rep_6 = ?, rep_7 = ?, rep_8 = ?, rep_9 =?"
-    val sth_select_hist = "SELECT * FROM wikitrust_histiogram"
+    val sth_update_hist = "UPDATE wikitrust_histogram SET median = ?, rep_0 = ?, rep_1 = ?, rep_2 = ?, rep_3 = ?, rep_4 = ?, rep_5 = ?, rep_6 = ?, rep_7 = ?, rep_8 = ?, rep_9 =?"
+    val sth_select_hist = "SELECT * FROM wikitrust_histogram"
       
     (* Commits any changes to the db *)
     method commit : bool =
@@ -181,10 +181,10 @@ class db
         | _ -> true
 	    
     (**  
-	 [get_histiogram] Returns a histogram showing the number of users 
+	 [get_histogram] Returns a histogram showing the number of users 
 	 at each reputation level, and the median.
     *)
-    method get_histiogram : float array * float =
+    method get_histogram : float array * float =
       match fetch (Mysql.exec dbh sth_select_hist) with
         | None -> raise DB_Not_Found
         | Some row -> ([| not_null float2ml row.(2); not_null float2ml row.(3); 
@@ -195,10 +195,10 @@ class db
 		       |], not_null float2ml row.(0))
     
     (**
-       [set_histiogram hist median]
-       Sets the user reputation histiogram.
+       [set_histogram hist median]
+       Sets the user reputation histogram.
     *)
-    method set_histiogram (vals : float array) : unit = 
+    method set_histogram (vals : float array) : unit = 
       let sql = format_string sth_update_hist 
 		   ((ml2float (median_of_array vals)) :: 
 		      Array.to_list (Array.map ml2float vals)) in
@@ -463,8 +463,8 @@ class db
     method delete_all (really : bool) =
       match really with
         | true -> (
-	    ignore (Mysql.exec dbh "DELETE FROM wikitrust_histiogram");
-	    ignore (Mysql.exec dbh "INSERT INTO wikitrust_histiogram VALUES 
+	    ignore (Mysql.exec dbh "DELETE FROM wikitrust_histogram");
+	    ignore (Mysql.exec dbh "INSERT INTO wikitrust_histogram VALUES 
 (0,9,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0)");
             ignore (Mysql.exec dbh "TRUNCATE TABLE wikitrust_edit_lists" );
             ignore (Mysql.exec dbh "TRUNCATE TABLE wikitrust_trust_user_rep" );

@@ -1,6 +1,6 @@
 
 BEGIN;
-DROP TABLE wikitrust_histiogram;
+DROP TABLE wikitrust_histogram;
 DROP TABLE wikitrust_edit_lists;
 DROP TABLE wikitrust_trust_user_rep;
 DROP TABLE wikitrust_user_rep_history;

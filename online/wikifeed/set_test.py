@@ -45,7 +45,7 @@ import ConfigParser
 MW_DUMPER = "java -Xmx600M -server -jar mwdumper.jar --format=sql:1.5"
 DB_ENGINE = "mysql"
 BASE_DIR = "./"   
-INI_FILE = BASE_DIR + "online_feed_test.ini"
+INI_FILE = BASE_DIR + "db_access_data.ini"
 
 ## Usage method
 def usage():
