@@ -46,9 +46,27 @@ $wgExtensionFunctions[] = 'wfColorTrust_Setup';
 
 # Add a hook to initialise the magic word
 
-$wgHooks['LanguageGetMagic'][]       = 'wfColorTrust_Magic';
+$wgHooks['LanguageGetMagic'][] = 'wfColorTrust_Magic';
  
 $wgHooks['ParserBeforeStrip'][] = 'ucscSeeIfColored';
+
+function ucscSeeIfColored(&$parser, &$text, &$strip_state) { 
+  $dbr =& wfGetDB( DB_SLAVE );
+  $rev_id = $parser->mRevisionId;
+  
+  $res = $dbr->select('wikitrust_colored_markup', 'revision_text',
+	       array( 'revision_id' => $rev_id ), array());
+  if ($res){
+    $row = $dbr->fetchRow($res);
+    $colored_text = $row['revision_text'];
+    if ($colored_text){
+      $text = $colored_text;
+    } 
+  } 
+  
+  $dbr->freeResult( $res );
+  return true;
+}
 
 function wfColorTrust_Setup() {
   global $wgParser;
