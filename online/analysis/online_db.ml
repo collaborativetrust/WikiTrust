@@ -43,6 +43,7 @@ open Mysql
 open Sexplib.Conv
 open Sexplib.Sexp
 open Sexplib
+open Printf
 
 TYPE_CONV_PATH "UCSC_WIKI_RESEARCH"
 (* Returned whenever something is not found *)
@@ -52,6 +53,9 @@ exception DB_Not_Found
 type timestamp_t = int * int * int * int * int * int
 
 let debug_mode = false;;
+
+(* This is the function that sexplib uses to convert floats *)
+Sexplib.Conv.default_string_of_float := (fun n -> sprintf "%.4G" n)
 
 (* Median of an array *)
 let median_of_array a =
@@ -456,6 +460,9 @@ class db
     method delete_all (really : bool) =
       match really with
         | true -> (
+	    ignore (Mysql.exec dbh "DELETE FROM wikitrust_histiogram");
+	    ignore (Mysql.exec dbh "INSERT INTO wikitrust_histiogram VALUES 
+(0,9,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0)");
             ignore (Mysql.exec dbh "TRUNCATE TABLE wikitrust_edit_lists" );
             ignore (Mysql.exec dbh "TRUNCATE TABLE wikitrust_trust_user_rep" );
             ignore (Mysql.exec dbh "TRUNCATE TABLE wikitrust_user_rep_history" ); 

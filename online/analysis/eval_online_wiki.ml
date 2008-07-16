@@ -83,11 +83,6 @@ let db = new Online_db.db !db_user !db_pass !db_name in
 (* debug *) (* Erases old coloring -- remove this line for production version! *)
 db#delete_all true;
 
-match (db#get_histiogram) with
-  | (hst,med) -> db#set_histiogram hst
-;
-
-
 (* Loops over all revisions, in chronological order, since the last colored one. *)
 let revs = 
   try 
