@@ -68,7 +68,7 @@ function ucscTrustTemplate($skin, &$content_actions) {
   
   $content_actions['trust'] = array ( 'class' => '',
 				      'text' => 'Trust Colored',
-				      'href' => $content_actions['nstab-main']['href'] . "?trust=t" );
+				      'href' => $_SERVER['REQUEST_URI'] . "?&trust=t" );
   
   if(isset($_GET['trust'])){
     $content_actions['trust']['class'] = 'selected';
