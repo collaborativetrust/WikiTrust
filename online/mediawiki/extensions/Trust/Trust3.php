@@ -162,7 +162,7 @@ function ucscColorTrust_Render( &$parser, $value = 0 ) {
 
 ## Maps from the online trust values to the css trust values.
 function computeColorFromFloat($value){
-  $value = $value * 10;
+  $value = $value * 1;
   return computeColor3(intval($value));
 }
 
