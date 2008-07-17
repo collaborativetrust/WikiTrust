@@ -55,3 +55,6 @@ let max_longevity_table = 24
 let is_anonymous (uid: int) : bool = (uid = 0)
 let not_anonymous (uid: int) : bool = (uid != 0)
 
+(* The high-median of the reputations is used for the white value. 
+   We choose it so that 90% of work is done below that value. *)
+let hi_median_perc = 0.9

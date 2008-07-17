@@ -37,12 +37,38 @@ open Eval_defs;;
 open Online_types;;
 type word = string
 
-(** This exception is raised if some prior revision lacks trust information. *)
+(** This exception is raised if some prior revision lacks trust information. 
+    It returns a pair (page_id, revision_id) *)
 exception Missing_trust of int * int
 
 (** This is a class representing a page, or article, at a high level. 
     Most of the functions implementing an online edit are implemented 
     in this file. See the mli file for the call parameters. *)
+
+
+(* High-Median of an array *)
+let compute_hi_median (a: float array) =
+  let total = Array.fold_left (+.) 0. a in 
+  let mass_below = ref (total *. hi_median_perc) in 
+  let median = ref 0. in 
+  let i = ref 0 in 
+  while (!mass_below > 0.) && (!i < max_rep_val) do begin 
+    if a.(!i) > !mass_below then begin 
+      (* Median is in this column *)
+      median := !median +. !mass_below /. a.(!i);
+      mass_below := 0.; 
+    end else begin 
+      (* Median is above this column *)
+      mass_below := !mass_below -. a.(!i); 
+      i := !i + 1;
+      median := !median +. 1. 
+    end
+  end done;
+  (* debug *)
+  Printf.printf "%.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f \n" 
+    a.(0) a.(1) a.(2) a.(3) a.(4) a.(5) a.(6) a.(7) a.(8) a.(9) !median; 
+  !median
+    
 
 class page 
   (db: Online_db.db) 
@@ -137,19 +163,21 @@ class page
 
     (** This method sets, but does not write to disk, a new user reputation. *)
     method private set_rep (uid: int) (r: float) : unit = 
-      (* Reputations must be in the interval [0...maxrep] *)
-      let r' = max 0. (min trust_coeff.max_rep r) in 
-      Printf.printf "set_rep uid: %d r: %f\n" uid r'; (* debug *)
-      if Hashtbl.mem rep_cache uid then begin 
-	let (old_rep, _) = Hashtbl.find rep_cache uid in 
-	Hashtbl.replace rep_cache uid (old_rep, Some r')
-      end else begin 
-	(* We have to read it from disk *)
-	let old_rep = 
-	  try db#get_rep uid
-	  with Online_db.DB_Not_Found -> 0.
-	in 
-	Hashtbl.add rep_cache uid (old_rep, Some r')
+      if not_anonymous uid then begin 
+	(* Reputations must be in the interval [0...maxrep] *)
+	let r' = max 0. (min trust_coeff.max_rep r) in 
+	Printf.printf "set_rep uid: %d r: %f\n" uid r'; (* debug *)
+	if Hashtbl.mem rep_cache uid then begin 
+	  let (old_rep, _) = Hashtbl.find rep_cache uid in 
+	  Hashtbl.replace rep_cache uid (old_rep, Some r')
+	end else begin 
+	  (* We have to read it from disk *)
+	  let old_rep = 
+	    try db#get_rep uid
+	    with Online_db.DB_Not_Found -> 0.
+	  in 
+	  Hashtbl.add rep_cache uid (old_rep, Some r')
+	end
       end
 
     (** Write all new reputations to the db *)
@@ -604,6 +632,7 @@ class page
 	 revp (reference, immediately preceding rev1), rev0 (reference, before rev1).
          We do anything only if there are at least 3 revisions in total. *)
       if n_revs > 2 then begin 
+
         let rev2 = Vec.get 0 revs in 
         let rev2_id    = rev2#get_id in 
         let rev2_uid   = rev2#get_user_id in 
@@ -611,6 +640,29 @@ class page
         let rev2_time  = rev2#get_time in 
 	let rev2_rep   = self#get_rep rev2_uid in 
 	let rev2_weight = self#weight rev2_rep in 
+
+	(* Reads the histogram of reputations, and the high median, and uses them
+	   to renormalize the weight of the judging user. *)
+	let (histogram, hi_median) = db#get_histogram in 
+	let renorm_w = 
+	  if not rev2#get_is_anon then begin 
+	    (* Increments the histogram according to the work of the judge *)
+	    let rev_bef2 = Vec.get 1 revs in 
+	    let rev_bef2_id = rev_bef2#get_id in 
+	    let delta_of_2 = Hashtbl.find edit_dist (rev_bef2_id, rev2_id) in 
+	    let slot = max 0 (min 9 (int_of_float rev2_weight)) in 
+	    histogram.(slot) <- histogram.(slot) +. delta_of_2; 
+	    Printf.printf "Incrementing slot %d by %f\n" slot delta_of_2; (* debug *)
+	    let new_hi_median' = compute_hi_median histogram in 
+	    let new_hi_median = max hi_median new_hi_median' in 
+	    db#set_histogram histogram new_hi_median;
+	    (* and renormalizes the weight *)
+	    let renorm_w' = rev2_weight *. (float_of_int max_rep_val) /. new_hi_median in 
+	    max rev2_weight (min renorm_w' (float_of_int max_rep_val))
+	  end else rev2_weight in 
+
+	Printf.printf "Uid: %d Weight: %f Normalized: %f \n" rev2_uid rev2_weight renorm_w; 	(* debug *)
+
 	(* rev1_idx goes to 1 before the last, since we should be able to compare it 
 	   to something *)
 	for rev1_idx = 1 to n_revs - 2 do begin 
@@ -655,7 +707,7 @@ class page
 		rev1#set_nix_bit
 	      end;
 	    (* Computes inc_local_global (see paper) *)
-	    let inc_local_global = trust_coeff.rep_scaling *. delta *. min_qual *. rev2_weight in
+	    let inc_local_global = trust_coeff.rep_scaling *. delta *. min_qual *. renorm_w in
 	    (* Applies it according to algorithm LOCAL-GLOBAL *)
 	    let new_rep = 
 	      if (!rev1_nix || rev2_time -. rev0_time < trust_coeff.nix_interval) 
@@ -672,7 +724,7 @@ class page
 	    self#set_rep rev1_uid new_rep;
 
             (* For logging purposes, produces the Edit_inc line *)
-            let s = Printf.sprintf "\nEditInc %10.0f PageId: %d Inc: %7.2f Delta: %7.2f rev0: %d uid0: %d uname0: %S rev1: %d uid1: %d uname1: %S rev2: %d uid2: %d uname2: %S d01: %7.2f d02: %7.2f d12: %7.2f dp2: %7.2f n01: %d n12: %d t01: %d t12: %d"
+            let s = Printf.sprintf "\nEditInc %10.0f PageId: %d Inc: %7.2f Delta: %7.2f rev0: %d uid0: %d uname0: %S rev1: %d uid1: %d uname1: %S rev2: %d uid2: %d uname2: %S d01: %7.2f d02: %7.2f d12: %7.2f dp2: %7.2f n01: %d n12: %d t01: %f t12: %f nix0: %B nix1: %B nix2: %B"
 	      (* time and page id *)
 	      rev2_time page_id inc_local_global delta
 	      (* revision and user ids *)
@@ -682,9 +734,11 @@ class page
 	      (* word distances *)
 	      d01 d02 d12 dp2 
 	      (* distances between revisions in n. of revisions *)
-	      (rev1_idx - rev0_idx) rev1_idx
+	      (rev0_idx - rev1_idx) rev1_idx
 	      (* distances between revisions in seconds *)
-	      (int_of_float (rev1_time -. rev0_time)) (int_of_float (rev2_time -. rev1_time))
+	      (rev1_time -. rev0_time) (rev2_time -. rev1_time)
+	      (* Nix bits *)
+	      rev0#get_nix rev1#get_nix rev2#get_nix
             in 
             logger#log s
 
@@ -737,7 +791,8 @@ class page
       end;
 
       (* Commits the transaction *)
-      db#commit; 
+      if not db#commit then raise (Missing_trust (page_id, revision_id));
+
       (* Flushes the logger.  *)
       logger#flush;
 

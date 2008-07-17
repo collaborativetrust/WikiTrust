@@ -33,6 +33,8 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
+open Eval_defs
+
 type word = string 
 
 (** This is the class used to represent revisions.  It is then extended 
@@ -55,7 +57,7 @@ class revision
   (text_init: string Vec.t) (* Text of the revision, still to be split into words *)
   =
   object 
-    val is_anon : bool = (user_id = 0)
+    val is_anon : bool = is_anonymous user_id
     method get_time : float = time
     method get_id : int = id
     method get_ip : string = ip_addr 
@@ -81,7 +83,7 @@ let different_author
  (* (r': <get_user_id: int; get_ip: string; ..>) *)
     : bool = 
   let uid = r#get_user_id in 
-  uid <> r'#get_user_id || ((not equate_anons) && uid = 0 && r#get_ip <> r'#get_ip)
+  uid <> r'#get_user_id || ((not equate_anons) && r#get_is_anon && r#get_ip <> r'#get_ip)
 
 (** This class is used for all analysis methods that do not require keeping track 
     of separators among words.  It is generally extended. *)

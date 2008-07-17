@@ -77,7 +77,6 @@ function ucscTrustTemplate($skin, &$content_actions) {
   } else {
     $content_actions['trust']['href'] .= '&action=purge';
   }
-
   return true;
 }
 

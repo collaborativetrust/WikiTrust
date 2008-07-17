@@ -1,0 +1,713 @@
+diff -rN -c -C 3 mediawiki-1.11.0/includes/Article.php /bigspace/www/wikis/1/includes/Article.php
+*** mediawiki-1.11.0/includes/Article.php	Sun Sep  2 21:19:53 2007
+--- /bigspace/www/wikis/1/includes/Article.php	Fri Dec 14 14:25:24 2007
+***************
+*** 334,339 ****
+--- 334,345 ----
+  		}
+  
+  		$this->mDataLoaded  = true;
++ 
++                 /** Ignore DB when cheching to see if a page is a redirect **/
++                 /** Ian Pye **/
++                 if ( IGNORE_DB_REDIRECT_CHECK && $this->isCurrent() ){
++                   $this->mIsRedirect = Title::newFromRedirect( $this->fetchContent() );
++                 }
+  	}
+  
+  	/**
+***************
+*** 361,366 ****
+--- 367,376 ----
+  			$revision = Revision::newFromId( $oldid );
+  			if( is_null( $revision ) ) {
+  				wfDebug( __METHOD__." failed to retrieve specified revision, id $oldid\n" );
++ 				echo "OLDID is $oldid, title is {$_REQUEST['title']}\n";
++ 				echo "<br>Send to http://en.wikipedia.org/wiki/index.php?title={$_REQUEST['title']}&oldid={$_REQUEST['oldid']} ";
++ 				echo "<div style='position:fixed; top:0px; right:0px; background-color:#a00;z-index:500;color:white;font-size:3em;'>Redirecting...</div>";
++ 				echo "<script>window.location='http://en.wikipedia.org/wiki/index.php?title={$_REQUEST['title']}&oldid={$_REQUEST['oldid']}';</script>";
+  				return false;
+  			}
+  			$data = $this->pageDataFromId( $dbr, $revision->getPage() );
+***************
+*** 381,387 ****
+  			}
+  			$revision = Revision::newFromId( $this->mLatest );
+  			if( is_null( $revision ) ) {
+! 				wfDebug( __METHOD__." failed to retrieve current page, rev_id {$data->page_latest}\n" );
+  				return false;
+  			}
+  		}
+--- 391,399 ----
+  			}
+  			$revision = Revision::newFromId( $this->mLatest );
+  			if( is_null( $revision ) ) {
+!                                 if ($data){ 
+!                                   wfDebug( __METHOD__." failed to retrieve current page, rev_id {$data->page_latest}\n" );
+!                                 }
+  				return false;
+  			}
+  		}
+diff -rN -c -C 3 mediawiki-1.11.0/includes/Defines.php /bigspace/www/wikis/1/includes/Defines.php
+*** mediawiki-1.11.0/includes/Defines.php	Fri Jun 29 13:02:26 2007
+--- /bigspace/www/wikis/1/includes/Defines.php	Wed Dec  5 15:39:04 2007
+***************
+*** 8,13 ****
+--- 8,42 ----
+   */
+  define( 'MW_SPECIALPAGE_VERSION', 2 );
+  
++ /**
++  * External Image Constants and
++  * External File Constants
++  * Ian Pye - trust.cse.ucsc.edu
++  */
++ 
++ define( 'EX_IMAGE_TOKEN', "XXXXIPTOKEN" ); 
++ define( 'EX_IMAGE_TOKEN_END', "XXXEND" );
++ define( 'BASE_IMAGE_URL', "http://upload.wikimedia.org/wikipedia/commons/" );
++ define( 'MAX_EXT_IMG_SIZE', 150 );
++ define( 'DO_EXT_IMAGES', true );   // Do we try to load images from mediawiki?
++ define( 'DEFAULT_EXT_IMG_TYPE', "thumb" );
++ define( 'DEFAULT_EXT_IMG_OTHER_SIZE', "22px" );
++ define( 'IGNORE_DB_REDIRECT_CHECK', true );  // Do we map corrupted redirect statements back into valid ones?
++ define( "LOCAL_FILE_SYSTEM_SEP", "/");  // / for unix, \ for windows
++ define( "FS_CACHE_LOCAL_SITE", "/bigspace/cluster/rev_text" );
++ define( "FS_CACHE_LOG", "/tmp/mw_debug_log" ); // File to write fs_cache info to
++ define( "FS_CACHE_DEBUG", false ); // Write fs_cache events?
++ define( "FS_CACHE_PAD_LENGTH", 12 );  // How many digits to pad page and revision numbers to.
++ define( "FS_CACHE_PAGE_DIR_LENGTH", 3 );  // how many digits are in each page directory.
++ define( "FS_CACHE_REV_EXTENSION", ".txt" );  
++ define( "FS_CACHE_DIR_CREATE_MODE", 0755 );
++ define( "TEXT_TABLE_PREFIX", "old_");
++ define( "WRITE_TO_FS_CACHE", true );
++ define( "FS_CACHE_FLAG", "fs_cache" );
++ define( "FS_CACHE_FIX_REDIRECTS", true );
++ define( "FS_CACHE_FIX_TABLES", false );
++ 
++ 
+  /**#@+
+   * Database related constants
+   */
+***************
+*** 263,265 ****
+--- 292,295 ----
+  
+  
+  
++ 
+diff -rN -c -C 3 mediawiki-1.11.0/includes/ExternalStore.php /bigspace/www/wikis/1/includes/ExternalStore.php
+*** mediawiki-1.11.0/includes/ExternalStore.php	Thu Jun 28 18:19:14 2007
+--- /bigspace/www/wikis/1/includes/ExternalStore.php	Wed Dec  5 00:14:36 2007
+***************
+*** 1,4 ****
+--- 1,7 ----
+  <?php
++ 
++ require( 'includes/TextFileCache.php' );
++ 
+  /**
+   *
+   *
+***************
+*** 29,34 ****
+--- 32,46 ----
+  		return $store->fetchFromURL($url);
+  	}
+  
++         public static function getFS_Cache (){
++           return new TextFileCache();
++         }
++ 
++         /** Fetch Text from a local file cache **/
++         public static function getTextFromCache( $page_id, $rev_id ){
++           return TextFileCache::getTextFromCache( $page_id, $rev_id );
++         }
++ 
+  	/**
+  	 * Get an external store object of the given type
+  	 */
+diff -rN -c -C 3 mediawiki-1.11.0/includes/OutputPage.php /bigspace/www/wikis/1/includes/OutputPage.php
+*** mediawiki-1.11.0/includes/OutputPage.php	Fri Aug 31 14:33:44 2007
+--- /bigspace/www/wikis/1/includes/OutputPage.php	Tue Dec  4 13:50:57 2007
+***************
+*** 393,398 ****
+--- 393,418 ----
+  
+  		wfRunHooks( 'OutputPageParserOutput', array( &$this, $parserOutput ) );
+  	}
++   
++         /**
++           * Finishes transforming internal images to wikipedia images
++           */
++         function c_mapWikipediaImageToImgTag( $matches ){
++           return "<img src='".$matches[1]."' />";
++         }
++ 
++         function c_mapWikipediaImageToImgTagLast( $matches ){
++ 
++           $file = str_replace(" ", "_", $matches[1]);
++           $dir = FileRepo::getHashPathForLevel(  $file, 2 );
++           $full_url = BASE_IMAGE_URL.DEFAULT_EXT_IMG_TYPE."/".$dir.$file."/".DEFAULT_EXT_IMG_OTHER_SIZE."-".$file ;
++           if (DO_EXT_IMAGES){     
++             return "<img src='".$full_url."' />";
++           }
++           else {
++             return $matches[0];
++           }
++         }
+  
+  	/**
+  	 * @todo document
+***************
+*** 402,407 ****
+--- 422,443 ----
+  		$this->addParserOutputNoText( $parserOutput );
+  		$text =	$parserOutput->getText();
+  		wfRunHooks( 'OutputPageBeforeHTML',array( &$this, &$text ) );
++ 
++                 // Ian Pye Hack UCSC Wiki Trust
++                 // Transform any marked external images to img tags
++                 if (DO_EXT_IMAGES){
++                   $text = preg_replace_callback ( 
++                                               "|<a href=\"/index.php/Image:".EX_IMAGE_TOKEN."(.*?)".EX_IMAGE_TOKEN_END."(.*?)</a>|",
++                                               array($this, 'c_mapWikipediaImageToImgTag'), 
++                                               $text
++                   );
++ 
++                   $text = preg_replace_callback (
++                                               "|<a href=\"/index.php/Image:(.*?)\" title=(.*?)</a>|",
++                                               array($this, 'c_mapWikipediaImageToImgTagLast'),
++                                               $text
++                   );
++                 }
+  		$this->addHTML( $text );
+  	}
+  
+diff -rN -c -C 3 mediawiki-1.11.0/includes/Parser.php /bigspace/www/wikis/1/includes/Parser.php
+*** mediawiki-1.11.0/includes/Parser.php	Wed Aug 29 09:10:36 2007
+--- /bigspace/www/wikis/1/includes/Parser.php	Wed Dec  5 14:51:31 2007
+***************
+*** 264,269 ****
+--- 264,310 ----
+  		return $this->mUniqPrefix;
+  	}
+  
++         /**
++          * Callback Function to turn internal images into external images 
++          * Ian Pye
++          */
++         function c_mapImageToWikipediaImage( $matches ){
++ 
++           $file = str_replace(" ", "_", $matches[2]);
++           $dir = FileRepo::getHashPathForLevel(  $file, 2 );
++ 
++           $size_matches = array();
++           $type_matches = array();
++ 
++           $size = MAX_EXT_IMG_SIZE;
++           preg_match('/(\d*?)(px)/', $matches[3], $size_matches ) ;
++           if (count($size_matches) >= 1 ){
++             $size = $size_matches[1];
++           }
++ 
++           if (count($size_matches) >= 2 ){
++             $size.=$size_matches[2];
++           } else {
++             $size.="px";
++           }
++ 
++           $type=DEFAULT_EXT_IMG_TYPE;
++           preg_match('/\|(thumb*?)\|/', $matches[3], $size_matches ) ;
++           if (count($type_matches) >= 1 ){
++             $type = $type_matches[1];
++           }
++ 
++           $full_url = EX_IMAGE_TOKEN . BASE_IMAGE_URL.$type."/".$dir.$file."/".$size."-".$file . EX_IMAGE_TOKEN_END;
++ 
++           if (DO_EXT_IMAGES){
++             return ($matches[1].$full_url."|".$matches[3].$matches[4] );
++           }
++           else {
++             return $matches[0];
++           }
++         }
++ 
++ 
+  	/**
+  	 * Convert wikitext to HTML
+  	 * Do not call this function recursively.
+***************
+*** 303,310 ****
+  		wfRunHooks( 'ParserBeforeStrip', array( &$this, &$text, &$this->mStripState ) );
+  		$text = $this->strip( $text, $this->mStripState );
+  		wfRunHooks( 'ParserAfterStrip', array( &$this, &$text, &$this->mStripState ) );
+! 		$text = $this->internalParse( $text );
+! 		$text = $this->mStripState->unstripGeneral( $text );
+  
+  		# Clean up special characters, only run once, next-to-last before doBlockLevels
+  		$fixtags = array(
+--- 344,361 ----
+  		wfRunHooks( 'ParserBeforeStrip', array( &$this, &$text, &$this->mStripState ) );
+  		$text = $this->strip( $text, $this->mStripState );
+  		wfRunHooks( 'ParserAfterStrip', array( &$this, &$text, &$this->mStripState ) );
+! 
+!                 // Ian Pye -- Image Hack
+!                 if (DO_EXT_IMAGES){
+!                   $text = preg_replace_callback (
+!                                               "|(\[\[Image:)(.*?)\|(.*?)(\]\])|",
+!                                               array($this, 'c_mapImageToWikipediaImage'),
+!                                               $text
+!                   );
+!                 }
+! 
+!                 $text = $this->internalParse( $text );
+!                 $text = $this->mStripState->unstripGeneral( $text );
+  
+  		# Clean up special characters, only run once, next-to-last before doBlockLevels
+  		$fixtags = array(
+diff -rN -c -C 3 mediawiki-1.11.0/includes/Revision.php /bigspace/www/wikis/1/includes/Revision.php
+*** mediawiki-1.11.0/includes/Revision.php	Thu Jun 28 18:19:14 2007
+--- /bigspace/www/wikis/1/includes/Revision.php	Wed Dec  5 00:09:42 2007
+***************
+*** 1,4 ****
+--- 1,5 ----
+  <?php
++ 
+  /**
+   * @todo document
+   */
+***************
+*** 552,560 ****
+  	  * @static
+  	  * @param integer $row Id of a row
+  	  * @param string $prefix table prefix (default 'old_')
+  	  * @return string $text|false the text requested
+  	  */
+! 	public static function getRevisionText( $row, $prefix = 'old_' ) {
+  		$fname = 'Revision::getRevisionText';
+  		wfProfileIn( $fname );
+  
+--- 553,563 ----
+  	  * @static
+  	  * @param integer $row Id of a row
+  	  * @param string $prefix table prefix (default 'old_')
++           * @param int page_id
++           * @param int rev_id
+  	  * @return string $text|false the text requested
+  	  */
+! 	public static function getRevisionText( $row, $prefix = 'old_', $page_id = 0, $rev_id = 0 ) {
+  		$fname = 'Revision::getRevisionText';
+  		wfProfileIn( $fname );
+  
+***************
+*** 568,574 ****
+  			$flags = array();
+  		}
+  
+! 		if( isset( $row->$textField ) ) {
+  			$text = $row->$textField;
+  		} else {
+  			wfProfileOut( $fname );
+--- 571,577 ----
+  			$flags = array();
+  		}
+  
+! 		if( isset( $row->$textField ) || in_array( 'fs_cache', $flags ) ) {
+  			$text = $row->$textField;
+  		} else {
+  			wfProfileOut( $fname );
+***************
+*** 586,591 ****
+--- 589,603 ----
+  			$text=ExternalStore::fetchFromURL($url);
+  		}
+  
++                 ## Or, if the text is just on the local FS, load from there
++                 if ( in_array( FS_CACHE_FLAG, $flags ) ) {      
++                   $text=ExternalStore::getTextFromCache( $page_id, $rev_id );
++                   if($text==""){
++                     wfProfileOut( $fname );                                   
++                     return false;             
++                   } 
++                 } 
++ 
+  		// If the text was fetched without an error, convert it
+  		if ( $text !== false ) {
+  			if( in_array( 'gzip', $flags ) ) {
+***************
+*** 664,669 ****
+--- 676,692 ----
+  		$data = $this->mText;
+  		$flags = Revision::compressRevisionText( $data );
+  
++                 ## write to extenal fs cache?
++                 $store;
++                 if (WRITE_TO_FS_CACHE){
++                   $store = ExternalStore::getFS_Cache( );
++                   $data = $store->setTextInCache( $this->mPage, $data ); 
++                   if ( $flags ) {
++                     $flags .= ',';
++                   }
++                   $flags .= FS_CACHE_FLAG;
++                 }
++ 
+  		# Write to external storage if required
+  		if ( $wgDefaultExternalStore ) {
+  			if ( is_array( $wgDefaultExternalStore ) ) {
+***************
+*** 695,706 ****
+  				), $fname
+  			);
+  			$this->mTextId = $dbw->insertId();
+  		}
+  
+! 		# Record the edit in revisions
+! 		$rev_id = isset( $this->mId )
+  			? $this->mId
+! 			: $dbw->nextSequenceValue( 'rev_rev_id_val' );
+  		$dbw->insert( 'revision',
+  			array(
+  				'rev_id'         => $rev_id,
+--- 718,736 ----
+  				), $fname
+  			);
+  			$this->mTextId = $dbw->insertId();
++ 
++                         # Now, flush the external store to disk, if we are
++                         # using one              
++                         if (WRITE_TO_FS_CACHE){                                                   
++                           $store->commitTextInsert( $this->mTextId );                                 
++                         }  
+  		}
+  
+! 		# Record the edit in revisions -- update the number, as needed	
+!                 $rev_id = isset( $this->mId )
+  			? $this->mId
+!                         : $dbw->nextSequenceValue( 'rev_rev_id_val' );
+! 
+  		$dbw->insert( 'revision',
+  			array(
+  				'rev_id'         => $rev_id,
+***************
+*** 731,737 ****
+  	function loadText() {
+  		$fname = 'Revision::loadText';
+  		wfProfileIn( $fname );
+! 		
+  		// Caching may be beneficial for massive use of external storage
+  		global $wgRevisionCacheExpiry, $wgMemc;
+  		$key = wfMemcKey( 'revisiontext', 'textid', $this->getTextId() );
+--- 761,767 ----
+  	function loadText() {
+  		$fname = 'Revision::loadText';
+  		wfProfileIn( $fname );
+! 
+  		// Caching may be beneficial for massive use of external storage
+  		global $wgRevisionCacheExpiry, $wgMemc;
+  		$key = wfMemcKey( 'revisiontext', 'textid', $this->getTextId() );
+***************
+*** 742,748 ****
+  				return $text;
+  			}
+  		}
+! 		
+  		// If we kept data for lazy extraction, use it now...
+  		if ( isset( $this->mTextRow ) ) {
+  			$row = $this->mTextRow;
+--- 772,778 ----
+  				return $text;
+  			}
+  		}
+! 
+  		// If we kept data for lazy extraction, use it now...
+  		if ( isset( $this->mTextRow ) ) {
+  			$row = $this->mTextRow;
+***************
+*** 768,782 ****
+  				array( 'old_id' => $this->getTextId() ),
+  				$fname);
+  		}
+  
+- 		$text = Revision::getRevisionText( $row );
+- 		
+  		if( $wgRevisionCacheExpiry ) {
+  			$wgMemc->set( $key, $text, $wgRevisionCacheExpiry );
+  		}
+  		
+  		wfProfileOut( $fname );
+- 
+  		return $text;
+  	}
+  
+--- 798,811 ----
+  				array( 'old_id' => $this->getTextId() ),
+  				$fname);
+  		}
++ 		$text = Revision::getRevisionText( $row, TEXT_TABLE_PREFIX, $this->getPage(), 
++                     $this->getTextId() );
+  
+  		if( $wgRevisionCacheExpiry ) {
+  			$wgMemc->set( $key, $text, $wgRevisionCacheExpiry );
+  		}
+  		
+  		wfProfileOut( $fname );
+  		return $text;
+  	}
+  
+diff -rN -c -C 3 mediawiki-1.11.0/includes/TextFileCache.php /bigspace/www/wikis/1/includes/TextFileCache.php
+*** mediawiki-1.11.0/includes/TextFileCache.php	Wed Dec 31 16:00:00 1969
+--- /bigspace/www/wikis/1/includes/TextFileCache.php	Wed Dec  5 14:56:21 2007
+***************
+*** 0 ****
+--- 1,139 ----
++ <?php
++ 
++ /**
++   Manages the file cache for mediawiki -- text is stored on the filesystem instead of in a database
++   This makes for easer loading and dumping of the DB, as well as being a LOT easier to manage.
++ 
++   2007 - Ian Pye - <ipye@cs.ucsc.edu>
++   Trust in Wikipedia Project, UCSC
++   trust.cse.ucsc.edu
++ */
++ 
++ class TextFileCache{
++  
++   private $data;
++   private $rev_id;
++   private $page_id;
++ 
++   function __construct( ) {
++   }
++ 
++   /**
++    * Stores the data in the fs cache
++    */
++   public function setTextInCache( $page_id, $data ){
++ 
++     // pad the page and revision strings to the proper length                   
++     $page_id = str_pad ($page_id, FS_CACHE_PAD_LENGTH, "0", STR_PAD_LEFT);
++ 
++     $this->data = $data;
++     $this->page_id = $page_id;
++ 
++     return ""; // this text will be inserted into the db 
++   }
++ 
++   public function commitTextInsert( $rev_id ){
++     $rev_id = str_pad ($rev_id, FS_CACHE_PAD_LENGTH, "0", STR_PAD_LEFT);
++   
++     $page_path = TextFileCache::getPagePath( $this->page_id, true );
++ 
++     $status = file_put_contents( $page_path . LOCAL_FILE_SYSTEM_SEP . $rev_id
++                                             . FS_CACHE_REV_EXTENSION, $this->data );
++     if (FS_CACHE_DEBUG){
++       if( !$status ){
++         file_put_contents (FS_CACHE_LOG, "PUT FAILURE: ".$page_path 
++             . LOCAL_FILE_SYSTEM_SEP . $rev_id
++             . FS_CACHE_REV_EXTENSION . "\n", FILE_APPEND );
++       } else {
++         file_put_contents (FS_CACHE_LOG, "PUT: ".$page_path 
++             . LOCAL_FILE_SYSTEM_SEP . $rev_id
++             . FS_CACHE_REV_EXTENSION . "\n", FILE_APPEND );
++       }
++     }
++     return $status;
++   }
++ 
++ 
++ //****** Only Static Functions Below **********//  
++ 
++   /**
++    * strips coloring tags out of tables, where they should not be
++    */
++   public static function c_stripTables( $matches ){
++     $text = preg_replace("/{{#t:\d}}/", "", $matches[2]);
++     $text = preg_replace("/{{to:\d*?}}/", "", $text);
++     #return "";
++     return $matches[1].$text;
++   } 
++   
++   /**
++    * Given a page id, return the path to the directory for the page
++    * Also, optionally create the directory
++    *
++    * @param string $page_id 
++    * @param bool $create_dirs : default false
++    */
++   private static function getPagePath( $page_id, $create_dirs = false ){
++     $page_dirs = str_split($page_id, FS_CACHE_PAGE_DIR_LENGTH);                           
++     $page_path = FS_CACHE_LOCAL_SITE;                                                     
++     foreach ($page_dirs as &$dir) {                                                       
++       $page_path .= LOCAL_FILE_SYSTEM_SEP . $dir;                                         
++     }
++ 
++     if ($create_dirs){
++       if(!file_exists($page_path)){
++         mkdir ($page_path, FS_CACHE_DIR_CREATE_MODE, true );
++       }
++     }
++     return $page_path;
++   }
++ 
++   /**
++    * Loads the text with the given id from the filesystem in to memory and
++    *  returns a string
++    *
++    * @param int $id
++    * @access public
++    * @static
++    */
++   public static function getTextFromCache( $page_id, $rev_id ){
++ 
++     // pad the page and revision strings to the proper length
++     $page_id = str_pad ($page_id, FS_CACHE_PAD_LENGTH, "0", STR_PAD_LEFT); 
++     $rev_id = str_pad ($rev_id, FS_CACHE_PAD_LENGTH, "0", STR_PAD_LEFT); 
++ 
++     $page_path = TextFileCache::getPagePath( $page_id );
++ 
++     $text = html_entity_decode( ltrim ( file_get_contents( $page_path . LOCAL_FILE_SYSTEM_SEP . $rev_id 
++         . FS_CACHE_REV_EXTENSION ) ) );
++ 
++     // strip tags that should not be there
++     if (FS_CACHE_FIX_REDIRECTS){
++       $text = preg_replace( "/^({{#t:\d}}#|#{{#t:\d}}|#{{to:\d*?}}|#{{#t:\d}}{{to:\d*?}})redirect/i", "#REDIRECT", $text);
++     }
++     
++     // fix tables...                                                                         
++     if (FS_CACHE_FIX_TABLES){                                                                
++       $text = preg_replace_callback (                                                        
++                                    "/({\|||-)(.*)}/",                                                                  
++                                    array('TextFileCache', 'c_stripTables'),                                           
++                                    $text                                                                              
++       );                                                                                     
++     }   
++     if( !$text ){
++       if (FS_CACHE_DEBUG){
++         file_put_contents (FS_CACHE_LOG, "GET FAILURE: ".$page_path 
++             . LOCAL_FILE_SYSTEM_SEP . $rev_id 
++             . FS_CACHE_REV_EXTENSION . "\n", FILE_APPEND );
++       }
++       return "";
++     }
++     if (FS_CACHE_DEBUG){
++       file_put_contents (FS_CACHE_LOG, "GOT: ".$page_path
++           . LOCAL_FILE_SYSTEM_SEP . $rev_id 
++           . FS_CACHE_REV_EXTENSION . "\n", FILE_APPEND );
++     }
++     return $text;
++   }
++ }
++ ?>
+diff -rN -c -C 3 mediawiki-1.11.0/includes/Wiki.php /bigspace/www/wikis/1/includes/Wiki.php
+*** mediawiki-1.11.0/includes/Wiki.php	Tue Jul 17 10:16:59 2007
+--- /bigspace/www/wikis/1/includes/Wiki.php	Thu Nov 29 15:12:08 2007
+***************
+*** 243,248 ****
+--- 243,249 ----
+  	 * @param Request $request
+  	 * @param string $action
+  	 * @return mixed an Article, or a string to redirect to another URL
++          * Ian Pye Watch 
+  	 */
+  	function initializeArticle( $title, $request ) {
+  		global $wgTitle;
+diff -rN -c -C 3 mediawiki-1.11.0/includes/api/ApiFormatJson.php.orig /bigspace/www/wikis/1/includes/api/ApiFormatJson.php.orig
+*** mediawiki-1.11.0/includes/api/ApiFormatJson.php.orig	Wed Dec 31 16:00:00 1969
+--- /bigspace/www/wikis/1/includes/api/ApiFormatJson.php.orig	Mon Dec 17 13:55:38 2007
+***************
+*** 0 ****
+--- 1,92 ----
++ <?php
++ 
++ /*
++  * Created on Sep 19, 2006
++  *
++  * API for MediaWiki 1.8+
++  *
++  * Copyright (C) 2006 Yuri Astrakhan <Firstname><Lastname>@gmail.com
++  *
++  * This program is free software; you can redistribute it and/or modify
++  * it under the terms of the GNU General Public License as published by
++  * the Free Software Foundation; either version 2 of the License, or
++  * (at your option) any later version.
++  *
++  * This program is distributed in the hope that it will be useful,
++  * but WITHOUT ANY WARRANTY; without even the implied warranty of
++  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
++  * GNU General Public License for more details.
++  *
++  * You should have received a copy of the GNU General Public License along
++  * with this program; if not, write to the Free Software Foundation, Inc.,
++  * 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
++  * http://www.gnu.org/copyleft/gpl.html
++  */
++ 
++ if (!defined('MEDIAWIKI')) {
++ 	// Eclipse helper - will be ignored in production
++ 	require_once ('ApiFormatBase.php');
++ }
++ 
++ /**
++  * @addtogroup API
++  */
++ class ApiFormatJson extends ApiFormatBase {
++ 
++ 	private $mIsRaw;
++ 
++ 	public function __construct($main, $format) {
++ 		parent :: __construct($main, $format);
++ 		$this->mIsRaw = ($format === 'rawfm');
++ 	}
++ 
++ 	public function getMimeType() {
++ 		return 'application/json';
++ 	}
++ 
++ 	public function getNeedsRawData() {
++ 		return $this->mIsRaw;
++ 	}
++ 
++ 	public function execute() {
++ 		$prefix = $suffix = "";
++ 
++ 		$params = $this->extractRequestParams();
++ 		$callback = $params['callback'];
++ 		if(!is_null($callback)) {
++ 			$prefix = ereg_replace("[^_A-Za-z0-9]", "", $callback ) . "(";
++ 			$suffix = ")";
++ 		}
++ 
++ 		if (!function_exists('json_encode') || $this->getIsHtml()) {
++ 			$json = new Services_JSON();
++ 			$this->printText($prefix . $json->encode($this->getResultData(), $this->getIsHtml()) . $suffix);
++ 		} else {
++ 			$this->printText($prefix . json_encode($this->getResultData()) . $suffix);
++ 		}
++ 	}
++ 
++ 	protected function getAllowedParams() {
++ 		return array (
++ 			'callback' => null
++ 		);
++ 	}
++ 
++ 	protected function getParamDescription() {
++ 		return array (
++ 			'callback' => 'If specified, wraps the output into a given function call',
++ 		);
++ 	}
++ 
++ 	protected function getDescription() {
++ 		if ($this->mIsRaw)
++ 			return 'Output data with the debuging elements in JSON format' . parent :: getDescription();
++ 		else
++ 			return 'Output data in JSON format' . parent :: getDescription();
++ 	}
++ 
++ 	public function getVersion() {
++ 		return __CLASS__ . ': $Id: ApiFormatJson.php 23531 2007-06-29 01:19:14Z simetrical $';
++ 	}
++ }
++ 

@@ -8,31 +8,34 @@ directory.
 
 1) Install Mysql, Apache, PHP
 
-2) Download the latest version of Media WIki
+2) Download the latest version of MediaWIki
 
 3) Configure it in the normal way -- Follow the instructions you get by going
 to the website for the first time
 
 Now, customize it:
 
-4) Copy the files in the mediawiki/includes directory over their counterparts
-in the local MW/includes directory
-
-5) Copy the files in the mediawiki/skins directory into the local MW/skins
-directory.
+$ cd /usr/share/mediawiki
+$ ln -s ~/wikitrust/online/mediawiki/extensions/* extensions/
+$ ln -s ~/wikitrust/online/mediawiki/skins/* skins/
+$ ln -s ~/wikitrust/online/mediawiki/includes/* includes/
 
 6) In LocalSettings.php, change these lines
 
-$wgSitename         = "The UCSC Wikipedia Trust Project";
+$wgSitename         = "The WikiTrust Project";
 $wgDefaultSkin = 'trust'; 
 
-And, add these lines to the bottom of the file
-require( $IP . "/extensions/ExtMan.php" );                                                
+And, add this line to the bottom of the file
+require_once( $IP . "/extensions/Trust/Trust3.php" );
 
-7) Copy the files from the mediawiki/extensions folder into your local
-extensions folder.
+================================================================
+Ian, from here on, can you revise the instructions? -Luca
 
-Download and install the following MW extensions:
+
+require( $IP . "/extensions/ExtMan.php" );
+
+
+Optionally, if you like, download and install the following MW extensions:
 
 ParserFunctions
 Cite
@@ -65,6 +68,8 @@ $ mkdir ../images/math
 $ sudo chown -R www-data ../images/
 
 9) Edit includes/Defines.php
+
+!!!!!!!! This does not apply any more!!! 
 
 Change this line:
 define( "FS_CACHE_LOCAL_SITE", "/bigspace/cluster/rev_text" );
