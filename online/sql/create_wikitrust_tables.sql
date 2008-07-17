@@ -1,30 +1,23 @@
 
 BEGIN; 
 
--- histiograpm containing the number of users in each rep bucket
+-- histogram containing the number of users in each rep bucket
 CREATE TABLE wikitrust_histogram (
        median			  float NOT NULL,
-       max_rep			  int NOT NULL,
-       rep_0			  float,				   
+       rep_0			  float,
        rep_1			  float,
-       rep_2			  float,    
+       rep_2			  float,
        rep_3			  float,
-       rep_4			  float,				   
+       rep_4			  float,
        rep_5			  float,
-       rep_6			  float,    
+       rep_6			  float,
        rep_7			  float,
-       rep_8			  float,				   
-       rep_9			  float,
-       rep_10			  float,    
-       rep_11			  float, 
-       rep_12			  float,				   
-       rep_13			  float,
-       rep_14			  float,    
-       rep_15			  float
+       rep_8			  float,
+       rep_9			  float
 );
 GRANT ALL ON wikitrust_histogram TO wikiuser;
 
-INSERT INTO wikitrust_histogram VALUES (0,9,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0);
+INSERT INTO wikitrust_histogram VALUES (0,0,0,0,0,0,0,0,0,0,0);
 
 -- quality info?
 CREATE TABLE wikitrust_quality_info (

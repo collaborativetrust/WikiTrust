@@ -61,22 +61,6 @@ Sexplib.Conv.default_string_of_float := (fun n -> sprintf "%.4G" n);;
 (* This is the function that sexplib uses to convert strings *)
 Sexplib.Conv.default_string_of_string := (fun str -> sprintf "%s" str);;
 
-(* Median of an array *)
-let median_of_array a =
-  let rec calc lst top bot cell 
-      = match lst with
-    | [] -> (match (int_of_float top) / 2 with 
-	       | 0 -> (top +. 1. /. bot)
-	       | _ -> (top /. bot)
-	    )
-    | hd::rst -> calc rst (top +. (hd *. (float_of_int cell))) 
-	(bot +. (float_of_int cell)) 
-	  (cell + 1) 
-  in
-    calc (Array.to_list a) 0. 0. 1 
-;;
-
-
 (* Should a commit be issued after every insert? This is needed if there are multiple clients. *)
 let commit_frequently = false;;
 
@@ -460,8 +444,7 @@ class db
       match really with
         | true -> (
 	    ignore (Mysql.exec dbh "DELETE FROM wikitrust_histogram");
-	    ignore (Mysql.exec dbh "INSERT INTO wikitrust_histogram VALUES 
-(0,9,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0)");
+	    ignore (Mysql.exec dbh "INSERT INTO wikitrust_histogram VALUES (0,0,0,0,0,0,0,0,0,0,0)");
             ignore (Mysql.exec dbh "TRUNCATE TABLE wikitrust_edit_lists" );
             ignore (Mysql.exec dbh "TRUNCATE TABLE wikitrust_trust_user_rep" );
             ignore (Mysql.exec dbh "TRUNCATE TABLE wikitrust_user_rep_history" ); 
