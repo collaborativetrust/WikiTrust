@@ -81,7 +81,7 @@ let different_author
  (* (r': <get_user_id: int; get_ip: string; ..>) *)
     : bool = 
   let uid = r#get_user_id in 
-  uid <> r'#get_user_id || ((not equate_anons) && uid = 0 && r#get_ip <> r'#get_ip)
+  uid <> r'#get_user_id || ((not equate_anons) && r#get_is_anon && r#get_ip <> r'#get_ip)
 
 (** This class is used for all analysis methods that do not require keeping track 
     of separators among words.  It is generally extended. *)

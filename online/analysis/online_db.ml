@@ -181,32 +181,26 @@ class db
         | StatusError err -> false
         | _ -> true
 	    
-    (**  
-	 [get_histogram] Returns a histogram showing the number of users 
-	 at each reputation level, and the median.
-    *)
+    (** [get_histogram] Returns a histogram showing the number of users 
+	at each reputation level, and the median. *)
     method get_histogram : float array * float =
       match fetch (Mysql.exec dbh sth_select_hist) with
         | None -> raise DB_Not_Found
-        | Some row -> ([| not_null float2ml row.(2); not_null float2ml row.(3); 
+        | Some row -> ([| not_null float2ml row.(1); not_null float2ml row.(2); not_null float2ml row.(3); 
 			  not_null float2ml row.(4);  not_null float2ml row.(5);
 			  not_null float2ml row.(6);  not_null float2ml row.(7);
-			  not_null float2ml row.(8);  not_null float2ml row.(9);
-			  not_null float2ml row.(10);  not_null float2ml row.(11);
+			  not_null float2ml row.(8);  not_null float2ml row.(9); not_null float2ml row.(10);
 		       |], not_null float2ml row.(0))
     
-    (**
-       [set_histogram hist median]
-       Sets the user reputation histogram.
-    *)
-    method set_histogram (vals : float array) : unit = 
+    (** [set_histogram hist hival] writes to the db that the histogram is [hist], and the 
+	chosen median is [hival].  *)
+    method set_histogram (hist : float array) (hival: float) : unit = 
       let sql = format_string sth_update_hist 
-		   ((ml2float (median_of_array vals)) :: 
-		      Array.to_list (Array.map ml2float vals)) in
+		   ((ml2float hival) :: Array.to_list (Array.map ml2float hist)) in
 	ignore (Mysql.exec dbh sql);
 	if commit_frequently then ignore (Mysql.exec dbh "COMMIT")      
 
-    (* Returns the last colored rev, if any *)
+    (** Returns the last colored revision, if any *)
     method fetch_last_colored_rev : (int * int * timestamp_t) = 
       match fetch (Mysql.exec dbh sth_select_last_colored_rev) with
         | None -> raise DB_Not_Found
@@ -298,6 +292,7 @@ class db
               [ml2int uid; ml2float rep ]));  
       if commit_frequently then ignore (Mysql.exec dbh "COMMIT")
   
+    (** Print some statistics on the number and size of reputation updates. *)
     method print_stats : unit =
       print_endline ("Done in " ^ (string_of_float ((Unix.gettimeofday ()) -. start_time)));
       print_endline (string_of_float (total_rep_change /. (float_of_int num_rep_changes))

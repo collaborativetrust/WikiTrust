@@ -45,6 +45,31 @@ exception Missing_trust of int * int
     Most of the functions implementing an online edit are implemented 
     in this file. See the mli file for the call parameters. *)
 
+
+(* High-Median of an array *)
+let compute_hi_median (a: float array) =
+  let total = Array.fold_left (+.) 0. a in 
+  let mass_below = ref (total *. hi_median_perc) in 
+  let median = ref 0. in 
+  let i = ref 0 in 
+  while (!mass_below > 0.) && (!i < max_rep_val) do begin 
+    if a.(!i) > !mass_below then begin 
+      (* Median is in this column *)
+      median := !median +. !mass_below /. a.(!i);
+      mass_below := 0.; 
+    end else begin 
+      (* Median is above this column *)
+      mass_below := !mass_below -. a.(!i); 
+      i := !i + 1;
+      median := !median +. 1. 
+    end
+  end done;
+  (* debug *)
+  Printf.printf "%.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f \n" 
+    a.(0) a.(1) a.(2) a.(3) a.(4) a.(5) a.(6) a.(7) a.(8) a.(9) !median; 
+  !median
+    
+
 class page 
   (db: Online_db.db) 
   (logger: Online_log.logger)
@@ -605,6 +630,7 @@ class page
 	 revp (reference, immediately preceding rev1), rev0 (reference, before rev1).
          We do anything only if there are at least 3 revisions in total. *)
       if n_revs > 2 then begin 
+
         let rev2 = Vec.get 0 revs in 
         let rev2_id    = rev2#get_id in 
         let rev2_uid   = rev2#get_user_id in 
@@ -612,6 +638,29 @@ class page
         let rev2_time  = rev2#get_time in 
 	let rev2_rep   = self#get_rep rev2_uid in 
 	let rev2_weight = self#weight rev2_rep in 
+
+	(* Reads the histogram of reputations, and the high median, and uses them
+	   to renormalize the weight of the judging user. *)
+	let (histogram, hi_median) = db#get_histogram in 
+	let renorm_w = 
+	  if not rev2#get_is_anon then begin 
+	    (* Increments the histogram according to the work of the judge *)
+	    let rev_bef2 = Vec.get 1 revs in 
+	    let rev_bef2_id = rev_bef2#get_id in 
+	    let delta_of_2 = Hashtbl.find edit_dist (rev_bef2_id, rev2_id) in 
+	    let slot = max 0 (min 9 (int_of_float rev2_weight)) in 
+	    histogram.(slot) <- histogram.(slot) +. delta_of_2; 
+	    Printf.printf "Incrementing slot %d by %f\n" slot delta_of_2; (* debug *)
+	    let hi_median' = compute_hi_median histogram in 
+	    let hi_median'' = max hi_median hi_median' in 
+	    db#set_histogram histogram hi_median'';
+	    (* and renormalizes the weight *)
+	    let renorm_w' = rev2_weight *. (float_of_int max_rep_val) /. hi_median'' in 
+	    min renorm_w' (float_of_int max_rep_val)
+	  end else rev2_weight in 
+
+	Printf.printf "Weight: %f Normalized: %f \n" rev2_weight renorm_w; 	(* debug *)
+
 	(* rev1_idx goes to 1 before the last, since we should be able to compare it 
 	   to something *)
 	for rev1_idx = 1 to n_revs - 2 do begin 
@@ -656,7 +705,7 @@ class page
 		rev1#set_nix_bit
 	      end;
 	    (* Computes inc_local_global (see paper) *)
-	    let inc_local_global = trust_coeff.rep_scaling *. delta *. min_qual *. rev2_weight in
+	    let inc_local_global = trust_coeff.rep_scaling *. delta *. min_qual *. renorm_w in
 	    (* Applies it according to algorithm LOCAL-GLOBAL *)
 	    let new_rep = 
 	      if (!rev1_nix || rev2_time -. rev0_time < trust_coeff.nix_interval) 

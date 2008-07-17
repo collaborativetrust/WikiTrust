@@ -53,32 +53,22 @@ class db :
 
   object
    
-    (**
-      Tells the DB to commit any open transactaions.
-    *)
+    (** Tells the DB to commit any open transactaions. *)
     method commit : bool 
   
-    (**
-      Prints some information about what happened.
-    *)
+    (** Print some statistics on the number and size of reputation updates. *)
     method print_stats : unit 
 
-    (**  
-	 [get_histogram] Returns a histogram showing the number of users 
-	 at each reputation level, and the median.
-    *)
+    (** [get_histogram] Returns a histogram showing the number of users 
+	at each reputation level, and the median. *)
     method get_histogram : float array * float
     
-    (**
-       [set_histogram hist median]
-       Sets the user reputation histogram.
-    *)
-    method set_histogram : float array -> unit
+    (** [set_histogram hist median] writes the user reputation histogram, and the median, to the db. *)
+    method set_histogram : float array -> float -> unit
 
     (** [fetch_last_colored_rev] returns a tuple 
 	[(revid, pageid, timestamp)] for the last colored revision.  
-        Raises DB_Not_Found if no revisions have been colored.
-    *)    
+        Raises DB_Not_Found if no revisions have been colored. *)    
     method fetch_last_colored_rev : int * int * timestamp_t
     
     (** [sth_select_all_revs_after (int * int * int * int * int * int)] returns all 
