@@ -1,7 +1,7 @@
 <?php
 
-# Copyright (c) 2007 Luca de Alfaro
-# Copyright (c) 2007 Ian Pye
+# Copyright (c) 2007,2008 Luca de Alfaro
+# Copyright (c) 2007,2008 Ian Pye
 # Copyright (c) 2007 Jason Benterou
 #
 # This program is free software; you can redistribute it and/or
@@ -85,7 +85,7 @@ function ucscTrustTemplate($skin, &$content_actions) {
   
   $content_actions['trust'] = array ( 'class' => '',
 				      'text' => 'Trust',
-				      'href' => $_SERVER['REQUEST_URI'] . "?&trust=t" );
+				      'href' => $content_actions['nstab-main']['href'] . "?trust=t" );
   
   if(isset($_GET['trust'])){
     $content_actions['trust']['class'] = 'selected';
@@ -134,6 +134,9 @@ function ucscColorTrust_Setup() {
 function ucscColorTrust_Magic( &$magicWords, $langCode ) {
   # Add the magic word
   # The first array element is case sensitive, in this case it is not case sensitive
+  # All remaining elements are synos, $langCode ) {
+  # Add the magic word
+  # The first array element is case sensitive, in this case it is not case sensitive
   # All remaining elements are synonyms for our parser function
   $magicWords[ 't' ] = array( 0, 't' );
   $magicWords[ 'to' ] = array( 0, 'to' ); 
@@ -157,6 +160,7 @@ function ucscColorTrust_Render( &$parser, $value = 0 ) {
   return array ( $output, "noparse" => false, "isHTML" => false );
 }
 
+## Maps from the online trust values to the css trust values.
 function computeColorFromFloat($value){
   $value = $value * 10;
   return computeColor3(intval($value));
