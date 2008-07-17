@@ -58,14 +58,26 @@ $wgExtensionFunctions[] = 'wfColorTrust_Setup';
 $wgHooks['LanguageGetMagic'][] = 'wfColorTrust_Magic';
 
 # And add a hook so the colored text is found. 
-$wgHooks['ParserBeforeStrip'][] = 'ucscSeeIfColored';
+$wgHooks['ParserAfterStrip'][] = 'ucscSeeIfColored';
 
+# And add and extra tab.
 $wgHooks['SkinTemplateTabs'][] = 'ucscTrustTemplate';
 
+# Actually add the tab.
 function ucscTrustTemplate($skin, &$content_actions) { 
+  
   $content_actions['trust'] = array ( 'class' => '',
 				      'text' => 'Trust Colored',
-				      'href' => $content_actions['nstab-main']['href'] . "?trust=1" );
+				      'href' => $content_actions['nstab-main']['href'] . "?trust=t" );
+  
+  if(isset($_GET['trust'])){
+    $content_actions['trust']['class'] = 'selected';
+    $content_actions['nstab-main']['class'] = '';
+    $content_actions['nstab-main']['href'] .= '?action=purge';
+  } else {
+    $content_actions['trust']['href'] .= '&action=purge';
+  }
+
   return true;
 }
 
@@ -75,11 +87,10 @@ function ucscTrustTemplate($skin, &$content_actions) {
  */
 function ucscSeeIfColored(&$parser, &$text, &$strip_state) { 
 
-  //if($_GET['trust'] == ""){
-  //  print $_GET['trust'];
-  //  return true;
-  // }
-
+  if(!isset($_GET['trust'])){
+    return true;
+  }
+  
   $dbr =& wfGetDB( DB_SLAVE );
   $rev_id = $parser->mRevisionId;
   
