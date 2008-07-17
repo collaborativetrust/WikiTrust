@@ -84,7 +84,7 @@ function ucscRunColoring(&$article, &$user, &$text, &$summary, $minor, $watch, $
 function ucscTrustTemplate($skin, &$content_actions) { 
   
   $content_actions['trust'] = array ( 'class' => '',
-				      'text' => 'Trust Colored',
+				      'text' => 'Trust',
 				      'href' => $_SERVER['REQUEST_URI'] . "?&trust=t" );
   
   if(isset($_GET['trust'])){
