@@ -64,7 +64,7 @@ $wgHooks['SkinTemplateTabs'][] = 'ucscTrustTemplate';
 
 function ucscTrustTemplate($skin, &$content_actions) { 
   $content_actions['trust'] = array ( 'class' => '',
-				      'text' => 'Trust Colored',
+				      'text' => 'Trust',
 				      'href' => $content_actions['nstab-main']['href'] . "?trust=1" );
   return true;
 }
