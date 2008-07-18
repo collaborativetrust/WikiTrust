@@ -31,8 +31,7 @@ $TRUST_CSS_TAG = "background-color"; ## color the background
 $EVAL_ONLINE_WIKI = "/home/ipye/git/wikitrust/online/analysis/eval_online_wiki ";
 
 ## Hard coded coloring arguments
-$EVAL_ONLINE_WIKI_ARGS = '-db_user wikiuser -db_pass wikiword \
--db_name wikidb1 -log_name /tmp/color.log';
+$EVAL_ONLINE_WIKI_ARGS = '-db_user wikiuser -db_pass wikiword -db_name wikidb1 -log_name /tmp/color.log';
 
 ## We only want to run one coloring process at a time
 $EVAL_ONLINE_LOCK_FILE = "/tmp/mw_coloring.lock";
@@ -90,8 +89,6 @@ function ucscRunColoring(&$article, &$user, &$text, &$summary, $minor, $watch, $
   global $EVAL_ONLINE_WIKI_ARGS;
   global $EVAL_ONLINE_LOCK_FILE;
 
-  error_reporting(E_ALL);
-
   // We don't want more than one copy of the coloring going at any one time.
   if (file_exists($EVAL_ONLINE_LOCK_FILE)){
     return true;
@@ -99,24 +96,34 @@ function ucscRunColoring(&$article, &$user, &$text, &$summary, $minor, $watch, $
 
   file_put_contents($EVAL_ONLINE_LOCK_FILE, $EVAL_ONLINE_WIKI . $EVAL_ONLINE_WIKI_ARGS . " " . $revision->getID());
   
-  if(popen($EVAL_ONLINE_WIKI . $EVAL_ONLINE_WIKI_ARGS, "r"))
+  if($handle = popen($EVAL_ONLINE_WIKI . $EVAL_ONLINE_WIKI_ARGS, "r")){
+    pclose($handle);
     return true;
+  }
   return false;
 }
 
 # Actually add the tab.
 function ucscTrustTemplate($skin, &$content_actions) { 
   
+  $trust_qs = $_SERVER['QUERY_STRING'];
+  if($trust_qs){
+    $trust_qs = "?" . $trust_qs .  "&trust=t";
+  } else {
+    $trust_qs .= "?trust=t"; 
+  }
+
   $content_actions['trust'] = array ( 'class' => '',
 				      'text' => 'Trust',
-				      'href' => $content_actions['nstab-main']['href'] . "?trust=t" );
+				      'href' => 
+				      $_SERVER['PHP_SELF'] . $trust_qs );
   
   if(isset($_GET['trust'])){
     $content_actions['trust']['class'] = 'selected';
     $content_actions['nstab-main']['class'] = '';
-    $content_actions['nstab-main']['href'] .= '?action=purge';
+    $content_actions['nstab-main']['href'] .= '';
   } else {
-    $content_actions['trust']['href'] .= '&action=purge';
+    $content_actions['trust']['href'] .= '';
   }
   return true;
 }
@@ -127,6 +134,9 @@ function ucscTrustTemplate($skin, &$content_actions) {
  */
 function ucscSeeIfColored(&$parser, &$text, &$strip_state) { 
   global $EVAL_MEDIAN_REP_FILE;
+
+  // Needed to defeat agressive caching.
+  $text = "<!--" . time() . "-->" . $text;
 
   if(!isset($_GET['trust'])){
     return true;
@@ -141,7 +151,7 @@ function ucscSeeIfColored(&$parser, &$text, &$strip_state) {
     $row = $dbr->fetchRow($res);
     $colored_text = $row['revision_text'];
     if ($colored_text){
-      $text = $colored_text;
+      $text = "<!--" . time() . "-->" . $colored_text;
     } 
   } 
   
