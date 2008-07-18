@@ -27,6 +27,13 @@
 $TRUST_CSS_TAG = "background-color"; ## color the background
 #$TRUST_CSS_TAG = "color"; ## color just the text
 
+## Path to eval_online_wiki
+$EVAL_ONLINE_WIKI = "/home/ipye/git/wikitrust/online/analysis/eval_online_wiki";
+
+## Hard coded coloring arguments
+$EVAL_ONLINE_WIKI_ARGS = '-db_user wikiuser -db_pass wikiword \
+-db_name wikidb1 -log_name /tmp/color.log';
+
 ## map trust values to html color codes
 $COLORS = array(
     "trust0",
@@ -52,16 +59,26 @@ colors text according to trust.'
        );
 
 # Define a setup function
-$wgExtensionFunctions[] = 'wfColorTrust_Setup';
+$wgExtensionFunctions[] = 'ucscColorTrust_Setup';
 
 # Add a hook to initialise the magic word
-$wgHooks['LanguageGetMagic'][] = 'wfColorTrust_Magic';
+$wgHooks['LanguageGetMagic'][] = 'ucscColorTrust_Magic';
 
 # And add a hook so the colored text is found. 
 $wgHooks['ParserAfterStrip'][] = 'ucscSeeIfColored';
 
 # And add and extra tab.
 $wgHooks['SkinTemplateTabs'][] = 'ucscTrustTemplate';
+
+# Color saved text
+$wgHooks['ArticleSave'][] = 'ucscRunColoring';
+
+# Code to fork and exec a new process to color any new revisions
+function ucscRunColoring(&$article, &$user, &$text, &$summary, $minor, $watch, $sectionanchor, &$flags) { 
+  print "$EVAL_ONLINE_WIKI . $EVAL_ONLINE_WIKI_ARGS";
+  $handle = popen($EVAL_ONLINE_WIKI . $EVAL_ONLINE_WIKI_ARGS, "r");  
+  return true;
+}
 
 # Actually add the tab.
 function ucscTrustTemplate($skin, &$content_actions) { 
@@ -107,14 +124,14 @@ function ucscSeeIfColored(&$parser, &$text, &$strip_state) {
   return true;
 }
 
-function wfColorTrust_Setup() {
+function ucscColorTrust_Setup() {
   global $wgParser;
   # Set a function hook associating the "example" magic word with our function
-  $wgParser->setFunctionHook( 't', 'wfColorTrust_Render'  );
-  $wgParser->setFunctionHook( 'to', 'wfOrigin_Render', SFH_NO_HASH );
+  $wgParser->setFunctionHook( 't', 'ucscColorTrust_Render'  );
+  $wgParser->setFunctionHook( 'to', 'ucscOrigin_Render', SFH_NO_HASH );
 }
  
-function wfColorTrust_Magic( &$magicWords, $langCode ) {
+function ucscColorTrust_Magic( &$magicWords, $langCode ) {
   # Add the magic word
   # The first array element is case sensitive, in this case it is not case sensitive
   # All remaining elements are synonyms for our parser function
@@ -124,14 +141,14 @@ function wfColorTrust_Magic( &$magicWords, $langCode ) {
   return true;
 }
 
-function wfOrigin_Render( &$parser, $origin = 0 ) {
+function ucscOrigin_Render( &$parser, $origin = 0 ) {
   $output = "<span onclick='showOrigin($origin)'>";     
   return array( $output, "noparse" => true, "isHTML" => false );  
 }
 
 ## here, we are given a value and an optional start tag
 ## and return a string to take the place of the {{#trust tag
-function wfColorTrust_Render( &$parser, $value = 0 ) {
+function ucscColorTrust_Render( &$parser, $value = 0 ) {
   # The parser function itself
   # The input parameters are wikitext with templates expanded
   # The output should be wikitext too
