@@ -41,4 +41,3 @@ val max_longevity_table : int
 
 val is_anonymous: int -> bool
 val not_anonymous: int -> bool
-val hi_median_perc : float

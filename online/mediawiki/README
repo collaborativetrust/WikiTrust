@@ -1,10 +1,8 @@
 
-HOW TO SETUP A LOCAL COPY OF THE COLORED WIKIPEDIA
+HOW TO SETUP A TRUST-COLORED WIKI
 
 Note: this covers only how to set up a local Mediawiki server that
-serves colored pages.  It does not cover the production of the colored
-pages themselves.  That is done with the tools in the /batch
-directory. 
+serves colored pages.  
 
 1) Install Mysql, Apache, PHP
 
@@ -15,10 +13,19 @@ to the website for the first time
 
 Now, customize it:
 
-$ cd /usr/share/mediawiki
-$ ln -s ~/wikitrust/online/mediawiki/extensions/* extensions/
-$ ln -s ~/wikitrust/online/mediawiki/skins/* skins/
-$ ln -s ~/wikitrust/online/mediawiki/includes/* includes/
+$ cd /var/lib/mediawiki/
+$ sudo cp ~/wikitrust/online/mediawiki/extensions/* extensions/
+$ sudo cp ~/wikitrust/online/mediawiki/skins/* skins/
+$ sudo chown -R www-data:www-data extensions/Trust
+$ sudo chown -R www-data:www-data skins/Trust.php
+$ sudo chown -R www-data:www-data skins/trust
+
+Developers may want to do instead: 
+
+$ sudo ln -s ~/wikitrust/online/mediawiki/extensions/* extensions/
+$ sudo ln -s ~/wikitrust/online/mediawiki/skins/* skins/
+
+and then play with permissions to make this work. 
 
 6) In LocalSettings.php, change these lines
 
@@ -26,6 +33,7 @@ $wgSitename         = "The WikiTrust Project";
 $wgDefaultSkin = 'trust'; 
 
 And, add this line to the bottom of the file
+# Trust extension
 require_once( $IP . "/extensions/Trust/Trust3.php" );
 
 ================================================================

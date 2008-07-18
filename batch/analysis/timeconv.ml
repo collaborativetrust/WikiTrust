@@ -40,8 +40,7 @@ POSSIBILITY OF SUCH DAMAGE.
 open Unix;;
 
 (** Converts a time as Y,M,D,h,m,s to time as float *)
-let time_to_float (year: int) (month: int) (day: int) (hour: int)
-    (minute: int) (second: int) = 
+let time_to_float (year: int) (month: int) (day: int) (hour: int) (minute: int) (second: int) : float = 
   let tmrec = {
     tm_sec = second; 
     tm_min = minute; 
@@ -56,6 +55,16 @@ let time_to_float (year: int) (month: int) (day: int) (hour: int)
   } in 
   let (time_float, _) = Unix.mktime tmrec in 
   time_float
+
+(** Converts a time as a string yyyymmddhhmmss to a time as a floating point *)
+let time_string_to_float (s: string) : float = 
+  let yy = int_of_string (String.sub s  0 4) in 
+  let mm = int_of_string (String.sub s  4 2) in 
+  let dd = int_of_string (String.sub s  6 2) in 
+  let h  = int_of_string (String.sub s  8 2) in 
+  let m  = int_of_string (String.sub s 10 2) in 
+  let s  = int_of_string (String.sub s 12 2) in 
+  time_to_float yy mm dd h m s
 
 (** Compare two times as float, i.e. for sorting purposes *)
 let cmp (t1: float) (t2: float) : int = compare t1 t2

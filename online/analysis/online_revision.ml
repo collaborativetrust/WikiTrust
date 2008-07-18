@@ -36,6 +36,7 @@ POSSIBILITY OF SUCH DAMAGE.
 open Vec;;
 open Online_types;;
 open Mysql;;
+open Eval_defs;;
 
 type word = string;;
 exception ReadTextError
@@ -47,17 +48,20 @@ class revision
   (rev_id: int) (* revision id *)
   (page_id: int) (* page id *)
   (text_id: int) (* text id, we need it to save a db access later on *)
-  (time: float) (* time, as a floating point *)
+  (time_string: string) (* time, as a string yyyymmddhhmmss *)
   (user_id: int) (* user id *)
   (username: string) (* name of the user *)
   (is_minor: bool) 
   (comment: string)
   =
+  let time_init = Timeconv.time_string_to_float time_string in 
+
   object (self : 'a)
     val is_anon : bool = (user_id = 0)
       (* These have to do with the revision text.  There is nothing in this, 
 	 since we do not necessarily read the text of all the revisions we 
 	 may want to keep track: reading the text is expensive. *)
+    val time = time_init
     val mutable words : word array option = None
     val mutable trust : float array option = None
     val mutable origin : int array option = None
@@ -68,8 +72,20 @@ class revision
     (* First, I have a flag that says whether I have read the quantities 
        or not.  They are not read by default; they reside in a 
        separate table from standard revision data. *)
-    val mutable quality_info_opt: qual_info_t option = None 
-    (* Dirty bit to avoid writing back unchanged stuff *)
+    (* NOTE: Every revision needs ITS OWN copy of the quality info, so I cannot
+       just do quality_info = quality_info_default, or they would all share the
+       same copy. *)
+    val mutable quality_info : qual_info_t = {
+      n_edit_judges = quality_info_default.n_edit_judges;
+      total_edit_quality = quality_info_default.total_edit_quality;
+      min_edit_quality = quality_info_default.min_edit_quality;
+      nix_bit = quality_info_default.nix_bit;
+      delta = quality_info_default.delta;
+      reputation_gain = quality_info_default.reputation_gain;
+    }
+
+    (* Dirty and valid bits to avoid writing back unchanged stuff *)
+    val mutable valid_quality_info : bool = false 
     val mutable modified_quality_info : bool = false
 
     (* Basic access methods *)
@@ -159,50 +175,47 @@ class revision
 	end
 
     (** Reads the quality info from the database *)
-    method private read_quality_info : qual_info_t = 
+    method private read_quality_info : unit = 
       (* We take care automatically of the case where no information can 
 	 be found. *)
-      match quality_info_opt with 
-	None -> begin
-	  (* It has not been read yet; we read it from disk *)
-	  let q = 
-	    try db#read_quality_info rev_id
-	    with Online_db.DB_Not_Found -> quality_info_default
-	  in 
-	  quality_info_opt <- Some q; 
-	  modified_quality_info <- false; 
-	  q
-	end
-      | Some q -> q
+      if not valid_quality_info then begin 
+	begin 
+	  try quality_info <- db#read_quality_info rev_id
+	  with Online_db.DB_Not_Found -> ()
+	end;
+	valid_quality_info <- true;
+	modified_quality_info <- false
+      end
 
-    (** Writes quality info to the database *)
+    (** Writes quality info to the database.
+        To save accesses, we do not write information for revisions by 
+        anonymous authors. *)
     method write_quality_info : unit = 
-      if modified_quality_info then begin
-	match quality_info_opt with 
-	  None -> ()
-	| Some qual_info -> begin 
-	    db#write_quality_info rev_id qual_info;
-	    modified_quality_info <- false;
-	  end
+      if valid_quality_info && modified_quality_info && (not_anonymous user_id) then begin
+	db#write_quality_info rev_id quality_info;
+	modified_quality_info <- false;
       end
 
     (** Adds edit quality information *)
-    method add_edit_quality_info (new_q: float) : unit = 
-      let q = self#read_quality_info in 
-      q.total_edit_quality <- q.total_edit_quality +. new_q; 
-      if new_q < q.min_edit_quality then q.min_edit_quality <- new_q; 
-      q.n_edit_judges <- q.n_edit_judges + 1; 
+    method add_edit_quality_info (delta: float) (new_q: float) (rep_gain: float) : unit = 
+      if not valid_quality_info then self#read_quality_info; 
+      (* updated *)
+      quality_info.delta <- delta;
+      quality_info.total_edit_quality <- quality_info.total_edit_quality +. new_q; 
+      if new_q < quality_info.min_edit_quality then quality_info.min_edit_quality <- new_q; 
+      quality_info.n_edit_judges <- quality_info.n_edit_judges + 1; 
+      quality_info.reputation_gain <- quality_info.reputation_gain +. rep_gain;
+      (* flags the change *)
       modified_quality_info <- true
 
     method get_nix : bool = 
-      let q = self#read_quality_info in 
-      q.nix_bit
+      if not valid_quality_info then self#read_quality_info; 
+      quality_info.nix_bit
 
     method set_nix_bit : unit = 
-      let q = self#read_quality_info in 
-      q.nix_bit <- true;
-      modified_quality_info <- true
-
+      if not valid_quality_info then self#read_quality_info; 
+      quality_info.nix_bit <- true;
+      modified_quality_info <- true 
 
   end (* revision object *)
 
@@ -212,12 +225,12 @@ let make_revision row db: revision =
     | 1 -> true
     | _ -> assert false in
   new revision db 
-    (not_null int2ml row.(0)) 
-    (not_null int2ml row.(1))                 
-    (not_null int2ml row.(2))
-    (float_of_string (not_null str2ml row.(3))) 
-    (not_null int2ml row.(4)) 
-    (not_null str2ml row.(5)) 
-    (set_is_minor (not_null int2ml row.(6)))                           
-    (not_null str2ml row.(7))
+    (not_null int2ml row.(0)) (* rev id *)
+    (not_null int2ml row.(1)) (* page id *)        
+    (not_null int2ml row.(2)) (* text id *)
+    (not_null str2ml row.(3)) (* timestamp *)
+    (not_null int2ml row.(4)) (* user id *)
+    (not_null str2ml row.(5)) (* user name *)
+    (set_is_minor (not_null int2ml row.(6))) (* is_minor *)
+    (not_null str2ml row.(7)) (* comment *)
 

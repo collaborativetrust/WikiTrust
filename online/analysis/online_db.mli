@@ -56,9 +56,6 @@ class db :
     (** Tells the DB to commit any open transactaions. *)
     method commit : bool 
   
-    (** Print some statistics on the number and size of reputation updates. *)
-    method print_stats : unit 
-
     (** [get_histogram] Returns a histogram showing the number of users 
 	at each reputation level, and the median. *)
     method get_histogram : float array * float
@@ -110,11 +107,6 @@ class db :
 	the reputation of user [uid] to be equal to [r]. *)
     method set_rep : int -> float -> unit
 
-    (** [set_rep_hist uid t r0 r1] writes, in a table with keys user_id, time, 
-	and reputation, that at time [t] the reputation of user [uid] went from
-	[r0] to [r1]. *)
-    method set_rep_hist : int -> float -> float -> float -> unit
-
     (** [write_colored_markup rev_id markup] writes, in a table with columns by 
 	(revision id, string), that the string [markup] is associated with the 
 	revision with id [rev_id]. 
@@ -146,6 +138,9 @@ class db :
 	of signatures has the same length as the list of words. 
         *)
     method read_author_sigs : int -> Author_sig.packed_author_signature_t array
+
+   (** [delete_author_sigs rev_id] removes from the db the author signatures for [rev_id]. *)
+    method delete_author_sigs : int -> unit
 
     (** [write_dead_page_chunks page_id chunk_list] writes, in a table indexed by 
 	(page id, string list) that the page with id [page_id] is associated 

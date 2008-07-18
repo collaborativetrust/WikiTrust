@@ -94,6 +94,12 @@ type trust_coeff_t = {
   mutable equate_anons: bool; 
   (** Interval of time for nixing *)
   mutable nix_interval: float; 
+  (** Negative quality below which nixing happens *)
+  mutable nix_threshold: float;
+  (** The high-median of the reputations is used for the white value. 
+   We choose it so that 90% of work is done below that value. *)
+  mutable hi_median_perc: float;
+
 }
 
 let default_trust_coeff = {
@@ -109,7 +115,9 @@ let default_trust_coeff = {
   rep_scaling = 1. /. 75.0;
   max_rep = 22026.465795 -. 2.0;
   equate_anons = false;
-  nix_interval = 24. *. 3600.
+  nix_interval = 24. *. 3600.;
+  nix_threshold = -0.4;
+  hi_median_perc = 0.9;
 }
  
 let get_default_coeff : trust_coeff_t = default_trust_coeff ;;
@@ -124,11 +132,17 @@ type qual_info_t = {
   mutable min_edit_quality: float; 
   (** Nix bit (see the techrep) *)
   mutable nix_bit: bool;
-}
+  (** Delta, or the amount of change done *)
+  mutable delta: float;
+  (** Total reputation accrued due to the revision *)
+  mutable reputation_gain: float;
+} with sexp
 
 let quality_info_default = {
   n_edit_judges = 0;
   total_edit_quality = 0.;
   min_edit_quality = 1000.;
-  nix_bit = false
+  nix_bit = false;
+  delta = 0.0;
+  reputation_gain = 0.0;
 }

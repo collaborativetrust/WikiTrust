@@ -84,7 +84,7 @@ function ucscRunColoring(&$article, &$user, &$text, &$summary, $minor, $watch, $
 function ucscTrustTemplate($skin, &$content_actions) { 
   
   $content_actions['trust'] = array ( 'class' => '',
-				      'text' => 'trust',
+				      'text' => 'Trust',
 				      'href' => $_SERVER['REQUEST_URI'] . "?&trust=t" );
   
   if(isset($_GET['trust'])){
@@ -134,6 +134,9 @@ function ucscColorTrust_Setup() {
 function ucscColorTrust_Magic( &$magicWords, $langCode ) {
   # Add the magic word
   # The first array element is case sensitive, in this case it is not case sensitive
+  # All remaining elements are synos, $langCode ) {
+  # Add the magic word
+  # The first array element is case sensitive, in this case it is not case sensitive
   # All remaining elements are synonyms for our parser function
   $magicWords[ 't' ] = array( 0, 't' );
   $magicWords[ 'to' ] = array( 0, 'to' ); 
@@ -162,10 +165,4 @@ function computeColorFromFloat($value){
   return computeColor3(intval($value));
 }
 
-## this function maps a trust value to a HTML color representing the trust value
-function computeColor3($fTrustValue){
-  global $COLORS;
-  return $COLORS[$fTrustValue];
-}
-
-?>
+## this functio

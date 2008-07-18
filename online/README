@@ -61,5 +61,7 @@ To have the code work, you need:
   mysql> \. remove_wikitrust_tables.sql
   mysql> \. create_wikitrust_tables.sql
  
+================================================================
+
 
   

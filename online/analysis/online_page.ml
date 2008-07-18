@@ -43,32 +43,7 @@ exception Missing_trust of int * int
 
 (** This is a class representing a page, or article, at a high level. 
     Most of the functions implementing an online edit are implemented 
-    in this file. See the mli file for the call parameters. *)
-
-
-(* High-Median of an array *)
-let compute_hi_median (a: float array) =
-  let total = Array.fold_left (+.) 0. a in 
-  let mass_below = ref (total *. hi_median_perc) in 
-  let median = ref 0. in 
-  let i = ref 0 in 
-  while (!mass_below > 0.) && (!i < max_rep_val) do begin 
-    if a.(!i) > !mass_below then begin 
-      (* Median is in this column *)
-      median := !median +. !mass_below /. a.(!i);
-      mass_below := 0.; 
-    end else begin 
-      (* Median is above this column *)
-      mass_below := !mass_below -. a.(!i); 
-      i := !i + 1;
-      median := !median +. 1. 
-    end
-  end done;
-  (* debug *)
-  Printf.printf "%.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f \n" 
-    a.(0) a.(1) a.(2) a.(3) a.(4) a.(5) a.(6) a.(7) a.(8) a.(9) !median; 
-  !median
-    
+    in this file. See the mli file for the call parameters. *)    
 
 class page 
   (db: Online_db.db) 
@@ -144,6 +119,30 @@ class page
 	end
       end done
 
+
+      (** High-Median of an array *)
+      method private compute_hi_median (a: float array) =
+	let total = Array.fold_left (+.) 0. a in 
+	let mass_below = ref (total *. trust_coeff.hi_median_perc) in 
+	let median = ref 0. in 
+	let i = ref 0 in 
+	while (!mass_below > 0.) && (!i < max_rep_val) do begin 
+	  if a.(!i) > !mass_below then begin 
+	    (* Median is in this column *)
+	    median := !median +. !mass_below /. a.(!i);
+	    mass_below := 0.; 
+	  end else begin 
+	    (* Median is above this column *)
+	    mass_below := !mass_below -. a.(!i); 
+	    i := !i + 1;
+	    median := !median +. 1. 
+	  end
+	end done;
+	(* debug *)
+	Printf.printf "%.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f \n" 
+	  a.(0) a.(1) a.(2) a.(3) a.(4) a.(5) a.(6) a.(7) a.(8) a.(9) !median; 
+	!median
+
     (** This method returns the current value of the user reputation *)
     method private get_rep (uid: int) : float = 
       if Hashtbl.mem rep_cache uid then begin 
@@ -166,7 +165,7 @@ class page
       if not_anonymous uid then begin 
 	(* Reputations must be in the interval [0...maxrep] *)
 	let r' = max 0. (min trust_coeff.max_rep r) in 
-	Printf.printf "set_rep uid: %d r: %f\n" uid r'; (* debug *)
+	(* Printf.printf "set_rep uid: %d r: %f\n" uid r'; debug *)
 	if Hashtbl.mem rep_cache uid then begin 
 	  let (old_rep, _) = Hashtbl.find rep_cache uid in 
 	  Hashtbl.replace rep_cache uid (old_rep, Some r')
@@ -183,12 +182,7 @@ class page
     (** Write all new reputations to the db *)
     method private write_all_reps : unit = 
       let f uid = function 
-	  (old_r, Some r) -> begin
-	    (* Writes the new reputation *)
-	    db#set_rep uid r;
-	    (* Writes the reputation change in the history *)
-	    db#set_rep_hist uid curr_time old_r r
-	  end
+	  (old_r, Some r) ->  db#set_rep uid r
 	| (old_r, None) -> ()
       in Hashtbl.iter f rep_cache
 
@@ -207,6 +201,16 @@ class page
 	then sig_a
 	else Array.create l Author_sig.empty_sigs
       with Online_db.DB_Not_Found -> Array.create l Author_sig.empty_sigs
+
+
+    (** This method deletes the oldest sigs from the DB, in order to save space. 
+	If this were not done, the sigs table would be of comparable size to the revision 
+	text table. *)
+    method private delete_oldest_sigs : unit = 
+      let n_revs = Vec.length revs in 
+      let last_rev = Vec.get (n_revs - 1) revs in 
+      let last_rev_id = last_rev#get_id in 
+      db#delete_author_sigs last_rev_id
 
 
     (** This method computes all the revision-to-revision edit lists and distances among the
@@ -643,17 +647,17 @@ class page
 
 	(* Reads the histogram of reputations, and the high median, and uses them
 	   to renormalize the weight of the judging user. *)
-	let (histogram, hi_median) = db#get_histogram in 
 	let renorm_w = 
 	  if not rev2#get_is_anon then begin 
 	    (* Increments the histogram according to the work of the judge *)
+	    let (histogram, hi_median) = db#get_histogram in 
 	    let rev_bef2 = Vec.get 1 revs in 
 	    let rev_bef2_id = rev_bef2#get_id in 
 	    let delta_of_2 = Hashtbl.find edit_dist (rev_bef2_id, rev2_id) in 
 	    let slot = max 0 (min 9 (int_of_float rev2_weight)) in 
 	    histogram.(slot) <- histogram.(slot) +. delta_of_2; 
 	    Printf.printf "Incrementing slot %d by %f\n" slot delta_of_2; (* debug *)
-	    let new_hi_median' = compute_hi_median histogram in 
+	    let new_hi_median' = self#compute_hi_median histogram in 
 	    let new_hi_median = max hi_median new_hi_median' in 
 	    db#set_histogram histogram new_hi_median;
 	    (* and renormalizes the weight *)
@@ -667,82 +671,98 @@ class page
 	   to something *)
 	for rev1_idx = 1 to n_revs - 2 do begin 
           let rev1 = Vec.get rev1_idx revs in 
-          let rev1_id    = rev1#get_id in 
           let rev1_uid   = rev1#get_user_id in 
-          let rev1_uname = rev1#get_user_name in 
-          let rev1_time  = rev1#get_time in 
-	  let rev1_rep   = self#get_rep rev1_uid in 
-	  let rev1_nix   = ref (rev1#get_nix) in 
-	  (* We read the data for revp *)
-	  let revp_idx = rev1_idx + 1 in 
-          let revp = Vec.get revp_idx revs in 
-          let revp_id    = revp#get_id in 
-	  (* delta is the edit work from revp to rev1 *)
-	  let delta = Hashtbl.find edit_dist (revp_id, rev1_id) in 
-	  (* We read a few distances, to cut down on hashtable access *)
-          let d12 = Hashtbl.find edit_dist (rev2_id, rev1_id) in 
-	  let dp1 = Hashtbl.find edit_dist (rev1_id, revp_id) in
-	  let dp2 = Hashtbl.find edit_dist (rev2_id, revp_id) in 
-	  (* We compute the reputation due to a past rev0 *)
-	  for rev0_idx = rev1_idx + 1 to n_revs - 1 do begin 
-            let rev0 = Vec.get rev0_idx revs in 
-            let rev0_id    = rev0#get_id in 
-            let rev0_uid   = rev0#get_user_id in 
-            let rev0_uname = rev0#get_user_name in 
-            let rev0_time  = rev0#get_time in 
-	    let rev0_rep   = self#get_rep rev0_uid in 
-	    (* Reads the other distances from the hash table *)
-            let d02 = Hashtbl.find edit_dist (rev2_id, rev0_id) in 
-            let d01 = Hashtbl.find edit_dist (rev1_id, rev0_id) in 
-	    (* computes the two qualities *)
-	    let qual_012 = qual d01 d12 d02 in 
-	    let qual_p12 = qual dp1 d12 dp2 in 
-	    let min_qual = min qual_012 qual_p12 in 
-	    (* Adds edit quality information, for statistical analysis *)
-	    rev1#add_edit_quality_info min_qual; 
-	    (* computes the nixing bit *)
-	    if (not !rev1_nix) && (rev2_time -. rev0_time < trust_coeff.nix_interval) 
-	      && ((qual_012 < 0.) || (rev0_idx = n_revs - 1)) then begin 
-		rev1_nix := true;
-		rev1#set_nix_bit
-	      end;
-	    (* Computes inc_local_global (see paper) *)
-	    let inc_local_global = trust_coeff.rep_scaling *. delta *. min_qual *. renorm_w in
-	    (* Applies it according to algorithm LOCAL-GLOBAL *)
-	    let new_rep = 
-	      if (!rev1_nix || rev2_time -. rev0_time < trust_coeff.nix_interval) 
-		&& inc_local_global > 0. then begin 
-		  (* caps the reputation increment *)
-		  let cap_rep = min rev2_rep rev0_rep in
-		  let capped_rep = min cap_rep (rev1_rep +. inc_local_global) in 
-		  max rev1_rep capped_rep
-	      end else begin 
-		(* uncapped reputation increment *)
-		rev1_rep +. inc_local_global
-	      end
-	    in 
-	    self#set_rep rev1_uid new_rep;
+	  (* We work only on non-anonymous rev1; otherwise, there is nothing to be updated. 
+	     Moreover, rev1 and rev2 need to be by different authors. *)
+	  if (not_anonymous rev1_uid) && (rev1_uid != rev2_uid) then begin 
+            let rev1_id    = rev1#get_id in 
+            let rev1_uname = rev1#get_user_name in 
+            let rev1_time  = rev1#get_time in 
+	    let rev1_nix   = ref (rev1#get_nix) in 
+	    (* We read the data for revp *)
+	    let revp_idx = rev1_idx + 1 in 
+            let revp = Vec.get revp_idx revs in 
+            let revp_id    = revp#get_id in 
+	    (* delta is the edit work from revp to rev1 *)
+	    let delta = Hashtbl.find edit_dist (revp_id, rev1_id) in 
+	    (* We read a few distances, to cut down on hashtable access *)
+            let d12 = Hashtbl.find edit_dist (rev2_id, rev1_id) in 
+	    let dp1 = Hashtbl.find edit_dist (rev1_id, revp_id) in
+	    let dp2 = Hashtbl.find edit_dist (rev2_id, revp_id) in 
+	    (* We compute the reputation due to a past rev0 *)
+	    for rev0_idx = rev1_idx + 1 to n_revs - 1 do begin 
+	      (* We need to read here the reputation of the author of rev1, as it may have changed for 
+		 each rev0 considered *)
+	      let rev1_rep   = self#get_rep rev1_uid in 
+	      (* Reads info for revision 0 *)
+              let rev0 = Vec.get rev0_idx revs in 
+              let rev0_id    = rev0#get_id in 
+              let rev0_uid   = rev0#get_user_id in 
+              let rev0_uname = rev0#get_user_name in 
+              let rev0_time  = rev0#get_time in 
+	      let rev0_rep   = self#get_rep rev0_uid in 
+	      (* Reads the other distances from the hash table *)
+              let d02 = Hashtbl.find edit_dist (rev2_id, rev0_id) in 
+              let d01 = Hashtbl.find edit_dist (rev1_id, rev0_id) in 
+	      (* computes the two qualities *)
+	      let qual_012 = qual d01 d12 d02 in 
+	      let qual_p12 = qual dp1 d12 dp2 in 
+	      let min_qual = min qual_012 qual_p12 in 
+	      (* computes the nixing bit *)
+	      if (not !rev1_nix) && (rev2_time -. rev0_time < trust_coeff.nix_interval) 
+		&& ((qual_012 < trust_coeff.nix_threshold) || (rev0_idx = n_revs - 1)) then begin 
+		  rev1_nix := true;
+		  rev1#set_nix_bit;
+		  let s = Printf.sprintf "\nNixed revision id %d\n" rev1_id in 
+		  logger#log s
+		end;
+	      (* Computes inc_local_global (see paper) *)
+	      let inc_local_global = trust_coeff.rep_scaling *. delta *. min_qual *. renorm_w in
+	      (* Applies it according to algorithm LOCAL-GLOBAL *)
+	      let new_rep = 
+		if (!rev1_nix || rev2_time -. rev0_time < trust_coeff.nix_interval) 
+		  && inc_local_global > 0. then begin 
+		    (* caps the reputation increment *)
+		    let cap_rep = min rev2_rep rev0_rep in
+		    let capped_rep = min cap_rep (rev1_rep +. inc_local_global) in 
+		    max rev1_rep capped_rep
+		  end else begin 
+		    (* uncapped reputation increment *)
+		    rev1_rep +. inc_local_global
+		  end
+	      in 
+	      self#set_rep rev1_uid new_rep;
 
-            (* For logging purposes, produces the Edit_inc line *)
-            let s = Printf.sprintf "\nEditInc %10.0f PageId: %d Inc: %7.2f Delta: %7.2f rev0: %d uid0: %d uname0: %S rev1: %d uid1: %d uname1: %S rev2: %d uid2: %d uname2: %S d01: %7.2f d02: %7.2f d12: %7.2f dp2: %7.2f n01: %d n12: %d t01: %f t12: %f nix0: %B nix1: %B nix2: %B"
-	      (* time and page id *)
-	      rev2_time page_id inc_local_global delta
-	      (* revision and user ids *)
-              rev0_id rev0_uid rev0_uname 
-              rev1_id rev1_uid rev1_uname 
-              rev2_id rev2_uid rev2_uname 
-	      (* word distances *)
-	      d01 d02 d12 dp2 
-	      (* distances between revisions in n. of revisions *)
-	      (rev0_idx - rev1_idx) rev1_idx
-	      (* distances between revisions in seconds *)
-	      (rev1_time -. rev0_time) (rev2_time -. rev1_time)
-	      (* Nix bits *)
-	      rev0#get_nix rev1#get_nix rev2#get_nix
-            in 
-            logger#log s
+	      (* Adds quality information for the revision *)
+	      rev1#add_edit_quality_info delta min_qual (new_rep -. rev1_rep) ; 
 
-	  end done (* for rev0_idx *)
+              (* For logging purposes, produces the Edit_inc line *)
+              logger#log (Printf.sprintf "\nEditInc %10.0f PageId: %d Inc: %.4f Capd_inc: %.4f Delta: %.2f" 
+		(* time and page id *)
+		rev2_time page_id inc_local_global (new_rep -. rev1_rep) delta);
+		(* revision and user ids *)
+	      logger#log (Printf.sprintf "\n  rev0: %d uid0: %d uname0: %S rev1: %d uid1: %d uname1: %S rev2: %d uid2: %d uname2: %S"
+		rev0_id rev0_uid rev0_uname 
+		rev1_id rev1_uid rev1_uname 
+		rev2_id rev2_uid rev2_uname);
+	      logger#log (Printf.sprintf "\n  d01: %.2f d02: %.2f d12: %.2f dp2: %.2f qual_012: %.3f qual_p12: %.3f" 
+		(* word distances *)
+		d01 d02 d12 dp2 
+		(* quality *)
+		qual_012 qual_p12);
+	      logger#log (Printf.sprintf "\n  n01: %d n12: %d t(h)01: %.4f t(h)12: %.4f nix0: %B nix1: %B nix2: %B r0: %.3f r1: %.3f r2: %.3f\n"
+		(* distances between revisions in n. of revisions *)
+		(rev0_idx - rev1_idx) rev1_idx
+		(* distances between revisions in hours *)
+		((rev1_time -. rev0_time) /. 3600.) ((rev2_time -. rev1_time) /. 3600.)
+		(* Nix bits *)
+		rev0#get_nix rev1#get_nix rev2#get_nix
+		(* Reputations *)
+		rev0_rep rev1_rep rev2_rep); 
+
+	    end done (* for rev0_idx *)
+
+	  end (* rev1 is by non_anonymous *)
 	end done (* for rev1_idx *)
       end (* method compute_edit_inc *)
 
@@ -764,7 +784,8 @@ class page
 	(* Computes, and writes to disk, the trust of the newest revision *)
 	print_string "   Computing trust...\n"; flush stdout; (* debug *)
 	self#compute_trust;
-	
+	(* Deletes the signatures of the oldest used revision, in order to save space. *)
+	self#delete_oldest_sigs;
       
 	(* Gets the reputation lock *)
 	db#get_rep_lock; 

@@ -96,29 +96,17 @@ class db
    
   object(self)
      
-    (* Stats values *) 
-    val rep_epsilon = 0.1  
-    val start_time = Unix.gettimeofday ()
-    val mutable total_rep_change = 0.
-    val mutable num_rep_changes = 0
-    val mutable num_changes_over_epsilon= 0
-    val mutable num_changes_under_epsilon = 0
-
     (* HERE are all of the prepaired sql statments used below *)
     val sth_select_edit_list_flat = "SELECT version, edits FROM wikitrust_edit_lists
         WHERE from_revision = ? AND to_revision  = ?"
     val sth_insert_edit_list_flat = "INSERT INTO wikitrust_edit_lists (version, edits, 
         from_revision, to_revision) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE
         version = ?, edits = ?"
-    val sth_select_user_rep = "SELECT user_rep FROM wikitrust_trust_user_rep 
-          WHERE user_id = ?" 
-    val sth_update_user_rep = "UPDATE wikitrust_trust_user_rep SET user_rep = 
-          ? WHERE user_id = ?" 
-    val sth_insert_user_rep = "INSERT INTO wikitrust_trust_user_rep
-          (user_id,  user_rep) VALUES (?, ?)" 
-    val sth_insert_hist = "INSERT INTO wikitrust_user_rep_history 
-          (user_id, rep_before, rep_after, change_time, event_id) VALUES
-          (?, ?, ?, ?, NULL)" 
+
+    val sth_select_user_rep = "SELECT user_rep FROM wikitrust_user_rep WHERE user_id = ?" 
+    val sth_update_user_rep = "UPDATE wikitrust_user_rep SET user_rep = ? WHERE user_id = ?" 
+    val sth_insert_user_rep = "INSERT INTO wikitrust_user_rep (user_id,  user_rep) VALUES (?, ?)" 
+
     val sth_delete_markup = "DELETE FROM wikitrust_colored_markup WHERE revision_id = ?"      
     val sth_insert_markup = "INSERT INTO wikitrust_colored_markup 
           (revision_id, revision_text) VALUES (?, ?)" 
@@ -131,14 +119,11 @@ class db
     val sth_delete_chunks = "DELETE FROM wikitrust_dead_page_chunks WHERE page_id = ?"
     val sth_insert_dead_chunks = "INSERT INTO wikitrust_dead_page_chunks (page_id, chunks) 
        VALUES (?, ?)"
-    val sth_insert_quality = "INSERT INTO wikitrust_quality_info
-          (rev_id, n_edit_judges, total_edit_quality, min_edit_quality, nix_bit
-          ) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE n_edit_judges = ?,
-          total_edit_quality = ?, min_edit_quality = ?, 
-          nix_bit = ?" 
-    val sth_select_quality = "SELECT rev_id, n_edit_judges,
-          total_edit_quality, min_edit_quality, nix_bit
-          FROM wikitrust_quality_info WHERE rev_id = ?" 
+
+    val sth_insert_qual_info = "INSERT INTO wikitrust_quality_info (revision_id, qual_info) VALUES (?, ?)"
+    val sth_delete_qual_info = "DELETE FROM wikitrust_quality_info WHERE revision_id = ?"
+    val sth_select_qual_info = "SELECT qual_info FROM wikitrust_quality_info WHERE revision_id = ?"
+
     val sth_select_revs = "SELECT rev_id, rev_page, rev_text_id, 
           rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment 
           FROM revision WHERE rev_page = ? AND rev_timestamp <= ? 
@@ -155,8 +140,8 @@ class db
     val sth_select_last_colored_rev = "SELECT A.revision_id, B.rev_page, A.coloredon 
           FROM wikitrust_colored_markup AS A JOIN revision AS B ON (A.revision_id = B.rev_id) 
           ORDER BY coloredon DESC LIMIT 1"
-    val sth_update_hist = "UPDATE wikitrust_histogram SET median = ?, rep_0 = ?, rep_1 = ?, rep_2 = ?, rep_3 = ?, rep_4 = ?, rep_5 = ?, rep_6 = ?, rep_7 = ?, rep_8 = ?, rep_9 =?"
-    val sth_select_hist = "SELECT * FROM wikitrust_histogram"
+    val sth_update_histogram = "UPDATE wikitrust_histogram SET median = ?, rep_0 = ?, rep_1 = ?, rep_2 = ?, rep_3 = ?, rep_4 = ?, rep_5 = ?, rep_6 = ?, rep_7 = ?, rep_8 = ?, rep_9 =?"
+    val sth_select_histogram = "SELECT * FROM wikitrust_histogram"
       
     (* Commits any changes to the db *)
     method commit : bool =
@@ -168,7 +153,7 @@ class db
     (** [get_histogram] Returns a histogram showing the number of users 
 	at each reputation level, and the median. *)
     method get_histogram : float array * float =
-      match fetch (Mysql.exec dbh sth_select_hist) with
+      match fetch (Mysql.exec dbh sth_select_histogram) with
         | None -> raise DB_Not_Found
         | Some row -> ([| not_null float2ml row.(1); not_null float2ml row.(2); not_null float2ml row.(3); 
 			  not_null float2ml row.(4);  not_null float2ml row.(5);
@@ -179,7 +164,7 @@ class db
     (** [set_histogram hist hival] writes to the db that the histogram is [hist], and the 
 	chosen median is [hival].  *)
     method set_histogram (hist : float array) (hival: float) : unit = 
-      let sql = format_string sth_update_hist 
+      let sql = format_string sth_update_histogram 
 		   ((ml2float hival) :: Array.to_list (Array.map ml2float hist)) in
 	ignore (Mysql.exec dbh sql);
 	if commit_frequently then ignore (Mysql.exec dbh "COMMIT")      
@@ -276,31 +261,6 @@ class db
               [ml2int uid; ml2float rep ]));  
       if commit_frequently then ignore (Mysql.exec dbh "COMMIT")
   
-    (** Print some statistics on the number and size of reputation updates. *)
-    method print_stats : unit =
-      print_endline ("Done in " ^ (string_of_float ((Unix.gettimeofday ()) -. start_time)));
-      print_endline (string_of_float (total_rep_change /. (float_of_int num_rep_changes))
-          ^ " Average change.");
-      print_endline ((string_of_int num_changes_over_epsilon ) ^ " Changes over " 
-          ^ (string_of_float rep_epsilon));
-      print_endline ((string_of_int num_changes_under_epsilon ) ^ " Changes under.");
-      print_endline ((string_of_int num_rep_changes) ^ " Total changes.")
-
-    (** [set_rep_hist uid t r0 r1] writes, in a table with keys user_id, time, 
-	and reputation, that at time [t] the reputation of user [uid] went from
-	[r0] to [r1]. *)
-    method set_rep_hist (uid : int) (timet : float) (r0 : float) (r1 : float)
-    : unit =
-      let delta = abs_float (r1 -. r0) in
-      total_rep_change <- total_rep_change +. delta;
-      num_rep_changes <- num_rep_changes + 1;
-      match (delta > rep_epsilon) with  
-        | true -> num_changes_over_epsilon <- num_changes_over_epsilon + 1 
-        | false -> num_changes_under_epsilon <- num_changes_under_epsilon + 1;
-      ignore (Mysql.exec dbh (format_string sth_insert_hist 
-          [ml2int uid; ml2float r0; ml2float r1; ml2float timet ]));
-      if commit_frequently then ignore (Mysql.exec dbh "COMMIT")
-
     (** [write_colored_markup rev_id markup] writes, in a table with columns by 
 	(revision id, string), that the string [markup] is associated with the 
 	revision with id [rev_id]. 
@@ -319,7 +279,6 @@ class db
           [ml2int rev_id; ml2str markup ]));
       if commit_frequently then ignore (Mysql.exec dbh "COMMIT")
 
-
     (** [read_colored_markup rev_id] reads the text markup of a revision with id
 	[rev_id].  The markup is the text of the revision, annontated with trust
 	and origin information. *)
@@ -329,7 +288,6 @@ class db
       match Mysql.fetch result with
         | None -> raise DB_Not_Found
         | Some x -> not_null str2ml x.(0)
-
 
     (** [write_author_sigs rev_id sigs] writes that the author signatures 
 	for the revision [rev_id] are [sigs]. *)
@@ -363,6 +321,10 @@ class db
 	  of_string__of__of_sexp g (not_null str2ml x.(0))
 	end
 
+   (** [delete_author_sigs rev_id] removes from the db the author signatures for [rev_id]. *)
+    method delete_author_sigs (rev_id: int) : unit = 
+      ignore (Mysql.exec dbh (format_string sth_delete_author_sigs [ml2int rev_id]))
+
     (** [write_dead_page_chunks page_id chunk_list] writes, in a table indexed by 
 	(page id, string list) that the page with id [page_id] is associated 
 	with the "dead" strings of text [chunk1], [chunk2], ..., where
@@ -388,40 +350,22 @@ class db
       | Some x -> of_string__of__of_sexp (list_of_sexp chunk_t_of_sexp) 
                       (not_null str2ml x.(0))
 
-  (** [write_quality_info rev_id n_edit_judges total_edit_quality min_edit_quality
-   n_text_judges new_text persistent_text] writes in a table on disk
-   indexed by [rev_id] the tuple (rev_id  n_edit_judges total_edit_quality
-    min_edit_quality n_text_judges new_text persistent_text). *)
-
-
+  (** [write_quality_info rev_id q] write the quality information [q]
+      for a revision [rev_id]. *)
     method write_quality_info (rev_id : int) (q: qual_info_t) : unit = 
-      (* Next we add in the new text. *)
-      ignore (Mysql.exec dbh (format_string sth_insert_quality 
-          [ml2int rev_id; ml2int q.n_edit_judges;
-          ml2float q.total_edit_quality; 
-	  ml2float q.min_edit_quality; 
-	  if q.nix_bit then "1" else "0";
-          ml2int q.n_edit_judges;
-          ml2float q.total_edit_quality; 
-	  ml2float q.min_edit_quality; 
-	  if q.nix_bit then "1" else "0"
-          ]));
+      let s = string_of__of__sexp_of sexp_of_qual_info_t q in 
+      ignore (Mysql.exec dbh (format_string sth_delete_qual_info 
+	[ml2int rev_id]));
+      ignore (Mysql.exec dbh (format_string sth_insert_qual_info  
+        [ml2int rev_id; ml2str s ]));
       if commit_frequently then ignore (Mysql.exec dbh "COMMIT")    
 
-
-    (** [read_quality_info rev_id] returns the tuple 
-       (n_edit_judges total_edit_quality min_edit_quality
-             n_text_judges new_text persistent_text)
-          associated with the revision with id [rev_id]. *)
+    (** [read_quality_info rev_id] reads the quality information for a revision [rev_id]. *)
     method read_quality_info (rev_id : int) : qual_info_t = 
-      let result = Mysql.exec dbh (format_string sth_select_quality [ml2int rev_id]) in
+      let result = Mysql.exec dbh (format_string sth_select_qual_info [ml2int rev_id]) in
       match fetch result with
         | None -> raise DB_Not_Found
-        | Some x -> {n_edit_judges = not_null int2ml x.(1); 
-                     total_edit_quality = not_null float2ml x.(2); 
-                     min_edit_quality = not_null float2ml x.(3);
-                     nix_bit = (not_null int2ml x.(4) > 0)}
-
+        | Some x -> of_string__of__of_sexp qual_info_t_of_sexp (not_null str2ml x.(0)) 
 
     (** [get_page_lock page_id] gets a lock for page [page_id], to guarantee 
 	mutual exclusion on the updates for page [page_id]. *)
@@ -446,8 +390,7 @@ class db
 	    ignore (Mysql.exec dbh "DELETE FROM wikitrust_histogram");
 	    ignore (Mysql.exec dbh "INSERT INTO wikitrust_histogram VALUES (0,0,0,0,0,0,0,0,0,0,0)");
             ignore (Mysql.exec dbh "TRUNCATE TABLE wikitrust_edit_lists" );
-            ignore (Mysql.exec dbh "TRUNCATE TABLE wikitrust_trust_user_rep" );
-            ignore (Mysql.exec dbh "TRUNCATE TABLE wikitrust_user_rep_history" ); 
+            ignore (Mysql.exec dbh "TRUNCATE TABLE wikitrust_user_rep" );
             ignore (Mysql.exec dbh "TRUNCATE TABLE wikitrust_colored_markup" );
             ignore (Mysql.exec dbh "TRUNCATE TABLE wikitrust_dead_page_chunks" );
             ignore (Mysql.exec dbh "TRUNCATE TABLE wikitrust_quality_info" ); 
