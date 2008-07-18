@@ -34,6 +34,14 @@ $EVAL_ONLINE_WIKI = "/home/ipye/git/wikitrust/online/analysis/eval_online_wiki";
 $EVAL_ONLINE_WIKI_ARGS = '-db_user wikiuser -db_pass wikiword \
 -db_name wikidb1 -log_name /tmp/color.log';
 
+## Median file cache lives here
+$EVAL_MEDIAN_REP_FILE = "/tmp/mw_median_rep";
+
+## Trust normalization values;
+$MAX_TRUST_VALUE = 9;
+$MIN_TRUST_VALUE = 0;
+$TRUST_MULTIPLIER = 10;
+
 ## map trust values to html color codes
 $COLORS = array(
     "trust0",
@@ -71,10 +79,13 @@ $wgHooks['ParserAfterStrip'][] = 'ucscSeeIfColored';
 $wgHooks['SkinTemplateTabs'][] = 'ucscTrustTemplate';
 
 # Color saved text
-$wgHooks['ArticleSave'][] = 'ucscRunColoring';
+#$wgHooks['ArticleSave'][] = 'ucscRunColoring';
 
 # Code to fork and exec a new process to color any new revisions
 function ucscRunColoring(&$article, &$user, &$text, &$summary, $minor, $watch, $sectionanchor, &$flags) { 
+  global $EVAL_ONLINE_WIKI;
+  global $EVAL_ONLINE_WIKI_ARGS;
+  
   print "$EVAL_ONLINE_WIKI . $EVAL_ONLINE_WIKI_ARGS";
   $handle = popen($EVAL_ONLINE_WIKI . $EVAL_ONLINE_WIKI_ARGS, "r");  
   return true;
@@ -102,6 +113,7 @@ function ucscTrustTemplate($skin, &$content_actions) {
  TODO: make this optional.
  */
 function ucscSeeIfColored(&$parser, &$text, &$strip_state) { 
+  global $EVAL_MEDIAN_REP_FILE;
 
   if(!isset($_GET['trust'])){
     return true;
@@ -121,6 +133,19 @@ function ucscSeeIfColored(&$parser, &$text, &$strip_state) {
   } 
   
   $dbr->freeResult( $res );
+
+  // Now also update the median reputation info.
+  $res = $dbr->select('wikitrust_histogram', 'median', array(), array());
+  if ($res){
+    $row = $dbr->fetchRow($res);
+    $median = $row['median'];
+    if ($median){
+      file_put_contents($EVAL_MEDIAN_REP_FILE, $median);
+    } 
+  } 
+  
+  $dbr->freeResult( $res );
+
   return true;
 }
 
@@ -161,9 +186,18 @@ function ucscColorTrust_Render( &$parser, $value = 0 ) {
 }
 
 ## Maps from the online trust values to the css trust values.
-function computeColorFromFloat($value){
-  $value = $value * 1;
-  return computeColor3(intval($value));
+## Normalize the value for growing wikis.
+function computeColorFromFloat($trust){
+  global $EVAL_MEDIAN_REP_FILE;
+  global $MAX_TRUST_VALUE;
+  global $MIN_TRUST_VALUE;
+  global $TRUST_MULTIPLIER;
+  
+  $median = floatval(file_get_contents($EVAL_MEDIAN_REP_FILE));
+  $normalized_value = min($MAX_TRUST_VALUE, max($MIN_TRUST_VALUE, 
+						($trust * $TRUST_MULTIPLIER) 
+						/ $median));
+  return computeColor3($normalized_value);
 }
 
 ## this function maps a trust value to a HTML color representing the trust value
