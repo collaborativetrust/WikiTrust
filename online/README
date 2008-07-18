@@ -11,6 +11,12 @@ To have the code work, you need:
     libmysql-ocaml-dev
     libextlib-ocaml-dev
     python-mysqldb
+    mediawiki
+    mysql-server
+    mysql-client
+    tidy
+
+  as well as all dependent packages. 
 
 - Make OcamlLdaLibs and install them (see instructions there). 
 
