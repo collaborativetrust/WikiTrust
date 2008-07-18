@@ -1,0 +1,8 @@
+#!/bin/bash
+
+cat ../sql/remove_wikitrust_tables.sql  | mysql --user="root" --password="root_password" wikidb
+cat ../sql/create_wikitrust_tables.sql  | mysql --user="root" --password="root_password" wikidb
+cd ../wikifeed
+./set_test.py ../test-data/wiki_00023.xml
+cd ../analysis
+ocamldebug -I `ocamlfind query unix` -I `ocamlfind query str` -I `ocamlfind query vec` -I `ocamlfind query mapmin` -I `ocamlfind query hashtbl_bounded` -I `ocamlfind query fileinfo` -I `ocamlfind query intvmap` -I `ocamlfind query extlib` -I `ocamlfind query mysql` -I `ocamlfind query sexplib` -I ../../batch/analysis ./eval_online_wiki -db_user wikiuser -db_pass localwiki -db_name wikidb -log_name ~/temp/color.log -delete_all

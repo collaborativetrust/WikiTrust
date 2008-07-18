@@ -47,6 +47,7 @@ let log_name = ref ""
 let set_log_name d = log_name := d
 let synch_log = ref false
 let noop s = ()
+let delete_all = ref false
 
 (* Figure out what to do and how we are going to do it. *)
 let command_line_format = 
@@ -55,6 +56,7 @@ let command_line_format =
    ("-db_pass", Arg.String set_db_pass, "<pass>: DB password");
    ("-log_name", Arg.String set_log_name, "<logger.out>: Logger output file");
    ("-synch_log", Arg.Set synch_log, ": Runs the logger in synchnonized mode");
+   ("-delete_all", Arg.Set delete_all, "Deletes all information in the db before proceeding");
   ]
 
 let _ = Arg.parse command_line_format noop "Usage: eval_online_wiki";;
@@ -80,8 +82,9 @@ let rec evaluate_revision (db: Online_db.db) (page_id: int) (rev_id: int) : unit
 
 (* Does all the work of processing the given page and revision *)
 let db = new Online_db.db !db_user !db_pass !db_name in
+
 (* debug *) (* Erases old coloring -- remove this line for production version! *)
-db#delete_all true;
+if !delete_all then db#delete_all true;
 
 (* Loops over all revisions, in chronological order, since the last colored one. *)
 let revs = 
