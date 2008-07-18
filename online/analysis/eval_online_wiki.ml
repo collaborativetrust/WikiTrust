@@ -102,10 +102,5 @@ while !domore do begin
     end
 end done;
 
-(* Commit the transaction *)
-ignore db#commit;
-
-(* Print some stats on what happened. *)
-db#print_stats;;
 
 

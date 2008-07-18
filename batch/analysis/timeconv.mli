@@ -35,6 +35,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
 
 val time_to_float : int -> int -> int -> int -> int -> int -> float
+val time_string_to_float : string -> float
 val float_to_time : float -> int * int * int * int * int * int 
 val cmp : float -> float -> int
 val convert_time : string -> float
