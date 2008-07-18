@@ -1,7 +1,7 @@
 <?php
 
-# Copyright (c) 2007 Luca de Alfaro
-# Copyright (c) 2007 Ian Pye
+# Copyright (c) 2007,2008 Luca de Alfaro
+# Copyright (c) 2007,2008 Ian Pye
 # Copyright (c) 2007 Jason Benterou
 #
 # This program is free software; you can redistribute it and/or
@@ -84,7 +84,7 @@ function ucscRunColoring(&$article, &$user, &$text, &$summary, $minor, $watch, $
 function ucscTrustTemplate($skin, &$content_actions) { 
   
   $content_actions['trust'] = array ( 'class' => '',
-				      'text' => 'Trust Colored',
+				      'text' => 'trust',
 				      'href' => $_SERVER['REQUEST_URI'] . "?&trust=t" );
   
   if(isset($_GET['trust'])){
