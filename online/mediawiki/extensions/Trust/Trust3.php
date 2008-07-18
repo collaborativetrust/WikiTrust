@@ -28,11 +28,14 @@ $TRUST_CSS_TAG = "background-color"; ## color the background
 #$TRUST_CSS_TAG = "color"; ## color just the text
 
 ## Path to eval_online_wiki
-$EVAL_ONLINE_WIKI = "/home/ipye/git/wikitrust/online/analysis/eval_online_wiki";
+$EVAL_ONLINE_WIKI = "/home/ipye/git/wikitrust/online/analysis/eval_online_wiki ";
 
 ## Hard coded coloring arguments
 $EVAL_ONLINE_WIKI_ARGS = '-db_user wikiuser -db_pass wikiword \
 -db_name wikidb1 -log_name /tmp/color.log';
+
+## We only want to run one coloring process at a time
+$EVAL_ONLINE_LOCK_FILE = "/tmp/mw_coloring.lock";
 
 ## Median file cache lives here
 $EVAL_MEDIAN_REP_FILE = "/tmp/mw_median_rep";
@@ -79,16 +82,26 @@ $wgHooks['ParserAfterStrip'][] = 'ucscSeeIfColored';
 $wgHooks['SkinTemplateTabs'][] = 'ucscTrustTemplate';
 
 # Color saved text
-#$wgHooks['ArticleSave'][] = 'ucscRunColoring';
+$wgHooks['ArticleSaveComplete'][] = 'ucscRunColoring';
 
 # Code to fork and exec a new process to color any new revisions
-function ucscRunColoring(&$article, &$user, &$text, &$summary, $minor, $watch, $sectionanchor, &$flags) { 
+function ucscRunColoring(&$article, &$user, &$text, &$summary, $minor, $watch, $sectionanchor, &$flags, $revision) { 
   global $EVAL_ONLINE_WIKI;
   global $EVAL_ONLINE_WIKI_ARGS;
+  global $EVAL_ONLINE_LOCK_FILE;
+
+  error_reporting(E_ALL);
+
+  // We don't want more than one copy of the coloring going at any one time.
+  if (file_exists($EVAL_ONLINE_LOCK_FILE)){
+    return true;
+  }  
+
+  file_put_contents($EVAL_ONLINE_LOCK_FILE, $EVAL_ONLINE_WIKI . $EVAL_ONLINE_WIKI_ARGS . " " . $revision->getID());
   
-  print "$EVAL_ONLINE_WIKI . $EVAL_ONLINE_WIKI_ARGS";
-  $handle = popen($EVAL_ONLINE_WIKI . $EVAL_ONLINE_WIKI_ARGS, "r");  
-  return true;
+  if(popen($EVAL_ONLINE_WIKI . $EVAL_ONLINE_WIKI_ARGS, "r"))
+    return true;
+  return false;
 }
 
 # Actually add the tab.
