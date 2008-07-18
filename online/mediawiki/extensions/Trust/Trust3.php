@@ -85,7 +85,7 @@ function ucscTrustTemplate($skin, &$content_actions) {
   
   $content_actions['trust'] = array ( 'class' => '',
 				      'text' => 'Trust',
-				      'href' => $_SERVER['REQUEST_URI'] . "?&trust=t" );
+				      'href' => $content_actions['nstab-main']['href'] . "?trust=t" );
   
   if(isset($_GET['trust'])){
     $content_actions['trust']['class'] = 'selected';
@@ -160,9 +160,16 @@ function ucscColorTrust_Render( &$parser, $value = 0 ) {
   return array ( $output, "noparse" => false, "isHTML" => false );
 }
 
+## Maps from the online trust values to the css trust values.
 function computeColorFromFloat($value){
   $value = $value * 10;
   return computeColor3(intval($value));
 }
 
-## this functio
+## this function maps a trust value to a HTML color representing the trust value
+function computeColor3($fTrustValue){
+  global $COLORS;
+  return $COLORS[$fTrustValue];
+}
+
+?>
