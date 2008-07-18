@@ -97,7 +97,7 @@ function ucscRunColoring(&$article, &$user, &$text, &$summary, $minor, $watch, $
   file_put_contents($EVAL_ONLINE_LOCK_FILE, $EVAL_ONLINE_WIKI . $EVAL_ONLINE_WIKI_ARGS . " " . $revision->getID());
   
   if($handle = popen($EVAL_ONLINE_WIKI . $EVAL_ONLINE_WIKI_ARGS, "r")){
-    pclose($handle);
+    // pclose($handle);
     return true;
   }
   return false;
