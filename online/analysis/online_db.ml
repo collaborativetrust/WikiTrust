@@ -53,7 +53,7 @@ exception DB_Not_Found
 (* Timestamp in the DB *)
 type timestamp_t = int * int * int * int * int * int
 
-let debug_mode = false;;
+let debug_mode = true;;
 
 (* This is the function that sexplib uses to convert floats *)
 Sexplib.Conv.default_string_of_float := (fun n -> sprintf "%.4G" n);;
@@ -64,8 +64,6 @@ Sexplib.Conv.default_string_of_string := (fun str -> sprintf "%s" str);;
 (* Should a commit be issued after every insert? This is needed if there are multiple clients. *)
 let commit_frequently = false;;
 
-let identity x = x;;
-
 let rec format_string (str : string) (vals : string list) : string =                    
   match vals with                                                                       
     | [] -> if debug_mode then print_endline str; str
@@ -73,10 +71,6 @@ let rec format_string (str : string) (vals : string list) : string =
       | (true, newstr) -> format_string newstr tl                                       
       | (false, newstr) -> newstr)                                                      
 ;;
-
-(* This function is used to translate a trust value into a sexp. 
-   We use this special function, as otherwise the classical function generates far too large trust values. *)
-let sexp_of_trust t = sexp_of_string (Printf.sprintf "%.2f" t);;
 
 
 (** This class provides a handle for accessing the database in the on-line 
@@ -97,51 +91,39 @@ class db
   object(self)
      
     (* HERE are all of the prepaired sql statments used below *)
-    val sth_select_edit_list_flat = "SELECT version, edits FROM wikitrust_edit_lists
-        WHERE from_revision = ? AND to_revision  = ?"
-    val sth_insert_edit_list_flat = "INSERT INTO wikitrust_edit_lists (version, edits, 
-        from_revision, to_revision) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE
-        version = ?, edits = ?"
+    val sth_select_edit_list_flat = "SELECT version, edits FROM wikitrust_edit_lists WHERE from_revision = ? AND to_revision  = ?"
+    val sth_insert_edit_list_flat = "INSERT INTO wikitrust_edit_lists (version, edits, from_revision, to_revision) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE version = ?, edits = ?"
 
-    val sth_select_user_rep = "SELECT user_rep FROM wikitrust_user_rep WHERE user_id = ?" 
-    val sth_update_user_rep = "UPDATE wikitrust_user_rep SET user_rep = ? WHERE user_id = ?" 
-    val sth_insert_user_rep = "INSERT INTO wikitrust_user_rep (user_id,  user_rep) VALUES (?, ?)" 
+    val sth_select_user_rep = "SELECT user_rep FROM wikitrust_user WHERE user_id = ?" 
+    val sth_update_user_rep = "UPDATE wikitrust_user SET user_rep = ? WHERE user_id = ?" 
+    val sth_insert_user_rep = "INSERT INTO wikitrust_user (user_id,  user_rep) VALUES (?, ?)" 
 
     val sth_delete_markup = "DELETE FROM wikitrust_colored_markup WHERE revision_id = ?"      
-    val sth_insert_markup = "INSERT INTO wikitrust_colored_markup 
-          (revision_id, revision_text) VALUES (?, ?)" 
-    val sth_select_markup = "SELECT revision_text FROM wikitrust_colored_markup 
-          WHERE revision_id = ?" 
+    val sth_insert_markup = "INSERT INTO wikitrust_colored_markup (revision_id, revision_text) VALUES (?, ?)" 
+    val sth_select_markup = "SELECT revision_text FROM wikitrust_colored_markup WHERE revision_id = ?" 
+
     val sth_select_author_sigs = "SELECT sigs FROM wikitrust_sigs WHERE revision_id = ?"
     val sth_insert_author_sigs = "INSERT INTO wikitrust_sigs (revision_id, sigs) VALUES (?, ?)"
     val sth_delete_author_sigs = "DELETE FROM wikitrust_sigs WHERE revision_id = ?"
-    val sth_select_dead_chunks = "SELECT chunks FROM wikitrust_dead_page_chunks WHERE page_id = ?"
-    val sth_delete_chunks = "DELETE FROM wikitrust_dead_page_chunks WHERE page_id = ?"
-    val sth_insert_dead_chunks = "INSERT INTO wikitrust_dead_page_chunks (page_id, chunks) 
-       VALUES (?, ?)"
 
-    val sth_insert_qual_info = "INSERT INTO wikitrust_quality_info (revision_id, qual_info) VALUES (?, ?)"
-    val sth_delete_qual_info = "DELETE FROM wikitrust_quality_info WHERE revision_id = ?"
-    val sth_select_qual_info = "SELECT qual_info FROM wikitrust_quality_info WHERE revision_id = ?"
+    val sth_select_dead_chunks = "SELECT deleted_chunks FROM wikitrust_page WHERE page_id = ?"
+    val sth_delete_chunks = "DELETE FROM wikitrust_page WHERE page_id = ?"
+    val sth_insert_dead_chunks = "INSERT INTO wikitrust_page (page_id, deleted_chunks) VALUES (?, ?)"
 
-    val sth_select_revs = "SELECT rev_id, rev_page, rev_text_id, 
-          rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment 
-          FROM revision WHERE rev_page = ? AND rev_timestamp <= ? 
-          ORDER BY rev_timestamp DESC"
-    val sth_select_rev_timestamp = "SELECT rev_timestamp FROM revision 
-          WHERE rev_id = ?"
-    val sth_select_all_revs = "SELECT rev_id, rev_page, rev_text_id, 
-          rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment 
-          FROM revision ORDER BY rev_timestamp ASC"
-    val sth_select_all_revs_after = "SELECT rev_id, rev_page, rev_text_id, 
-          rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment 
-          FROM revision WHERE rev_timestamp > ? ORDER BY rev_timestamp ASC"      
+    val sth_select_revision_info = "SELECT quality_info, edit_lists FROM wikitrust_revision WHERE revision_id = ?"
+    val sth_delete_revision_info = "DELETE FROM wikitrust_revision WHERE revision_id = ?"
+    val sth_insert_revision_info = "INSERT INTO wikitrust_revision (revision_id, quality_info, reputation_delta, edit_lists) VALUES (?, ?, ?, ?)"
+
+    val sth_select_revs = "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision WHERE rev_page = ? AND rev_timestamp <= ? ORDER BY rev_timestamp DESC"
+    val sth_select_rev_timestamp = "SELECT rev_timestamp FROM revision WHERE rev_id = ?"
+    val sth_select_all_revs = "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision ORDER BY rev_timestamp ASC"
+    val sth_select_all_revs_after = "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision WHERE rev_timestamp > ? ORDER BY rev_timestamp ASC"      
+
     val sth_select_text = "SELECT old_text FROM text WHERE old_id = ?"
-    val sth_select_last_colored_rev = "SELECT A.revision_id, B.rev_page, A.coloredon 
-          FROM wikitrust_colored_markup AS A JOIN revision AS B ON (A.revision_id = B.rev_id) 
-          ORDER BY coloredon DESC LIMIT 1"
-    val sth_update_histogram = "UPDATE wikitrust_histogram SET median = ?, rep_0 = ?, rep_1 = ?, rep_2 = ?, rep_3 = ?, rep_4 = ?, rep_5 = ?, rep_6 = ?, rep_7 = ?, rep_8 = ?, rep_9 =?"
-    val sth_select_histogram = "SELECT * FROM wikitrust_histogram"
+    val sth_select_last_colored_rev = "SELECT A.revision_id, B.rev_page, A.coloredon FROM wikitrust_colored_markup AS A JOIN revision AS B ON (A.revision_id = B.rev_id) ORDER BY coloredon DESC LIMIT 1"
+
+    val sth_update_histogram = "UPDATE wikitrust_global SET median = ?, rep_0 = ?, rep_1 = ?, rep_2 = ?, rep_3 = ?, rep_4 = ?, rep_5 = ?, rep_6 = ?, rep_7 = ?, rep_8 = ?, rep_9 =?"
+    val sth_select_histogram = "SELECT * FROM wikitrust_global"
       
     (* Commits any changes to the db *)
     method commit : bool =
@@ -199,34 +181,28 @@ class db
 	None -> raise DB_Not_Found
       | Some row -> not_null timestamp2ml row.(0)
 
-    (** [read_edit_diff revid1 revid2] reads from the database the edit list 
-	from the (live) text of revision [revid1] to revision [revid2]. *)
-    method read_edit_diff (revid1 : int) (revid2 : int) : 
-      (string * (Editlist.edit list)) =
-      let result = Mysql.exec dbh (format_string sth_select_edit_list_flat
-          [Mysql.ml2int revid1; Mysql.ml2int revid2]) 
-      in
-      match Mysql.fetch result with 
-          | None -> raise DB_Not_Found
-          | Some row -> (not_null str2ml row.(0),
-              of_string__of__of_sexp (list_of_sexp Editlist.edit_of_sexp) 
-              (not_null str2ml row.(1)))
-      
-     
-    (** [wrte_edit_diff revid1 revid2 elist] writes to the database the edit list 
-	[elist] from the (live) text of revision [revid1] to revision [revid2]. *)
-    method write_edit_diff (revid1 : int) (revid2 : int) (vers : string) 
-        (elist : Editlist.edit list) : unit = 
-      (* Next we add in the new text. *)
-      ignore (Mysql.exec dbh (format_string sth_insert_edit_list_flat
-          [ml2str vers; 
-          ml2str (string_of__of__sexp_of (sexp_of_list Editlist.sexp_of_edit) elist);
-          ml2int revid1; 
-          ml2int revid2;
-          ml2str vers;
-          ml2str (string_of__of__sexp_of (sexp_of_list Editlist.sexp_of_edit) elist);
-          ]));
-      if commit_frequently then ignore (Mysql.exec dbh "COMMIT")
+
+    (** [read_revision_info rev_id] reads the wikitrust information of revision_id *)
+    method read_revision_info (rev_id: int) : qual_info_t * edit_lists_of_rev_t = 
+      let result = Mysql.exec dbh (format_string sth_select_revision_info [ml2int rev_id]) in
+      match fetch result with
+        | None -> raise DB_Not_Found
+        | Some x -> (
+	    of_string__of__of_sexp qual_info_t_of_sexp (not_null str2ml x.(0)),
+	    of_string__of__of_sexp edit_lists_of_rev_t_of_sexp (not_null str2ml x.(1)) )
+
+    (** [write_revision_info rev_id quality_info elist] writes the wikitrust data 
+	associated with revision with id [rev_id] *)
+    method write_revision_info (rev_id: int) (quality_info: qual_info_t) (elist: edit_lists_of_rev_t) : unit = 
+      let rep_delta = quality_info.reputation_gain in 
+      ignore (Mysql.exec dbh (format_string sth_delete_revision_info [ml2int rev_id]));
+      ignore (Mysql.exec dbh (format_string sth_insert_revision_info [
+	ml2int rev_id;
+	ml2str (string_of__of__sexp_of sexp_of_qual_info_t quality_info); 
+	ml2float rep_delta;
+	ml2str (string_of__of__sexp_of sexp_of_edit_lists_of_rev_t elist); 
+      ]))
+
 
     (** [get_rev_text text_id] returns the text associated with text id [text_id] *)
     method read_rev_text (text_id: int) : string = 
@@ -325,13 +301,13 @@ class db
     method delete_author_sigs (rev_id: int) : unit = 
       ignore (Mysql.exec dbh (format_string sth_delete_author_sigs [ml2int rev_id]))
 
-    (** [write_dead_page_chunks page_id chunk_list] writes, in a table indexed by 
+    (** [write_page_info page_id chunk_list] writes, in a table indexed by 
 	(page id, string list) that the page with id [page_id] is associated 
 	with the "dead" strings of text [chunk1], [chunk2], ..., where
 	[chunk_list = [chunk1, chunk2, ...] ]. 
 	The chunk_list contains text that used to be present in the article, but has 
 	been deleted; the database records its existence. *)
-    method write_dead_page_chunks (page_id : int) (c_list : Online_types.chunk_t list) : unit = 
+    method write_page_info (page_id : int) (c_list : Online_types.chunk_t list) : unit = 
       let chunks_string = ml2str (string_of__of__sexp_of 
           (sexp_of_list sexp_of_chunk_t) c_list) in 
       ignore (Mysql.exec dbh (format_string sth_delete_chunks
@@ -340,32 +316,15 @@ class db
 	[ml2int page_id; chunks_string ])); 
       if commit_frequently then ignore (Mysql.exec dbh "COMMIT")
 
-    (** [read_dead_page_chunks page_id] returns the list of dead chunks associated
+    (** [read_page_info page_id] returns the list of dead chunks associated
 	with the page [page_id]. *)
-    method read_dead_page_chunks (page_id : int) : Online_types.chunk_t list =
+    method read_page_info (page_id : int) : Online_types.chunk_t list =
       let result = Mysql.exec dbh (format_string sth_select_dead_chunks
           [ml2int page_id ]) in 
       match Mysql.fetch result with 
 	None -> raise DB_Not_Found
       | Some x -> of_string__of__of_sexp (list_of_sexp chunk_t_of_sexp) 
                       (not_null str2ml x.(0))
-
-  (** [write_quality_info rev_id q] write the quality information [q]
-      for a revision [rev_id]. *)
-    method write_quality_info (rev_id : int) (q: qual_info_t) : unit = 
-      let s = string_of__of__sexp_of sexp_of_qual_info_t q in 
-      ignore (Mysql.exec dbh (format_string sth_delete_qual_info 
-	[ml2int rev_id]));
-      ignore (Mysql.exec dbh (format_string sth_insert_qual_info  
-        [ml2int rev_id; ml2str s ]));
-      if commit_frequently then ignore (Mysql.exec dbh "COMMIT")    
-
-    (** [read_quality_info rev_id] reads the quality information for a revision [rev_id]. *)
-    method read_quality_info (rev_id : int) : qual_info_t = 
-      let result = Mysql.exec dbh (format_string sth_select_qual_info [ml2int rev_id]) in
-      match fetch result with
-        | None -> raise DB_Not_Found
-        | Some x -> of_string__of__of_sexp qual_info_t_of_sexp (not_null str2ml x.(0)) 
 
     (** [get_page_lock page_id] gets a lock for page [page_id], to guarantee 
 	mutual exclusion on the updates for page [page_id]. *)
@@ -387,14 +346,13 @@ class db
     method delete_all (really : bool) =
       match really with
         | true -> (
-	    ignore (Mysql.exec dbh "DELETE FROM wikitrust_histogram");
-	    ignore (Mysql.exec dbh "INSERT INTO wikitrust_histogram VALUES (0,0,0,0,0,0,0,0,0,0,0)");
-            ignore (Mysql.exec dbh "TRUNCATE TABLE wikitrust_edit_lists" );
-            ignore (Mysql.exec dbh "TRUNCATE TABLE wikitrust_user_rep" );
+	    ignore (Mysql.exec dbh "DELETE FROM wikitrust_global");
+	    ignore (Mysql.exec dbh "INSERT INTO wikitrust_global VALUES (0,0,0,0,0,0,0,0,0,0,0)");
+            ignore (Mysql.exec dbh "TRUNCATE TABLE wikitrust_page" );
+            ignore (Mysql.exec dbh "TRUNCATE TABLE wikitrust_revision" );
             ignore (Mysql.exec dbh "TRUNCATE TABLE wikitrust_colored_markup" );
-            ignore (Mysql.exec dbh "TRUNCATE TABLE wikitrust_dead_page_chunks" );
-            ignore (Mysql.exec dbh "TRUNCATE TABLE wikitrust_quality_info" ); 
-            ignore (Mysql.exec dbh "TRUNCATE TABLE wikitrust_sigs" ); 
+            ignore (Mysql.exec dbh "TRUNCATE TABLE wikitrust_sigs" );
+            ignore (Mysql.exec dbh "TRUNCATE TABLE wikitrust_user" ); 
             ignore (Mysql.exec dbh "COMMIT"))
         | false -> ignore (Mysql.exec dbh "COMMIT")
 

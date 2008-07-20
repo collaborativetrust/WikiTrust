@@ -100,10 +100,13 @@ type trust_coeff_t = {
    We choose it so that 90% of work is done below that value. *)
   mutable hi_median_perc: float;
 
-}
+};;
+
+(* Number of past revisions to consider *)
+let n_past_revs = 12;;
 
 let default_trust_coeff = {
-  n_revs_to_consider = 20;
+  n_revs_to_consider = n_past_revs;
   max_del_time_chunk = 30. *. 24. *. 3600.; (* 2 months *)
   max_del_revs_chunk = 100;
   lends_rep = 0.4;
@@ -112,13 +115,15 @@ let default_trust_coeff = {
   kill_decrease = (log 2.0) /. 9.0;
   cut_rep_radius = 4.0;
   local_decay = 0.5 ** (1. /. 10.); 
-  rep_scaling = 1. /. 75.0;
+  (* The reputation scaling is 73.24 when we use n_revs_to_consider = 12, 
+     and varies quadratically with n_revs_to_consider - 1. *)
+  rep_scaling = 1. /. (73.24 *. ( ((float_of_int n_past_revs) -. 1.) /. 11.) ** 2.);
   max_rep = 22026.465795 -. 2.0;
   equate_anons = false;
   nix_interval = 24. *. 3600.;
   nix_threshold = -0.4;
   hi_median_perc = 0.9;
-}
+};;
  
 let get_default_coeff : trust_coeff_t = default_trust_coeff ;;
 
@@ -146,3 +151,15 @@ let quality_info_default = {
   delta = 0.0;
   reputation_gain = 0.0;
 }
+
+(** This is the type of an edit list, annotated *)
+type edit_list_t = {
+  (** version of text analysis algo *)
+  split_version : string; 
+  (** to which version *)
+  to_version : int; 
+  (** the edit list proper *)
+  editlist : Editlist.edit list 
+} with sexp
+
+type edit_lists_of_rev_t = edit_list_t list with sexp

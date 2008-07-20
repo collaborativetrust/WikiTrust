@@ -59,8 +59,8 @@ class revision
   object (self : 'a)
     val is_anon : bool = (user_id = 0)
       (* These have to do with the revision text.  There is nothing in this, 
-	 since we do not necessarily read the text of all the revisions we 
-	 may want to keep track: reading the text is expensive. *)
+         since we do not necessarily read the text of all the revisions we 
+         may want to keep track: reading the text is expensive. *)
     val time = time_init
     val mutable words : word array option = None
     val mutable trust : float array option = None
@@ -84,9 +84,24 @@ class revision
       reputation_gain = quality_info_default.reputation_gain;
     }
 
-    (* Dirty and valid bits to avoid writing back unchanged stuff *)
-    val mutable valid_quality_info : bool = false 
+    (* Dirty bit to avoid writing back unchanged stuff *)
     val mutable modified_quality_info : bool = false
+
+    (* Hash table of edit lists *)
+    val edit_lists : (int, edit_list_t) Hashtbl.t = Hashtbl.create 12
+
+      (** This initializer reads from the DB the information with the revision 
+          specifically needed by the wikitrust algorithms *)
+    initializer
+      try 
+        begin
+          let (quality_info, l) = db#read_revision_info rev_id in 
+          (* Put the edit lists in the hashtable *)
+          let f (el: edit_list_t) : unit = Hashtbl.add edit_lists el.to_version el in 
+          List.iter f l
+        end
+      with Online_db.DB_Not_Found -> ()
+
 
     (* Basic access methods *)
     method get_id : int = rev_id
@@ -100,7 +115,7 @@ class revision
       (* Reads the colored revision text from the db, and splits it appropriately *)
     method private read_colored_text : unit = 
       (* If there is an error here, it is transmitted up, so that the 
-	 reader deals in appropriate ways with the lack of trust information *)
+         reader deals in appropriate ways with the lack of trust information *)
       let text_vec = Vec.singleton (db#read_colored_markup rev_id) in 
       let (w, t, o, s_idx, s) = Text.split_into_words_seps_and_info text_vec in 
       words <- Some w; 
@@ -112,93 +127,70 @@ class revision
       (* Reads the revision text from the db, and splits it appropriately *)
     method private read_text : unit = 
       try 
-	let text_vec = Vec.singleton (db#read_rev_text text_id) in 
-	let (w, t, o, s_idx, s) = Text.split_into_words_seps_and_info text_vec in 
-	words <- Some w; 
-	seps <- Some s; 
-	sep_word_idx <- Some s_idx
+        let text_vec = Vec.singleton (db#read_rev_text text_id) in 
+        let (w, t, o, s_idx, s) = Text.split_into_words_seps_and_info text_vec in 
+        words <- Some w; 
+        seps <- Some s; 
+        sep_word_idx <- Some s_idx
       with Online_db.DB_Not_Found -> begin 
-	(* If the text has not been found, it is considered null. *)
-	words <- Some [| |];
-	seps <- Some [| |];
-	sep_word_idx <- Some [| |]
+        (* If the text has not been found, it is considered null. *)
+        words <- Some [| |];
+        seps <- Some [| |];
+        sep_word_idx <- Some [| |]
       end
 
     method get_words : word array =
       match words with 
-	Some w -> w
+        Some w -> w
       | None -> begin 
-	  self#read_text;
-	  match words with 
-	    Some w -> w
-	  | None -> raise ReadTextError
-	end
+          self#read_text;
+          match words with 
+            Some w -> w
+          | None -> raise ReadTextError
+        end
 
     method get_trust : float array =
       match trust with 
-	Some w -> w
+        Some w -> w
       | None -> begin 
-	  self#read_colored_text;
-	  match trust with 
-	    Some w -> w
-	  | None -> raise ReadTextError
-	end
+          self#read_colored_text;
+          match trust with 
+            Some w -> w
+          | None -> raise ReadTextError
+        end
 
     method get_origin : int array =
       match origin with 
-	Some w -> w
+        Some w -> w
       | None -> begin 
-	  self#read_colored_text;
-	  match origin with 
-	    Some w -> w
-	  | None -> raise ReadTextError
-	end
+          self#read_colored_text;
+          match origin with 
+            Some w -> w
+          | None -> raise ReadTextError
+        end
 
     method get_seps : Text.sep_t array = 
       match seps with 
-	Some w -> w
+        Some w -> w
       | None -> begin 
-	  self#read_colored_text;
-	  match seps with 
-	    Some w -> w
-	  | None -> raise ReadTextError
-	end
+          self#read_colored_text;
+          match seps with 
+            Some w -> w
+          | None -> raise ReadTextError
+        end
 
     method get_sep_word_idx : int array = 
       match sep_word_idx with 
-	Some w -> w
+        Some w -> w
       | None -> begin 
-	  self#read_colored_text;
-	  match sep_word_idx with 
-	    Some w -> w
-	  | None -> raise ReadTextError
-	end
-
-    (** Reads the quality info from the database *)
-    method private read_quality_info : unit = 
-      (* We take care automatically of the case where no information can 
-	 be found. *)
-      if not valid_quality_info then begin 
-	begin 
-	  try quality_info <- db#read_quality_info rev_id
-	  with Online_db.DB_Not_Found -> ()
-	end;
-	valid_quality_info <- true;
-	modified_quality_info <- false
-      end
-
-    (** Writes quality info to the database.
-        To save accesses, we do not write information for revisions by 
-        anonymous authors. *)
-    method write_quality_info : unit = 
-      if valid_quality_info && modified_quality_info && (not_anonymous user_id) then begin
-	db#write_quality_info rev_id quality_info;
-	modified_quality_info <- false;
-      end
+          self#read_colored_text;
+          match sep_word_idx with 
+            Some w -> w
+          | None -> raise ReadTextError
+        end
 
     (** Adds edit quality information *)
     method add_edit_quality_info (delta: float) (new_q: float) (rep_gain: float) : unit = 
-      if not valid_quality_info then self#read_quality_info; 
       (* updated *)
       quality_info.delta <- delta;
       quality_info.total_edit_quality <- quality_info.total_edit_quality +. new_q; 
@@ -208,14 +200,38 @@ class revision
       (* flags the change *)
       modified_quality_info <- true
 
-    method get_nix : bool = 
-      if not valid_quality_info then self#read_quality_info; 
-      quality_info.nix_bit
+    method get_nix : bool = quality_info.nix_bit
 
     method set_nix_bit : unit = 
-      if not valid_quality_info then self#read_quality_info; 
       quality_info.nix_bit <- true;
       modified_quality_info <- true 
+
+    (** [get_edit_list text_rev to_rev] returns an Editlist.edit list option [l]: 
+        if None, valid data could not be found. In the call, [text_rev] is the 
+        version of the text splitting algorithm, and [to_rev] is the destination 
+        revision id of the diff. *)
+    method get_edit_list (text_rev: string) (to_rev: int) : Editlist.edit list option = 
+      try 
+        let el = Hashtbl.find edit_lists to_rev in 
+        if text_rev = el.split_version then Some el.editlist else None
+      with Not_found -> None
+
+    (** [set_edit_list text_rev to_rev elist] sets the edit list to revision to_rev 
+        to the text revision [text_rev] and the edit list [elist]. *)
+    method set_edit_list (text_rev: string) (to_rev: int) (elist: Editlist.edit list) : unit = 
+      let el = {
+        split_version = text_rev;
+        to_version = to_rev;
+        editlist = elist;
+      } in 
+      Hashtbl.replace edit_lists to_rev el
+      
+    (** [write_to_db] writes all revision information to the db. *)
+    method write_to_db : unit = 
+      (* We need to turn the hashtable of the edit lists into a list *)
+      let f i el l = el :: l in 
+      let elist = Hashtbl.fold f edit_lists [] in 
+      db#write_revision_info rev_id quality_info elist
 
   end (* revision object *)
 
