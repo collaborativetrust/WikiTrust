@@ -53,7 +53,7 @@ exception DB_Not_Found
 (* Timestamp in the DB *)
 type timestamp_t = int * int * int * int * int * int
 
-let debug_mode = false;;
+let debug_mode = true;;
 
 (* This is the function that sexplib uses to convert floats *)
 Sexplib.Conv.default_string_of_float := (fun n -> sprintf "%.4G" n);;
@@ -64,8 +64,6 @@ Sexplib.Conv.default_string_of_string := (fun str -> sprintf "%s" str);;
 (* Should a commit be issued after every insert? This is needed if there are multiple clients. *)
 let commit_frequently = false;;
 
-let identity x = x;;
-
 let rec format_string (str : string) (vals : string list) : string =                    
   match vals with                                                                       
     | [] -> if debug_mode then print_endline str; str
@@ -73,10 +71,6 @@ let rec format_string (str : string) (vals : string list) : string =
       | (true, newstr) -> format_string newstr tl                                       
       | (false, newstr) -> newstr)                                                      
 ;;
-
-(* This function is used to translate a trust value into a sexp. 
-   We use this special function, as otherwise the classical function generates far too large trust values. *)
-let sexp_of_trust t = sexp_of_string (Printf.sprintf "%.2f" t);;
 
 
 (** This class provides a handle for accessing the database in the on-line 
@@ -97,49 +91,32 @@ class db
   object(self)
      
     (* HERE are all of the prepaired sql statments used below *)
-    val sth_select_edit_list_flat = "SELECT version, edits FROM wikitrust_edit_lists
-        WHERE from_revision = ? AND to_revision  = ?"
-    val sth_insert_edit_list_flat = "INSERT INTO wikitrust_edit_lists (version, edits, 
-        from_revision, to_revision) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE
-        version = ?, edits = ?"
+    val sth_select_edit_list_flat = "SELECT version, edits FROM wikitrust_edit_lists WHERE from_revision = ? AND to_revision  = ?"
+    val sth_insert_edit_list_flat = "INSERT INTO wikitrust_edit_lists (version, edits, from_revision, to_revision) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE version = ?, edits = ?"
 
     val sth_select_user_rep = "SELECT user_rep FROM wikitrust_user_rep WHERE user_id = ?" 
     val sth_update_user_rep = "UPDATE wikitrust_user_rep SET user_rep = ? WHERE user_id = ?" 
     val sth_insert_user_rep = "INSERT INTO wikitrust_user_rep (user_id,  user_rep) VALUES (?, ?)" 
 
     val sth_delete_markup = "DELETE FROM wikitrust_colored_markup WHERE revision_id = ?"      
-    val sth_insert_markup = "INSERT INTO wikitrust_colored_markup 
-          (revision_id, revision_text) VALUES (?, ?)" 
-    val sth_select_markup = "SELECT revision_text FROM wikitrust_colored_markup 
-          WHERE revision_id = ?" 
+    val sth_insert_markup = "INSERT INTO wikitrust_colored_markup (revision_id, revision_text) VALUES (?, ?)" 
+    val sth_select_markup = "SELECT revision_text FROM wikitrust_colored_markup WHERE revision_id = ?" 
     val sth_select_author_sigs = "SELECT sigs FROM wikitrust_sigs WHERE revision_id = ?"
     val sth_insert_author_sigs = "INSERT INTO wikitrust_sigs (revision_id, sigs) VALUES (?, ?)"
     val sth_delete_author_sigs = "DELETE FROM wikitrust_sigs WHERE revision_id = ?"
     val sth_select_dead_chunks = "SELECT chunks FROM wikitrust_dead_page_chunks WHERE page_id = ?"
     val sth_delete_chunks = "DELETE FROM wikitrust_dead_page_chunks WHERE page_id = ?"
-    val sth_insert_dead_chunks = "INSERT INTO wikitrust_dead_page_chunks (page_id, chunks) 
-       VALUES (?, ?)"
+    val sth_insert_dead_chunks = "INSERT INTO wikitrust_dead_page_chunks (page_id, chunks) VALUES (?, ?)"
 
     val sth_insert_qual_info = "INSERT INTO wikitrust_quality_info (revision_id, qual_info) VALUES (?, ?)"
     val sth_delete_qual_info = "DELETE FROM wikitrust_quality_info WHERE revision_id = ?"
     val sth_select_qual_info = "SELECT qual_info FROM wikitrust_quality_info WHERE revision_id = ?"
-
-    val sth_select_revs = "SELECT rev_id, rev_page, rev_text_id, 
-          rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment 
-          FROM revision WHERE rev_page = ? AND rev_timestamp <= ? 
-          ORDER BY rev_timestamp DESC"
-    val sth_select_rev_timestamp = "SELECT rev_timestamp FROM revision 
-          WHERE rev_id = ?"
-    val sth_select_all_revs = "SELECT rev_id, rev_page, rev_text_id, 
-          rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment 
-          FROM revision ORDER BY rev_timestamp ASC"
-    val sth_select_all_revs_after = "SELECT rev_id, rev_page, rev_text_id, 
-          rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment 
-          FROM revision WHERE rev_timestamp > ? ORDER BY rev_timestamp ASC"      
+    val sth_select_revs = "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision WHERE rev_page = ? AND rev_timestamp <= ? ORDER BY rev_timestamp DESC"
+    val sth_select_rev_timestamp = "SELECT rev_timestamp FROM revision WHERE rev_id = ?"
+    val sth_select_all_revs = "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision ORDER BY rev_timestamp ASC"
+    val sth_select_all_revs_after = "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision WHERE rev_timestamp > ? ORDER BY rev_timestamp ASC"      
     val sth_select_text = "SELECT old_text FROM text WHERE old_id = ?"
-    val sth_select_last_colored_rev = "SELECT A.revision_id, B.rev_page, A.coloredon 
-          FROM wikitrust_colored_markup AS A JOIN revision AS B ON (A.revision_id = B.rev_id) 
-          ORDER BY coloredon DESC LIMIT 1"
+    val sth_select_last_colored_rev = "SELECT A.revision_id, B.rev_page, A.coloredon FROM wikitrust_colored_markup AS A JOIN revision AS B ON (A.revision_id = B.rev_id) ORDER BY coloredon DESC LIMIT 1"
     val sth_update_histogram = "UPDATE wikitrust_histogram SET median = ?, rep_0 = ?, rep_1 = ?, rep_2 = ?, rep_3 = ?, rep_4 = ?, rep_5 = ?, rep_6 = ?, rep_7 = ?, rep_8 = ?, rep_9 =?"
     val sth_select_histogram = "SELECT * FROM wikitrust_histogram"
       

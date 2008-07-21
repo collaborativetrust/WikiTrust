@@ -207,11 +207,14 @@ class page
 	If this were not done, the sigs table would be of comparable size to the revision 
 	text table. *)
     method private delete_oldest_sigs : unit = 
-      let n_revs = Vec.length revs in 
-      let last_rev = Vec.get (n_revs - 1) revs in 
-      let last_rev_id = last_rev#get_id in 
-      db#delete_author_sigs last_rev_id
-
+      let n_revs = Vec.length revs in
+      (* We delete the oldest rev if it will go out of the sliding window.
+	 FILTER-NOTE: this has to change if we use filtering. *)
+      if n_revs = trust_coeff.n_revs_to_consider then begin 
+	let last_rev = Vec.get (n_revs - 1) revs in 
+	let last_rev_id = last_rev#get_id in 
+	db#delete_author_sigs last_rev_id
+      end
 
     (** This method computes all the revision-to-revision edit lists and distances among the
         revisions.  It assumes that the revision 0 is the newest one, and that it has not been 
