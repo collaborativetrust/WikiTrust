@@ -53,7 +53,7 @@ exception DB_Not_Found
 (* Timestamp in the DB *)
 type timestamp_t = int * int * int * int * int * int
 
-let debug_mode = true;;
+let debug_mode = false;;
 
 (* This is the function that sexplib uses to convert floats *)
 Sexplib.Conv.default_string_of_float := (fun n -> sprintf "%.4G" n);;
@@ -72,6 +72,10 @@ let rec format_string (str : string) (vals : string list) : string =
       | (false, newstr) -> newstr)                                                      
 ;;
 
+(* This function is used to translate a trust value into a sexp. 
+   We use this special function, as otherwise the classical function generates far too large trust values. *)
+let sexp_of_trust t = sexp_of_string (Printf.sprintf "%.2f" t);;
+
 
 (** This class provides a handle for accessing the database in the on-line 
     implementation. *)
@@ -89,18 +93,20 @@ class db
   let dbh = (Mysql.connect db_param) in
    
   object(self)
-     
+
+    (* Counters for analyzing reputation change *)
+    val rep_change = Hashtbl.create 10
+
     (* HERE are all of the prepaired sql statments used below *)
-    val sth_select_edit_list_flat = "SELECT version, edits FROM wikitrust_edit_lists WHERE from_revision = ? AND to_revision  = ?"
-    val sth_insert_edit_list_flat = "INSERT INTO wikitrust_edit_lists (version, edits, from_revision, to_revision) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE version = ?, edits = ?"
+    val sth_select_edit_list_flat = "SELECT version, edits FROM wikitrust_edit_lists
+        WHERE from_revision = ? AND to_revision  = ?"
+    val sth_insert_edit_list_flat = "INSERT INTO wikitrust_edit_lists (version, edits, 
+        from_revision, to_revision) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE
+        version = ?, edits = ?"
 
-    val sth_select_user_rep = "SELECT user_rep FROM wikitrust_user WHERE user_id = ?" 
-    val sth_update_user_rep = "UPDATE wikitrust_user SET user_rep = ? WHERE user_id = ?" 
-    val sth_insert_user_rep = "INSERT INTO wikitrust_user (user_id,  user_rep) VALUES (?, ?)" 
-
-    val sth_delete_markup = "DELETE FROM wikitrust_colored_markup WHERE revision_id = ?"      
-    val sth_insert_markup = "INSERT INTO wikitrust_colored_markup (revision_id, revision_text) VALUES (?, ?)" 
-    val sth_select_markup = "SELECT revision_text FROM wikitrust_colored_markup WHERE revision_id = ?" 
+    val sth_select_user_rep = "SELECT user_rep FROM wikitrust_user_rep WHERE user_id = ?" 
+    val sth_update_user_rep = "UPDATE wikitrust_user_rep SET user_rep = ? WHERE user_id = ?" 
+    val sth_insert_user_rep = "INSERT INTO wikitrust_user_rep (user_id,  user_rep) VALUES (?, ?)" 
 
     val sth_select_author_sigs = "SELECT sigs FROM wikitrust_sigs WHERE revision_id = ?"
     val sth_insert_author_sigs = "INSERT INTO wikitrust_sigs (revision_id, sigs) VALUES (?, ?)"
@@ -118,6 +124,11 @@ class db
     val sth_select_rev_timestamp = "SELECT rev_timestamp FROM revision WHERE rev_id = ?"
     val sth_select_all_revs = "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision ORDER BY rev_timestamp ASC"
     val sth_select_all_revs_after = "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision WHERE rev_timestamp > ? ORDER BY rev_timestamp ASC"      
+
+    val sth_select_markup = "SELECT revision_text FROM wikitrust_colored_markup WHERE revision_id = ?" 
+    val sth_delete_markup = "DELETE FROM wikitrust_colored_markup WHERE revision_id = ?"     
+    val sth_insert_markup = "INSERT INTO wikitrust_colored_markup 
+         (revision_id, revision_text) VALUES (?, ?)" 
 
     val sth_select_text = "SELECT old_text FROM text WHERE old_id = ?"
     val sth_select_last_colored_rev = "SELECT A.revision_id, B.rev_page, A.coloredon FROM wikitrust_colored_markup AS A JOIN revision AS B ON (A.revision_id = B.rev_id) ORDER BY coloredon DESC LIMIT 1"
@@ -357,4 +368,3 @@ class db
         | false -> ignore (Mysql.exec dbh "COMMIT")
 
   end;; (* online_db *)
-
