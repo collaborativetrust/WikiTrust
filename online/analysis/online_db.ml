@@ -76,6 +76,23 @@ let rec format_string (str : string) (vals : string list) : string =
    We use this special function, as otherwise the classical function generates far too large trust values. *)
 let sexp_of_trust t = sexp_of_string (Printf.sprintf "%.2f" t);;
 
+(* Counters for analyzing reputation change *)
+let max_rep = 100000000.;;
+let min_rep = 0.;;
+let rep_levels = [(min_rep,0.1);(0.1,1.);(1.,100.);(100.,max_rep)];;
+let rep_change = Hashtbl.create 3;;
+let rec update_rep_change r level rc = match level with
+  | (low,high)::tl -> if (r >= low && r < high) then try (Hashtbl.replace rc (high,low)
+						       ((Hashtbl.find rc (high, low)) +. r)) with
+	Not_found -> Hashtbl.add rc (high,low) r else update_rep_change r tl rc
+  | _ -> print_endline (string_of_float r); assert false 
+
+let rec print_rep_changes level rc = match level with
+  | (low,high)::tl -> print_endline ((string_of_float low) ^ " - " ^ (string_of_float high) ^ ": "
+				    ^ (string_of_float (try Hashtbl.find rc (high,low) with
+							  Not_found -> 0.0)));
+      print_rep_changes tl rc
+  | [] -> ()
 
 (** This class provides a handle for accessing the database in the on-line 
     implementation. *)
@@ -93,9 +110,6 @@ class db
   let dbh = (Mysql.connect db_param) in
    
   object(self)
-
-    (* Counters for analyzing reputation change *)
-    val rep_change = Hashtbl.create 10
 
     (* HERE are all of the prepaired sql statments used below *)
     val sth_select_edit_list_flat = "SELECT version, edits FROM wikitrust_edit_lists
@@ -237,6 +251,7 @@ class db
     (** [set_rep uid r] sets, in the table relating user ids to reputations, 
 	  the reputation of user [uid] to be equal to [r]. *)
     method set_rep (uid : int) (rep : float) =
+      update_rep_change rep rep_levels rep_change;
       (* first check to see if there exists the user already *)
       try
         ignore (self#get_rep uid ) ;

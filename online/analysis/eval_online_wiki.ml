@@ -105,5 +105,8 @@ while !domore do begin
     end
 end done;
 
+(* If we are debugging, print out some extra info. *)
+if !delete_all then Online_db.print_rep_changes Online_db.rep_levels Online_db.rep_change;
+
 
 
