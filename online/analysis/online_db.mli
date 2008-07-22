@@ -83,19 +83,6 @@ class db :
    (** [fetch_rev_timestamp rev_id] returns the timestamp of revision [rev_id] *)
     method fetch_rev_timestamp : int -> timestamp_t
 
-    (** [read_edit_diff revid1 revid2] reads from the database the edit list 
-	from the (live) text of revision [revid1] to revision [revid2]. 
-        The edit list consists in a string, identifying the way revision of 
-        Text.ml used for splitting the text, and in the edit list proper. *)
-    method read_edit_diff : int -> int -> (string * (Editlist.edit list))
-
-    (** [write_edit_diff revid1 revid2 vers elist] writes to the database the edit list 
-	[elist] from the (live) text of revision [revid1] to revision [revid2], 
-	computed by splitting the text of revision with version [vers] of 
-	Text.ml.  Note that for each revid1 and revid2, I want a UNIQUE [vers] and [elist]; 
-	previous values should be over-written. *)
-    method write_edit_diff : int -> int -> string -> (Editlist.edit list) -> unit
-
     (** [get_rev_text text_id] returns the text associated with text id [text_id] *)
     method read_rev_text : int -> string 
 
@@ -142,25 +129,24 @@ class db :
    (** [delete_author_sigs rev_id] removes from the db the author signatures for [rev_id]. *)
     method delete_author_sigs : int -> unit
 
-    (** [write_dead_page_chunks page_id chunk_list] writes, in a table indexed by 
+    (** [write_page_info page_id chunk_list] writes, in a table indexed by 
 	(page id, string list) that the page with id [page_id] is associated 
 	with the "dead" strings of text [chunk1], [chunk2], ..., where
 	[chunk_list = [chunk1, chunk2, ...] ]. 
 	The chunk_list contains text that used to be present in the article, but has 
 	been deleted; the database records its existence. *)
-    method write_dead_page_chunks : int -> Online_types.chunk_t list -> unit
+    method write_page_info : int -> Online_types.chunk_t list -> unit
 
-    (** [read_dead_page_chunks page_id] returns the list of dead chunks associated
+    (** [read_page_info page_id] returns the list of dead chunks associated
 	with the page [page_id]. *)
-    method read_dead_page_chunks : int -> Online_types.chunk_t list
+    method read_page_info : int -> Online_types.chunk_t list
 
-    (** [write_quality_info rev_id qual_info] writes that the revision with 
-	id [rev_id] has quality as described in [qual_info]. *)
-    method write_quality_info : int -> qual_info_t -> unit 
+    (** [read_revision_info rev_id] reads the wikitrust information of revision_id *)
+    method read_revision_info : int -> qual_info_t * edit_lists_of_rev_t
 
-    (** [read_quality_info rev_id] returns a record of type quality_info_t 
-	containing quality information for a revision *)
-    method read_quality_info : int -> qual_info_t
+    (** [write_revision_info rev_id quality_info elist] writes the wikitrust data 
+	associated with revision with id [rev_id] *)
+    method write_revision_info : int -> qual_info_t -> edit_lists_of_rev_t -> unit
 
     (** [get_page_lock page_id] gets a lock for page [page_id], to guarantee 
 	mutual exclusion on the updates for page [page_id]. *)

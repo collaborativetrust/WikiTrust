@@ -119,3 +119,15 @@ type qual_info_t = {
 } with sexp
 
 val quality_info_default : qual_info_t
+
+(** This is the type of an edit list, annotated *)
+type edit_list_t = {
+  (** version of text analysis algo *)
+  split_version : string; 
+  (** to which version *)
+  to_version : int; 
+  (** the edit list proper *)
+  editlist : Editlist.edit list 
+} with sexp
+
+type edit_lists_of_rev_t = edit_list_t list with sexp

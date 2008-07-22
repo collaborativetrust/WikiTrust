@@ -2,7 +2,7 @@
 BEGIN; 
 
 -- histogram containing the number of users in each rep bucket
-CREATE TABLE wikitrust_histogram (
+CREATE TABLE wikitrust_global (
        median			  float NOT NULL,
        rep_0			  float,
        rep_1			  float,
@@ -15,35 +15,24 @@ CREATE TABLE wikitrust_histogram (
        rep_8			  float,
        rep_9			  float
 );
-GRANT ALL ON wikitrust_histogram TO wikiuser;
+GRANT ALL ON wikitrust_global TO wikiuser;
 
-INSERT INTO wikitrust_histogram VALUES (0,0,0,0,0,0,0,0,0,0,0);
+INSERT INTO wikitrust_global VALUES (0,0,0,0,0,0,0,0,0,0,0);
 
--- quality info
-CREATE TABLE wikitrust_quality_info (
+CREATE TABLE wikitrust_page (
+       page_id             int PRIMARY KEY,
+       deleted_chunks      longtext
+);
+GRANT ALL ON wikitrust_page TO wikiuser;
+
+CREATE TABLE wikitrust_revision (
         revision_id             int PRIMARY KEY,
-        qual_info		text NOT NULL
+        quality_info		text NOT NULL, 
+	reputation_delta        float DEFAULT 0.0,
+	edit_lists		longtext
 );
-GRANT ALL ON wikitrust_quality_info TO wikiuser;
+GRANT ALL ON wikitrust_revision TO wikiuser;
 
-CREATE TABLE wikitrust_edit_lists (
-        version         text NOT NULL,
-        from_revision   int ,
-        to_revision     int,
-        edits           longtext,
-        PRIMARY KEY (from_revision, to_revision)
-);
-GRANT ALL ON wikitrust_edit_lists TO wikiuser;
-
--- Reputation of a user
--- first, a table with all known user names and ids
-CREATE TABLE wikitrust_user_rep (
-    user_id     int PRIMARY KEY   ,
-    user_rep    float DEFAULT 0.0
-);
-GRANT ALL ON wikitrust_user_rep TO wikiuser;
-
--- place a store colored markup
 CREATE TABLE wikitrust_colored_markup (
         revision_id     int PRIMARY KEY,
         revision_text   longtext NOT NULL,
@@ -57,10 +46,10 @@ CREATE TABLE wikitrust_sigs (
 );
 GRANT ALL ON wikitrust_sigs TO wikiuser;
 
-CREATE TABLE wikitrust_dead_page_chunks (
-  page_id     int PRIMARY KEY,
-  chunks      longtext
+CREATE TABLE wikitrust_user (
+       user_id     int PRIMARY KEY   ,
+       user_rep    float DEFAULT 0.0
 );
-GRANT ALL ON wikitrust_dead_page_chunks TO wikiuser;
+GRANT ALL ON wikitrust_user TO wikiuser;
 
 COMMIT;
