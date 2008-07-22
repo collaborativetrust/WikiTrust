@@ -108,7 +108,7 @@ class db
 
     val sth_select_dead_chunks = "SELECT deleted_chunks FROM wikitrust_page WHERE page_id = ?"
     val sth_delete_chunks = "DELETE FROM wikitrust_page WHERE page_id = ?"
-    val sth_insert_dead_chunks = "INSERT INTO wikitrust_page (page_id, chunks) VALUES (?, ?)"
+    val sth_insert_dead_chunks = "INSERT INTO wikitrust_page (page_id, deleted_chunks) VALUES (?, ?)"
 
     val sth_select_revision_info = "SELECT quality_info, edit_lists FROM wikitrust_revision WHERE revision_id = ?"
     val sth_delete_revision_info = "DELETE FROM wikitrust_revision WHERE revision_id = ?"

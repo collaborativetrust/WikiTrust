@@ -214,7 +214,7 @@ class revision
       try 
         let el = Hashtbl.find edit_lists to_rev in 
         if text_rev = el.split_version then Some el.editlist else None
-      with Online_db.DB_Not_Found -> None
+      with Not_found -> None
 
     (** [set_edit_list text_rev to_rev elist] sets the edit list to revision to_rev 
         to the text revision [text_rev] and the edit list [elist]. *)
