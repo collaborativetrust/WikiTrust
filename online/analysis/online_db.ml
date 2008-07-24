@@ -125,6 +125,25 @@ class db
     val sth_update_histogram = "UPDATE wikitrust_global SET median = ?, rep_0 = ?, rep_1 = ?, rep_2 = ?, rep_3 = ?, rep_4 = ?, rep_5 = ?, rep_6 = ?, rep_7 = ?, rep_8 = ?, rep_9 =?"
     val sth_select_histogram = "SELECT * FROM wikitrust_global"
       
+    (* ================================================================ *)
+    (* Locks. *)
+
+    (** [get_page_lock page_id] gets a lock for page [page_id], to guarantee 
+	mutual exclusion on the updates for page [page_id]. *)
+    method get_page_lock (page_id: int) = ()
+
+    (** [release_page_lock page_id] releases the lock for page [page_id], to guarantee 
+	mutual exclusion on the updates for page [page_id]. *)
+    method release_page_lock (page_id: int) = ()
+
+    (** [get_rep_lock] gets a lock for the global table of user reputations, to guarantee 
+	serializability of the updates. *)
+    method get_rep_lock = ()
+
+    (** [release_rep_lock] releases a lock for the global table of user reputations, to guarantee 
+	serializability of the updates. *)
+    method release_rep_lock = ()
+
     (* Commits any changes to the db *)
     method commit : bool =
       ignore (Mysql.exec dbh "COMMIT");
@@ -132,6 +151,9 @@ class db
         | StatusError err -> false
         | _ -> true
 	    
+    (* ================================================================ *)
+    (* Global methods. *)
+
     (** [get_histogram] Returns a histogram showing the number of users 
 	at each reputation level, and the median. *)
     method get_histogram : float array * float =
@@ -168,26 +190,42 @@ class db
     method fetch_all_revs : Mysql.result = 
       Mysql.exec dbh (format_string sth_select_all_revs [])
   
+    (* ================================================================ *)
+    (* Page methods. *)
+
+    (** [write_page_info page_id chunk_list] writes, in a table indexed by 
+	(page id, string list) that the page with id [page_id] is associated 
+	with the "dead" strings of text [chunk1], [chunk2], ..., where
+	[chunk_list = [chunk1, chunk2, ...] ]. 
+	The chunk_list contains text that used to be present in the article, but has 
+	been deleted; the database records its existence. *)
+    method write_page_info (page_id : int) (c_list : Online_types.chunk_t list) : unit = 
+      let chunks_string = ml2str (string_of__of__sexp_of 
+          (sexp_of_list sexp_of_chunk_t) c_list) in 
+      ignore (Mysql.exec dbh (format_string sth_delete_chunks
+        [ml2int page_id]));
+      ignore (Mysql.exec dbh (format_string sth_insert_dead_chunks 
+	[ml2int page_id; chunks_string ])); 
+      if commit_frequently then ignore (Mysql.exec dbh "COMMIT")
+
+    (** [read_page_info page_id] returns the list of dead chunks associated
+	with the page [page_id]. *)
+    method read_page_info (page_id : int) : Online_types.chunk_t list =
+      let result = Mysql.exec dbh (format_string sth_select_dead_chunks
+          [ml2int page_id ]) in 
+      match Mysql.fetch result with 
+	None -> raise DB_Not_Found
+      | Some x -> of_string__of__of_sexp (list_of_sexp chunk_t_of_sexp) 
+                      (not_null str2ml x.(0))
+
     (** [fetch_revs page_id timestamp] returns a cursor that points to all 
 	revisions of page [page_id] with time prior or equal to [timestamp]. *)
     method fetch_revs (page_id : int) (timestamp: timestamp_t) : Mysql.result =
       Mysql.exec dbh (format_string sth_select_revs [ml2int page_id; ml2timestamp timestamp])
 
 
-   (** [fetch_rev_timestamp rev_id] returns the timestamp of revision [rev_id] *)
-    method fetch_rev_timestamp (rev_id: int) : timestamp_t = 
-      let result = Mysql.exec dbh (format_string sth_select_rev_timestamp [ml2int rev_id]) in 
-      match fetch result with 
-	None -> raise DB_Not_Found
-      | Some row -> not_null timestamp2ml row.(0)
-
-
-    (** [read_revision_info rev_id] reads the wikitrust information of revision_id *)
-    method read_revision_info (rev_id: int) : qual_info_t = 
-      let result = Mysql.exec dbh (format_string sth_select_revision_info [ml2int rev_id]) in
-      match fetch result with
-        | None -> raise DB_Not_Found
-        | Some x -> of_string__of__of_sexp qual_info_t_of_sexp (not_null str2ml x.(0))
+    (* ================================================================ *)
+    (* Revision methods. *)
 
     (** [write_revision_info rev_id quality_info elist] writes the wikitrust data 
 	associated with revision with id [rev_id] *)
@@ -200,6 +238,19 @@ class db
 	ml2float rep_delta;
       ]))
 
+    (** [read_revision_info rev_id] reads the wikitrust information of revision_id *)
+    method read_revision_info (rev_id: int) : qual_info_t = 
+      let result = Mysql.exec dbh (format_string sth_select_revision_info [ml2int rev_id]) in
+      match fetch result with
+        | None -> raise DB_Not_Found
+        | Some x -> of_string__of__of_sexp qual_info_t_of_sexp (not_null str2ml x.(0))
+
+   (** [fetch_rev_timestamp rev_id] returns the timestamp of revision [rev_id] *)
+    method fetch_rev_timestamp (rev_id: int) : timestamp_t = 
+      let result = Mysql.exec dbh (format_string sth_select_rev_timestamp [ml2int rev_id]) in 
+      match fetch result with 
+	None -> raise DB_Not_Found
+      | Some row -> not_null timestamp2ml row.(0)
 
     (** [get_rev_text text_id] returns the text associated with text id [text_id] *)
     method read_rev_text (text_id: int) : string = 
@@ -208,32 +259,6 @@ class db
         | None -> raise DB_Not_Found
         | Some y -> not_null str2ml y.(0)
 
-
-    (** [get_rep uid] gets the reputation of user [uid], from a table 
-	      relating user ids to their reputation 
-        @raise DB_Not_Found if no tuple is returned by the database.
-    *)
-    method get_rep (uid : int) : float =
-      let result = Mysql.exec dbh (format_string sth_select_user_rep [ml2int uid]) in
-      match Mysql.fetch result with 
-        | None -> raise DB_Not_Found
-        | Some x -> not_null float2ml x.(0)
-      
-
-    (** [set_rep uid r] sets, in the table relating user ids to reputations, 
-	  the reputation of user [uid] to be equal to [r]. *)
-    method set_rep (uid : int) (rep : float) =
-      (* first check to see if there exists the user already *)
-      try
-        ignore (self#get_rep uid ) ;
-        ignore (Mysql.exec dbh (format_string sth_update_user_rep 
-            [ml2float rep; ml2int uid ])); 
-      with
-        DB_Not_Found -> 
-          ignore (Mysql.exec dbh (format_string sth_insert_user_rep 
-              [ml2int uid; ml2float rep ]));  
-      if commit_frequently then ignore (Mysql.exec dbh "COMMIT")
-  
     (** [write_colored_markup rev_id markup] writes, in a table with columns by 
 	(revision id, string), that the string [markup] is associated with the 
 	revision with id [rev_id]. 
@@ -273,10 +298,9 @@ class db
       ignore (Mysql.exec dbh (format_string sth_insert_author_sigs
 	[ml2int rev_id; ml2str s])) 
 
-  
-    (** [read_author_sigs rev_id] reads the author signatures for the revision 
+      (** [read_author_sigs rev_id] reads the author signatures for the revision 
 	[rev_id]. 
-	TODO: Note that we can keep the signatures separate from the text 
+	Note that we can keep the signatures separate from the text 
 	because it is not a bit deal if we occasionally mis-align text and 
 	signatures when we change the parsing algorithm: all that can happen 
 	is that occasinally an author can give trust twice to the same piece of text. 
@@ -298,46 +322,36 @@ class db
     method delete_author_sigs (rev_id: int) : unit = 
       ignore (Mysql.exec dbh (format_string sth_delete_author_sigs [ml2int rev_id]))
 
-    (** [write_page_info page_id chunk_list] writes, in a table indexed by 
-	(page id, string list) that the page with id [page_id] is associated 
-	with the "dead" strings of text [chunk1], [chunk2], ..., where
-	[chunk_list = [chunk1, chunk2, ...] ]. 
-	The chunk_list contains text that used to be present in the article, but has 
-	been deleted; the database records its existence. *)
-    method write_page_info (page_id : int) (c_list : Online_types.chunk_t list) : unit = 
-      let chunks_string = ml2str (string_of__of__sexp_of 
-          (sexp_of_list sexp_of_chunk_t) c_list) in 
-      ignore (Mysql.exec dbh (format_string sth_delete_chunks
-        [ml2int page_id]));
-      ignore (Mysql.exec dbh (format_string sth_insert_dead_chunks 
-	[ml2int page_id; chunks_string ])); 
+    (* ================================================================ *)
+    (* User methods. *)
+
+    (** [set_rep uid r] sets, in the table relating user ids to reputations, 
+	  the reputation of user [uid] to be equal to [r]. *)
+    method set_rep (uid : int) (rep : float) =
+      (* first check to see if there exists the user already *)
+      try
+        ignore (self#get_rep uid ) ;
+        ignore (Mysql.exec dbh (format_string sth_update_user_rep 
+            [ml2float rep; ml2int uid ])); 
+      with
+        DB_Not_Found -> 
+          ignore (Mysql.exec dbh (format_string sth_insert_user_rep 
+              [ml2int uid; ml2float rep ]));  
       if commit_frequently then ignore (Mysql.exec dbh "COMMIT")
-
-    (** [read_page_info page_id] returns the list of dead chunks associated
-	with the page [page_id]. *)
-    method read_page_info (page_id : int) : Online_types.chunk_t list =
-      let result = Mysql.exec dbh (format_string sth_select_dead_chunks
-          [ml2int page_id ]) in 
+  
+    (** [get_rep uid] gets the reputation of user [uid], from a table 
+	      relating user ids to their reputation 
+        @raise DB_Not_Found if no tuple is returned by the database.
+    *)
+    method get_rep (uid : int) : float =
+      let result = Mysql.exec dbh (format_string sth_select_user_rep [ml2int uid]) in
       match Mysql.fetch result with 
-	None -> raise DB_Not_Found
-      | Some x -> of_string__of__of_sexp (list_of_sexp chunk_t_of_sexp) 
-                      (not_null str2ml x.(0))
+        | None -> raise DB_Not_Found
+        | Some x -> not_null float2ml x.(0)
+      
 
-    (** [get_page_lock page_id] gets a lock for page [page_id], to guarantee 
-	mutual exclusion on the updates for page [page_id]. *)
-    method get_page_lock (page_id: int) = ()
-
-    (** [release_page_lock page_id] releases the lock for page [page_id], to guarantee 
-	mutual exclusion on the updates for page [page_id]. *)
-    method release_page_lock (page_id: int) = ()
-
-    (** [get_rep_lock] gets a lock for the global table of user reputations, to guarantee 
-	serializability of the updates. *)
-    method get_rep_lock = ()
-
-    (** [release_rep_lock] releases a lock for the global table of user reputations, to guarantee 
-	serializability of the updates. *)
-    method release_rep_lock = ()
+    (* ================================================================ *)
+    (* Debugging. *)
 
     (** Clear everything out *)
     method delete_all (really : bool) =
