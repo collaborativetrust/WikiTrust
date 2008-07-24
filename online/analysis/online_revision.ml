@@ -87,21 +87,12 @@ class revision
     (* Dirty bit to avoid writing back unchanged stuff *)
     val mutable modified_quality_info : bool = false
 
-    (* Hash table of edit lists *)
-    val edit_lists : (int, edit_list_t) Hashtbl.t = Hashtbl.create 12
-
       (** This initializer reads from the DB the information with the revision 
           specifically needed by the wikitrust algorithms *)
     initializer
       try 
-        begin
-          let (quality_info, l) = db#read_revision_info rev_id in 
-          (* Put the edit lists in the hashtable *)
-          let f (el: edit_list_t) : unit = Hashtbl.add edit_lists el.to_version el in 
-          List.iter f l
-        end
+        quality_info <- db#read_revision_info rev_id
       with Online_db.DB_Not_Found -> ()
-
 
     (* Basic access methods *)
     method get_id : int = rev_id
@@ -206,37 +197,10 @@ class revision
       quality_info.nix_bit <- true;
       modified_quality_info <- true 
 
-    (** [get_edit_list text_rev to_rev] returns an Editlist.edit list option [l]: 
-        if None, valid data could not be found. In the call, [text_rev] is the 
-        version of the text splitting algorithm, and [to_rev] is the destination 
-        revision id of the diff. *)
-    method get_edit_list (text_rev: string) (to_rev: int) : Editlist.edit list option = 
-      try 
-        let el = Hashtbl.find edit_lists to_rev in 
-        if text_rev = el.split_version then Some el.editlist else None
-      with Not_found -> None
-
-    (** [set_edit_list text_rev to_rev elist] sets the edit list to revision to_rev 
-        to the text revision [text_rev] and the edit list [elist]. *)
-    method set_edit_list (text_rev: string) (to_rev: int) (elist: Editlist.edit list) : unit = 
-      let el = {
-        split_version = text_rev;
-        to_version = to_rev;
-        editlist = elist;
-      } in 
-      Hashtbl.replace edit_lists to_rev el
-      
     (** [write_to_db] writes all revision information to the db. *)
-    method write_to_db : unit = 
-      (* We need to turn the hashtable of the edit lists into a list *)
-      (* This code writes also the diffs to the db
-      let f i el l = el :: l in 
-      let elist = Hashtbl.fold f edit_lists [] in 
-      db#write_revision_info rev_id quality_info elist
-       *)
-      (* This code does not write the diffs *)
-      db#write_revision_info rev_id quality_info []
-  end (* revision object *)
+    method write_to_db : unit = db#write_revision_info rev_id quality_info
+
+  end (* revision class *)
 
 let make_revision row db: revision = 
   let set_is_minor ism = match ism with

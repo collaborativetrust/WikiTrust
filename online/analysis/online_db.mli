@@ -142,11 +142,11 @@ class db :
     method read_page_info : int -> Online_types.chunk_t list
 
     (** [read_revision_info rev_id] reads the wikitrust information of revision_id *)
-    method read_revision_info : int -> qual_info_t * edit_lists_of_rev_t
+    method read_revision_info : int -> qual_info_t
 
     (** [write_revision_info rev_id quality_info elist] writes the wikitrust data 
 	associated with revision with id [rev_id] *)
-    method write_revision_info : int -> qual_info_t -> edit_lists_of_rev_t -> unit
+    method write_revision_info : int -> qual_info_t -> unit
 
     (** [get_page_lock page_id] gets a lock for page [page_id], to guarantee 
 	mutual exclusion on the updates for page [page_id]. *)

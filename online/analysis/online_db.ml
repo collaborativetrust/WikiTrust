@@ -110,9 +110,9 @@ class db
     val sth_delete_chunks = "DELETE FROM wikitrust_page WHERE page_id = ?"
     val sth_insert_dead_chunks = "INSERT INTO wikitrust_page (page_id, deleted_chunks) VALUES (?, ?)"
 
-    val sth_select_revision_info = "SELECT quality_info, edit_lists FROM wikitrust_revision WHERE revision_id = ?"
+    val sth_select_revision_info = "SELECT quality_info FROM wikitrust_revision WHERE revision_id = ?"
     val sth_delete_revision_info = "DELETE FROM wikitrust_revision WHERE revision_id = ?"
-    val sth_insert_revision_info = "INSERT INTO wikitrust_revision (revision_id, quality_info, reputation_delta, edit_lists) VALUES (?, ?, ?, ?)"
+    val sth_insert_revision_info = "INSERT INTO wikitrust_revision (revision_id, quality_info, reputation_delta) VALUES (?, ?, ?, ?)"
 
     val sth_select_revs = "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision WHERE rev_page = ? AND rev_timestamp <= ? ORDER BY rev_timestamp DESC"
     val sth_select_rev_timestamp = "SELECT rev_timestamp FROM revision WHERE rev_id = ?"
@@ -183,24 +183,21 @@ class db
 
 
     (** [read_revision_info rev_id] reads the wikitrust information of revision_id *)
-    method read_revision_info (rev_id: int) : qual_info_t * edit_lists_of_rev_t = 
+    method read_revision_info (rev_id: int) : qual_info_t = 
       let result = Mysql.exec dbh (format_string sth_select_revision_info [ml2int rev_id]) in
       match fetch result with
         | None -> raise DB_Not_Found
-        | Some x -> (
-	    of_string__of__of_sexp qual_info_t_of_sexp (not_null str2ml x.(0)),
-	    of_string__of__of_sexp edit_lists_of_rev_t_of_sexp (not_null str2ml x.(1)) )
+        | Some x -> of_string__of__of_sexp qual_info_t_of_sexp (not_null str2ml x.(0))
 
     (** [write_revision_info rev_id quality_info elist] writes the wikitrust data 
 	associated with revision with id [rev_id] *)
-    method write_revision_info (rev_id: int) (quality_info: qual_info_t) (elist: edit_lists_of_rev_t) : unit = 
+    method write_revision_info (rev_id: int) (quality_info: qual_info_t) : unit = 
       let rep_delta = quality_info.reputation_gain in 
       ignore (Mysql.exec dbh (format_string sth_delete_revision_info [ml2int rev_id]));
       ignore (Mysql.exec dbh (format_string sth_insert_revision_info [
 	ml2int rev_id;
 	ml2str (string_of__of__sexp_of sexp_of_qual_info_t quality_info); 
 	ml2float rep_delta;
-	ml2str (string_of__of__sexp_of sexp_of_edit_lists_of_rev_t elist); 
       ]))
 
 
