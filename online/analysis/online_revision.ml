@@ -229,10 +229,13 @@ class revision
     (** [write_to_db] writes all revision information to the db. *)
     method write_to_db : unit = 
       (* We need to turn the hashtable of the edit lists into a list *)
+      (* This code writes also the diffs to the db
       let f i el l = el :: l in 
       let elist = Hashtbl.fold f edit_lists [] in 
       db#write_revision_info rev_id quality_info elist
-
+       *)
+      (* This code does not write the diffs *)
+      db#write_revision_info rev_id quality_info []
   end (* revision object *)
 
 let make_revision row db: revision = 
