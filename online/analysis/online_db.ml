@@ -72,6 +72,10 @@ let rec format_string (str : string) (vals : string list) : string =
       | (false, newstr) -> newstr)                                                      
 ;;
 
+let db_exec dbh s = 
+  if debug_mode then print_endline s;
+  Mysql.exec dbh s
+
 
 (** This class provides a handle for accessing the database in the on-line 
     implementation. *)
@@ -112,7 +116,7 @@ class db
 
     (* Commits any changes to the db *)
     method commit : bool =
-      ignore (Mysql.exec dbh "COMMIT");
+      ignore (db_exec dbh "COMMIT");
       match Mysql.status dbh with
         | StatusError err -> false
         | _ -> true
@@ -129,7 +133,7 @@ class db
     (** [get_histogram] Returns a histogram showing the number of users 
 	at each reputation level, and the median. *)
     method get_histogram : float array * float =
-      match fetch (Mysql.exec dbh sth_select_histogram) with
+      match fetch (db_exec dbh sth_select_histogram) with
         | None -> raise DB_Not_Found
         | Some row -> ([| not_null float2ml row.(1); not_null float2ml row.(2); not_null float2ml row.(3); 
 			  not_null float2ml row.(4);  not_null float2ml row.(5);
@@ -142,12 +146,12 @@ class db
     method set_histogram (hist : float array) (hival: float) : unit = 
       let sql = format_string sth_update_histogram 
 		   ((ml2float hival) :: Array.to_list (Array.map ml2float hist)) in
-	ignore (Mysql.exec dbh sql);
-	if commit_frequently then ignore (Mysql.exec dbh "COMMIT")      
+	ignore (db_exec dbh sql);
+	if commit_frequently then ignore (db_exec dbh "COMMIT")      
 
     (** Returns the last colored revision, if any *)
     method fetch_last_colored_rev : (int * int * timestamp_t) = 
-      match fetch (Mysql.exec dbh sth_select_last_colored_rev) with
+      match fetch (db_exec dbh sth_select_last_colored_rev) with
         | None -> raise DB_Not_Found
         | Some row -> (not_null int2ml row.(0), not_null int2ml row.(1), 
             not_null timestamp2ml row.(2))
@@ -155,20 +159,15 @@ class db
     (** [sth_select_all_revs_after (int * int * int * int * int * int)] returns all 
         revs created after the given timestamp. *)
     method fetch_all_revs_after (timestamp : timestamp_t) : Mysql.result =   
-      Mysql.exec dbh (format_string sth_select_all_revs_after [ml2timestamp timestamp])
+      db_exec dbh (format_string sth_select_all_revs_after [ml2timestamp timestamp])
 
     (** [fetch_all_revs] returns a cursor that points to all revisions in the database, 
 	in ascending order of timestamp. *)
     method fetch_all_revs : Mysql.result = 
-      Mysql.exec dbh (format_string sth_select_all_revs [])
+      db_exec dbh (format_string sth_select_all_revs [])
   
     (* ================================================================ *)
     (* Page methods. *)
-
-    val sth_select_page_info = "SELECT deleted_chunks, page_info FROM wikitrust_page WHERE page_id = ?"
-    val sth_delete_page_info = "DELETE FROM wikitrust_page WHERE page_id = ?"
-    val sth_insert_page_info = "INSERT INTO wikitrust_page (page_id, deleted_chunks, page_info) VALUES (?, ?, ?)"
-    val sth_select_revs = "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision WHERE rev_page = ? AND rev_timestamp <= ? ORDER BY rev_timestamp DESC"
 
     (** [write_page_info page_id chunk_list] writes, in a table indexed by 
 	(page id, string list) that the page with id [page_id] is associated 
@@ -180,17 +179,18 @@ class db
       let chunks_string = ml2str (string_of__of__sexp_of 
           (sexp_of_list sexp_of_chunk_t) c_list) in 
       let info_string = ml2str (string_of__of__sexp_of sexp_of_page_info_t p_info) in 
-      ignore (Mysql.exec dbh (format_string sth_delete_page_info
-        [ml2int page_id]));
-      ignore (Mysql.exec dbh (format_string sth_insert_page_info
-	[ml2int page_id; chunks_string; info_string ])); 
-      if commit_frequently then ignore (Mysql.exec dbh "COMMIT")
+      let s = Printf.sprintf "DELETE FROM wikitrust_page WHERE page_id = %s" (ml2int page_id) in 
+      ignore (db_exec dbh s);
+      let s = Printf.sprintf "INSERT INTO wikitrust_page (page_id, deleted_chunks, page_info) VALUES (%s, %s, %s)" 
+	(ml2int page_id) chunks_string info_string in  
+      ignore (db_exec dbh s);
+      if commit_frequently then ignore (db_exec dbh "COMMIT")
 
     (** [read_page_info page_id] returns the list of dead chunks associated
 	with the page [page_id]. *)
     method read_page_info (page_id : int) : (chunk_t list) * page_info_t =
-      let result = Mysql.exec dbh (format_string sth_select_page_info
-          [ml2int page_id ]) in 
+      let s = Printf.sprintf "SELECT deleted_chunks, page_info FROM wikitrust_page WHERE page_id = %s" (ml2int page_id ) in
+      let result = db_exec dbh s in 
       match Mysql.fetch result with 
 	None -> raise DB_Not_Found
       | Some x -> (
@@ -200,7 +200,7 @@ class db
     (** [fetch_revs page_id timestamp] returns a cursor that points to all 
 	revisions of page [page_id] with time prior or equal to [timestamp]. *)
     method fetch_revs (page_id : int) (timestamp: timestamp_t) : Mysql.result =
-      Mysql.exec dbh (format_string sth_select_revs [ml2int page_id; ml2timestamp timestamp])
+      db_exec dbh (Printf.sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision WHERE rev_page = %s AND rev_timestamp <= %s ORDER BY rev_timestamp DESC" (ml2int page_id) (ml2timestamp timestamp))
 
 
     (* ================================================================ *)
@@ -221,13 +221,13 @@ class db
 
     (** [read_revision rev_id] reads a revision by id, returning the row *)
     method read_revision (rev_id: int) : string option array option =
-      fetch (Mysql.exec dbh (format_string sth_select_rev_by_id [ml2int rev_id]))
+      fetch (db_exec dbh (format_string sth_select_rev_by_id [ml2int rev_id]))
 
     (** [write_revision_info rev_id quality_info elist] writes the wikitrust data 
 	associated with revision with id [rev_id] *)
     method write_revision_info (rev_id: int) (quality_info: qual_info_t) : unit = 
-      ignore (Mysql.exec dbh (format_string sth_delete_revision_info [ml2int rev_id]));
-      ignore (Mysql.exec dbh (format_string sth_insert_revision_info [
+      ignore (db_exec dbh (format_string sth_delete_revision_info [ml2int rev_id]));
+      ignore (db_exec dbh (format_string sth_insert_revision_info [
 	ml2int rev_id;
 	ml2str (string_of__of__sexp_of sexp_of_qual_info_t quality_info); 
 	ml2float quality_info.reputation_gain; 
@@ -236,21 +236,21 @@ class db
 
     (** [read_revision_info rev_id] reads the wikitrust information of revision_id *)
     method read_revision_info (rev_id: int) : qual_info_t = 
-      let result = Mysql.exec dbh (format_string sth_select_revision_info [ml2int rev_id]) in
+      let result = db_exec dbh (format_string sth_select_revision_info [ml2int rev_id]) in
       match fetch result with
         | None -> raise DB_Not_Found
         | Some x -> of_string__of__of_sexp qual_info_t_of_sexp (not_null str2ml x.(0))
 
    (** [fetch_rev_timestamp rev_id] returns the timestamp of revision [rev_id] *)
     method fetch_rev_timestamp (rev_id: int) : timestamp_t = 
-      let result = Mysql.exec dbh (format_string sth_select_rev_timestamp [ml2int rev_id]) in 
+      let result = db_exec dbh (format_string sth_select_rev_timestamp [ml2int rev_id]) in 
       match fetch result with 
 	None -> raise DB_Not_Found
       | Some row -> not_null timestamp2ml row.(0)
 
     (** [get_rev_text text_id] returns the text associated with text id [text_id] *)
     method read_rev_text (text_id: int) : string = 
-      let result = Mysql.exec dbh (format_string sth_select_text [ml2int text_id]) in 
+      let result = db_exec dbh (format_string sth_select_text [ml2int text_id]) in 
       match Mysql.fetch result with 
         | None -> raise DB_Not_Found
         | Some y -> not_null str2ml y.(0)
@@ -267,17 +267,17 @@ class db
 	may be highly advisable. *)
     (* This is currently a first cut, which will be hopefully optimized later *)
     method write_colored_markup (rev_id : int) (markup : string) : unit =
-      ignore (Mysql.exec dbh (format_string sth_delete_markup
+      ignore (db_exec dbh (format_string sth_delete_markup
           [ml2int rev_id ]));
-      ignore (Mysql.exec dbh (format_string sth_insert_markup 
+      ignore (db_exec dbh (format_string sth_insert_markup 
           [ml2int rev_id; ml2str markup ]));
-      if commit_frequently then ignore (Mysql.exec dbh "COMMIT")
+      if commit_frequently then ignore (db_exec dbh "COMMIT")
 
     (** [read_colored_markup rev_id] reads the text markup of a revision with id
 	[rev_id].  The markup is the text of the revision, annontated with trust
 	and origin information. *)
     method read_colored_markup (rev_id : int) : string =
-      let result = Mysql.exec dbh (format_string sth_select_markup 
+      let result = db_exec dbh (format_string sth_select_markup 
           [ml2int rev_id]) in
       match Mysql.fetch result with
         | None -> raise DB_Not_Found
@@ -289,9 +289,9 @@ class db
       (sigs: Author_sig.packed_author_signature_t array) : unit = 
       let g = sexp_of_array Author_sig.sexp_of_sigs in 
       let s = string_of__of__sexp_of g sigs in 
-      ignore (Mysql.exec dbh (format_string sth_delete_author_sigs 
+      ignore (db_exec dbh (format_string sth_delete_author_sigs 
 	[ml2int rev_id])); 
-      ignore (Mysql.exec dbh (format_string sth_insert_author_sigs
+      ignore (db_exec dbh (format_string sth_insert_author_sigs
 	[ml2int rev_id; ml2str s])) 
 
       (** [read_author_sigs rev_id] reads the author signatures for the revision 
@@ -305,7 +305,7 @@ class db
         *)
     method read_author_sigs 
       (rev_id: int) : Author_sig.packed_author_signature_t array = 
-      let result = Mysql.exec dbh (format_string sth_select_author_sigs 
+      let result = db_exec dbh (format_string sth_select_author_sigs 
           [ml2int rev_id ]) in 
       match Mysql.fetch result with 
 	None -> raise DB_Not_Found
@@ -316,7 +316,7 @@ class db
 
    (** [delete_author_sigs rev_id] removes from the db the author signatures for [rev_id]. *)
     method delete_author_sigs (rev_id: int) : unit = 
-      ignore (Mysql.exec dbh (format_string sth_delete_author_sigs [ml2int rev_id]))
+      ignore (db_exec dbh (format_string sth_delete_author_sigs [ml2int rev_id]))
 
     (* ================================================================ *)
     (* User methods. *)
@@ -331,20 +331,20 @@ class db
       (* first check to see if there exists the user already *)
       try
         ignore (self#get_rep uid ) ;
-        ignore (Mysql.exec dbh (format_string sth_update_user_rep 
+        ignore (db_exec dbh (format_string sth_update_user_rep 
             [ml2float rep; ml2int uid ])); 
       with
         DB_Not_Found -> 
-          ignore (Mysql.exec dbh (format_string sth_insert_user_rep 
+          ignore (db_exec dbh (format_string sth_insert_user_rep 
               [ml2int uid; ml2float rep ]));  
-      if commit_frequently then ignore (Mysql.exec dbh "COMMIT")
+      if commit_frequently then ignore (db_exec dbh "COMMIT")
   
     (** [get_rep uid] gets the reputation of user [uid], from a table 
 	      relating user ids to their reputation 
         @raise DB_Not_Found if no tuple is returned by the database.
     *)
     method get_rep (uid : int) : float =
-      let result = Mysql.exec dbh (format_string sth_select_user_rep [ml2int uid]) in
+      let result = db_exec dbh (format_string sth_select_user_rep [ml2int uid]) in
       match Mysql.fetch result with 
         | None -> raise DB_Not_Found
         | Some x -> not_null float2ml x.(0)
@@ -357,15 +357,15 @@ class db
     method delete_all (really : bool) =
       match really with
         | true -> (
-	    ignore (Mysql.exec dbh "DELETE FROM wikitrust_global");
-	    ignore (Mysql.exec dbh "INSERT INTO wikitrust_global VALUES (0,0,0,0,0,0,0,0,0,0,0)");
-            ignore (Mysql.exec dbh "TRUNCATE TABLE wikitrust_page" );
-            ignore (Mysql.exec dbh "TRUNCATE TABLE wikitrust_revision" );
-            ignore (Mysql.exec dbh "TRUNCATE TABLE wikitrust_colored_markup" );
-            ignore (Mysql.exec dbh "TRUNCATE TABLE wikitrust_sigs" );
-            ignore (Mysql.exec dbh "TRUNCATE TABLE wikitrust_user" ); 
-            ignore (Mysql.exec dbh "COMMIT"))
-        | false -> ignore (Mysql.exec dbh "COMMIT")
+	    ignore (db_exec dbh "DELETE FROM wikitrust_global");
+	    ignore (db_exec dbh "INSERT INTO wikitrust_global VALUES (0,0,0,0,0,0,0,0,0,0,0)");
+            ignore (db_exec dbh "TRUNCATE TABLE wikitrust_page" );
+            ignore (db_exec dbh "TRUNCATE TABLE wikitrust_revision" );
+            ignore (db_exec dbh "TRUNCATE TABLE wikitrust_colored_markup" );
+            ignore (db_exec dbh "TRUNCATE TABLE wikitrust_sigs" );
+            ignore (db_exec dbh "TRUNCATE TABLE wikitrust_user" ); 
+            ignore (db_exec dbh "COMMIT"))
+        | false -> ignore (db_exec dbh "COMMIT")
 
   end;; (* online_db *)
 

@@ -108,7 +108,7 @@ type trust_coeff_t = {
 };;
 
 (* Number of past revisions to consider *)
-let n_past_revs = 12;;
+let n_past_revs = 6;;
 
 let default_trust_coeff = {
   n_revs_to_consider = n_past_revs;
