@@ -82,6 +82,7 @@ class revision
       nix_bit = quality_info_default.nix_bit;
       delta = quality_info_default.delta;
       reputation_gain = quality_info_default.reputation_gain;
+      overall_trust = quality_info_default.overall_trust;
     }
 
     (* Dirty bit to avoid writing back unchanged stuff *)
@@ -191,6 +192,12 @@ class revision
       (* flags the change *)
       modified_quality_info <- true
 
+    method set_overall_trust (t: float) : unit = 
+      quality_info.overall_trust <- t;
+      modified_quality_info <- true
+
+    method get_overall_trust : float = quality_info.overall_trust
+
     method get_nix : bool = quality_info.nix_bit
 
     method set_nix_bit : unit = 
@@ -216,4 +223,25 @@ let make_revision row db: revision =
     (not_null str2ml row.(5)) (* user name *)
     (set_is_minor (not_null int2ml row.(6))) (* is_minor *)
     (not_null str2ml row.(7)) (* comment *)
+
+let read_revision (db: Online_db.db) (id: int) : revision option = 
+  let set_is_minor ism = match ism with
+    | 0 -> false
+    | 1 -> true
+    | _ -> assert false in
+  begin 
+    match db#read_revision id with 
+      None -> None 
+    | Some row -> 
+	Some (new revision db 
+	  (not_null int2ml row.(0)) (* rev id *)
+	  (not_null int2ml row.(1)) (* page id *)        
+	  (not_null int2ml row.(2)) (* text id *)
+	  (not_null str2ml row.(3)) (* timestamp *)
+	  (not_null int2ml row.(4)) (* user id *)
+	  (not_null str2ml row.(5)) (* user name *)
+	  (set_is_minor (not_null int2ml row.(6))) (* is_minor *)
+	  (not_null str2ml row.(7)) (* comment *)
+	)
+  end
 

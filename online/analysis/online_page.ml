@@ -3,7 +3,7 @@
 Copyright (c) 2008 The Regents of the University of California
 All rights reserved.
 
-Authors: Luca de Alfaro
+Authors: Luca de Alfaro, Krishnendu Chatterjee
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -36,6 +36,7 @@ POSSIBILITY OF SUCH DAMAGE.
 open Eval_defs;;
 open Online_types;;
 type word = string
+type rev_t = Online_revision.revision 
 
 (** This exception is raised if some prior revision lacks trust information. 
     It returns a pair (page_id, revision_id) *)
@@ -55,8 +56,16 @@ class page
 = 
   
   object (self) 
-    (** This is the Vec of existing revisions for the page *)
-    val mutable revs: Online_revision.revision Vec.t = Vec.empty 
+    (** This is the Vec of recent revisions *)
+    val mutable recent_revs: rev_t Vec.t = Vec.empty 
+    (** This is the Vec of high-rep revisions *)
+    val mutable hi_rep_revs: rev_t Vec.t = Vec.empty 
+    (** This is the Vec of high-trust revisions *)
+    val mutable hi_trust_revs: rev_t Vec.t = Vec.empty 
+    (** This is the Vec of revisions for the page to which the last revision (included) is compared,
+	obtained by union of the above. *)
+    val mutable revs: rev_t Vec.t = Vec.empty 
+
     (** These are the edit lists.  The position (i, j) is the edit list 
         between revision id i (source, left) and revision id j (dest, right) of the 
         revisions in revs. 
@@ -70,7 +79,7 @@ class page
     (** This is a hashtable from revision id to revision, for the revisions that 
         have been read from disc.  This hash table contains all revisions, whether 
         it is the last in a block by the same author, or not. *)
-    val revid_to_rev: (int, Online_revision.revision) Hashtbl.t = Hashtbl.create trust_coeff.n_revs_to_consider
+    val revid_to_rev: (int, rev_t) Hashtbl.t = Hashtbl.create trust_coeff.n_revs_to_consider
     (** This is a hash table mapping each user id to a pair (old_rep, new_rep option). 
 	So we can keep track of both the original value, and of the updated value, if
 	any.  *)
@@ -79,12 +88,24 @@ class page
     val mutable curr_time = 0.
     (** List of deleted chunks *)
     val mutable del_chunks_list : Online_types.chunk_t list = []
+    (** Page information *)
+    val mutable page_info = {
+      past_hi_rep_revs = page_info_default.past_hi_rep_revs; 
+      past_hi_trust_revs = page_info_default.past_hi_trust_revs;
+    }
 
     (** This initializer reads the past revisions from the online database, 
         puts them into the revs Vec, and also produces the [revid_to_rev] 
         hash table.
      *)
     initializer 
+      (* Reads the page information *)
+      try 
+	let (cl, pinfo) = db#read_page_info page_id in 
+	del_chunks_list <- cl; 
+	page_info <- pinfo
+      with Online_db.DB_Not_Found -> ();
+
       (* Reads the most recent revisions *)
       let db_p = new Db_page.page db page_id revision_id in 
       let i = ref trust_coeff.n_revs_to_consider in 
@@ -94,20 +115,82 @@ class page
         | Some r -> begin
 	    let rid = r#get_id in 
             Hashtbl.add revid_to_rev rid r;
+	    recent_revs <- Vec.append r recent_revs; 
 	    revs <- Vec.append r revs; 
 	    i := !i - 1;
 	  end (* Some r *)
       end done;
+
+      (* This is a function that finds and returns a revision in an array given its id *)
+      let find_rev_by_id (id: int) (v: rev_t Vec.t) : rev_t option = 
+	let f r = (r#get_id = id) in 
+	match Vec.find f 0 v with 
+	  Some (i, rev) -> Some rev
+	| None -> None
+      in 
+
+      (* Builds the Vec of high trust revisions *)
+      (* The function f is folded on the list, and produces the Vec *)
+      let f (u: rev_t Vec.t) (id: int) : rev_t Vec.t = 
+	match find_rev_by_id id recent_revs with 
+	  Some r -> Vec.append r u
+	| None -> begin 
+	    (* We must read it from disk *)
+	    match Online_revision.read_revision db id with 
+	      None -> u (* nothing to add: can't be found *)
+	    | Some r' -> Vec.append r' u
+	  end
+      in 
+      hi_trust_revs <- List.fold_left f Vec.empty page_info.past_hi_trust_revs;
+
+      (* Builds the Vec of high rep revisions *)
+      (* The function f is folded on the list, and produces the Vec *)
+      let f (u: rev_t Vec.t) (id: int) : rev_t Vec.t = 
+	match find_rev_by_id id recent_revs with 
+	  Some r -> Vec.append r u
+	| None -> begin 
+	    (* Maybe it's in the high trust list? *)
+	    match find_rev_by_id id hi_trust_revs with 
+	      Some r -> Vec.append r u 
+	    | None -> begin 
+		(* We must read it from disk *)
+		match Online_revision.read_revision db id with 
+		  None -> u (* nothing to add: can't be found *)
+		| Some r' -> Vec.append r' u
+	      end
+	  end
+      in 
+      hi_rep_revs <- List.fold_left f Vec.empty page_info.past_hi_rep_revs;
+
+      (* This function merges two lists of revisions in chronological order *)
+      let merge_chron (v1: rev_t Vec.t) (v2: rev_t Vec.t) : rev_t Vec.t = 
+	let rec merge v w1 w2 = 
+	  if w1 = Vec.empty then Vec.concat v w2
+	  else if w2 = Vec.empty then Vec.concat v w1
+	  else begin (* We must choose the least revision *)
+	    let r1 = Vec.get 0 w1 in 
+	    let r2 = Vec.get 0 w2 in 
+	    if r1#get_id = r2#get_id then merge (Vec.append r1 v) (Vec.remove 0 w1) (Vec.remove 0 w2)
+	    else if r1#get_time > r2#get_time then merge (Vec.append r1 v) (Vec.remove 0 w1) w2
+	    else merge (Vec.append r2 v) w1 (Vec.remove 0 w2)
+	  end
+	in merge Vec.empty v1 v2
+      in 
+
+      (* Produces the Vec of all revisions *)
+      revs <- merge_chron recent_revs (merge_chron hi_rep_revs hi_trust_revs); 
+
       (* Sets the current time *)
-      let n_revs = Vec.length revs in 
+      let n_revs = Vec.length recent_revs in 
       if n_revs > 0 then begin 
-	let r = Vec.get 0 revs in 
+	let r = Vec.get 0 recent_revs in 
 	curr_time <- r#get_time
       end;
+
       (* Reads the revision text, as we will need it, and there are advantages in 
 	 reading it now.  For the most recent revision, we read the normal text; 
 	 for the others, the colored text *)
-      (* TO DO: this is the place where we can detect "holes" in the coloring.
+      (* This is the place where we detect "holes" in the coloring.
          For this reason it is best to start from the oldest (n_revs - 1) revision. *)
       for i = n_revs - 1 downto 0 do begin 
 	let r = Vec.get i revs in
@@ -119,12 +202,8 @@ class page
 	  try ignore (r#get_trust)
           with Online_db.DB_Not_Found -> raise (Missing_trust (r#get_page_id, r#get_id))
 	end
-      end done;
-      (* Reads from disk the deleted chunks list from the page *)
-      (* Note: this is the place where we will read the page info *)
-      try del_chunks_list <- db#read_page_info page_id
-      with Online_db.DB_Not_Found -> ()
-
+      end done
+	(* end of initializer *)
 
 
       (** High-Median of an array *)
@@ -197,6 +276,18 @@ class page
     (** Computes the weight of a reputation *)
     method private weight (r: float) : float = log (1.1 +. r)
 
+    (** Computes the overall trust of a revision *)
+    method private compute_overall_trust (trust_a: float array) : float = 
+      (* Computes the sum of the square trust of a revision *)
+      let f (tot: float) (tr: float) : float = 
+	let norm_tr = tr /. (float_of_int max_rep_val) in 
+	tot +. (norm_tr *. norm_tr)
+      in 
+      let tot_sq_tr = Array.fold_left f 0. trust_a in 
+      let n = float_of_int (Array.length trust_a) in 
+      (* The overall trust is the total of the square trust, multiplied by the 
+	 average of the square trust. *)
+      tot_sq_tr *. tot_sq_tr /. n 
 
     (** This method reads and validates a list of author signatures, checking that 
 	the length is proper, and resetting the list otherwise. *)
@@ -210,18 +301,87 @@ class page
       with Online_db.DB_Not_Found -> Array.create l Author_sig.empty_sigs
 
 
-    (** This method deletes the oldest sigs from the DB, in order to save space. 
-	If this were not done, the sigs table would be of comparable size to the revision 
-	text table. *)
-    method private delete_oldest_sigs : unit = 
-      let n_revs = Vec.length revs in
-      (* We delete the oldest rev if it will go out of the sliding window.
-	 FILTER-NOTE: this has to change if we use filtering. *)
-      if n_revs = trust_coeff.n_revs_to_consider then begin 
-	let last_rev = Vec.get (n_revs - 1) revs in 
-	let last_rev_id = last_rev#get_id in 
-	db#delete_author_sigs last_rev_id
-      end
+    (** [insert_revision_in_lists] inserts the revision in the 
+	list of high rep or high trust revisions if needed, and erases also 
+	old signatures from revisions whose author signatures will no longer be 
+	considered. *)
+    method private insert_revision_in_lists : unit = 
+      (* We keep track of which revisions we are throwing out, so that
+         we can later remove the signatures. *)
+      let thrown_out = ref Vec.empty in 
+      let cur_rev = Vec.get 0 revs in 
+
+      (* Trust first.  For trust, we keep the highest trust revisions so far. *)
+      (* Finds the minimum of the trust for the revisions in the list, and their index *)
+      if hi_trust_revs = Vec.empty
+      then hi_trust_revs <- Vec.singleton cur_rev
+      else begin 
+	(* Finds minimum trust in vector *)
+	let n = (Vec.length hi_trust_revs) - 1 in 
+	let min_trust_idx = ref n in 
+	let min_trust = ref (Vec.get n hi_trust_revs)#get_overall_trust in 
+	for i = n - 1 downto 0 do begin 
+	  let r = Vec.get i hi_trust_revs in 
+	  let t = r#get_overall_trust in 
+	  if t < !min_trust then begin 
+	    min_trust_idx := i;
+	    min_trust := t
+	  end
+	end done; 
+	(* Checks if minimum must be replaced *)
+	let cur_trust = cur_rev#get_overall_trust in 
+	let min_rev = Vec.get !min_trust_idx hi_trust_revs in
+	if (cur_trust >= !min_trust) && (cur_rev#get_id != min_rev#get_id) then begin 
+	  if (Vec.length hi_trust_revs) = trust_coeff.len_hi_trust_revs then begin 
+	    (* We throw out the minimum revision *)
+	    thrown_out := Vec.append min_rev !thrown_out; 
+	    hi_trust_revs <- Vec.remove !min_trust_idx hi_trust_revs
+	  end;
+	  hi_trust_revs <- Vec.insert 0 cur_rev hi_trust_revs
+	end
+      end;
+
+      (* Now reputation.  For reputation, we keep the last revisions above a high-reputation 
+	 threshold. *)
+      let cur_uid = cur_rev#get_user_id in 
+      let cur_rep = self#get_rep cur_uid in 
+      if cur_rep > trust_coeff.hi_rep_list_threshold then begin 
+	(* If the author is already in the list, kicks out the previous revision by that author. *)
+	let has_same_uid (r: rev_t) : bool = (r#get_user_id = cur_uid) in 
+	let n = Vec.length hi_rep_revs in 
+	match Vec.find has_same_uid 0 hi_rep_revs with 
+	  Some (i, r) -> begin
+	    let (out, shorter) = Vec.pop i hi_rep_revs in 
+	    thrown_out := Vec.append out !thrown_out; 
+	    hi_rep_revs <- shorter
+	  end
+	| None -> begin 
+	    if n = trust_coeff.len_hi_rep_revs then begin 
+	      let (out, shorter) = Vec.pop (n - 1) hi_rep_revs in 
+	      thrown_out := Vec.append out !thrown_out; 
+	      hi_rep_revs <- shorter
+	    end
+	  end;
+	hi_rep_revs <- Vec.insert 0 cur_rev hi_rep_revs
+      end; (* not above threshold *)
+
+      (* We remove the signatures of the thrown out revisions, unless they appear 
+	 in some list *)
+      let same_id (r1: rev_t) (r2: rev_t) = (r1#get_id = r2#get_id) in 
+      let test_not_in_list (r: rev_t) = 
+	(Vec.exists (same_id r) hi_rep_revs) || 
+	(Vec.exists (same_id r) hi_trust_revs) || 
+	(Vec.exists (same_id r) revs)
+      in 
+      let not_in_any_list = Vec.filter test_not_in_list !thrown_out in 
+      let delete_sigs_of_rev (r: rev_t) = db#delete_author_sigs r#get_id in 
+      Vec.iter delete_sigs_of_rev not_in_any_list;
+
+      (* Finally, update the page info *)
+      let f (r: rev_t) : int = r#get_id in 
+      page_info.past_hi_rep_revs <- Vec.to_list (Vec.map f hi_rep_revs); 
+      page_info.past_hi_trust_revs <- Vec.to_list (Vec.map f hi_trust_revs)
+
 
     (** This method computes all the revision-to-revision edit lists and distances among the
         revisions.  It assumes that the revision 0 is the newest one, and that it has not been 
@@ -592,15 +752,15 @@ class page
         let new_origin_10_a = Compute_trust.compute_origin origin_a new_chunks_10_a medit_10_l rev0_id in 
         (* Computes the list of deleted chunks with extended information (also age, timestamp), 
            and the information for the live text *)
-        let dead_chunk_l = self#compute_dead_chunk_list 
-	  new_chunks_10_a new_trust_10_a new_sigs_10_a new_origin_10_a del_chunks_list medit_10_l rev1_time rev0_time
-        in 
-	del_chunks_list <- dead_chunk_l; 
+        del_chunks_list <- self#compute_dead_chunk_list new_chunks_10_a new_trust_10_a 
+	  new_sigs_10_a new_origin_10_a del_chunks_list medit_10_l rev1_time rev0_time;
         (* Writes the revision to disk *)
         let buf = Revision.produce_annotated_markup rev0#get_seps new_trust_10_a.(0) new_origin_10_a.(0) true true in 
         db#write_colored_markup rev0_id (Buffer.contents buf);
 	db#write_author_sigs rev0_id new_sigs_10_a.(0); 
-	
+	(* Computes the overall trust of the revision *)
+	let t = self#compute_overall_trust new_trust_10_a.(0) in 
+	rev0#set_overall_trust t
       end (* method compute_trust *)
 
 
@@ -616,11 +776,17 @@ class page
 	in max (-1.) (min 1. qq)
       end in 
  
+      (* This is the total number of revisions *)
       let n_revs = Vec.length revs in 
+      (* This is the total number of recent revisions *)
+      let n_recent_revs = Vec.length recent_revs in 
+
       (* The "triangle" of revisions is formed as follows: rev2 (newest, and judge); rev1 (judged),
 	 revp (reference, immediately preceding rev1), rev0 (reference, before rev1).
-         We do anything only if there are at least 3 revisions in total. *)
-      if n_revs > 2 then begin 
+	 All revisions except rev0 must be in the recent_revs array. *)
+
+      (* We do anything only if there are at least 3 recent revisions in total. *)
+      if n_recent_revs > 2 then begin 
 
         let rev2 = Vec.get 0 revs in 
         let rev2_id    = rev2#get_id in 
@@ -654,7 +820,7 @@ class page
 
 	(* rev1_idx goes to 1 before the last, since we should be able to compare it 
 	   to something *)
-	for rev1_idx = 1 to n_revs - 2 do begin 
+	for rev1_idx = 1 to n_recent_revs - 2 do begin 
           let rev1 = Vec.get rev1_idx revs in 
           let rev1_uid   = rev1#get_user_id in 
 	  (* We work only on non-anonymous rev1; otherwise, there is nothing to be updated. 
@@ -674,7 +840,8 @@ class page
             let d12 = Hashtbl.find edit_dist (rev2_id, rev1_id) in 
 	    let dp1 = Hashtbl.find edit_dist (rev1_id, revp_id) in
 	    let dp2 = Hashtbl.find edit_dist (rev2_id, revp_id) in 
-	    (* We compute the reputation due to a past rev0 *)
+	    (* We compute the reputation due to a past rev0. 
+	       Note that rev0 does not need to be recent. *)
 	    for rev0_idx = rev1_idx + 1 to n_revs - 1 do begin 
 	      (* We need to read here the reputation of the author of rev1, as it may have changed for 
 		 each rev0 considered *)
@@ -695,7 +862,7 @@ class page
 	      let min_qual = min qual_012 qual_p12 in 
 	      (* computes the nixing bit *)
 	      if (not !rev1_nix) && (rev2_time -. rev0_time < trust_coeff.nix_interval) 
-		&& ((qual_012 < trust_coeff.nix_threshold) || (rev0_idx = n_revs - 1)) then begin 
+		&& ((qual_012 < trust_coeff.nix_threshold) || (rev0_idx >= n_recent_revs - 1)) then begin 
 		  rev1_nix := true;
 		  rev1#set_nix_bit;
 		  let s = Printf.sprintf "\nNixed revision id %d\n" rev1_id in 
@@ -769,8 +936,6 @@ class page
 	(* Computes, and writes to disk, the trust of the newest revision *)
 	print_string "   Computing trust...\n"; flush stdout; (* debug *)
 	self#compute_trust;
-	(* Deletes the signatures of the oldest used revision, in order to save space. *)
-	self#delete_oldest_sigs;
       
 	(* Gets the reputation lock *)
 	db#get_rep_lock; 
@@ -785,13 +950,15 @@ class page
 	  db#release_rep_lock; 
 	end;
 
+	(* Inserts the revision in the list of high rep or high trust revisions, 
+	   and deletes old signatures *)
+	self#insert_revision_in_lists;
 	(* Finally, we write back to disk the information of all revisions *)
 	print_string "   Writing the quality information...\n"; flush stdout; (* debug *)
 	let f r = r#write_to_db in 
 	Vec.iter f revs;
 	(* We write also the page information *)
-	(* We will have to fix it to write more information *)
-	db#write_page_info page_id del_chunks_list; 
+	db#write_page_info page_id del_chunks_list page_info; 
 	
 	(* Releases the page lock *)
 	db#release_page_lock page_id; 

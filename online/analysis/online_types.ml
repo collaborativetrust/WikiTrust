@@ -65,6 +65,12 @@ type chunk_t = {
 type trust_coeff_t = {
   (** Number of revision to use for trust computation *)
   mutable n_revs_to_consider : int; 
+  (** Length of list of previous high reputation versions of the page *)
+  mutable len_hi_rep_revs: int; 
+  (** Length of list of previous high trust versions of the page *)
+  mutable len_hi_trust_revs: int; 
+  (** Threshold of reputation for an author to be included in a hi-reputation list *)
+  mutable hi_rep_list_threshold: float;
   (** Max time a chunk can be deleted before it is discarded *)
   mutable max_del_time_chunk : float; 
   (** max n. of revisions for which a chunk can be deleted before being discarded *)
@@ -99,7 +105,6 @@ type trust_coeff_t = {
   (** The high-median of the reputations is used for the white value. 
    We choose it so that 90% of work is done below that value. *)
   mutable hi_median_perc: float;
-
 };;
 
 (* Number of past revisions to consider *)
@@ -107,6 +112,9 @@ let n_past_revs = 12;;
 
 let default_trust_coeff = {
   n_revs_to_consider = n_past_revs;
+  len_hi_trust_revs = 3;
+  len_hi_rep_revs = 3;
+  hi_rep_list_threshold = 6.0;
   max_del_time_chunk = 30. *. 24. *. 3600.; (* 2 months *)
   max_del_revs_chunk = 100;
   lends_rep = 0.4;
@@ -141,6 +149,8 @@ type qual_info_t = {
   mutable delta: float;
   (** Total reputation accrued due to the revision *)
   mutable reputation_gain: float;
+  (** Overall trust of a revision *)
+  mutable overall_trust: float;
 } with sexp
 
 let quality_info_default = {
@@ -150,6 +160,7 @@ let quality_info_default = {
   nix_bit = false;
   delta = 0.0;
   reputation_gain = 0.0;
+  overall_trust = 0.0
 }
 
 (** This is the type of an edit list, annotated *)
@@ -163,3 +174,16 @@ type edit_list_t = {
 } with sexp
 
 type edit_lists_of_rev_t = edit_list_t list with sexp
+
+(** This is the information associated with a page *)
+type page_info_t = { 
+  (** List of revision ids by hi rep authors *)
+  mutable past_hi_rep_revs : int list;
+  (** List of revision ids with high trust *)
+  mutable past_hi_trust_revs : int list; 
+} with sexp 
+
+let page_info_default = { 
+  past_hi_rep_revs = [];
+  past_hi_trust_revs = [];
+}

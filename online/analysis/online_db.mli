@@ -101,17 +101,17 @@ class db :
     (* ================================================================ *)
     (* Page methods. *)
 
-    (** [write_page_info page_id chunk_list] writes, in a table indexed by 
+    (** [write_page_info page_id chunk_list p_info] writes, in a table indexed by 
 	(page id, string list) that the page with id [page_id] is associated 
 	with the "dead" strings of text [chunk1], [chunk2], ..., where
-	[chunk_list = [chunk1, chunk2, ...] ]. 
+	[chunk_list = [chunk1, chunk2, ...] ], and with the page info [p_info]. 
 	The chunk_list contains text that used to be present in the article, but has 
 	been deleted; the database records its existence. *)
-    method write_page_info : int -> Online_types.chunk_t list -> unit
+    method write_page_info : int -> Online_types.chunk_t list -> Online_types.page_info_t -> unit
 
     (** [read_page_info page_id] returns the list of dead chunks associated
-	with the page [page_id]. *)
-    method read_page_info : int -> Online_types.chunk_t list
+	with the page [page_id], along with the page info. *)
+    method read_page_info : int -> (Online_types.chunk_t list) * Online_types.page_info_t
 
     (** [fetch_revs page_id timestamp] returns a cursor that points to all 
 	revisions of page [page_id] with time prior or equal to [timestamp]. *)
@@ -119,6 +119,9 @@ class db :
  
     (* ================================================================ *)
     (* Revision methods. *)
+
+    (** [read_revision rev_id] reads a revision by id, returning the row *)
+    method read_revision : int -> string option array option 
 
     (** [write_revision_info rev_id quality_info elist] writes the wikitrust data 
 	associated with revision with id [rev_id] *)

@@ -90,41 +90,7 @@ class db
    
   object(self)
      
-    (* HERE are all of the prepaired sql statments used below *)
-    val sth_select_edit_list_flat = "SELECT version, edits FROM wikitrust_edit_lists WHERE from_revision = ? AND to_revision  = ?"
-    val sth_insert_edit_list_flat = "INSERT INTO wikitrust_edit_lists (version, edits, from_revision, to_revision) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE version = ?, edits = ?"
 
-    val sth_select_user_rep = "SELECT user_rep FROM wikitrust_user WHERE user_id = ?" 
-    val sth_update_user_rep = "UPDATE wikitrust_user SET user_rep = ? WHERE user_id = ?" 
-    val sth_insert_user_rep = "INSERT INTO wikitrust_user (user_id,  user_rep) VALUES (?, ?)" 
-
-    val sth_delete_markup = "DELETE FROM wikitrust_colored_markup WHERE revision_id = ?"      
-    val sth_insert_markup = "INSERT INTO wikitrust_colored_markup (revision_id, revision_text) VALUES (?, ?)" 
-    val sth_select_markup = "SELECT revision_text FROM wikitrust_colored_markup WHERE revision_id = ?" 
-
-    val sth_select_author_sigs = "SELECT sigs FROM wikitrust_sigs WHERE revision_id = ?"
-    val sth_insert_author_sigs = "INSERT INTO wikitrust_sigs (revision_id, sigs) VALUES (?, ?)"
-    val sth_delete_author_sigs = "DELETE FROM wikitrust_sigs WHERE revision_id = ?"
-
-    val sth_select_dead_chunks = "SELECT deleted_chunks FROM wikitrust_page WHERE page_id = ?"
-    val sth_delete_chunks = "DELETE FROM wikitrust_page WHERE page_id = ?"
-    val sth_insert_dead_chunks = "INSERT INTO wikitrust_page (page_id, deleted_chunks) VALUES (?, ?)"
-
-    val sth_select_revision_info = "SELECT quality_info FROM wikitrust_revision WHERE revision_id = ?"
-    val sth_delete_revision_info = "DELETE FROM wikitrust_revision WHERE revision_id = ?"
-    val sth_insert_revision_info = "INSERT INTO wikitrust_revision (revision_id, quality_info, reputation_delta) VALUES (?, ?, ?, ?)"
-
-    val sth_select_revs = "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision WHERE rev_page = ? AND rev_timestamp <= ? ORDER BY rev_timestamp DESC"
-    val sth_select_rev_timestamp = "SELECT rev_timestamp FROM revision WHERE rev_id = ?"
-    val sth_select_all_revs = "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision ORDER BY rev_timestamp ASC"
-    val sth_select_all_revs_after = "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision WHERE rev_timestamp > ? ORDER BY rev_timestamp ASC"      
-
-    val sth_select_text = "SELECT old_text FROM text WHERE old_id = ?"
-    val sth_select_last_colored_rev = "SELECT A.revision_id, B.rev_page, A.coloredon FROM wikitrust_colored_markup AS A JOIN revision AS B ON (A.revision_id = B.rev_id) ORDER BY coloredon DESC LIMIT 1"
-
-    val sth_update_histogram = "UPDATE wikitrust_global SET median = ?, rep_0 = ?, rep_1 = ?, rep_2 = ?, rep_3 = ?, rep_4 = ?, rep_5 = ?, rep_6 = ?, rep_7 = ?, rep_8 = ?, rep_9 =?"
-    val sth_select_histogram = "SELECT * FROM wikitrust_global"
-      
     (* ================================================================ *)
     (* Locks. *)
 
@@ -153,6 +119,12 @@ class db
 	    
     (* ================================================================ *)
     (* Global methods. *)
+
+    val sth_update_histogram = "UPDATE wikitrust_global SET median = ?, rep_0 = ?, rep_1 = ?, rep_2 = ?, rep_3 = ?, rep_4 = ?, rep_5 = ?, rep_6 = ?, rep_7 = ?, rep_8 = ?, rep_9 =?"
+    val sth_select_histogram = "SELECT * FROM wikitrust_global"
+    val sth_select_last_colored_rev = "SELECT A.revision_id, B.rev_page, A.coloredon FROM wikitrust_colored_markup AS A JOIN revision AS B ON (A.revision_id = B.rev_id) ORDER BY coloredon DESC LIMIT 1"
+    val sth_select_all_revs_after = "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision WHERE rev_timestamp > ? ORDER BY rev_timestamp ASC"      
+    val sth_select_all_revs = "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision ORDER BY rev_timestamp ASC"
 
     (** [get_histogram] Returns a histogram showing the number of users 
 	at each reputation level, and the median. *)
@@ -193,30 +165,37 @@ class db
     (* ================================================================ *)
     (* Page methods. *)
 
+    val sth_select_page_info = "SELECT deleted_chunks, page_info FROM wikitrust_page WHERE page_id = ?"
+    val sth_delete_page_info = "DELETE FROM wikitrust_page WHERE page_id = ?"
+    val sth_insert_page_info = "INSERT INTO wikitrust_page (page_id, deleted_chunks, page_info) VALUES (?, ?, ?)"
+    val sth_select_revs = "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision WHERE rev_page = ? AND rev_timestamp <= ? ORDER BY rev_timestamp DESC"
+
     (** [write_page_info page_id chunk_list] writes, in a table indexed by 
 	(page id, string list) that the page with id [page_id] is associated 
 	with the "dead" strings of text [chunk1], [chunk2], ..., where
 	[chunk_list = [chunk1, chunk2, ...] ]. 
 	The chunk_list contains text that used to be present in the article, but has 
 	been deleted; the database records its existence. *)
-    method write_page_info (page_id : int) (c_list : Online_types.chunk_t list) : unit = 
+    method write_page_info (page_id : int) (c_list : chunk_t list) (p_info: page_info_t) : unit = 
       let chunks_string = ml2str (string_of__of__sexp_of 
           (sexp_of_list sexp_of_chunk_t) c_list) in 
-      ignore (Mysql.exec dbh (format_string sth_delete_chunks
+      let info_string = ml2str (string_of__of__sexp_of sexp_of_page_info_t p_info) in 
+      ignore (Mysql.exec dbh (format_string sth_delete_page_info
         [ml2int page_id]));
-      ignore (Mysql.exec dbh (format_string sth_insert_dead_chunks 
-	[ml2int page_id; chunks_string ])); 
+      ignore (Mysql.exec dbh (format_string sth_insert_page_info
+	[ml2int page_id; chunks_string; info_string ])); 
       if commit_frequently then ignore (Mysql.exec dbh "COMMIT")
 
     (** [read_page_info page_id] returns the list of dead chunks associated
 	with the page [page_id]. *)
-    method read_page_info (page_id : int) : Online_types.chunk_t list =
-      let result = Mysql.exec dbh (format_string sth_select_dead_chunks
+    method read_page_info (page_id : int) : (chunk_t list) * page_info_t =
+      let result = Mysql.exec dbh (format_string sth_select_page_info
           [ml2int page_id ]) in 
       match Mysql.fetch result with 
 	None -> raise DB_Not_Found
-      | Some x -> of_string__of__of_sexp (list_of_sexp chunk_t_of_sexp) 
-                      (not_null str2ml x.(0))
+      | Some x -> (
+	  of_string__of__of_sexp (list_of_sexp chunk_t_of_sexp) (not_null str2ml x.(0)), 
+	  of_string__of__of_sexp page_info_t_of_sexp (not_null str2ml x.(1)))
 
     (** [fetch_revs page_id timestamp] returns a cursor that points to all 
 	revisions of page [page_id] with time prior or equal to [timestamp]. *)
@@ -227,15 +206,32 @@ class db
     (* ================================================================ *)
     (* Revision methods. *)
 
+    val sth_select_revision_info = "SELECT quality_info FROM wikitrust_revision WHERE revision_id = ?"
+    val sth_delete_revision_info = "DELETE FROM wikitrust_revision WHERE revision_id = ?"
+    val sth_insert_revision_info = "INSERT INTO wikitrust_revision (revision_id, quality_info, reputation_delta, overall_trust) VALUES (?, ?, ?, ?)"
+    val sth_delete_markup = "DELETE FROM wikitrust_colored_markup WHERE revision_id = ?"      
+    val sth_insert_markup = "INSERT INTO wikitrust_colored_markup (revision_id, revision_text) VALUES (?, ?)" 
+    val sth_select_markup = "SELECT revision_text FROM wikitrust_colored_markup WHERE revision_id = ?" 
+    val sth_select_author_sigs = "SELECT sigs FROM wikitrust_sigs WHERE revision_id = ?"
+    val sth_insert_author_sigs = "INSERT INTO wikitrust_sigs (revision_id, sigs) VALUES (?, ?)"
+    val sth_delete_author_sigs = "DELETE FROM wikitrust_sigs WHERE revision_id = ?"
+    val sth_select_rev_timestamp = "SELECT rev_timestamp FROM revision WHERE rev_id = ?"
+    val sth_select_text = "SELECT old_text FROM text WHERE old_id = ?"
+    val sth_select_rev_by_id = "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision WHERE rev_id = ?"
+
+    (** [read_revision rev_id] reads a revision by id, returning the row *)
+    method read_revision (rev_id: int) : string option array option =
+      fetch (Mysql.exec dbh (format_string sth_select_rev_by_id [ml2int rev_id]))
+
     (** [write_revision_info rev_id quality_info elist] writes the wikitrust data 
 	associated with revision with id [rev_id] *)
     method write_revision_info (rev_id: int) (quality_info: qual_info_t) : unit = 
-      let rep_delta = quality_info.reputation_gain in 
       ignore (Mysql.exec dbh (format_string sth_delete_revision_info [ml2int rev_id]));
       ignore (Mysql.exec dbh (format_string sth_insert_revision_info [
 	ml2int rev_id;
 	ml2str (string_of__of__sexp_of sexp_of_qual_info_t quality_info); 
-	ml2float rep_delta;
+	ml2float quality_info.reputation_gain; 
+	ml2float quality_info.overall_trust
       ]))
 
     (** [read_revision_info rev_id] reads the wikitrust information of revision_id *)
@@ -324,6 +320,10 @@ class db
 
     (* ================================================================ *)
     (* User methods. *)
+
+    val sth_select_user_rep = "SELECT user_rep FROM wikitrust_user WHERE user_id = ?" 
+    val sth_update_user_rep = "UPDATE wikitrust_user SET user_rep = ? WHERE user_id = ?" 
+    val sth_insert_user_rep = "INSERT INTO wikitrust_user (user_id,  user_rep) VALUES (?, ?)" 
 
     (** [set_rep uid r] sets, in the table relating user ids to reputations, 
 	  the reputation of user [uid] to be equal to [r]. *)
