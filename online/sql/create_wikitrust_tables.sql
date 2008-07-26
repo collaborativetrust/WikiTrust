@@ -21,7 +21,8 @@ INSERT INTO wikitrust_global VALUES (0,0,0,0,0,0,0,0,0,0,0);
 
 CREATE TABLE wikitrust_page (
        page_id             int PRIMARY KEY,
-       deleted_chunks      longtext
+       deleted_chunks      longtext,
+       page_info	   text NOT NULL
 );
 GRANT ALL ON wikitrust_page TO wikiuser;
 
@@ -29,7 +30,7 @@ CREATE TABLE wikitrust_revision (
         revision_id             int PRIMARY KEY,
         quality_info		text NOT NULL, 
 	reputation_delta        float DEFAULT 0.0,
-	edit_lists		longtext
+	overall_trust           float DEFAULT 0.0
 );
 GRANT ALL ON wikitrust_revision TO wikiuser;
 
