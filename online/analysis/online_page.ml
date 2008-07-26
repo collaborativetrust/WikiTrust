@@ -292,10 +292,11 @@ class page
 	tot +. (norm_tr *. norm_tr)
       in 
       let tot_sq_tr = Array.fold_left f 0. trust_a in 
-      let n = float_of_int (Array.length trust_a) in 
+      let m = Array.length trust_a in 
+      let n = float_of_int m in 
       (* The overall trust is the total of the square trust, multiplied by the 
 	 average of the square trust. *)
-      tot_sq_tr *. tot_sq_tr /. n 
+      if m = 0 then 0. else tot_sq_tr *. tot_sq_tr /. n 
 
     (** This method reads and validates a list of author signatures, checking that 
 	the length is proper, and resetting the list otherwise. *)
