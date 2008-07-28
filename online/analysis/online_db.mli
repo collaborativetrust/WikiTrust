@@ -46,16 +46,6 @@ exception DB_Not_Found;;
     with them now *)
 type timestamp_t
 
-(** Analysis tools here. *)
-val rep_levels : (float * float) list
-val rep_change : ((float * float), float) Hashtbl.t 
-
-val update_rep_change : float -> (float * float) list -> 
-   ((float * float), float) Hashtbl.t -> unit
-
-val print_rep_changes : (float * float) list -> 
-   ((float * float), float) Hashtbl.t -> unit
-
 class db : 
   string (* user *) -> 
   string (* auth *) ->

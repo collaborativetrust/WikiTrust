@@ -53,7 +53,7 @@ exception DB_Not_Found
 (* Timestamp in the DB *)
 type timestamp_t = int * int * int * int * int * int
 
-let debug_mode = false;;
+let debug_mode = true;;
 
 (* This is the function that sexplib uses to convert floats *)
 Sexplib.Conv.default_string_of_float := (fun n -> sprintf "%.4G" n);;
@@ -72,30 +72,10 @@ let rec format_string (str : string) (vals : string list) : string =
       | (false, newstr) -> newstr)                                                      
 ;;
 
-(* This function is used to translate a trust value into a sexp. 
-   We use this special function, as otherwise the classical function generates far too large trust values. *)
-let sexp_of_trust t = sexp_of_string (Printf.sprintf "%.2f" t);;
-
 let db_exec dbh s = 
   if debug_mode then print_endline s;
   Mysql.exec dbh s
 
-let max_rep = 100000000.;;
-let min_rep = 0.;;
-let rep_levels = [(min_rep,0.1);(0.1,1.);(1.,100.);(100.,max_rep)];;
-let rep_change = Hashtbl.create 3;;
-let rec update_rep_change r level rc = match level with
-  | (low,high)::tl -> if (r >= low && r < high) then try (Hashtbl.replace rc (high,low)
-						       ((Hashtbl.find rc (high, low)) +. r)) with
-	Not_found -> Hashtbl.add rc (high,low) r else update_rep_change r tl rc
-  | _ -> print_endline (string_of_float r); assert false 
-
-let rec print_rep_changes level rc = match level with
-  | (low,high)::tl -> print_endline ((string_of_float low) ^ " - " ^ (string_of_float high) ^ ": "
-				    ^ (string_of_float (try Hashtbl.find rc (high,low) with
-							  Not_found -> 0.0)));
-      print_rep_changes tl rc
-  | [] -> ()
 
 (** This class provides a handle for accessing the database in the on-line 
     implementation. *)
@@ -113,6 +93,7 @@ class db
   let dbh = (Mysql.connect db_param) in
    
   object(self)
+     
 
     (* ================================================================ *)
     (* Locks. *)
@@ -159,13 +140,7 @@ class db
     (** [set_histogram hist hival] writes to the db that the histogram is [hist], and the 
 	chosen median is [hival].  *)
     method set_histogram (hist : float array) (hival: float) : unit = 
-      let s = Printf.sprintf  "UPDATE wikitrust_global SET median = %s, 
-        rep_0 = %s, rep_1 = %s, rep_2 = %s, rep_3 = %s, rep_4 = %s, rep_5 = %s, 
-        rep_6 = %s, rep_7 = %s, rep_8 = %s, rep_9 =%s" (ml2float hival) 
-	(ml2float hist.(0)) (ml2float hist.(1)) (ml2float hist.(2)) (ml2float hist.(3))
-	(ml2float hist.(4)) (ml2float hist.(5)) (ml2float hist.(6)) (ml2float hist.(7)) 
-        (ml2float hist.(8)) (ml2float hist.(9)) in 
-	
+      let s = Printf.sprintf  "UPDATE wikitrust_global SET median = %s, rep_0 = %s, rep_1 = %s, rep_2 = %s, rep_3 = %s, rep_4 = %s, rep_5 = %s, rep_6 = %s, rep_7 = %s, rep_8 = %s, rep_9 =%s" (ml2float hival) (ml2float hist.(0)) (ml2float hist.(1)) (ml2float hist.(2)) (ml2float hist.(3)) (ml2float hist.(4)) (ml2float hist.(5)) (ml2float hist.(6)) (ml2float hist.(7)) (ml2float hist.(8)) (ml2float hist.(9)) in 
 	ignore (db_exec dbh s);
 	if commit_frequently then ignore (db_exec dbh "COMMIT")      
 
@@ -180,9 +155,7 @@ class db
     (** [sth_select_all_revs_after (int * int * int * int * int * int)] returns all 
         revs created after the given timestamp. *)
     method fetch_all_revs_after (timestamp : timestamp_t) : Mysql.result =  
-      let s = Printf. sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, 
-        rev_user_text, rev_minor_edit, rev_comment FROM revision WHERE rev_timestamp > %s ORDER BY 
-        rev_timestamp ASC" (ml2timestamp timestamp) in  
+      let s = Printf. sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision WHERE rev_timestamp > %s ORDER BY rev_timestamp ASC" (ml2timestamp timestamp) in  
       db_exec dbh s
 
     (** [fetch_all_revs] returns a cursor that points to all revisions in the database, 
@@ -272,32 +245,6 @@ class db
         | None -> raise DB_Not_Found
         | Some y -> not_null str2ml y.(0)
 
-    (** [get_rep uid] gets the reputation of user [uid], from a table 
-	      relating user ids to their reputation 
-        @raise DB_Not_Found if no tuple is returned by the database.
-    *)
-    method get_rep (uid : int) : float =
-      let result = Mysql.exec dbh (format_string sth_select_user_rep [ml2int uid]) in
-      match Mysql.fetch result with 
-        | None -> raise DB_Not_Found
-        | Some x -> not_null float2ml x.(0)
-      
-
-    (** [set_rep uid r] sets, in the table relating user ids to reputations, 
-	  the reputation of user [uid] to be equal to [r]. *)
-    method set_rep (uid : int) (rep : float) =
-      update_rep_change rep rep_levels rep_change;
-      (* first check to see if there exists the user already *)
-      try
-        ignore (self#get_rep uid ) ;
-        ignore (Mysql.exec dbh (format_string sth_update_user_rep 
-            [ml2float rep; ml2int uid ])); 
-      with
-        DB_Not_Found -> 
-          ignore (Mysql.exec dbh (format_string sth_insert_user_rep 
-              [ml2int uid; ml2float rep ]));  
-      if commit_frequently then ignore (Mysql.exec dbh "COMMIT")
-  
     (** [write_colored_markup rev_id markup] writes, in a table with columns by 
 	(revision id, string), that the string [markup] is associated with the 
 	revision with id [rev_id]. 
@@ -404,6 +351,9 @@ class db
             ignore (db_exec dbh "TRUNCATE TABLE wikitrust_revision" );
             ignore (db_exec dbh "TRUNCATE TABLE wikitrust_colored_markup" );
             ignore (db_exec dbh "TRUNCATE TABLE wikitrust_sigs" );
-            ignore (db_exec dbh "TRUNCATE TABLE wikitrust_user" )
-	  ) 
-      
+            ignore (db_exec dbh "TRUNCATE TABLE wikitrust_user" ); 
+            ignore (db_exec dbh "COMMIT"))
+        | false -> ignore (db_exec dbh "COMMIT")
+
+  end;; (* online_db *)
+
