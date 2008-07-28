@@ -75,7 +75,7 @@ $wgExtensionFunctions[] = 'ucscColorTrust_Setup';
 $wgHooks['LanguageGetMagic'][] = 'ucscColorTrust_Magic';
 
 # And add a hook so the colored text is found. 
-$wgHooks['ParserAfterStrip'][] = 'ucscSeeIfColored';
+$wgHooks['ParserBeforeStrip'][] = 'ucscSeeIfColored';
 
 # And add and extra tab.
 $wgHooks['SkinTemplateTabs'][] = 'ucscTrustTemplate';
@@ -134,14 +134,22 @@ function ucscTrustTemplate($skin, &$content_actions) {
  */
 function ucscSeeIfColored(&$parser, &$text, &$strip_state) { 
   global $EVAL_MEDIAN_REP_FILE;
+  global $wgParserCacheType;
+  // disable the parser cache for this transaction.
+  // Hacked up from code found in the ParserCacheControl extension
+  // http://www.bluecortex.com
+  $wgParserCacheType = CACHE_NONE;
+  $apc =& wfGetParserCacheStorage();
+  
+  $pc = & ParserCache::singleton();
+  $pc->mMemc = $apc;
 
-  // Needed to defeat agressive caching.
-  $text = "<!--" . time() . "-->" . $text;
-
+  // If we don't want colored text, return true immediatly.
   if(!isset($_GET['trust'])){
     return true;
   }
   
+  // Otherwise, see if there is colored text in the db.
   $dbr =& wfGetDB( DB_SLAVE );
   $rev_id = $parser->mRevisionId;
   
@@ -151,8 +159,8 @@ function ucscSeeIfColored(&$parser, &$text, &$strip_state) {
     $row = $dbr->fetchRow($res);
     $colored_text = $row['revision_text'];
     if ($colored_text){
-      $text = "<!--" . time() . "-->" . $colored_text;
-    } 
+      $text = $colored_text;
+    }
   } 
   
   $dbr->freeResult( $res );
