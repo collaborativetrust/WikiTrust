@@ -404,5 +404,6 @@ class db
             ignore (db_exec dbh "TRUNCATE TABLE wikitrust_revision" );
             ignore (db_exec dbh "TRUNCATE TABLE wikitrust_colored_markup" );
             ignore (db_exec dbh "TRUNCATE TABLE wikitrust_sigs" );
-            ignore (db_exec dbh "TRUNCATE TABLE wikitrust_user" ); 
+            ignore (db_exec dbh "TRUNCATE TABLE wikitrust_user" )
+	  ) 
       
