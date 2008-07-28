@@ -124,8 +124,7 @@ class db
     (* ================================================================ *)
     (* Global methods. *)
 
-    val sth_update_histogram = "UPDATE wikitrust_global SET median = ?, rep_0 = ?, rep_1 = ?, rep_2 = ?, rep_3 = ?, rep_4 = ?, rep_5 = ?, rep_6 = ?, rep_7 = ?, rep_8 = ?, rep_9 =?"
-
+    
     (** [get_histogram] Returns a histogram showing the number of users 
 	at each reputation level, and the median. *)
     method get_histogram : float array * float =
@@ -141,9 +140,8 @@ class db
     (** [set_histogram hist hival] writes to the db that the histogram is [hist], and the 
 	chosen median is [hival].  *)
     method set_histogram (hist : float array) (hival: float) : unit = 
-      let sql = format_string sth_update_histogram 
-		   ((ml2float hival) :: Array.to_list (Array.map ml2float hist)) in
-	ignore (db_exec dbh sql);
+      let s = Printf.sprintf  "UPDATE wikitrust_global SET median = %s, rep_0 = %s, rep_1 = %s, rep_2 = %s, rep_3 = %s, rep_4 = %s, rep_5 = %s, rep_6 = %s, rep_7 = %s, rep_8 = %s, rep_9 =%s" (ml2float hival) (ml2float hist.(0)) (ml2float hist.(1)) (ml2float hist.(2)) (ml2float hist.(3)) (ml2float hist.(4)) (ml2float hist.(5)) (ml2float hist.(6)) (ml2float hist.(7)) (ml2float hist.(8)) (ml2float hist.(9)) in 
+	ignore (db_exec dbh s);
 	if commit_frequently then ignore (db_exec dbh "COMMIT")      
 
     (** Returns the last colored revision, if any *)
