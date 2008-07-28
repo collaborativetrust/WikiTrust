@@ -62,10 +62,32 @@ class db :
   string (* database name *) -> 
 
   object
-   
-    (** Tells the DB to commit any open transactaions. *)
-    method commit : bool 
-  
+
+    (* ================================================================ *)
+    (* Locks. *)
+
+    (** [get_page_lock page_id] gets a lock for page [page_id], to guarantee 
+	mutual exclusion on the updates for page [page_id]. *)
+    method get_page_lock : int -> unit
+
+    (** [release_page_lock page_id] releases the lock for page [page_id], to guarantee 
+	mutual exclusion on the updates for page [page_id]. *)
+    method release_page_lock : int -> unit
+
+    (** [get_rep_lock] gets a lock for the global table of user reputations, to guarantee 
+	serializability of the updates. *)
+    method get_rep_lock : unit
+
+    (** [release_rep_lock] releases a lock for the global table of user reputations, to guarantee 
+	serializability of the updates. *)
+    method release_rep_lock : unit
+
+    (** Commit of transaction *)
+    method commit : bool
+
+    (* ================================================================ *)
+    (* Global methods. *)
+
     (** [get_histogram] Returns a histogram showing the number of users 
 	at each reputation level, and the median. *)
     method get_histogram : float array * float
@@ -86,23 +108,43 @@ class db :
 	revisions of the database, in ascending temporal order. *)
     method fetch_all_revs : Mysql.result
 
+    (* ================================================================ *)
+    (* Page methods. *)
+
+    (** [write_page_info page_id chunk_list p_info] writes, in a table indexed by 
+	(page id, string list) that the page with id [page_id] is associated 
+	with the "dead" strings of text [chunk1], [chunk2], ..., where
+	[chunk_list = [chunk1, chunk2, ...] ], and with the page info [p_info]. 
+	The chunk_list contains text that used to be present in the article, but has 
+	been deleted; the database records its existence. *)
+    method write_page_info : int -> Online_types.chunk_t list -> Online_types.page_info_t -> unit
+
+    (** [read_page_info page_id] returns the list of dead chunks associated
+	with the page [page_id], along with the page info. *)
+    method read_page_info : int -> (Online_types.chunk_t list) * Online_types.page_info_t
+
     (** [fetch_revs page_id timestamp] returns a cursor that points to all 
 	revisions of page [page_id] with time prior or equal to [timestamp]. *)
     method fetch_revs : int -> timestamp_t -> Mysql.result
  
-   (** [fetch_rev_timestamp rev_id] returns the timestamp of revision [rev_id] *)
+    (* ================================================================ *)
+    (* Revision methods. *)
+
+    (** [read_revision rev_id] reads a revision by id, returning the row *)
+    method read_revision : int -> string option array option 
+
+    (** [write_revision_info rev_id quality_info elist] writes the wikitrust data 
+	associated with revision with id [rev_id] *)
+    method write_revision_info : int -> qual_info_t -> unit
+
+    (** [read_revision_info rev_id] reads the wikitrust information of revision_id *)
+    method read_revision_info : int -> qual_info_t
+
+    (** [fetch_rev_timestamp rev_id] returns the timestamp of revision [rev_id] *)
     method fetch_rev_timestamp : int -> timestamp_t
 
     (** [get_rev_text text_id] returns the text associated with text id [text_id] *)
     method read_rev_text : int -> string 
-
-    (** [get_rep uid] gets the reputation of user [uid], from a table 
-	relating user ids to their reputation *)
-    method get_rep : int -> float
-
-    (** [set_rep uid r] sets, in the table relating user ids to reputations, 
-	the reputation of user [uid] to be equal to [r]. *)
-    method set_rep : int -> float -> unit
 
     (** [write_colored_markup rev_id markup] writes, in a table with columns by 
 	(revision id, string), that the string [markup] is associated with the 
@@ -127,7 +169,7 @@ class db :
 
     (** [read_author_sigs rev_id] reads the author signatures for the revision 
 	[rev_id]. 
-	TODO: Note that we can keep the signatures separate from the text 
+	Note that we can keep the signatures separate from the text 
 	because it is not a bit deal if we occasionally mis-align text and 
 	signatures when we change the parsing algorithm: all that can happen 
 	is that occasinally an author can give trust twice to the same piece of text. 
@@ -136,46 +178,22 @@ class db :
         *)
     method read_author_sigs : int -> Author_sig.packed_author_signature_t array
 
-   (** [delete_author_sigs rev_id] removes from the db the author signatures for [rev_id]. *)
+    (** [delete_author_sigs rev_id] removes from the db the author signatures for [rev_id]. *)
     method delete_author_sigs : int -> unit
 
-    (** [write_page_info page_id chunk_list] writes, in a table indexed by 
-	(page id, string list) that the page with id [page_id] is associated 
-	with the "dead" strings of text [chunk1], [chunk2], ..., where
-	[chunk_list = [chunk1, chunk2, ...] ]. 
-	The chunk_list contains text that used to be present in the article, but has 
-	been deleted; the database records its existence. *)
-    method write_page_info : int -> Online_types.chunk_t list -> unit
+    (* ================================================================ *)
+    (* User methods. *)
 
-    (** [read_page_info page_id] returns the list of dead chunks associated
-	with the page [page_id]. *)
-    method read_page_info : int -> Online_types.chunk_t list
+    (** [set_rep uid r] sets, in the table relating user ids to reputations, 
+	the reputation of user [uid] to be equal to [r]. *)
+    method set_rep : int -> float -> unit
 
-    (** [read_revision_info rev_id] reads the wikitrust information of revision_id *)
-    method read_revision_info : int -> qual_info_t * edit_lists_of_rev_t
+    (** [get_rep uid] gets the reputation of user [uid], from a table 
+	relating user ids to their reputation *)
+    method get_rep : int -> float
 
-    (** [write_revision_info rev_id quality_info elist] writes the wikitrust data 
-	associated with revision with id [rev_id] *)
-    method write_revision_info : int -> qual_info_t -> edit_lists_of_rev_t -> unit
-
-    (** [get_page_lock page_id] gets a lock for page [page_id], to guarantee 
-	mutual exclusion on the updates for page [page_id]. *)
-    method get_page_lock : int -> unit
-
-    (** [release_page_lock page_id] releases the lock for page [page_id], to guarantee 
-	mutual exclusion on the updates for page [page_id]. *)
-    method release_page_lock : int -> unit
-
-    (** [get_rep_lock] gets a lock for the global table of user reputations, to guarantee 
-	serializability of the updates. *)
-    method get_rep_lock : unit
-
-    (** [release_rep_lock] releases a lock for the global table of user reputations, to guarantee 
-	serializability of the updates. *)
-    method release_rep_lock : unit
-
-    (** Commit of transaction *)
-    method commit : bool
+    (* ================================================================ *)
+    (* Debugging. *)
 
     (** Totally clear out the db structure -- THIS IS INTENDED ONLY FOR UNIT
     TESTING *)
