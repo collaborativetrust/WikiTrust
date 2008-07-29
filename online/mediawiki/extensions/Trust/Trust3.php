@@ -177,7 +177,7 @@ function ucscSeeIfColored(&$parser, &$text, &$strip_state) {
   } 
   
   $dbr->freeResult( $res );
-  /*
+  
   // Now also update the median reputation info.
   $res = $dbr->select('wikitrust_histogram', 'median', array(), array());
   if ($res){
@@ -189,7 +189,7 @@ function ucscSeeIfColored(&$parser, &$text, &$strip_state) {
   } 
   
   $dbr->freeResult( $res );
-  */
+  
   return true;
 }
 
