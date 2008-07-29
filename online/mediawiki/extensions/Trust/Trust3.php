@@ -147,6 +147,17 @@ function ucscSeeIfColored(&$parser, &$text, &$strip_state) {
   // If we don't want colored text, return true immediatly.
   if(!isset($_GET['trust'])){
     return true;
+  } 
+
+  /* This is being called multiple times for each page. The upshot of
+   this is that the first time is good, and after that the footer is
+   gettting messed up. This is desinged in an EXTREMELY hacky manor
+   to avoid this. */
+
+  $pos1 = strpos($text, "{{SITENAME}}");    
+  $pos2 = strpos($text, "{{PLURAL");
+  if($pos1 !== false || $pos2 !== false){
+    return true;
   }
   
   // Otherwise, see if there is colored text in the db.
@@ -160,11 +171,13 @@ function ucscSeeIfColored(&$parser, &$text, &$strip_state) {
     $colored_text = $row['revision_text'];
     if ($colored_text){
       $text = $colored_text;
+      //$text = "ddd <br />" . $text;
+      // print_r($text);
     }
   } 
   
   $dbr->freeResult( $res );
-
+  /*
   // Now also update the median reputation info.
   $res = $dbr->select('wikitrust_histogram', 'median', array(), array());
   if ($res){
@@ -176,7 +189,7 @@ function ucscSeeIfColored(&$parser, &$text, &$strip_state) {
   } 
   
   $dbr->freeResult( $res );
-
+  */
   return true;
 }
 
