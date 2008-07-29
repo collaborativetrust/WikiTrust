@@ -826,15 +826,11 @@ class page
 	  end else rev2_weight in 
 
 	Printf.printf "Uid: %d Weight: %f Normalized: %f \n" rev2_uid rev2_weight renorm_w; 	(* debug *)
-
+	
 	  (* We compute the reputation scaling dynamically taking care of the size of the recent_revision list and 
 	     the union of the recent revision list, hig reputation list and high trust list *)
-	  let dynamic_rep_scaling = 1. /. (73.24 *. ( ((float_of_int n_revs -. 1.) *. 
-							 (float_of_int n_recent_revs -. 1.)/. ((11.) ** 2.)))) in
+	let dynamic_rep_scaling_factor = trust_coeff.dynamic_rep_scaling n_revs n_recent_revs in
 
-	(* rev1_idx goes to 1 before the last, since we should be able to compare it 
-	   to something *)
-	  
 	for rev1_idx = 1 to n_recent_revs - 2 do begin 
           let rev1 = Vec.get rev1_idx revs in 
           let rev1_uid   = rev1#get_user_id in 
@@ -885,7 +881,7 @@ class page
 		end;
 	      (* Computes inc_local_global (see paper) *)
 		
-	      let inc_local_global = dynamic_rep_scaling *. delta *. min_qual *. renorm_w in
+	      let inc_local_global = dynamic_rep_scaling_factor *. delta *. min_qual *. renorm_w in
 	      (* Applies it according to algorithm LOCAL-GLOBAL *)
 	      let new_rep = 
 		if (!rev1_nix || rev2_time -. rev0_time < trust_coeff.nix_interval) 

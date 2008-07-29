@@ -94,6 +94,8 @@ type trust_coeff_t = {
   mutable local_decay: float; 
   (** scaling for reputation increments *)
   mutable rep_scaling: float; 
+  (** a function which returns a value based on how mature the page is. *)
+  mutable dynamic_rep_scaling: int -> int -> float;
   (** maximum reputation *)
   mutable max_rep: float;
   (** Whether to equate anonymous users, regardless of their IP. *)
@@ -109,6 +111,11 @@ type trust_coeff_t = {
 
 (* Number of past revisions to consider *)
 let n_past_revs = 6;;
+
+(* We compute the reputation scaling dynamically taking care of the size of the recent_revision list and 
+   the union of the recent revision list, hig reputation list and high trust list *)
+let default_dynamic_rep_scaling n_revs n_recent_revs = 
+  1. /. (73.24 *. ( ( (float_of_int ( (n_revs - 1) * (n_recent_revs - 1) )) /. ( 11. ** 2.) ) ));;
 
 let default_trust_coeff = {
   n_revs_to_consider = n_past_revs;
@@ -126,6 +133,7 @@ let default_trust_coeff = {
   (* The reputation scaling is 73.24 when we use n_revs_to_consider = 12, 
      and varies quadratically with n_revs_to_consider - 1. *)
   rep_scaling = 1. /. (73.24 *. ( ((float_of_int n_past_revs) -. 1.) /. 11.) ** 2.);
+  dynamic_rep_scaling = default_dynamic_rep_scaling;
   max_rep = 22026.465795 -. 2.0;
   equate_anons = false;
   nix_interval = 24. *. 3600.;
