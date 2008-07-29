@@ -146,7 +146,8 @@ class db
 
     (** Returns the last colored revision, if any *)
     method fetch_last_colored_rev : (int * int * timestamp_t) = 
-    let s =  Printf.sprintf "SELECT A.revision_id, B.rev_page, A.coloredon FROM wikitrust_colored_markup AS A JOIN revision AS B ON (A.revision_id = B.rev_id) ORDER BY coloredon DESC LIMIT 1" in
+    let s = "SELECT A.revision_id, B.rev_page, DATE_FORMAT(A.coloredon, '%Y%m%d%k%i%s') 
+FROM wikitrust_colored_markup AS A JOIN revision AS B ON (A.revision_id = B.rev_id) ORDER BY coloredon DESC LIMIT 1" in
       match fetch (db_exec dbh s) with
         | None -> raise DB_Not_Found
         | Some row -> (not_null int2ml row.(0), not_null int2ml row.(1), 
@@ -231,7 +232,7 @@ class db
 
    (** [fetch_rev_timestamp rev_id] returns the timestamp of revision [rev_id] *)
     method fetch_rev_timestamp (rev_id: int) : timestamp_t = 
-      let s = Printf.sprintf  "SELECT rev_timestamp FROM revision WHERE rev_id = %s" (ml2int rev_id) in 
+      let s = Printf.sprintf "SELECT rev_timestamp FROM revision WHERE rev_id = %s" (ml2int rev_id) in 
       let result = db_exec dbh s in 
       match fetch result with 
 	None -> raise DB_Not_Found

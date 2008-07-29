@@ -83,8 +83,9 @@ let rec evaluate_revision (db: Online_db.db) (page_id: int) (rev_id: int) : unit
 (* Does all the work of processing the given page and revision *)
 let db = new Online_db.db !db_user !db_pass !db_name in
 
+  
 (* debug *) (* Erases old coloring -- remove this line for production version! *)
-if !delete_all then db#delete_all true;
+if !delete_all then db#delete_all true; 
 
 (* Loops over all revisions, in chronological order, since the last colored one. *)
 let revs = 
@@ -104,5 +105,4 @@ while !domore do begin
       evaluate_revision db page_id rev_id
     end
 end done;
-
 
