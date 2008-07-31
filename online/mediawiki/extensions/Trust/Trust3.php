@@ -28,10 +28,10 @@ $TRUST_CSS_TAG = "background-color"; ## color the background
 #$TRUST_CSS_TAG = "color"; ## color just the text
 
 ## Path to eval_online_wiki
-$EVAL_ONLINE_WIKI = "/home/ipye/git/wikitrust/online/analysis/eval_online_wiki ";
+$EVAL_ONLINE_WIKI = "/home/ipye/git/wikitrust/online/analysis/eval_online_wiki";
 
 ## Hard coded coloring arguments
-$EVAL_ONLINE_WIKI_ARGS = '-db_user wikiuser -db_pass wikiword -db_name wikidb1 -log_name /tmp/color.log';
+$EVAL_ONLINE_WIKI_ARGS = '-db_user wikiuser -db_pass wikiword -db_name wikidb1 -log_name /tmp/color-on-edit.log';
 
 ## We only want to run one coloring process at a time
 $EVAL_ONLINE_LOCK_FILE = "/tmp/mw_coloring.lock";
@@ -39,10 +39,19 @@ $EVAL_ONLINE_LOCK_FILE = "/tmp/mw_coloring.lock";
 ## Median file cache lives here
 $EVAL_MEDIAN_REP_FILE = "/tmp/mw_median_rep";
 
+## Log file for the coloring process
+$EVAL_ONLINE_LOG_FILE = "/tmp/coloring.log";
+
 ## Trust normalization values;
 $MAX_TRUST_VALUE = 9;
 $MIN_TRUST_VALUE = 0;
 $TRUST_MULTIPLIER = 10;
+
+## Poll the median value this often
+$MW_RAND_MIN = 0;
+$MW_RAND_MAX = 100;
+$MW_POLL_UNDER = 10;
+
 
 ## map trust values to html color codes
 $COLORS = array(
@@ -83,23 +92,62 @@ $wgHooks['SkinTemplateTabs'][] = 'ucscTrustTemplate';
 # Color saved text
 $wgHooks['ArticleSaveComplete'][] = 'ucscRunColoring';
 
-# Code to fork and exec a new process to color any new revisions
+/**
+ Updated the cached median reputation value.
+ */
+function update_median($median_file){
+  $dbr =& wfGetDB( DB_SLAVE );
+  $res = $dbr->select('wikitrust_histogram', 'median', array(), array());
+  if ($res){
+    $row = $dbr->fetchRow($res);
+    $median = $row['median'];
+    if ($median){
+      file_put_contents($median_file, $median);
+    } 
+  } 
+  $dbr->freeResult( $res );
+  return $median;
+}
+
+/* 
+ Code to fork and exec a new process to color any new revisions.
+ Called after any edits are made.
+
+ This assums that the php process has write access to /tmp.
+*/
 function ucscRunColoring(&$article, &$user, &$text, &$summary, $minor, $watch, $sectionanchor, &$flags, $revision) { 
   global $EVAL_ONLINE_WIKI;
   global $EVAL_ONLINE_WIKI_ARGS;
   global $EVAL_ONLINE_LOCK_FILE;
+  global $EVAL_ONLINE_LOG_FILE;
+  global $MW_RAND_MIN;
+  global $MW_RAND_MAX;
+  global $MW_POLL_UNDER;
 
+  $pid = -1;
+
+  // Update the cached median reputation info value, but only sometimes.
+  if (rand($MW_RAND_MIN, $MW_RAND_MAX) < $MW_POLL_UNDER){
+    update_median($EVAL_MEDIAN_REP_FILE);
+  }
+  
   // We don't want more than one copy of the coloring going at any one time.
   if (file_exists($EVAL_ONLINE_LOCK_FILE)){
-    return true;
-  }  
+    $pid = file_get_contents($EVAL_ONLINE_LOCK_FILE);
+    exec("ps $pid", $pState); // Is the process still running?
+    if ((count($pState) >= 2)){
+      return true;
+    }
+  } 
 
-  file_put_contents($EVAL_ONLINE_LOCK_FILE, $EVAL_ONLINE_WIKI . $EVAL_ONLINE_WIKI_ARGS . " " . $revision->getID());
+  // Start the coloring since no other coloring processes are going.
+  $pid = shell_exec("nohup $EVAL_ONLINE_WIKI $EVAL_ONLINE_WIKI_ARGS >> $EVAL_ONLINE_LOG_FILE 2>&1 & echo $!");
+
+  // And mark that we started this process.
+  file_put_contents($pid);
   
-  if($handle = popen($EVAL_ONLINE_WIKI . $EVAL_ONLINE_WIKI_ARGS, "r")){
-    // pclose($handle);
+  if($pid)
     return true;
-  }
   return false;
 }
 
@@ -153,7 +201,6 @@ function ucscSeeIfColored(&$parser, &$text, &$strip_state) {
    this is that the first time is good, and after that the footer is
    gettting messed up. This is desinged in an EXTREMELY hacky manor
    to avoid this. */
-
   $pos1 = strpos($text, "{{SITENAME}}");    
   $pos2 = strpos($text, "{{PLURAL");
   if($pos1 !== false || $pos2 !== false){
@@ -171,25 +218,10 @@ function ucscSeeIfColored(&$parser, &$text, &$strip_state) {
     $colored_text = $row['revision_text'];
     if ($colored_text){
       $text = $colored_text;
-      //$text = "ddd <br />" . $text;
-      // print_r($text);
     }
   } 
   
   $dbr->freeResult( $res );
-  
-  // Now also update the median reputation info.
-  $res = $dbr->select('wikitrust_histogram', 'median', array(), array());
-  if ($res){
-    $row = $dbr->fetchRow($res);
-    $median = $row['median'];
-    if ($median){
-      file_put_contents($EVAL_MEDIAN_REP_FILE, $median);
-    } 
-  } 
-  
-  $dbr->freeResult( $res );
-  
   return true;
 }
 
@@ -237,7 +269,12 @@ function computeColorFromFloat($trust){
   global $MIN_TRUST_VALUE;
   global $TRUST_MULTIPLIER;
   
-  $median = floatval(file_get_contents($EVAL_MEDIAN_REP_FILE));
+  $median = 0.0;
+  if( file_exists($EVAL_MEDIAN_REP_FILE)){
+    $median = floatval(file_get_contents($EVAL_MEDIAN_REP_FILE));
+  } else {
+    $median = update_median($EVAL_MEDIAN_REP_FILE);
+  }
   $normalized_value = min($MAX_TRUST_VALUE, max($MIN_TRUST_VALUE, 
 						($trust * $TRUST_MULTIPLIER) 
 						/ $median));
