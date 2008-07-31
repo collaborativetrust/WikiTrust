@@ -606,6 +606,8 @@ class page
       let rev0_time = rev0#get_time in 
       let rev0_l = Array.length rev0_t in 
       let rev0_seps = rev0#get_seps in 
+      let rev0_timestr = rev0#get_time_string in
+
       (* Gets the author reputation from the db. 
          As we are not holding the reputation lock at this point, we do not use
          the internal method to get the reputation. *)
@@ -636,7 +638,7 @@ class page
            with trust and origin information *)
         let chunk_0 = Revision.produce_annotated_markup rev0_seps chunk_0_trust chunk_0_origin true true in 
         (* And writes it out to the db *)
-        db#write_colored_markup rev0_id (Buffer.contents chunk_0); 
+        db#write_colored_markup rev0_id (Buffer.contents chunk_0) rev0_timestr; 
 	db#write_author_sigs rev0_id chunk_0_sigs; 
 
       end else begin 
@@ -765,7 +767,7 @@ class page
 	  new_sigs_10_a new_origin_10_a del_chunks_list medit_10_l rev1_time rev0_time;
         (* Writes the revision to disk *)
         let buf = Revision.produce_annotated_markup rev0#get_seps new_trust_10_a.(0) new_origin_10_a.(0) true true in 
-        db#write_colored_markup rev0_id (Buffer.contents buf);
+        db#write_colored_markup rev0_id (Buffer.contents buf) rev0_timestr;
 	db#write_author_sigs rev0_id new_sigs_10_a.(0); 
 	(* Computes the overall trust of the revision *)
 	let t = self#compute_overall_trust new_trust_10_a.(0) in 

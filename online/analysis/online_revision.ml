@@ -103,6 +103,7 @@ class revision
     method get_user_id : int = user_id
     method get_user_name : string = username 
     method get_is_anon : bool = is_anon
+    method get_time_string : string = time_string
 
       (* Reads the colored revision text from the db, and splits it appropriately *)
     method private read_colored_text : unit = 

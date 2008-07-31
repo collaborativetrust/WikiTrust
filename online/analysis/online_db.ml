@@ -146,7 +146,7 @@ class db
 
     (** Returns the last colored revision, if any *)
     method fetch_last_colored_rev : (int * int * timestamp_t) = 
-    let s = "SELECT A.revision_id, B.rev_page, DATE_FORMAT(A.coloredon, '%Y%m%d%k%i%s') 
+    let s = "SELECT A.revision_id, B.rev_page, A.revision_createdon 
 FROM wikitrust_colored_markup AS A JOIN revision AS B ON (A.revision_id = B.rev_id) ORDER BY coloredon DESC LIMIT 1" in
       match fetch (db_exec dbh s) with
         | None -> raise DB_Not_Found
@@ -257,9 +257,9 @@ FROM wikitrust_colored_markup AS A JOIN revision AS B ON (A.revision_id = B.rev_
 	easy and efficient to read.  A filesystem implementation, for small wikis, 
 	may be highly advisable. *)
     (* This is currently a first cut, which will be hopefully optimized later *)
-    method write_colored_markup (rev_id : int) (markup : string) : unit =
+    method write_colored_markup (rev_id : int) (markup : string) (createdon : string) : unit =
       let s1 = Printf.sprintf "DELETE FROM wikitrust_colored_markup WHERE revision_id = %s" (ml2int rev_id) in 
-      let s2 = Printf.sprintf "INSERT INTO wikitrust_colored_markup (revision_id, revision_text) VALUES (%s, %s)" (ml2int rev_id) (ml2str markup) in 
+      let s2 = Printf.sprintf "INSERT INTO wikitrust_colored_markup (revision_id, revision_text, revision_createdon) VALUES (%s, %s, %s)" (ml2int rev_id) (ml2str markup) (ml2str createdon) in 
       ignore (db_exec dbh s1); 
       ignore (db_exec dbh s2);
       if commit_frequently then ignore (db_exec dbh "COMMIT")

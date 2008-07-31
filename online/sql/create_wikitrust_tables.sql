@@ -37,6 +37,7 @@ GRANT ALL ON wikitrust_revision TO wikiuser;
 CREATE TABLE wikitrust_colored_markup (
         revision_id     int PRIMARY KEY,
         revision_text   longtext NOT NULL,
+	revision_createdon varchar(32) NOT NULL,
         coloredon       timestamp NOT NULL DEFAULT now()
 );
 GRANT ALL ON wikitrust_colored_markup TO wikiuser;

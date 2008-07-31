@@ -146,7 +146,7 @@ class db :
 	they want to see.  Therefore, it is very important that this chunk is 
 	easy and efficient to read.  A filesystem implementation, for small wikis, 
 	may be highly advisable. *)
-    method write_colored_markup : int -> string -> unit 
+    method write_colored_markup : int -> string -> string -> unit 
 
     (** [read_colored_markup rev_id] reads the text markup of a revision with id
 	[rev_id].  The markup is the text of the revision, annontated with trust
