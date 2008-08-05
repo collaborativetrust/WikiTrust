@@ -33,6 +33,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
+open Editlist
 
 type word = string
 class revision :

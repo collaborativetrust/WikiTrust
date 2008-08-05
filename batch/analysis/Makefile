@@ -67,22 +67,22 @@ OCAMLOPT_FLAGS=
 
 # Evalwiki does the batch evaluation
 
-OUR_EVALWIKI_OBJS = text.cmo textbuf.cmo prioq.cmo \
+OUR_EVALWIKI_OBJS = text.cmo textbuf.cmo prioq.cmo author_text_analysis.cmo \
 	coda.cmo editlist.cmo chdiff.cmo compute_edlist.cmo timeconv.cmo \
 	eval_defs.cmo author_sig.cmo rephist.cmo revision.cmo prune_analysis.cmo \
 	linear_analysis.cmo circbuf_analysis.cmo reputation_analysis.cmo \
 	compute_trust.cmo compute_robust_trust.cmo trust_analysis.cmo trust_local_color_analysis.cmo \
 	contribution_analysis.cmo revcount_analysis.cmo intertime_analysis.cmo \
-	trust_origin_analysis.cmo revs_to_files_analysis.cmo \
+	trust_origin_analysis.cmo revs_to_files_analysis.cmo word_frequency.cmo \
 	page_factory.cmo do_eval.cmo evalwiki.cmo
 
-OUR_OPT_EVALWIKI_OBJS = text.cmx textbuf.cmx prioq.cmx \
+OUR_OPT_EVALWIKI_OBJS = text.cmx textbuf.cmx prioq.cmx author_text_analysis.cmx \
 	coda.cmx editlist.cmx chdiff.cmx compute_edlist.cmx timeconv.cmx \
 	eval_defs.cmx author_sig.cmx revision.cmx rephist.cmx prune_analysis.cmx \
 	linear_analysis.cmx circbuf_analysis.cmx reputation_analysis.cmx \
 	compute_trust.cmx compute_robust_trust.cmx trust_analysis.cmx trust_local_color_analysis.cmx \
 	contribution_analysis.cmx revcount_analysis.cmx intertime_analysis.cmx \
-	trust_origin_analysis.cmx revs_to_files_analysis.cmx \
+	trust_origin_analysis.cmx revs_to_files_analysis.cmx word_frequency.cmx \
 	page_factory.cmx do_eval.cmx evalwiki.cmx 
 
 

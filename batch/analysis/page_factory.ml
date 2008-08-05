@@ -33,6 +33,12 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
+(**
+   Ian : Analysis for the poster:
+   1) Top k users by text contribution
+   2) Word usage histiogram
+*)
+
 
 (** page_factory.ml.  The wiki dumps are analyzed by a class of type page. 
     Page is a virtual class; the various classes that implement it provide
@@ -60,6 +66,8 @@ type analysis_t =
   | Do_nothing
   | Prune_revisions
   | Revisions_to_text
+  | AuthorText
+  | WordFequency
 
 (** This is the class that stores a page, i.e., an article, and
     contains the methods to work on it.  This is the simplest implementation,
@@ -143,6 +151,13 @@ class page_factory
     val gen_color = ref false
     (* output evaluations *)
     val gen_eval = ref false
+  
+    (* Count the text given by each author *)
+    val count_author_text = ref false
+
+    (* Count the frequency of words *)
+    val count_word_frequency = ref false
+      
     (* output word origin *)
     val do_origin = ref false
     (* When pruning revisions, keep only revisions after this time *)
@@ -169,6 +184,8 @@ class page_factory
       | Prune_revisions -> Printf.fprintf stderr "prune_revisions\n"; flush stderr
       | Revisions_to_text -> Printf.fprintf stderr "revisions_to_text\n"; flush stderr
       | Do_nothing -> Printf.fprintf stderr "noop\n"; flush stderr
+      | AuthorText -> ()
+      | WordFequency -> ()
 
     (* These methods are used to set the appropriate evaluation *)
     method set_linear () = mode <- Linear_analysis
@@ -182,6 +199,9 @@ class page_factory
     method set_trust_and_origin () = mode <- Trust_and_origin
     method set_prune () = mode <- Prune_revisions
     method set_revs_to_text () = mode <- Revisions_to_text
+
+    method set_author_text () = mode <- AuthorText
+    method set_word_freq () = mode <- WordFequency
 
     (* This sets various attributes *)
     method set_eval_zip_error () = eval_zip_error <- true
@@ -206,6 +226,10 @@ class page_factory
     (* This method gets the argument list part to be used to parse the command line *)      
     method get_arg_parser = 
       [("-linear", Arg.Unit self#set_linear, "Uses the old algorithm that keeps all versions in memory.");
+
+       ("-author-text", Arg.Unit self#set_author_text, "Counts the text each author contributes.");
+       ("-word-freq", Arg.Unit self#set_word_freq, "Counts the frequency of each word");
+
        ("-circular", Arg.Unit self#set_circular, "Uses the on-the-fly algo based on the circular buffer.");
        ("-compute_stats", Arg.Unit self#set_reputation, "Produces the reduced stats files used to compute author reputation."); 
        ("-eval_contrib", Arg.Unit self#set_contribution, "Evaluates the contribution given by users of different reputation."); 
@@ -245,6 +269,13 @@ class page_factory
 	  n_text_judging n_edit_judging !equate_anons
       | Circular_analysis -> new Circbuf_analysis.page id title out_file
  	  n_text_judging n_edit_judging !equate_anons
+  
+      | AuthorText -> new Author_text_analysis.page id title out_file
+ 	  !equate_anons
+      | WordFequency -> new Word_frequency_analysis.page id title out_file
+ 	  !equate_anons
+	
+
       | Reputation_analysis -> new Reputation_analysis.page id title out_file eval_zip_error be_precise
 	  n_text_judging n_edit_judging !equate_anons
       | Contribution_analysis -> new Contribution_analysis.page id title out_file rep_histories
