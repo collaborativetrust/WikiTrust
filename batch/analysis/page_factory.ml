@@ -272,7 +272,7 @@ class page_factory
   
       | AuthorText -> new Author_text_analysis.page id title out_file
  	  !equate_anons
-      | WordFequency -> new Word_frequency_analysis.page id title out_file
+      | WordFequency -> new Word_frequency.page id title out_file
  	  !equate_anons
 	
 
@@ -315,6 +315,8 @@ class page_factory
       | Contribution_analysis 
       | Intertime_analysis
       | Do_nothing
+      | AuthorText
+      | WordFequency
 	-> new page
 
       | Prune_revisions -> new Prune_analysis.page id title xml_file n_rev_to_output keep_rev_after false true 
@@ -353,7 +355,9 @@ class page_factory
 	    out_file <- Fileinfo.open_info_out default_name; 
 	    names_l := Vec.singleton default_name
 	  end
-	| Trust_color | Trust_syntactregion_color | Trust_and_origin 
+	| Trust_color | Trust_syntactregion_color | Trust_and_origin
+	| AuthorText
+	| WordFequency
 	| Prune_revisions | Revisions_to_text -> begin 
 	    xml_file <- Fileinfo.open_info_out xml_name; 
 	    names_l := Vec.singleton xml_name

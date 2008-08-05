@@ -57,14 +57,14 @@ class page
        buffer.  revs[0] is the oldest, and is the revision
        number offset (see later, offset is a field of page) for
        the page. *)
-    val mutable revs : Revision.trust_revision Vec.t = Vec.empty 
+    val mutable revs : Revision.plain_revision Vec.t = Vec.empty 
       (* In the Vec implementation, offset is the offset of the oldest
          (position 0 in revs) revision. *)
     val mutable offset : int = 0
       (* This is the last revision; I don't know yet that I can add it to 
          the array of revisions, as there may be a subsequent one 
          by the same author *)
-    val mutable last_rev : Revision.trust_revision option = None 
+    val mutable last_rev : Revision.plain_revision option = None 
 
     val authors = Hashtbl.create 100
 
@@ -79,12 +79,16 @@ class page
       (* No titles in the xml file! *)
     method print_id_title = ()
 
-    (** This method counts the number of charactors added in a revision and credits
+    (** This method counts the number of words added in a revision and credits
 	the author *)
     method private eval_newest : unit = 
+      let rev_idx = (Vec.length revs) - 1 in 
+      let rev = Vec.get rev_idx revs in 
       let uid = rev#get_user_id in 
       let old_count = try Hashtbl.find authors uid with Not_found -> 0 in
       let new_wl = rev#get_words in 
+
+      (* Here, inserted words rate an increase, while edits and deletions do not. *)
       let rec count_new_words count elst = match elst with
 	| [] -> count
 	| Editlist.Mins (word_idx, l) :: tl -> count_new_words (l + count) tl
@@ -99,15 +103,14 @@ class page
       let words_added = count_new_words 0 medit_l in
 	Hashtbl.replace authors uid (old_count + words_added);
 	
-	(* Now, replaces chunks_trust_a and chunks_a for the next iteration *)
-	chunks_trust_a <- new_chunks_trust_a;
+	(* Now, replace chunks_a for the next iteration *)
 	chunks_a <- new_chunks_a
 	  
     (** This method is called once a page has been fully analyzed for text trust, 
         so that we can output the colorized text. *)
     method private gen_output : unit = 
       let print_counts id count =
-	Printf.fprintf out_file "%d %d" id count 
+	Printf.fprintf out_file "%d %d\n" id count 
       in
 	Hashtbl.iter print_counts authors
 

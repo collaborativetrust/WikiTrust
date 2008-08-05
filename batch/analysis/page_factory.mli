@@ -81,6 +81,11 @@ class page_factory :
       (** Linear analysis.  Deprecated.  Kept only for regression tests. *)
     method set_linear : unit -> unit
       (** Circular buffer analysis.  Deprecated. Kept only for regression tests. *)
+
+      (** Do variouse analysis  *)
+    method set_word_freq : unit -> unit
+    method set_author_text : unit -> unit
+
     method set_circular : unit -> unit
       (** Reputation analysis of a page.  The two parameters indicate whether we have to be precise
 	  (not use edit list zipping), and whether we have to evaluate the error incurred while 

@@ -57,14 +57,14 @@ class page
        buffer.  revs[0] is the oldest, and is the revision
        number offset (see later, offset is a field of page) for
        the page. *)
-    val mutable revs : Revision.trust_revision Vec.t = Vec.empty 
+    val mutable revs : Revision.plain_revision Vec.t = Vec.empty 
       (* In the Vec implementation, offset is the offset of the oldest
          (position 0 in revs) revision. *)
     val mutable offset : int = 0
       (* This is the last revision; I don't know yet that I can add it to 
          the array of revisions, as there may be a subsequent one 
          by the same author *)
-    val mutable last_rev : Revision.trust_revision option = None 
+    val mutable last_rev : Revision.plain_revision option = None 
 
     val words = Hashtbl.create 100
 
@@ -79,30 +79,29 @@ class page
       (* No titles in the xml file! *)
     method print_id_title = ()
 
-    (** This method counts the number of charactors added in a revision. *)
+    (** This method counts the number of words added in a revision. *)
     method private eval_newest : unit = 
-      let uid = rev#get_user_id in 
-      let old_count = try Hashtbl.find authors uid with Not_found -> 0 in
+      let rev_idx = (Vec.length revs) - 1 in 
+      let rev = Vec.get rev_idx revs in 
       let new_wl = rev#get_words in 
       let update_word_counts w =
 	let old_count = try Hashtbl.find words w with Not_found -> 0 in
 	  Hashtbl.replace words w (old_count + 1)
       in
-      (* Calls the function that analyzes the difference 
-         between revisions. Data relative to the previous revision
-         is stored in the instance fields chunks_a and chunks_attr_a *)
+	(* Calls the function that analyzes the difference 
+           between revisions. Data relative to the previous revision
+           is stored in the instance fields chunks_a and chunks_attr_a *)
       let (new_chunks_a, medit_l) = Chdiff.text_tracking chunks_a new_wl in
 	Array.iter update_word_counts chunks_a.(0);
 	
-	(* Now, replaces chunks_trust_a and chunks_a for the next iteration *)
-	chunks_trust_a <- new_chunks_trust_a;
+	(* Now, replace chunks_a for the next iteration *)
 	chunks_a <- new_chunks_a
 
     (** This method is called once a page has been fully analyzed for text trust, 
         so that we can output the colorized text. *)
     method private gen_output : unit = 
       let print_counts word count =
-	Printf.fprintf out_file "%d %d" word count 
+	Printf.fprintf out_file "%s %d\n" word count 
       in
 	Hashtbl.iter print_counts words
 
