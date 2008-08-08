@@ -56,7 +56,8 @@ let time_to_float (year: int) (month: int) (day: int) (hour: int) (minute: int) 
   let (time_float, _) = Unix.mktime tmrec in 
   time_float
 
-(** Converts a time as a string yyyymmddhhmmss to a time as a floating point *)
+(** Converts a time as a string yyyymmddhhmmss to a time as a floating point.
+    This type of time strings is found in the database. *)
 let time_string_to_float (s: string) : float = 
   let yy = int_of_string (String.sub s  0 4) in 
   let mm = int_of_string (String.sub s  4 2) in 
@@ -66,6 +67,7 @@ let time_string_to_float (s: string) : float =
   let s  = int_of_string (String.sub s 12 2) in 
   time_to_float yy mm dd h m s
 
+
 (** Compare two times as float, i.e. for sorting purposes *)
 let cmp (t1: float) (t2: float) : int = compare t1 t2
 
@@ -73,11 +75,6 @@ let cmp (t1: float) (t2: float) : int = compare t1 t2
 let float_to_time f = 
   let tm = Unix.localtime f in 
   ((1900 + tm.tm_year), (1 + tm.tm_mon), tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);;
-
-if false then begin 
-  let (y, m, d, hh, mm, ss) = float_to_time (time_to_float 2007 06 05 09 43 12) in 
-  Printf.printf "%d/%d/%d %d:%d:%d\n" d m y hh mm ss
-end;;
 
 (* Conversion of time in xml dump *)
 let convert_time str =
@@ -100,3 +97,10 @@ let convert_time str =
 			(try (String.sub str 17 2) with (Invalid_argument "String.sub") -> "0")) 
     with (Failure "int_of_string") -> 0) in
   time_to_float year month day hour minute second;;
+
+(* Testing *)
+if false then begin 
+  let (y, m, d, hh, mm, ss) = float_to_time (time_to_float 2007 06 05 09 43 12) in 
+  Printf.printf "%d/%d/%d %d:%d:%d\n" d m y hh mm ss
+end;;
+

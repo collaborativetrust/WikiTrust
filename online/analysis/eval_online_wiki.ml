@@ -3,7 +3,7 @@
 Copyright (c) 2007-2008 The Regents of the University of California
 All rights reserved.
 
-Authors: Luca de Alfaro, B. Thomas Adler, Ian Pye
+Authors: Luca de Alfaro, Ian Pye
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -84,13 +84,18 @@ let rec evaluate_revision (db: Online_db.db) (page_id: int) (rev_id: int) : unit
 let db = new Online_db.db !db_user !db_pass !db_name in
 
   
-(* debug *) (* Erases old coloring -- remove this line for production version! *)
+(* debug *) (* If requested, we erase all coloring.  REMOVE THIS FOR THE PRODUCTION CODE! *)
 if !delete_all then db#delete_all true; 
 
 (* Loops over all revisions, in chronological order, since the last colored one. *)
+(* The obvious way would be to do a join, of the revisions which do NOT appear in the 
+   colored table, sorted chronologically.  However, this can be quite inefficient for 
+   large numbers of revisions.  So what we do is we retrieve the time t of the most recently
+   colored revision, and then we pull from the db all revisions with time greater or 
+   equal to t (equal, to handle revisions with the same timestamp). *)
 let revs = 
   try 
-    let (_, _, timestamp) = db#fetch_last_colored_rev in 
+    let timestamp = db#fetch_last_colored_rev_time in 
     db#fetch_all_revs_after timestamp
   with Online_db.DB_Not_Found -> db#fetch_all_revs 
 in 

@@ -64,14 +64,6 @@ Sexplib.Conv.default_string_of_string := (fun str -> sprintf "%s" str);;
 (* Should a commit be issued after every insert? This is needed if there are multiple clients. *)
 let commit_frequently = false;;
 
-let rec format_string (str : string) (vals : string list) : string =                    
-  match vals with                                                                       
-    | [] -> if debug_mode then print_endline str; str
-    | hd::tl -> (match (ExtString.String.replace str "?" hd) with                       
-      | (true, newstr) -> format_string newstr tl                                       
-      | (false, newstr) -> newstr)                                                      
-;;
-
 let db_exec dbh s = 
   if debug_mode then print_endline s;
   Mysql.exec dbh s
@@ -130,12 +122,12 @@ class db
     method get_histogram : float array * float =
     let s = Printf.sprintf "SELECT * FROM wikitrust_global" in
       match fetch (db_exec dbh s) with
-        | None -> raise DB_Not_Found
-        | Some row -> ([| not_null float2ml row.(1); not_null float2ml row.(2); not_null float2ml row.(3); 
-			  not_null float2ml row.(4);  not_null float2ml row.(5);
-			  not_null float2ml row.(6);  not_null float2ml row.(7);
-			  not_null float2ml row.(8);  not_null float2ml row.(9); not_null float2ml row.(10);
-		       |], not_null float2ml row.(0))
+        None -> raise DB_Not_Found
+      | Some row -> ([| not_null float2ml row.(1); not_null float2ml row.(2); not_null float2ml row.(3); 
+	                not_null float2ml row.(4);  not_null float2ml row.(5);
+	                not_null float2ml row.(6);  not_null float2ml row.(7);
+	                not_null float2ml row.(8);  not_null float2ml row.(9); not_null float2ml row.(10);
+	             |], not_null float2ml row.(0))
     
     (** [set_histogram hist hival] writes to the db that the histogram is [hist], and the 
 	chosen median is [hival].  *)
@@ -144,19 +136,22 @@ class db
 	ignore (db_exec dbh s);
 	if commit_frequently then ignore (db_exec dbh "COMMIT")      
 
-    (** Returns the last colored revision, if any *)
-    method fetch_last_colored_rev : (int * int * timestamp_t) = 
-    let s = "SELECT A.revision_id, B.rev_page, A.revision_createdon 
-FROM wikitrust_colored_markup AS A JOIN revision AS B ON (A.revision_id = B.rev_id) ORDER BY coloredon DESC LIMIT 1" in
+    (** [fetch_last_colored_rev_time_string] returns the time string (in the 
+	yyyymmddhhmmss format used in the db) of the most recent revision that 
+	has been colored.
+        Raises DB_Not_Found if no revisions have been colored. *)    
+    method fetch_last_colored_rev_time : timestamp_t = 
+    let s = "SELECT revision_createdon FROM wikitrust_colored_markup ORDER BY revision_createdon DESC LIMIT 1" in
       match fetch (db_exec dbh s) with
-        | None -> raise DB_Not_Found
-        | Some row -> (not_null int2ml row.(0), not_null int2ml row.(1), 
-            not_null timestamp2ml row.(2))
+        None -> raise DB_Not_Found
+        | Some row -> (not_null timestamp2ml row.(0))
   
     (** [sth_select_all_revs_after (int * int * int * int * int * int)] returns all 
         revs created after the given timestamp. *)
     method fetch_all_revs_after (timestamp : timestamp_t) : Mysql.result =  
-      let s = Printf. sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision WHERE rev_timestamp > %s ORDER BY rev_timestamp ASC" (ml2timestamp timestamp) in  
+      (* Note: the >= is very important in the following query, to correctly handle the case
+	 of revisions with the same timestamp. *)
+      let s = Printf. sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision WHERE rev_timestamp >= %s ORDER BY rev_timestamp ASC" (ml2timestamp timestamp) in  
       db_exec dbh s
 
     (** [fetch_all_revs] returns a cursor that points to all revisions in the database, 
@@ -205,6 +200,14 @@ FROM wikitrust_colored_markup AS A JOIN revision AS B ON (A.revision_id = B.rev_
     (* ================================================================ *)
     (* Revision methods. *)
 
+    (** [revision_needs_coloring rev_id] checks whether a revision has already been 
+	colored for trust. *)
+    method revision_needs_coloring (rev_id: int) : bool = 
+      let s = Printf.sprintf "SELECT revision_createdon FROM wikitrust_colored_markup WHERE revision_id = %s" (ml2int rev_id) in 
+      match fetch (db_exec dbh s) with
+	None -> true
+      | Some _ -> false
+
     (** [read_revision rev_id] reads a revision by id, returning the row *)
     method read_revision (rev_id: int) : string option array option = 
       let s = Printf.sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision WHERE rev_id = %s" (ml2int rev_id) in
@@ -227,8 +230,8 @@ FROM wikitrust_colored_markup AS A JOIN revision AS B ON (A.revision_id = B.rev_
       let s = Printf.sprintf "SELECT quality_info FROM wikitrust_revision WHERE revision_id = %s" (ml2int rev_id) in 
       let result = db_exec dbh s in
       match fetch result with
-        | None -> raise DB_Not_Found
-        | Some x -> of_string__of__of_sexp qual_info_t_of_sexp (not_null str2ml x.(0))
+        None -> raise DB_Not_Found
+      | Some x -> of_string__of__of_sexp qual_info_t_of_sexp (not_null str2ml x.(0))
 
    (** [fetch_rev_timestamp rev_id] returns the timestamp of revision [rev_id] *)
     method fetch_rev_timestamp (rev_id: int) : timestamp_t = 
@@ -243,8 +246,8 @@ FROM wikitrust_colored_markup AS A JOIN revision AS B ON (A.revision_id = B.rev_
       let s = Printf.sprintf "SELECT old_text FROM text WHERE old_id = %s" (ml2int text_id) in
       let result = db_exec dbh s in 
       match Mysql.fetch result with 
-        | None -> raise DB_Not_Found
-        | Some y -> not_null str2ml y.(0)
+        None -> raise DB_Not_Found
+      | Some y -> not_null str2ml y.(0)
 
     (** [write_colored_markup rev_id markup] writes, in a table with columns by 
 	(revision id, string), that the string [markup] is associated with the 
@@ -271,8 +274,8 @@ FROM wikitrust_colored_markup AS A JOIN revision AS B ON (A.revision_id = B.rev_
       let s = Printf.sprintf  "SELECT revision_text FROM wikitrust_colored_markup WHERE revision_id = %s" (ml2int rev_id) in 
       let result = db_exec dbh s in
       match Mysql.fetch result with
-        | None -> raise DB_Not_Found
-        | Some x -> not_null str2ml x.(0)
+        None -> raise DB_Not_Found
+      | Some x -> not_null str2ml x.(0)
 
     (** [write_author_sigs rev_id sigs] writes that the author signatures 
 	for the revision [rev_id] are [sigs]. *)
@@ -335,8 +338,8 @@ FROM wikitrust_colored_markup AS A JOIN revision AS B ON (A.revision_id = B.rev_
       let s = Printf.sprintf "SELECT user_rep FROM wikitrust_user WHERE user_id = %s" (ml2int uid) in
       let result = db_exec dbh s in
       match Mysql.fetch result with 
-        | None -> raise DB_Not_Found
-        | Some x -> not_null float2ml x.(0)
+        None -> raise DB_Not_Found
+      | Some x -> not_null float2ml x.(0)
       
 
     (* ================================================================ *)
@@ -345,16 +348,16 @@ FROM wikitrust_colored_markup AS A JOIN revision AS B ON (A.revision_id = B.rev_
     (** Clear everything out *)
     method delete_all (really : bool) =
       match really with
-        | true -> (
-	    ignore (db_exec dbh "DELETE FROM wikitrust_global");
-	    ignore (db_exec dbh "INSERT INTO wikitrust_global VALUES (0,0,0,0,0,0,0,0,0,0,0)");
-            ignore (db_exec dbh "TRUNCATE TABLE wikitrust_page" );
-            ignore (db_exec dbh "TRUNCATE TABLE wikitrust_revision" );
-            ignore (db_exec dbh "TRUNCATE TABLE wikitrust_colored_markup" );
-            ignore (db_exec dbh "TRUNCATE TABLE wikitrust_sigs" );
-            ignore (db_exec dbh "TRUNCATE TABLE wikitrust_user" ); 
-            ignore (db_exec dbh "COMMIT"))
-        | false -> ignore (db_exec dbh "COMMIT")
+        true -> (
+	  ignore (db_exec dbh "DELETE FROM wikitrust_global");
+	  ignore (db_exec dbh "INSERT INTO wikitrust_global VALUES (0,0,0,0,0,0,0,0,0,0,0)");
+          ignore (db_exec dbh "TRUNCATE TABLE wikitrust_page" );
+          ignore (db_exec dbh "TRUNCATE TABLE wikitrust_revision" );
+          ignore (db_exec dbh "TRUNCATE TABLE wikitrust_colored_markup" );
+          ignore (db_exec dbh "TRUNCATE TABLE wikitrust_sigs" );
+          ignore (db_exec dbh "TRUNCATE TABLE wikitrust_user" ); 
+          ignore (db_exec dbh "COMMIT"))
+      | false -> ignore (db_exec dbh "COMMIT")
 
   end;; (* online_db *)
 

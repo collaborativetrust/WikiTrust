@@ -56,6 +56,9 @@ class page
 = 
   
   object (self) 
+    (** Flag that says if the  needs coloring. 
+	If the page is already colored, the evaluation does nothing. *)
+    val mutable needs_coloring: bool = false
     (** This is the Vec of recent revisions *)
     val mutable recent_revs: rev_t Vec.t = Vec.empty 
     (** This is the Vec of high-rep revisions *)
@@ -100,118 +103,121 @@ class page
      *)
     initializer 
       begin 
-	(* Reads the page information *)
-	begin 
-	  try 
-	    let (cl, pinfo) = db#read_page_info page_id in 
-	    del_chunks_list <- cl; 
-	    page_info <- pinfo
-	  with Online_db.DB_Not_Found -> ();
-	end;
-	(* Reads the most recent revisions *)
-	let db_p = new Db_page.page db page_id revision_id in 
-	let i = ref trust_coeff.n_revs_to_consider in 
-	while (!i > 0) do begin 
-          match db_p#get_rev with
-            None -> i := 0 (* We have read all revisions *)
-          | Some r -> begin
-	      let rid = r#get_id in 
-	      Hashtbl.add revid_to_rev rid r;
-	      recent_revs <- Vec.append r recent_revs; 
-	      revs <- Vec.append r revs; 
-	      i := !i - 1;
-	    end (* Some r *)
-	end done;
+	(* First, checks whether the page has already been colored. *)
+	needs_coloring <- db#revision_needs_coloring revision_id; 
+	if needs_coloring then begin 
+	  (* Reads the page information *)
+	  begin 
+	    try 
+	      let (cl, pinfo) = db#read_page_info page_id in 
+	      del_chunks_list <- cl; 
+	      page_info <- pinfo
+	    with Online_db.DB_Not_Found -> ();
+	  end;
+	  (* Reads the most recent revisions *)
+	  let db_p = new Db_page.page db page_id revision_id in 
+	  let i = ref trust_coeff.n_revs_to_consider in 
+	  while (!i > 0) do begin 
+            match db_p#get_rev with
+              None -> i := 0 (* We have read all revisions *)
+            | Some r -> begin
+		let rid = r#get_id in 
+		Hashtbl.add revid_to_rev rid r;
+		recent_revs <- Vec.append r recent_revs; 
+		revs <- Vec.append r revs; 
+		i := !i - 1;
+	      end (* Some r *)
+	  end done;
 
-	(* This is a function that finds and returns a revision in an array given its id *)
-	let find_rev_by_id (id: int) (v: rev_t Vec.t) : rev_t option = 
-	  let f r = (r#get_id = id) in 
-	  match Vec.find f 0 v with 
-	    Some (i, rev) -> Some rev
-	  | None -> None
-	in 
+	  (* This is a function that finds and returns a revision in an array given its id *)
+	  let find_rev_by_id (id: int) (v: rev_t Vec.t) : rev_t option = 
+	    let f r = (r#get_id = id) in 
+	    match Vec.find f 0 v with 
+	      Some (i, rev) -> Some rev
+	    | None -> None
+	  in 
 
-	(* Builds the Vec of high trust revisions *)
-	(* The function f is folded on the list, and produces the Vec *)
-	let f (u: rev_t Vec.t) (id: int) : rev_t Vec.t = 
-	  match find_rev_by_id id recent_revs with 
-	    Some r -> Vec.append r u
-	  | None -> begin 
-	      (* We must read it from disk *)
-	      match Online_revision.read_revision db id with 
-		None -> u (* nothing to add: can't be found *)
-	      | Some r' -> Vec.append r' u
+	  (* Builds the Vec of high trust revisions *)
+	  (* The function f is folded on the list, and produces the Vec *)
+	  let f (u: rev_t Vec.t) (id: int) : rev_t Vec.t = 
+	    match find_rev_by_id id recent_revs with 
+	      Some r -> Vec.append r u
+	    | None -> begin 
+		(* We must read it from disk *)
+		match Online_revision.read_revision db id with 
+		  None -> u (* nothing to add: can't be found *)
+		| Some r' -> Vec.append r' u
+	      end
+	  in 
+	  hi_trust_revs <- List.fold_left f Vec.empty page_info.past_hi_trust_revs;
+	  
+	  (* Builds the Vec of high rep revisions *)
+	  (* The function f is folded on the list, and produces the Vec *)
+	  let f (u: rev_t Vec.t) (id: int) : rev_t Vec.t = 
+	    match find_rev_by_id id recent_revs with 
+	      Some r -> Vec.append r u
+	    | None -> begin 
+		(* Maybe it's in the high trust list? *)
+		match find_rev_by_id id hi_trust_revs with 
+		  Some r -> Vec.append r u 
+		| None -> begin 
+		    (* We must read it from disk *)
+		    match Online_revision.read_revision db id with 
+		      None -> u (* nothing to add: can't be found *)
+		    | Some r' -> Vec.append r' u
+		  end
+	      end
+	  in 
+	  hi_rep_revs <- List.fold_left f Vec.empty page_info.past_hi_rep_revs;
+
+	  (* This function merges two lists of revisions in chronological order *)
+	  let merge_chron (v1: rev_t Vec.t) (v2: rev_t Vec.t) : rev_t Vec.t = 
+	    let rec merge v w1 w2 = 
+	      if w1 = Vec.empty then Vec.concat v w2
+	      else if w2 = Vec.empty then Vec.concat v w1
+	      else begin (* We must choose the least revision *)
+		let r1 = Vec.get 0 w1 in 
+		let r2 = Vec.get 0 w2 in 
+		if r1#get_id = r2#get_id then merge (Vec.append r1 v) (Vec.remove 0 w1) (Vec.remove 0 w2)
+		else if r1#get_time > r2#get_time then merge (Vec.append r1 v) (Vec.remove 0 w1) w2
+		else merge (Vec.append r2 v) w1 (Vec.remove 0 w2)
+	      end
+	    in merge Vec.empty v1 v2
+	  in 
+
+	  (* Produces the Vec of all revisions *)
+	  revs <- merge_chron recent_revs (merge_chron hi_rep_revs hi_trust_revs); 
+	  (* debug *)
+	  Printf.printf "N. of recent   revisions: %d\n" (Vec.length recent_revs); 
+	  Printf.printf "N. of hi-trust revisions: %d\n" (Vec.length hi_trust_revs); 
+	  Printf.printf "N. of hi-rep   revisions: %d\n" (Vec.length hi_rep_revs); 
+	  Printf.printf "N. of total    revisions: %d\n" (Vec.length revs); 
+
+	  (* Sets the current time *)
+	  let n_revs = Vec.length recent_revs in 
+	  if n_revs > 0 then begin 
+	    let r = Vec.get 0 recent_revs in 
+	    curr_time <- r#get_time
+	  end;
+
+	  (* Reads the revision text, as we will need it, and there are advantages in 
+	     reading it now.  For the most recent revision, we read the normal text; 
+	     for the others, the colored text *)
+	  (* This is the place where we detect "holes" in the coloring.
+             For this reason it is best to start from the oldest (n_revs - 1) revision. *)
+	  for i = n_revs - 1 downto 0 do begin 
+	    let r = Vec.get i revs in
+	    if i = 0 then begin 
+	      (* If a revision has no text, we have to recover this at a lower level,
+		 since text is not something we compute. *)
+	      ignore (r#get_words) 
+	    end else begin
+	      try ignore (r#get_trust)
+              with Online_db.DB_Not_Found -> raise (Missing_trust (r#get_page_id, r#get_id))
 	    end
-	in 
-	hi_trust_revs <- List.fold_left f Vec.empty page_info.past_hi_trust_revs;
-	
-	(* Builds the Vec of high rep revisions *)
-	(* The function f is folded on the list, and produces the Vec *)
-	let f (u: rev_t Vec.t) (id: int) : rev_t Vec.t = 
-	  match find_rev_by_id id recent_revs with 
-	    Some r -> Vec.append r u
-	  | None -> begin 
-	      (* Maybe it's in the high trust list? *)
-	      match find_rev_by_id id hi_trust_revs with 
-		Some r -> Vec.append r u 
-	      | None -> begin 
-		  (* We must read it from disk *)
-		  match Online_revision.read_revision db id with 
-		    None -> u (* nothing to add: can't be found *)
-		  | Some r' -> Vec.append r' u
-		end
-	    end
-	in 
-	hi_rep_revs <- List.fold_left f Vec.empty page_info.past_hi_rep_revs;
-
-	(* This function merges two lists of revisions in chronological order *)
-	let merge_chron (v1: rev_t Vec.t) (v2: rev_t Vec.t) : rev_t Vec.t = 
-	  let rec merge v w1 w2 = 
-	    if w1 = Vec.empty then Vec.concat v w2
-	    else if w2 = Vec.empty then Vec.concat v w1
-	    else begin (* We must choose the least revision *)
-	      let r1 = Vec.get 0 w1 in 
-	      let r2 = Vec.get 0 w2 in 
-	      if r1#get_id = r2#get_id then merge (Vec.append r1 v) (Vec.remove 0 w1) (Vec.remove 0 w2)
-	      else if r1#get_time > r2#get_time then merge (Vec.append r1 v) (Vec.remove 0 w1) w2
-	      else merge (Vec.append r2 v) w1 (Vec.remove 0 w2)
-	    end
-	  in merge Vec.empty v1 v2
-	in 
-
-	(* Produces the Vec of all revisions *)
-	revs <- merge_chron recent_revs (merge_chron hi_rep_revs hi_trust_revs); 
-	(* debug *)
-	Printf.printf "N. of recent   revisions: %d\n" (Vec.length recent_revs); 
-	Printf.printf "N. of hi-trust revisions: %d\n" (Vec.length hi_trust_revs); 
-	Printf.printf "N. of hi-rep   revisions: %d\n" (Vec.length hi_rep_revs); 
-	Printf.printf "N. of total    revisions: %d\n" (Vec.length revs); 
-
-	(* Sets the current time *)
-	let n_revs = Vec.length recent_revs in 
-	if n_revs > 0 then begin 
-	  let r = Vec.get 0 recent_revs in 
-	  curr_time <- r#get_time
-	end;
-
-	(* Reads the revision text, as we will need it, and there are advantages in 
-	   reading it now.  For the most recent revision, we read the normal text; 
-	   for the others, the colored text *)
-	(* This is the place where we detect "holes" in the coloring.
-           For this reason it is best to start from the oldest (n_revs - 1) revision. *)
-	for i = n_revs - 1 downto 0 do begin 
-	  let r = Vec.get i revs in
-	  if i = 0 then begin 
-	    (* If a revision has no text, we have to recover this at a lower level,
-	       since text is not something we compute. *)
-	    ignore (r#get_words) 
-	  end else begin
-	    try ignore (r#get_trust)
-            with Online_db.DB_Not_Found -> raise (Missing_trust (r#get_page_id, r#get_id))
-	  end
-	end done
-	  (* end of initializer *)
-      end
+	  end done
+	end (* If needs_coloring *)
+      end (* and end of initializer *)
 
 
       (** High-Median of an array *)
@@ -941,51 +947,54 @@ class page
         The method computes also the effects on author reputation as a result of the new revision. *)
     method eval : unit = 
 
-      (* Gets the page lock *)
-      db#get_page_lock page_id; 
-      begin 
-	(* Computes the edit distances *)
-	print_string "   Computing edit lists...\n"; flush stdout; (* debug *)
-	self#compute_edit_lists; 
-	(* Computes, and writes to disk, the trust of the newest revision *)
-	print_string "   Computing trust...\n"; flush stdout; (* debug *)
-	self#compute_trust;
-      
-	(* Gets the reputation lock *)
-	db#get_rep_lock; 
+      (* We do something only if the revision needs coloring *)
+      if needs_coloring then begin 
+
+	(* Gets the page lock *)
+	db#get_page_lock page_id; 
 	begin 
-	  (* We now process the reputation update. *)
-	  print_string "   Computing edit incs...\n"; flush stdout; (* debug *)
-	  self#compute_edit_inc;
-	  (* and we write them to disk *)
-	  print_string "   Writing the reputations...\n"; flush stdout; (* debug *)
-	  self#write_all_reps;
-	  (* Done accessing the global reputation table *)
-	  db#release_rep_lock; 
+	  (* Computes the edit distances *)
+	  print_string "   Computing edit lists...\n"; flush stdout; (* debug *)
+	  self#compute_edit_lists; 
+	  (* Computes, and writes to disk, the trust of the newest revision *)
+	  print_string "   Computing trust...\n"; flush stdout; (* debug *)
+	  self#compute_trust;
+	  
+	  (* Gets the reputation lock *)
+	  db#get_rep_lock; 
+	  begin 
+	    (* We now process the reputation update. *)
+	    print_string "   Computing edit incs...\n"; flush stdout; (* debug *)
+	    self#compute_edit_inc;
+	    (* and we write them to disk *)
+	    print_string "   Writing the reputations...\n"; flush stdout; (* debug *)
+	    self#write_all_reps;
+	    (* Done accessing the global reputation table *)
+	    db#release_rep_lock; 
+	  end;
+
+	  (* Inserts the revision in the list of high rep or high trust revisions, 
+	     and deletes old signatures *)
+	  self#insert_revision_in_lists;
+	  (* Finally, we write back to disk the information of all revisions *)
+	  print_string "   Writing the quality information...\n"; flush stdout; (* debug *)
+	  let f r = r#write_to_db in 
+	  Vec.iter f revs;
+	  (* We write also the page information *)
+	  db#write_page_info page_id del_chunks_list page_info; 
+	  
+	  (* Releases the page lock *)
+	  db#release_page_lock page_id; 
 	end;
 
-	(* Inserts the revision in the list of high rep or high trust revisions, 
-	   and deletes old signatures *)
-	self#insert_revision_in_lists;
-	(* Finally, we write back to disk the information of all revisions *)
-	print_string "   Writing the quality information...\n"; flush stdout; (* debug *)
-	let f r = r#write_to_db in 
-	Vec.iter f revs;
-	(* We write also the page information *)
-	db#write_page_info page_id del_chunks_list page_info; 
-	
-	(* Releases the page lock *)
-	db#release_page_lock page_id; 
-      end;
+	(* Commits the transaction *)
+	if not db#commit then raise (Missing_trust (page_id, revision_id));
 
-      (* Commits the transaction *)
-      if not db#commit then raise (Missing_trust (page_id, revision_id));
+	(* Flushes the logger.  *)
+	logger#flush;
 
-      (* Flushes the logger.  *)
-      logger#flush;
-
-      print_string "   All done!\n"; flush stdout; (* debug *)
-	
+	print_string "   All done!\n"; flush stdout; (* debug *)
+      end (* eval method *)	
 
   end (* class *)
 

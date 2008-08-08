@@ -69,7 +69,7 @@ class db :
     method get_rep_lock : unit
 
     (** [release_rep_lock] releases a lock for the global table of user reputations, to guarantee 
-	serializability of the updates. *)
+	serializability ofe the updates. *)
     method release_rep_lock : unit
 
     (** Commit of transaction *)
@@ -85,10 +85,11 @@ class db :
     (** [set_histogram hist median] writes the user reputation histogram, and the median, to the db. *)
     method set_histogram : float array -> float -> unit
 
-    (** [fetch_last_colored_rev] returns a tuple 
-	[(revid, pageid, timestamp)] for the last colored revision.  
+    (** [fetch_last_colored_rev_time_string] returns the time string (in the 
+	yyyymmddhhmmss format used in the db) of the most recent revision that 
+	has been colored.
         Raises DB_Not_Found if no revisions have been colored. *)    
-    method fetch_last_colored_rev : int * int * timestamp_t
+    method fetch_last_colored_rev_time : timestamp_t
     
     (** [sth_select_all_revs_after (int * int * int * int * int * int)] returns all 
         revs created after the given timestamp. *)
@@ -119,6 +120,10 @@ class db :
  
     (* ================================================================ *)
     (* Revision methods. *)
+
+    (** [revision_needs_coloring rev_id] checks whether a revision has already been 
+	colored for trust. *)
+    method revision_needs_coloring : int -> bool
 
     (** [read_revision rev_id] reads a revision by id, returning the row *)
     method read_revision : int -> string option array option 
