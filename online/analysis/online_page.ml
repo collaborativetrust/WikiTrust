@@ -952,7 +952,9 @@ class page
 
 	(* Gets the page lock *)
 	db#get_page_lock page_id; 
-	begin 
+	(* Re-checks if there is work that needs to be done *)
+	needs_coloring <- db#revision_needs_coloring revision_id; 
+	if needs_coloring then begin 
 	  (* Computes the edit distances *)
 	  print_string "   Computing edit lists...\n"; flush stdout; (* debug *)
 	  self#compute_edit_lists; 
