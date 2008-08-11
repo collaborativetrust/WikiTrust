@@ -44,6 +44,9 @@ POSSIBILITY OF SUCH DAMAGE.
     [revision_id] is the revision id to be processed.  All previous revisions
                   should have already been processed. 
     [coeff] contains the coefficients to be used for the evaluation. 
+
+    IMPORTANT: The caller should have a lock on page_id before creating and 
+    calling eval on this class, otherwise, serious corruption may ensue. 
  *)
 
 exception Missing_trust of int * int

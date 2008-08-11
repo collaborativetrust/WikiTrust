@@ -84,16 +84,9 @@ class revision
       reputation_gain = quality_info_default.reputation_gain;
       overall_trust = quality_info_default.overall_trust;
     }
-
+    val mutable quality_info_valid = false
     (* Dirty bit to avoid writing back unchanged stuff *)
     val mutable modified_quality_info : bool = false
-
-      (** This initializer reads from the DB the information with the revision 
-          specifically needed by the wikitrust algorithms *)
-    initializer
-      try 
-        quality_info <- db#read_revision_info rev_id
-      with Online_db.DB_Not_Found -> ()
 
     (* Basic access methods *)
     method get_id : int = rev_id
@@ -104,6 +97,14 @@ class revision
     method get_user_name : string = username 
     method get_is_anon : bool = is_anon
     method get_time_string : string = time_string
+
+    method private read_quality_info : unit = 
+      if not quality_info_valid then begin 
+	try 
+          quality_info <- db#read_revision_info rev_id;
+	  quality_info_valid <- true
+	with Online_db.DB_Not_Found -> ()
+      end
 
       (* Reads the colored revision text from the db, and splits it appropriately *)
     method private read_colored_text : unit = 
@@ -184,6 +185,7 @@ class revision
 
     (** Adds edit quality information *)
     method add_edit_quality_info (delta: float) (new_q: float) (rep_gain: float) : unit = 
+      self#read_quality_info; 
       (* updated *)
       quality_info.delta <- delta;
       quality_info.total_edit_quality <- quality_info.total_edit_quality +. new_q; 
@@ -194,19 +196,27 @@ class revision
       modified_quality_info <- true
 
     method set_overall_trust (t: float) : unit = 
+      self#read_quality_info; 
       quality_info.overall_trust <- t;
       modified_quality_info <- true
 
-    method get_overall_trust : float = quality_info.overall_trust
+    method get_overall_trust : float = 
+      self#read_quality_info; 
+      quality_info.overall_trust
 
-    method get_nix : bool = quality_info.nix_bit
+    method get_nix : bool = 
+      self#read_quality_info; 
+      quality_info.nix_bit
 
     method set_nix_bit : unit = 
+      self#read_quality_info; 
       quality_info.nix_bit <- true;
       modified_quality_info <- true 
 
     (** [write_to_db] writes all revision information to the db. *)
-    method write_to_db : unit = db#write_revision_info rev_id quality_info
+    method write_to_db : unit = 
+      self#read_quality_info; 
+      db#write_revision_info rev_id quality_info
 
   end (* revision class *)
 

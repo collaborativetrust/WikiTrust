@@ -97,7 +97,7 @@ class db
 	most time [timeout] seconds.  The function returns [true] if the lock was acquired. *)
     method get_page_lock (page_id: int) (timeout: int) : bool =
       let lock_name = Printf.sprintf "%s.wikitrust_page.%d" database page_id in 
-      let s = Printf.sprintf "SELECT GET_LOCK('%s', %s)" (ml2str lock_name) (ml2int timeout) in 
+      let s = Printf.sprintf "SELECT GET_LOCK('%s',%s)" (ml2str lock_name) (ml2int timeout) in 
       match fetch (db_exec dbh s) with 
 	None -> raise DB_Internal_Error
       | Some row -> ((not_null int2ml row.(0)) = 1)

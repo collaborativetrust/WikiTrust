@@ -966,43 +966,38 @@ class page
       (* We do something only if the revision needs coloring *)
       if needs_coloring then begin 
 
-	(* Re-checks if there is work that needs to be done *)
-	needs_coloring <- db#revision_needs_coloring revision_id; 
-	if needs_coloring then begin 
-	  (* Computes the edit distances *)
-	  if debug then print_string "   Computing edit lists...\n"; flush stdout;
-	  self#compute_edit_lists; 
-	  (* Computes, and writes to disk, the trust of the newest revision *)
-	  if debug then print_string "   Computing trust...\n"; flush stdout;
-	  self#compute_trust;
-	  
-	  (* We now process the reputation update. *)
-	  if debug then print_string "   Computing edit incs...\n"; flush stdout;
-	  self#compute_edit_inc;
-	  (* and we write them to disk *)
-	  if debug then print_string "   Writing the reputations...\n"; flush stdout;
-	  self#write_all_reps;
-
-	  (* Inserts the revision in the list of high rep or high trust revisions, 
-	     and deletes old signatures *)
-	  self#insert_revision_in_lists;
-	  (* Finally, we write back to disk the information of all revisions *)
-	  if debug then print_string "   Writing the quality information...\n"; flush stdout;
-	  let f r = r#write_to_db in 
-	  Vec.iter f revs;
-	  (* We write also the page information *)
-	  db#write_page_info page_id del_chunks_list page_info; 
-	  
-	end;
-
+	(* Computes the edit distances *)
+	if debug then print_string "   Computing edit lists...\n"; flush stdout;
+	self#compute_edit_lists; 
+	(* Computes, and writes to disk, the trust of the newest revision *)
+	if debug then print_string "   Computing trust...\n"; flush stdout;
+	self#compute_trust;
+	
+	(* We now process the reputation update. *)
+	if debug then print_string "   Computing edit incs...\n"; flush stdout;
+	self#compute_edit_inc;
+	(* and we write them to disk *)
+	if debug then print_string "   Writing the reputations...\n"; flush stdout;
+	self#write_all_reps;
+	
+	(* Inserts the revision in the list of high rep or high trust revisions, 
+	   and deletes old signatures *)
+	self#insert_revision_in_lists;
+	(* Finally, we write back to disk the information of all revisions *)
+	if debug then print_string "   Writing the quality information...\n"; flush stdout;
+	let f r = r#write_to_db in 
+	Vec.iter f revs;
+	(* We write also the page information *)
+	db#write_page_info page_id del_chunks_list page_info; 
+	
 	(* Commits the transaction *)
 	if not db#commit then raise (Missing_trust (page_id, revision_id));
-
+	
 	(* Flushes the logger.  *)
 	logger#flush;
-
+	
 	if debug then print_string "   All done!\n"; flush stdout;
       end (* eval method *)	
-
+	
   end (* class *)
 

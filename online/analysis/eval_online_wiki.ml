@@ -35,6 +35,13 @@ POSSIBILITY OF SUCH DAMAGE.
 
 open Printf
 
+(** This is a timeout for how long we wait for database locks. 
+    If we wait longer than this, then the db is too busy, and we quit all work. 
+    Notice that this provides an auto-throttling mechanism: if there are too many
+    instances of coloring active at once, we won't get the lock quickly, and the 
+    process will terminate. *)
+let lock_timeout = 30
+
 (** This is the top-level code of the wiki online xml evaluation. 
     This is used for testing only: *)
 let db_user = ref ""
@@ -99,15 +106,71 @@ let revs =
     db#fetch_all_revs_after timestamp
   with Online_db.DB_Not_Found -> db#fetch_all_revs 
 in 
-let domore = ref true in 
-while !domore do begin 
+
+(* Algorithm: 
+
+revs := chronological list;
+tried :=\emptyset; 
+
+while revs \neq \emptyset { 
+  r = pop (revs);
+
+  if (page(r) is locked)
+   {
+     if(page(r) \in tried) {
+	lock page(r);
+	color(r);
+	release page(r);
+	tried := tried \setminus {page(r)};
+      } else {
+	tried := tried \cup {page(r)};
+      }
+   } else
+   {
+    lock page(r);
+    color(r);
+    release page(r);
+   }
+}
+
+ *)
+
+let tried : (int, unit) Hashtbl.t = Hashtbl.create 10 in 
+let color_more_revisions = ref true in 
+while !color_more_revisions do begin 
   match Mysql.fetch revs with 
-    None -> domore := false
+    None -> color_more_revisions := false
   | Some r -> begin 
       let rev = Online_revision.make_revision r db in 
       let page_id = rev#get_page_id in 
       let rev_id  = rev#get_id in 
-      evaluate_revision db page_id rev_id
-    end
-end done;
+      (* Tries to acquire the page lock. 
+	 If it succeeds, colors the page. 
+	 We set the timeout for waiting as follows. 
+	 If the page has already been tried, we need to wait on it, so we choose a long timeout, and we keep trying until we 
+	 get the lock. 
+	 If the page has not been tried yet, we set a short timeout, and if we don't get the lock we move on to the next 
+	 revision. *)
+      let already_tried = Hashtbl.mem tried page_id in 
+      let got_it = 
+	if already_tried 
+        then db#get_page_lock page_id lock_timeout 
+        else db#get_page_lock page_id 0 in 
+      (* If we got it, we can color the page *)
+      if got_it then begin 
+	(* Processes page *)
+	if already_tried then Hashtbl.remove tried page_id; 
+	evaluate_revision db page_id rev_id;
+	db#release_page_lock page_id
+      end else begin 
+	(* We could not get the lock.  
+	   If we have already tried the page, this means we waited LONG time; 
+	   we quit everything, as it means there is some problem. *)
+	if already_tried 
+	then color_more_revisions := false
+	else Hashtbl.add tried page_id ();
+      end (* not got it *)
+    end (* for a revision r that needs to be colored *)
+end done (* while there are revisions to color *)
+
 
