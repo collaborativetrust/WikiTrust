@@ -97,7 +97,7 @@ class db
 	most time [timeout] seconds.  The function returns [true] if the lock was acquired. *)
     method get_page_lock (page_id: int) (timeout: int) : bool =
       let lock_name = Printf.sprintf "%s.wikitrust_page.%d" database page_id in 
-      let s = Printf.sprintf "SELECT GET_LOCK('%s',%s)" (ml2str lock_name) (ml2int timeout) in 
+      let s = Printf.sprintf "SELECT GET_LOCK(%s,%s)" (ml2str lock_name) (ml2int timeout) in 
       match fetch (db_exec dbh s) with 
 	None -> raise DB_Internal_Error
       | Some row -> ((not_null int2ml row.(0)) = 1)
@@ -107,7 +107,7 @@ class db
 	subsequent call to [get_page_lock]. *)
     method is_page_lock_free (page_id: int) : bool = 
       let lock_name = Printf.sprintf "%s.wikitrust_page.%d" database page_id in 
-      let s = Printf.sprintf "SELECT IS_FREE_LOCK('%s')" (ml2str lock_name) in 
+      let s = Printf.sprintf "SELECT IS_FREE_LOCK(%s)" (ml2str lock_name) in 
       match fetch (db_exec dbh s) with 
 	None -> raise DB_Internal_Error
       | Some row -> ((not_null int2ml row.(0)) = 1)
@@ -116,7 +116,7 @@ class db
 	mutual exclusion on the updates for page [page_id]. *)
     method release_page_lock (page_id: int) : unit = 
       let lock_name = Printf.sprintf "%s.wikitrust_page.%d" database page_id in 
-      let s = Printf.sprintf "SELECT RELEASE_LOCK('%s')" (ml2str lock_name) in 
+      let s = Printf.sprintf "SELECT RELEASE_LOCK(%s)" (ml2str lock_name) in 
       ignore (db_exec dbh s)
 
     (* Commits any changes to the db *)
@@ -145,7 +145,7 @@ class db
     (** write_histogram delta_hist median] increments the db histogram of user reputations according
 	to the array [delta_hist], and writes that the new median is [median]. *)
     method write_histogram (delta_hist : float array) (median: float) : unit = 
-      let s = Printf.sprintf  "UPDATE wikitrust_global SET median = %s, rep_0 = rep0 + %s, rep_1 = rep_1 + %s, rep_2 = rep_2 + %s, rep_3 = rep_3 + %s, rep_4 = rep_4 + %s, rep_5 = rep_5 + %s, rep_6 = rep_6 + %s, rep_7 = rep_7 + %s, rep_8 = rep_8 + %s, rep_9 = rep_9 + %s" 
+      let s = Printf.sprintf  "UPDATE wikitrust_global SET median = %s, rep_0 = rep_0 + %s, rep_1 = rep_1 + %s, rep_2 = rep_2 + %s, rep_3 = rep_3 + %s, rep_4 = rep_4 + %s, rep_5 = rep_5 + %s, rep_6 = rep_6 + %s, rep_7 = rep_7 + %s, rep_8 = rep_8 + %s, rep_9 = rep_9 + %s" 
 	(ml2float median)
 	(ml2float delta_hist.(0)) (ml2float delta_hist.(1)) (ml2float delta_hist.(2)) (ml2float delta_hist.(3)) 
 	(ml2float delta_hist.(4)) (ml2float delta_hist.(5)) (ml2float delta_hist.(6)) (ml2float delta_hist.(7)) 
