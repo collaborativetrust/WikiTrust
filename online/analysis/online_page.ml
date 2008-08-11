@@ -42,6 +42,9 @@ type rev_t = Online_revision.revision
     It returns a pair (page_id, revision_id) *)
 exception Missing_trust of int * int
 
+(* This flag causes debugging info to be printed *)
+let debug = true
+
 (** This is a class representing a page, or article, at a high level. 
     Most of the functions implementing an online edit are implemented 
     in this file. See the mli file for the call parameters. *)    
@@ -187,11 +190,12 @@ class page
 
 	  (* Produces the Vec of all revisions *)
 	  revs <- merge_chron recent_revs (merge_chron hi_rep_revs hi_trust_revs); 
-	  (* debug *)
-	  Printf.printf "N. of recent   revisions: %d\n" (Vec.length recent_revs); 
-	  Printf.printf "N. of hi-trust revisions: %d\n" (Vec.length hi_trust_revs); 
-	  Printf.printf "N. of hi-rep   revisions: %d\n" (Vec.length hi_rep_revs); 
-	  Printf.printf "N. of total    revisions: %d\n" (Vec.length revs); 
+	  if debug then begin 
+	    Printf.printf "N. of recent   revisions: %d\n" (Vec.length recent_revs); 
+	    Printf.printf "N. of hi-trust revisions: %d\n" (Vec.length hi_trust_revs); 
+	    Printf.printf "N. of hi-rep   revisions: %d\n" (Vec.length hi_rep_revs); 
+	    Printf.printf "N. of total    revisions: %d\n" (Vec.length revs)
+	  end;
 
 	  (* Sets the current time *)
 	  let n_revs = Vec.length recent_revs in 
@@ -238,9 +242,9 @@ class page
 	    median := !median +. 1. 
 	  end
 	end done;
-	(* debug *)
-	Printf.printf "%.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f \n" 
-	  a.(0) a.(1) a.(2) a.(3) a.(4) a.(5) a.(6) a.(7) a.(8) a.(9) !median; 
+	if debug then 
+	  Printf.printf "%.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f \n" 
+	    a.(0) a.(1) a.(2) a.(3) a.(4) a.(5) a.(6) a.(7) a.(8) a.(9) !median; 
 	!median
 
     (** This method returns the current value of the user reputation *)
@@ -279,10 +283,12 @@ class page
 	end
       end
 
-    (** Write all new reputations to the db *)
+    (** Write all new reputations to the db.  We write to the db reputation increments,
+        so that we do not need to acquire locks: the writes from different 
+        processes will merge without problems. *)
     method private write_all_reps : unit = 
       let f uid = function 
-	  (old_r, Some r) ->  db#set_rep uid r
+	  (old_r, Some r) ->  db#inc_rep uid (r -. old_r)
 	| (old_r, None) -> ()
       in Hashtbl.iter f rep_cache
 
@@ -814,7 +820,14 @@ class page
 	let rev2_weight = self#weight rev2_rep in 
 
 	(* Reads the histogram of reputations, and the high median, and uses them
-	   to renormalize the weight of the judging user. *)
+	   to renormalize the weight of the judging user.
+	   NOTE: this implementation is thread-safe but not thread correct. 
+	   Precisely, the histogram is updated correctly, but the median that is 
+	   written out may not correspond to the correct median. 
+	   This is done in order to avoid locking: as the median is used even for 
+	   serving pages, we certainly do not want to write-lock the histogram 
+	   information while updating it.  Any small inconsistency in the median 
+	   value is temporary, and is largely irrelevant. *)
 	let renorm_w = 
 	  if not rev2#get_is_anon then begin 
 	    (* Increments the histogram according to the work of the judge *)
@@ -824,16 +837,19 @@ class page
 	    let delta_of_2 = Hashtbl.find edit_dist (rev_bef2_id, rev2_id) in 
 	    let slot = max 0 (min 9 (int_of_float rev2_weight)) in 
 	    histogram.(slot) <- histogram.(slot) +. delta_of_2; 
-	    Printf.printf "Incrementing slot %d by %f\n" slot delta_of_2; (* debug *)
+	    if debug then Printf.printf "Incrementing slot %d by %f\n" slot delta_of_2;
 	    let new_hi_median' = self#compute_hi_median histogram in 
 	    let new_hi_median = max hi_median new_hi_median' in 
-	    db#set_histogram histogram new_hi_median;
+	    (* Produces the array of differences *)
+	    let delta_hist = Array.make Eval_defs.max_rep_val 0. in 
+	    delta_hist.(slot) <- delta_of_2; 
+	    db#write_histogram delta_hist new_hi_median;
 	    (* and renormalizes the weight *)
 	    let renorm_w' = rev2_weight *. (float_of_int max_rep_val) /. new_hi_median in 
 	    max rev2_weight (min renorm_w' (float_of_int max_rep_val))
 	  end else rev2_weight in 
 
-	Printf.printf "Uid: %d Weight: %f Normalized: %f \n" rev2_uid rev2_weight renorm_w; 	(* debug *)
+	if debug then Printf.printf "Uid: %d Weight: %f Normalized: %f \n" rev2_uid rev2_weight renorm_w;
 	
 	  (* We compute the reputation scaling dynamically taking care of the size of the recent_revision list and 
 	     the union of the recent revision list, hig reputation list and high trust list *)
@@ -950,43 +966,33 @@ class page
       (* We do something only if the revision needs coloring *)
       if needs_coloring then begin 
 
-	(* Gets the page lock *)
-	db#get_page_lock page_id; 
 	(* Re-checks if there is work that needs to be done *)
 	needs_coloring <- db#revision_needs_coloring revision_id; 
 	if needs_coloring then begin 
 	  (* Computes the edit distances *)
-	  print_string "   Computing edit lists...\n"; flush stdout; (* debug *)
+	  if debug then print_string "   Computing edit lists...\n"; flush stdout;
 	  self#compute_edit_lists; 
 	  (* Computes, and writes to disk, the trust of the newest revision *)
-	  print_string "   Computing trust...\n"; flush stdout; (* debug *)
+	  if debug then print_string "   Computing trust...\n"; flush stdout;
 	  self#compute_trust;
 	  
-	  (* Gets the reputation lock *)
-	  db#get_rep_lock; 
-	  begin 
-	    (* We now process the reputation update. *)
-	    print_string "   Computing edit incs...\n"; flush stdout; (* debug *)
-	    self#compute_edit_inc;
-	    (* and we write them to disk *)
-	    print_string "   Writing the reputations...\n"; flush stdout; (* debug *)
-	    self#write_all_reps;
-	    (* Done accessing the global reputation table *)
-	    db#release_rep_lock; 
-	  end;
+	  (* We now process the reputation update. *)
+	  if debug then print_string "   Computing edit incs...\n"; flush stdout;
+	  self#compute_edit_inc;
+	  (* and we write them to disk *)
+	  if debug then print_string "   Writing the reputations...\n"; flush stdout;
+	  self#write_all_reps;
 
 	  (* Inserts the revision in the list of high rep or high trust revisions, 
 	     and deletes old signatures *)
 	  self#insert_revision_in_lists;
 	  (* Finally, we write back to disk the information of all revisions *)
-	  print_string "   Writing the quality information...\n"; flush stdout; (* debug *)
+	  if debug then print_string "   Writing the quality information...\n"; flush stdout;
 	  let f r = r#write_to_db in 
 	  Vec.iter f revs;
 	  (* We write also the page information *)
 	  db#write_page_info page_id del_chunks_list page_info; 
 	  
-	  (* Releases the page lock *)
-	  db#release_page_lock page_id; 
 	end;
 
 	(* Commits the transaction *)
@@ -995,7 +1001,7 @@ class page
 	(* Flushes the logger.  *)
 	logger#flush;
 
-	print_string "   All done!\n"; flush stdout; (* debug *)
+	if debug then print_string "   All done!\n"; flush stdout;
       end (* eval method *)	
 
   end (* class *)

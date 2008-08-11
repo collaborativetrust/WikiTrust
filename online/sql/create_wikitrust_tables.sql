@@ -3,7 +3,7 @@ BEGIN;
 
 -- histogram containing the number of users in each rep bucket
 CREATE TABLE wikitrust_global (
-       median			  float NOT NULL,
+       median		          float,
        rep_0			  float,
        rep_1			  float,
        rep_2			  float,

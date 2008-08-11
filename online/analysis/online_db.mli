@@ -56,21 +56,19 @@ class db :
     (* ================================================================ *)
     (* Locks. *)
 
-    (** [get_page_lock page_id] gets a lock for page [page_id], to guarantee 
-	mutual exclusion on the updates for page [page_id]. *)
-    method get_page_lock : int -> unit
+    (** [get_page_lock page_id timeout] gets a lock for page [page_id], to guarantee 
+	mutual exclusion on the updates for page [page_id].  The lock is waited for at 
+	most time [timeout] seconds.  The function returns [true] if the lock was acquired. *)
+    method get_page_lock : int -> int -> bool
+
+    (** [is_page_lock_free page_id] checks whether the lock for page [page_id] is available
+	(there is no guarantee that somebody does not lock the page between this test and a 
+	subsequent call to [get_page_lock]. *)
+    method is_page_lock_free : int -> bool
 
     (** [release_page_lock page_id] releases the lock for page [page_id], to guarantee 
 	mutual exclusion on the updates for page [page_id]. *)
     method release_page_lock : int -> unit
-
-    (** [get_rep_lock] gets a lock for the global table of user reputations, to guarantee 
-	serializability of the updates. *)
-    method get_rep_lock : unit
-
-    (** [release_rep_lock] releases a lock for the global table of user reputations, to guarantee 
-	serializability ofe the updates. *)
-    method release_rep_lock : unit
 
     (** Commit of transaction *)
     method commit : bool
@@ -79,11 +77,12 @@ class db :
     (* Global methods. *)
 
     (** [get_histogram] Returns a histogram showing the number of users 
-	at each reputation level, and the median. *)
+	at each reputation level *)
     method get_histogram : float array * float
     
-    (** [set_histogram hist median] writes the user reputation histogram, and the median, to the db. *)
-    method set_histogram : float array -> float -> unit
+    (** write_histogram delta_hist median] increments the db histogram of user reputations according
+	to the array [delta_hist], and writes that the new median is [median]. *)
+    method write_histogram : float array -> float -> unit 
 
     (** [fetch_last_colored_rev_time_string] returns the time string (in the 
 	yyyymmddhhmmss format used in the db) of the most recent revision that 
@@ -100,7 +99,8 @@ class db :
     method fetch_all_revs : Mysql.result
 
     (* ================================================================ *)
-    (* Page methods. *)
+    (* Page methods.  We assume we have a lock on the page when calling
+       these methods. *)
 
     (** [write_page_info page_id chunk_list p_info] writes, in a table indexed by 
 	(page id, string list) that the page with id [page_id] is associated 
@@ -119,7 +119,8 @@ class db :
     method fetch_revs : int -> timestamp_t -> Mysql.result
  
     (* ================================================================ *)
-    (* Revision methods. *)
+    (* Revision methods.  We assume we have a lock on the page to which 
+       the revision belongs when calling these methods. *)
 
     (** [revision_needs_coloring rev_id] checks whether a revision has already been 
 	colored for trust. *)
@@ -179,9 +180,9 @@ class db :
     (* ================================================================ *)
     (* User methods. *)
 
-    (** [set_rep uid r] sets, in the table relating user ids to reputations, 
-	the reputation of user [uid] to be equal to [r]. *)
-    method set_rep : int -> float -> unit
+    (** [inc_rep uid delta] increments the reputation of user [uid] by [delta] in
+	a single operation, so to avoid database problems. *)
+    method inc_rep : int -> float -> unit
 
     (** [get_rep uid] gets the reputation of user [uid], from a table 
 	relating user ids to their reputation *)

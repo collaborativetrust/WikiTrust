@@ -49,6 +49,8 @@ TYPE_CONV_PATH "UCSC_WIKI_RESEARCH"
 
 (* Returned whenever something is not found *)
 exception DB_Not_Found
+(* Internal error *)
+exception DB_Internal_Error
 
 (* Timestamp in the DB *)
 type timestamp_t = int * int * int * int * int * int
@@ -88,30 +90,41 @@ class db
      
 
     (* ================================================================ *)
-    (* Locks. *)
+    (* Locks and commits. *)
 
-    (** [get_page_lock page_id] gets a lock for page [page_id], to guarantee 
-	mutual exclusion on the updates for page [page_id]. *)
-    method get_page_lock (page_id: int) = ()
+    (** [get_page_lock page_id timeout] gets a lock for page [page_id], to guarantee 
+	mutual exclusion on the updates for page [page_id].  The lock is waited for at 
+	most time [timeout] seconds.  The function returns [true] if the lock was acquired. *)
+    method get_page_lock (page_id: int) (timeout: int) : bool =
+      let lock_name = Printf.sprintf "%s.wikitrust_page.%d" database page_id in 
+      let s = Printf.sprintf "SELECT GET_LOCK('%s', %s)" (ml2str lock_name) (ml2int timeout) in 
+      match fetch (db_exec dbh s) with 
+	None -> raise DB_Internal_Error
+      | Some row -> ((not_null int2ml row.(0)) = 1)
+
+    (** [is_page_lock_free page_id] checks whether the lock for page [page_id] is available
+	(there is no guarantee that somebody does not lock the page between this test and a 
+	subsequent call to [get_page_lock]. *)
+    method is_page_lock_free (page_id: int) : bool = 
+      let lock_name = Printf.sprintf "%s.wikitrust_page.%d" database page_id in 
+      let s = Printf.sprintf "SELECT IS_FREE_LOCK('%s')" (ml2str lock_name) in 
+      match fetch (db_exec dbh s) with 
+	None -> raise DB_Internal_Error
+      | Some row -> ((not_null int2ml row.(0)) = 1)
 
     (** [release_page_lock page_id] releases the lock for page [page_id], to guarantee 
 	mutual exclusion on the updates for page [page_id]. *)
-    method release_page_lock (page_id: int) = ()
-
-    (** [get_rep_lock] gets a lock for the global table of user reputations, to guarantee 
-	serializability of the updates. *)
-    method get_rep_lock = ()
-
-    (** [release_rep_lock] releases a lock for the global table of user reputations, to guarantee 
-	serializability of the updates. *)
-    method release_rep_lock = ()
+    method release_page_lock (page_id: int) : unit = 
+      let lock_name = Printf.sprintf "%s.wikitrust_page.%d" database page_id in 
+      let s = Printf.sprintf "SELECT RELEASE_LOCK('%s')" (ml2str lock_name) in 
+      ignore (db_exec dbh s)
 
     (* Commits any changes to the db *)
     method commit : bool =
       ignore (db_exec dbh "COMMIT");
       match Mysql.status dbh with
-        | StatusError err -> false
-        | _ -> true
+        StatusError err -> false
+      | _ -> true
 	    
     (* ================================================================ *)
     (* Global methods. *)
@@ -127,14 +140,18 @@ class db
 	                not_null float2ml row.(4);  not_null float2ml row.(5);
 	                not_null float2ml row.(6);  not_null float2ml row.(7);
 	                not_null float2ml row.(8);  not_null float2ml row.(9); not_null float2ml row.(10);
-	             |], not_null float2ml row.(0))
+	             |], (not_null float2ml row.(0)))
     
-    (** [set_histogram hist hival] writes to the db that the histogram is [hist], and the 
-	chosen median is [hival].  *)
-    method set_histogram (hist : float array) (hival: float) : unit = 
-      let s = Printf.sprintf  "UPDATE wikitrust_global SET median = %s, rep_0 = %s, rep_1 = %s, rep_2 = %s, rep_3 = %s, rep_4 = %s, rep_5 = %s, rep_6 = %s, rep_7 = %s, rep_8 = %s, rep_9 =%s" (ml2float hival) (ml2float hist.(0)) (ml2float hist.(1)) (ml2float hist.(2)) (ml2float hist.(3)) (ml2float hist.(4)) (ml2float hist.(5)) (ml2float hist.(6)) (ml2float hist.(7)) (ml2float hist.(8)) (ml2float hist.(9)) in 
-	ignore (db_exec dbh s);
-	if commit_frequently then ignore (db_exec dbh "COMMIT")      
+    (** write_histogram delta_hist median] increments the db histogram of user reputations according
+	to the array [delta_hist], and writes that the new median is [median]. *)
+    method write_histogram (delta_hist : float array) (median: float) : unit = 
+      let s = Printf.sprintf  "UPDATE wikitrust_global SET median = %s, rep_0 = rep0 + %s, rep_1 = rep_1 + %s, rep_2 = rep_2 + %s, rep_3 = rep_3 + %s, rep_4 = rep_4 + %s, rep_5 = rep_5 + %s, rep_6 = rep_6 + %s, rep_7 = rep_7 + %s, rep_8 = rep_8 + %s, rep_9 = rep_9 + %s" 
+	(ml2float median)
+	(ml2float delta_hist.(0)) (ml2float delta_hist.(1)) (ml2float delta_hist.(2)) (ml2float delta_hist.(3)) 
+	(ml2float delta_hist.(4)) (ml2float delta_hist.(5)) (ml2float delta_hist.(6)) (ml2float delta_hist.(7)) 
+	(ml2float delta_hist.(8)) (ml2float delta_hist.(9)) in 
+      ignore (db_exec dbh s);
+      if commit_frequently then ignore (db_exec dbh "COMMIT")      
 
     (** [fetch_last_colored_rev_time_string] returns the time string (in the 
 	yyyymmddhhmmss format used in the db) of the most recent revision that 
@@ -170,13 +187,10 @@ class db
 	The chunk_list contains text that used to be present in the article, but has 
 	been deleted; the database records its existence. *)
     method write_page_info (page_id : int) (c_list : chunk_t list) (p_info: page_info_t) : unit = 
-      let chunks_string = ml2str (string_of__of__sexp_of 
-          (sexp_of_list sexp_of_chunk_t) c_list) in 
+      let chunks_string = ml2str (string_of__of__sexp_of (sexp_of_list sexp_of_chunk_t) c_list) in 
       let info_string = ml2str (string_of__of__sexp_of sexp_of_page_info_t p_info) in 
-      let s = Printf.sprintf "DELETE FROM wikitrust_page WHERE page_id = %s" (ml2int page_id) in 
-      ignore (db_exec dbh s);
-      let s = Printf.sprintf "INSERT INTO wikitrust_page (page_id, deleted_chunks, page_info) VALUES (%s, %s, %s)" 
-	(ml2int page_id) chunks_string info_string in  
+      let s = Printf.sprintf "INSERT INTO wikitrust_page (page_id, deleted_chunks, page_info) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE deleted_chunks = %s, page_info = %s" 
+	(ml2int page_id) chunks_string info_string chunks_string info_string in  
       ignore (db_exec dbh s);
       if commit_frequently then ignore (db_exec dbh "COMMIT")
 
@@ -216,13 +230,11 @@ class db
     (** [write_revision_info rev_id quality_info elist] writes the wikitrust data 
 	associated with revision with id [rev_id] *)
     method write_revision_info (rev_id: int) (quality_info: qual_info_t) : unit = 
-      let s1 =  Printf.sprintf "DELETE FROM wikitrust_revision WHERE revision_id = %s" (ml2int rev_id) in
-      let s2 =  Printf.sprintf "INSERT INTO wikitrust_revision (revision_id, quality_info, reputation_delta, overall_trust) VALUES (%s, %s, %s, %s)"
- 	(ml2int rev_id)
-	(ml2str (string_of__of__sexp_of sexp_of_qual_info_t quality_info) ) 
-	(ml2float quality_info.reputation_gain) 
-	(ml2float quality_info.overall_trust) in
-      ignore (db_exec dbh s1);
+      let t1 = ml2str (string_of__of__sexp_of sexp_of_qual_info_t quality_info) in 
+      let t2 = ml2float quality_info.reputation_gain in 
+      let t3 = ml2float quality_info.overall_trust in
+      let s2 =  Printf.sprintf "INSERT INTO wikitrust_revision (revision_id, quality_info, reputation_delta, overall_trust) VALUES (%s, %s, %s, %s) ON DUPLICATE KEY UPDATE quality_info = %s, reputation_delta = %s, overall_trust = %s"
+ 	(ml2int rev_id) t1 t2 t3 t1 t2 t3 in 
       ignore (db_exec dbh s2)
 
     (** [read_revision_info rev_id] reads the wikitrust information of revision_id *)
@@ -261,9 +273,9 @@ class db
 	may be highly advisable. *)
     (* This is currently a first cut, which will be hopefully optimized later *)
     method write_colored_markup (rev_id : int) (markup : string) (createdon : string) : unit =
-      let s1 = Printf.sprintf "DELETE FROM wikitrust_colored_markup WHERE revision_id = %s" (ml2int rev_id) in 
-      let s2 = Printf.sprintf "INSERT INTO wikitrust_colored_markup (revision_id, revision_text, revision_createdon) VALUES (%s, %s, %s)" (ml2int rev_id) (ml2str markup) (ml2str createdon) in 
-      ignore (db_exec dbh s1); 
+      let db_mkup = ml2str markup in 
+      let s2 = Printf.sprintf "INSERT INTO wikitrust_colored_markup (revision_id, revision_text, revision_createdon) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE revision_text = %s, revision_createdon = %s" 
+	(ml2int rev_id) db_mkup (ml2str createdon) db_mkup (ml2str createdon) in 
       ignore (db_exec dbh s2);
       if commit_frequently then ignore (db_exec dbh "COMMIT")
 
@@ -283,9 +295,7 @@ class db
       (sigs: Author_sig.packed_author_signature_t array) : unit = 
       let g = sexp_of_array Author_sig.sexp_of_sigs in 
       let s = string_of__of__sexp_of g sigs in 
-      let s1 = Printf.sprintf "DELETE FROM wikitrust_sigs WHERE revision_id = %s" (ml2int rev_id) in 
-      let s2 = Printf.sprintf "INSERT INTO wikitrust_sigs (revision_id, sigs) VALUES (%s, %s)" (ml2int rev_id) (ml2str s) in 
-      ignore (db_exec dbh s1 ); 
+      let s2 = Printf.sprintf "INSERT INTO wikitrust_sigs (revision_id, sigs) VALUES (%s, %s) ON DUPLICATE KEY UPDATE sigs = %s" (ml2int rev_id) (ml2str s) (ml2str s) in 
       ignore (db_exec dbh s2 )
 
       (** [read_author_sigs rev_id] reads the author signatures for the revision 
@@ -316,18 +326,12 @@ class db
     (* ================================================================ *)
     (* User methods. *)
 
-    (** [set_rep uid r] sets, in the table relating user ids to reputations, 
-	  the reputation of user [uid] to be equal to [r]. *)
-    method set_rep (uid : int) (rep : float) =
-      (* first check to see if there exists the user already *)
-      try
-        let s =  Printf.sprintf "UPDATE wikitrust_user SET user_rep = %s WHERE user_id = %s"  (ml2float rep) (ml2int uid ) in
-        ignore (self#get_rep uid ) ;
-        ignore (db_exec dbh s); 
-      with
-        DB_Not_Found ->
-          let s = Printf.sprintf  "INSERT INTO wikitrust_user (user_id,  user_rep) VALUES (%s, %s)"  (ml2int uid)  (ml2float rep ) in
-          ignore (db_exec dbh s);  
+    (** [inc_rep uid delta] increments the reputation of user [uid] by [delta] in
+	a single operation, so to avoid database problems. *)
+    method inc_rep (uid : int) (delta : float) =
+      let s = Printf.sprintf "INSERT INTO wikitrust_user (user_id, user_rep) VALUES (%s, %s) ON DUPLICATE KEY UPDATE user_rep = user_rep + %s" 
+	(ml2int uid) (ml2float delta) (ml2float delta) in 
+      ignore (db_exec dbh s);
       if commit_frequently then ignore (db_exec dbh "COMMIT")
   
     (** [get_rep uid] gets the reputation of user [uid], from a table 
