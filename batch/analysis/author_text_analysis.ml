@@ -79,8 +79,8 @@ class page
       (* No titles in the xml file! *)
     method print_id_title = ()
 
-    (** This method counts the number of words added in a revision and credits
-	the author *)
+    (** This method counts the number of charactors added in a 
+	revision and credits the author. *)
     method private eval_newest : unit = 
       let rev_idx = (Vec.length revs) - 1 in 
       let rev = Vec.get rev_idx revs in 
@@ -106,13 +106,16 @@ class page
 	(* Now, replace chunks_a for the next iteration *)
 	chunks_a <- new_chunks_a
 	  
-    (** This method is called once a page has been fully analyzed for text trust, 
-        so that we can output the colorized text. *)
+    (** This method is called once a page has been fully analyzed, and
+    outputs whatever customized results are desired. *)
     method private gen_output : unit = 
-      let print_counts id count =
+      let print_counts (id,count) =
 	Printf.fprintf out_file "%d %d\n" id count 
       in
-	Hashtbl.iter print_counts authors
+      let to_list k v lst = (k,v) :: lst in
+      let comp (k1,v1) (k2,v2) = v2 - v1 in
+      let auth_list = Hashtbl.fold to_list authors [] in
+	List.iter print_counts (List.sort comp auth_list)
 
     (** This method is called to add a new revision to be evaluated for trust. *)
     method add_revision 

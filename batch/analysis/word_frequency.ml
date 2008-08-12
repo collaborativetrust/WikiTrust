@@ -79,7 +79,8 @@ class page
       (* No titles in the xml file! *)
     method print_id_title = ()
 
-    (** This method counts the number of words added in a revision. *)
+    (** This method counts the number of times each word is added in all 
+	revisions of a page. *)
     method private eval_newest : unit = 
       let rev_idx = (Vec.length revs) - 1 in 
       let rev = Vec.get rev_idx revs in 
@@ -92,18 +93,21 @@ class page
            between revisions. Data relative to the previous revision
            is stored in the instance fields chunks_a and chunks_attr_a *)
       let (new_chunks_a, medit_l) = Chdiff.text_tracking chunks_a new_wl in
-	Array.iter update_word_counts chunks_a.(0);
-	
+	(* chunks_a.(0) is the complete text of the current revision. *)
+	Array.iter update_word_counts chunks_a.(0);	
 	(* Now, replace chunks_a for the next iteration *)
 	chunks_a <- new_chunks_a
 
-    (** This method is called once a page has been fully analyzed for text trust, 
-        so that we can output the colorized text. *)
+    (** This method is called once a page has been fully analyzed. It outputs the 
+	results in a custom format. *)
     method private gen_output : unit = 
-      let print_counts word count =
+      let print_counts (word,count) =
 	Printf.fprintf out_file "%s %d\n" word count 
       in
-	Hashtbl.iter print_counts words
+      let to_list k v lst = (k,v) :: lst in
+      let comp (k1,v1) (k2,v2) = v2 - v1 in
+      let word_list = Hashtbl.fold to_list words [] in
+	List.iter print_counts (List.sort comp word_list)
 
     (** This method is called to add a new revision to be evaluated for trust. *)
     method add_revision 
