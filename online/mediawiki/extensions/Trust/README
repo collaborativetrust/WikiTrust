@@ -49,5 +49,12 @@ of eval_online_wiki.
 If you have problems, look in /tmp/coloring.log (or the value you set
 $EVAL_ONLINE_LOG_FILE for debugging information).
 
+Trouble Shooting:
+
+1) If you click on the trust tab immediatly after editing a wiki and
+ the text is not colored, wait 1 minuet and then touch
+ LocalSettings.php. Sometimes the coloring takes a while, and you will
+ need to touch the file to defeat the caching in this case. 
+
 
 
