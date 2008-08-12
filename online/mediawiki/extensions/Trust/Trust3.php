@@ -19,6 +19,14 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307
 # USA
 
+  /**
+   Cache in mem median val
+  xx Remove locks
+   Comment 1st hack
+  xx get db values
+
+   */
+
 
 ## MW extension
 # This defines a custom MW function to map trust values to HTML markup
@@ -28,19 +36,9 @@ $TRUST_CSS_TAG = "background-color"; ## color the background
 #$TRUST_CSS_TAG = "color"; ## color just the text
 
 ## Path to eval_online_wiki
-$EVAL_ONLINE_WIKI = "/home/ipye/git/wikitrust/online/analysis/eval_online_wiki";
+$EVAL_ONLINE_WIKI = "/home/ipye/git/wikitrust/online/analysis/eval_online_wiki -log_name /dev/null";
 
-## Hard coded coloring arguments
-$EVAL_ONLINE_WIKI_ARGS = '-db_user wikiuser -db_pass wikiword -db_name wikidb1 -log_name /tmp/color-on-edit.log';
-
-## We only want to run one coloring process at a time
-$EVAL_ONLINE_LOCK_FILE = "/tmp/mw_coloring.lock";
-
-## Median file cache lives here
-$EVAL_MEDIAN_REP_FILE = "/tmp/mw_median_rep";
-
-## Log file for the coloring process
-$EVAL_ONLINE_LOG_FILE = "/tmp/coloring.log";
+$EVAL_MEDIAN_REP_FILE = "/tmp/median";
 
 ## Trust normalization values;
 $MAX_TRUST_VALUE = 9;
@@ -52,6 +50,7 @@ $MW_RAND_MIN = 0;
 $MW_RAND_MAX = 100;
 $MW_POLL_UNDER = 10;
 
+$median = -1;
 
 ## map trust values to html color codes
 $COLORS = array(
@@ -112,17 +111,14 @@ function update_median($median_file){
 /* 
  Code to fork and exec a new process to color any new revisions.
  Called after any edits are made.
-
- This assums that the php process has write access to /tmp.
 */
 function ucscRunColoring(&$article, &$user, &$text, &$summary, $minor, $watch, $sectionanchor, &$flags, $revision) { 
   global $EVAL_ONLINE_WIKI;
-  global $EVAL_ONLINE_WIKI_ARGS;
-  global $EVAL_ONLINE_LOCK_FILE;
-  global $EVAL_ONLINE_LOG_FILE;
+  global $EVAL_MEDIAN_REP_FILE;
   global $MW_RAND_MIN;
   global $MW_RAND_MAX;
   global $MW_POLL_UNDER;
+  global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype;
 
   $pid = -1;
 
@@ -131,20 +127,8 @@ function ucscRunColoring(&$article, &$user, &$text, &$summary, $minor, $watch, $
     update_median($EVAL_MEDIAN_REP_FILE);
   }
   
-  // We don't want more than one copy of the coloring going at any one time.
-  if (file_exists($EVAL_ONLINE_LOCK_FILE)){
-    $pid = file_get_contents($EVAL_ONLINE_LOCK_FILE);
-    exec("ps $pid", $pState); // Is the process still running?
-    if ((count($pState) >= 2)){
-      return true;
-    }
-  } 
-
-  // Start the coloring since no other coloring processes are going.
-  $pid = shell_exec("nohup $EVAL_ONLINE_WIKI $EVAL_ONLINE_WIKI_ARGS >> $EVAL_ONLINE_LOG_FILE 2>&1 & echo $!");
-
-  // And mark that we started this process.
-  file_put_contents($pid);
+  // Start the coloring.
+  $pid = shell_exec("nohup $EVAL_ONLINE_WIKI -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname >> /tmp/coloringllll 2>&1 & echo $!");
   
   if($pid)
     return true;
@@ -160,6 +144,15 @@ function ucscTrustTemplate($skin, &$content_actions) {
   } else {
     $trust_qs .= "?trust=t"; 
   }
+
+  global $EVAL_MEDIAN_REP_FILE;
+  global $median;
+  $median_new = update_median($EVAL_MEDIAN_REP_FILE);
+
+  print $median . " -- ";
+  print $median_new;
+
+  $median = $median_new;
 
   $content_actions['trust'] = array ( 'class' => '',
 				      'text' => 'Trust',
@@ -177,9 +170,9 @@ function ucscTrustTemplate($skin, &$content_actions) {
 }
 
 /**
- If colored text exists, use it instead of the normal text.
- TODO: make this optional.
- */
+ If colored text exists, use it instead of the normal text, 
+ but only if the trust tab is selected.
+*/
 function ucscSeeIfColored(&$parser, &$text, &$strip_state) { 
   global $EVAL_MEDIAN_REP_FILE;
   global $wgParserCacheType;
@@ -197,10 +190,13 @@ function ucscSeeIfColored(&$parser, &$text, &$strip_state) {
     return true;
   } 
 
-  /* This is being called multiple times for each page. The upshot of
-   this is that the first time is good, and after that the footer is
-   gettting messed up. This is desinged in an EXTREMELY hacky manor
-   to avoid this. */
+  /**
+   This method is being called multiple times for each page. The upshot of
+   this is that the first time it is invoked, everything is good.
+   After that though the footer is gettting messed up.
+   To avoid this, we test to see if we are dealing with a footer, and only
+   proceed if we are not.
+  */
   $pos1 = strpos($text, "{{SITENAME}}");    
   $pos2 = strpos($text, "{{PLURAL");
   if($pos1 !== false || $pos2 !== false){

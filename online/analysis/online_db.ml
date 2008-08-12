@@ -77,10 +77,12 @@ let db_exec dbh s =
 class db  
   (user : string)
   (auth : string)
-  (database : string) =
+  (database : string)
+  (host : string)
+  (port : int) =
  
-  let db_param = {dbhost = None;
-                  dbport = None;
+  let db_param = {dbhost = Some host;
+                  dbport = Some port;
                   dbname = Some database; 
                   dbpwd = Some auth;
                   dbuser = Some user} in

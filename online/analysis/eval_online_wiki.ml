@@ -52,6 +52,10 @@ let db_name = ref ""
 let set_db_name d = db_name := d
 let log_name = ref ""
 let set_log_name d = log_name := d
+let db_host_name = ref "localhost"
+let set_db_host d = db_host_name := d
+let db_port = ref 3306
+let set_db_port d = db_port := d
 let synch_log = ref false
 let noop s = ()
 let delete_all = ref false
@@ -61,6 +65,8 @@ let command_line_format =
   [("-db_user", Arg.String set_db_user, "<user>: DB user to use");
    ("-db_name", Arg.String set_db_name, "<name>: Name of the DB to use");
    ("-db_pass", Arg.String set_db_pass, "<pass>: DB password");
+   ("-db_host", Arg.String set_db_host, "<pass>: DB host");
+   ("-db_port", Arg.Int set_db_port, "<port>: DB port");
    ("-log_name", Arg.String set_log_name, "<logger.out>: Logger output file");
    ("-synch_log", Arg.Set synch_log, ": Runs the logger in synchnonized mode");
    ("-delete_all", Arg.Set delete_all, "Deletes all information in the db before proceeding");
@@ -88,7 +94,7 @@ let rec evaluate_revision (db: Online_db.db) (page_id: int) (rev_id: int) : unit
   end;;
 
 (* Does all the work of processing the given page and revision *)
-let db = new Online_db.db !db_user !db_pass !db_name in
+let db = new Online_db.db !db_user !db_pass !db_name !db_host_name !db_port in
 
   
 (* debug *) (* If requested, we erase all coloring.  REMOVE THIS FOR THE PRODUCTION CODE! *)

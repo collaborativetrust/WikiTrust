@@ -50,6 +50,8 @@ class db :
   string (* user *) -> 
   string (* auth *) ->
   string (* database name *) -> 
+  string (* database host name *) ->
+  int (* database port *) ->  
 
   object
 
