@@ -12,32 +12,24 @@ installation.
 
 1) Copy Trust3.php to (Dir of MediaWiki)/extensions/Trust/Trust3php
 
-2) Edit following 2 lines in Trust3.php:
+2) Copy ExtensionClass.php to extensions/ExtensionClass.php
+
+3) Edit following 2 lines in Trust3.php:
 
 ## Path to eval_online_wiki
 $EVAL_ONLINE_WIKI = "/home/ipye/git/wikitrust/online/analysis/eval_online_wiki";
 
-## Hard coded coloring arguments
-$EVAL_ONLINE_WIKI_ARGS = '-db_user wikiuser -db_pass wikiword -db_name
-wikidb1 -log_name /tmp/color-on-edit.log';
-
-## We only want to run one coloring process at a time
-$EVAL_ONLINE_LOCK_FILE = "/tmp/mw_coloring.lock";
-
 ## Median file cache lives here
 $EVAL_MEDIAN_REP_FILE = "/tmp/mw_median_rep";
 
-## Log file for the coloring process
-$EVAL_ONLINE_LOG_FILE = "/tmp/coloring.log";
-
-here, make sure that the apache user process can write to /tmp, and
-the -log_name value in particular, along with all of the other log files.
+here, make sure that the apache user process can write to /tmp.
 
 Also, make sure that the apache user process can execute the
 eval_online_wiki program.
 
-3) Add the following line to LocalSettings.php:
+3) Add the following lines to LocalSettings.php:
 
+require_once( $IP . "/extensions/ExtensionClass.php");
 require_once( $IP . "/extensions/Trust/Trust3.php" );
 
 4) Try creating a new revision. It should be colored as soon as it is
