@@ -95,8 +95,7 @@ let rec evaluate_revision (db: Online_db.db) (page_id: int) (rev_id: int) : unit
 
 (* Does all the work of processing the given page and revision *)
 let db = new Online_db.db !db_user !db_pass !db_name !db_host_name !db_port in
-
-  
+ 
 (* debug *) (* If requested, we erase all coloring.  REMOVE THIS FOR THE PRODUCTION CODE! *)
 if !delete_all then db#delete_all true; 
 

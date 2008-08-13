@@ -124,7 +124,7 @@ colors text according to trust.'
    
    // Start the coloring.
    $command = "nohup $wgTrustCmd -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname >> $wgTrustDebugLog 2>&1 & echo $!";
-   $pid = shell_exec("/bin/echo '$command' >> $wgTrustDebugLog");
+   // $pid = shell_exec("/bin/echo '$command' >> $wgTrustDebugLog");
    $pid = shell_exec($command);
   
    if($pid)

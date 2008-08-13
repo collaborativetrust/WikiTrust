@@ -34,10 +34,6 @@ POSSIBILITY OF SUCH DAMAGE.
  *)
 
 
-(* To do: 
-   - Fix locking 
- *)
-
 open Online_types
 open Mysql
 open Sexplib.Conv
@@ -55,7 +51,7 @@ exception DB_Internal_Error
 (* Timestamp in the DB *)
 type timestamp_t = int * int * int * int * int * int
 
-let debug_mode = true;;
+let debug_mode = false;;
 
 (* This is the function that sexplib uses to convert floats *)
 Sexplib.Conv.default_string_of_float := (fun n -> sprintf "%.4G" n);;

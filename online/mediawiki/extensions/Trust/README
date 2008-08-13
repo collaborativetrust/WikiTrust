@@ -17,11 +17,13 @@ LocalSettings.php:
 $wgUseTidy = true;
 $wgTrustCmd = "/home/luca/wikitrust/online/analysis/eval_online_wiki"; 
 $wgTrustLog = "/tmp/{$wgDBname}-trust.log";
+$wgTrustDebugLog = "/tmp/{$wgDBname}-trust-debug.log";
 require_once( $IP . "/extensions/Trust/ExtensionClass.php");
 require_once( $IP . "/extensions/Trust/Trust3.php" );
 
 If you don't wish to obtain a log, you can safely set: 
-$wgTrustLog = "/dev/null';
+$wgTrustLog = "/dev/null";
+$wgTrustDebugLog = "/dev/null";
 In fact, if you do get a log, it is your responsibility to set up the
 proper log rotation and compression scripts.  The only purpose of the 
 log is to help in debugging. 
