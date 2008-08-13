@@ -96,6 +96,10 @@ class db :
         revs created after the given timestamp. *)
     method fetch_all_revs_after : timestamp_t -> Mysql.result
 
+    (** [sth_select_all_revs_including_after [rev_id] (int * int * int * int * int * int)] returns all 
+        revs created after the given timestamp, or that have revision id [rev_id]. *)
+    method fetch_all_revs_including_after : int -> timestamp_t -> Mysql.result
+
     (** [fetch_all_revs] Returns a pointer to a result set consisting in all the 
 	revisions of the database, in ascending temporal order. *)
     method fetch_all_revs : Mysql.result
