@@ -251,7 +251,7 @@ colors text according to trust.'
  function computeColor3($fTrustValue){
    return $this->COLORS[$fTrustValue];
  }
-}
+}    
 
 TextTrust::singleton();
 
