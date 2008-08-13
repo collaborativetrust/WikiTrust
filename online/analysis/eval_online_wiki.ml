@@ -67,7 +67,7 @@ let command_line_format =
    ("-db_pass", Arg.String set_db_pass, "<pass>: DB password");
    ("-db_host", Arg.String set_db_host, "<pass>: DB host");
    ("-db_port", Arg.Int set_db_port, "<port>: DB port");
-   ("-log_name", Arg.String set_log_name, "<logger.out>: Logger output file");
+   ("-log_file", Arg.String set_log_name, "<logger.out>: Logger output file");
    ("-synch_log", Arg.Set synch_log, ": Runs the logger in synchnonized mode");
    ("-delete_all", Arg.Set delete_all, "Deletes all information in the db before proceeding");
   ]

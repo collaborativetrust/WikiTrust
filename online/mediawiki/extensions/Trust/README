@@ -1,36 +1,31 @@
 
-Custom Coloring Extensions
+Trust Coloring Extensions
 
-Trust3.php -- Does the coloring markup and revision tracking
-NotifyEdit -- Sends a UDP message to a specified server whenever a edit happens.
-
-To install and configure Trust3.php (this will color new revisions as
-they are created.): 
-
-This assumes a correctly configured and installed MediaWiki
+To install and configure the trust coloring extensions, proceed as
+follows.  This assumes a correctly configured and installed MediaWiki
 installation.
 
-1) Copy Trust3.php to (Dir of MediaWiki)/extensions/Trust/Trust3php
+1) Copy Trust3.php to (directory of MediaWiki)/extensions/Trust/Trust3php
 
-2) Copy ExtensionClass.php to extensions/ExtensionClass.php
+2) Copy ExtensionClass.php to 
+(directory of MediaWiki)extensions/Trust/ExtensionClass.php
 
-3) Edit following 2 lines in Trust3.php:
+3) Add the following lines, appropriately edited, to
+LocalSettings.php: 
 
-## Path to eval_online_wiki
-$EVAL_ONLINE_WIKI = "/home/ipye/git/wikitrust/online/analysis/eval_online_wiki";
-
-## Median file cache lives here
-$EVAL_MEDIAN_REP_FILE = "/tmp/mw_median_rep";
-
-here, make sure that the apache user process can write to /tmp.
-
-Also, make sure that the apache user process can execute the
-eval_online_wiki program.
-
-3) Add the following lines to LocalSettings.php:
-
-require_once( $IP . "/extensions/ExtensionClass.php");
+# Trust extension	
+$wgUseTidy = true;
+$wgTrustCmd = "/home/luca/wikitrust/online/analysis/eval_online_wiki"; 
+$wgTrustLog = "/tmp/{$wgDBname}-trust.log";
+require_once( $IP . "/extensions/Trust/ExtensionClass.php");
 require_once( $IP . "/extensions/Trust/Trust3.php" );
+
+If you don't wish to obtain a log, you can safely set: 
+$wgTrustLog = "/dev/null';
+In fact, if you do get a log, it is your responsibility to set up the
+proper log rotation and compression scripts.  The only purpose of the 
+log is to help in debugging. 
+$wgTrustCommand is the name of the trust coloring executable; 
 
 4) Try creating a new revision. It should be colored as soon as it is
 created. 
@@ -44,7 +39,7 @@ $EVAL_ONLINE_LOG_FILE for debugging information).
 Trouble Shooting:
 
 1) If you click on the trust tab immediatly after editing a wiki and
- the text is not colored, wait 1 minuet and then touch
+ the text is not colored, wait 1 minute and then touch
  LocalSettings.php. Sometimes the coloring takes a while, and you will
  need to touch the file to defeat the caching in this case. 
 
