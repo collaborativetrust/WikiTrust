@@ -41,9 +41,6 @@ class TextTrust extends ExtensionClass
   ## Path to eval_online_wiki
   const EVAL_ONLINE_WIKI = "/home/ipye/git/wikitrust/online/analysis/eval_online_wiki -log_name /dev/null";
   
-  ## File cached median value
-  const EVAL_MEDIAN_REP_FILE = "/tmp/median";
-  
   ## Trust normalization values;
   const MAX_TRUST_VALUE = 9;
   const MIN_TRUST_VALUE = 0;
@@ -53,6 +50,9 @@ class TextTrust extends ExtensionClass
   const MW_RAND_MIN = 0;
   const MW_RAND_MAX = 100;
   const MW_POLL_UNDER = 10;
+
+  ## Median Value of Trust
+  var $median = 0.0;
     
   ## map trust values to html color codes
   var $COLORS = array(
@@ -80,55 +80,54 @@ class TextTrust extends ExtensionClass
    $wgExtensionFunctions[] = 'ucscColorTrust_Setup';
 
 # Credits
-  $wgExtensionCredits['parserhook'][] = array(
-					      'name' => 'Trust Coloring',
-					      'author' =>'Ian Pye', 
-					      'url' => 
-					      'http://trust.cse.ucsc.edu', 
-					      'description' => 'This Extension 
+   $wgExtensionCredits['parserhook'][] = array(
+					       'name' => 'Trust Coloring',
+					       'author' =>'Ian Pye', 
+					       'url' => 
+					       'http://trust.cse.ucsc.edu', 
+					       'description' => 'This Extension 
 colors text according to trust.'
-					      );
+					       );
+  }
   
- }
-
- public function setup()
- {
-   parent::setup();
-   
-   global $wgHooks, $wgParser;
-
+  public function setup()
+  {
+    parent::setup();
+    
+    global $wgHooks, $wgParser;
+    
 # Add a hook to initialise the magic word
-   $wgHooks['LanguageGetMagic'][] = array( &$this, 'ucscColorTrust_Magic');
-   
+    $wgHooks['LanguageGetMagic'][] = array( &$this, 'ucscColorTrust_Magic');
+    
 # And add a hook so the colored text is found. 
-   $wgHooks['ParserBeforeStrip'][] = array( &$this, 'ucscSeeIfColored');
-   
+    $wgHooks['ParserBeforeStrip'][] = array( &$this, 'ucscSeeIfColored');
+    
 # And add and extra tab.
-   $wgHooks['SkinTemplateTabs'][] = array( &$this, 'ucscTrustTemplate');
-   
+    $wgHooks['SkinTemplateTabs'][] = array( &$this, 'ucscTrustTemplate');
+    
 # Color saved text
-   $wgHooks['ArticleSaveComplete'][] = array( &$this, 'ucscRunColoring');
+    $wgHooks['ArticleSaveComplete'][] = array( &$this, 'ucscRunColoring');
    
 # Set a function hook associating the "example" magic word with our function
-   $wgParser->setFunctionHook( 't', array( &$this, 'ucscColorTrust_Render'));
-   $wgParser->setFunctionHook( 'to', array( &$this, 'ucscOrigin_Render'), SFH_NO_HASH );
- }
+    $wgParser->setFunctionHook( 't', array( &$this, 'ucscColorTrust_Render'));
+    $wgParser->setFunctionHook( 'to', array( &$this, 'ucscOrigin_Render'), SFH_NO_HASH );
+
+# Pull the median value
+    $this->update_median();
+  }
 
  /**
   Updated the cached median reputation value.
  */
- function update_median($median_file){
+ function update_median(){
    $dbr =& wfGetDB( DB_SLAVE );
-   $res = $dbr->select('wikitrust_histogram', 'median', array(), array());
+   $res = $dbr->select('wikitrust_global', 'median', array(), array());
    if ($res){
      $row = $dbr->fetchRow($res);
-     $median = $row['median'];
-     if ($median){
-       file_put_contents($median_file, $median);
-     } 
+     $this->median = $row['median']; 
    } 
    $dbr->freeResult( $res );
-   return $median;
+   return $this->median;
  }
  
 /* 
@@ -140,12 +139,7 @@ colors text according to trust.'
    
    $pid = -1;
    
-   // Update the cached median reputation info value, but only sometimes.
-   if (rand(self::MW_RAND_MIN, self::MW_RAND_MAX) < self::MW_POLL_UNDER){
-     update_median(self::EVAL_MEDIAN_REP_FILE);
-   }
-   
-  // Start the coloring.
+   // Start the coloring.
    $pid = shell_exec("nohup " . self::EVAL_ONLINE_WIKI . " -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname >> /dev/null 2>&1 & echo $!");
   
    if($pid)
@@ -262,15 +256,9 @@ colors text according to trust.'
 ## Normalize the value for growing wikis.
  function computeColorFromFloat($trust){
    
-   $median = 0.0;
-   if( file_exists(self::EVAL_MEDIAN_REP_FILE)){
-     $median = floatval(file_get_contents(self::EVAL_MEDIAN_REP_FILE));
-   } else {
-     $median = $this->update_median(self::EVAL_MEDIAN_REP_FILE);
-   }
    $normalized_value = min(self::MAX_TRUST_VALUE, max(self::MIN_TRUST_VALUE, 
-						 ($trust * self::TRUST_MULTIPLIER) 
-						 / $median));
+						      ($trust * self::TRUST_MULTIPLIER) 
+						      / $this->median));
    return $this->computeColor3($normalized_value);
  }
  
