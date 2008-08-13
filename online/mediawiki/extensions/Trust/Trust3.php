@@ -45,11 +45,6 @@ class TextTrust extends ExtensionClass
   const MAX_TRUST_VALUE = 9;
   const MIN_TRUST_VALUE = 0;
   const TRUST_MULTIPLIER = 10;
-  
-  ## Poll the median value this often
-  const MW_RAND_MIN = 0;
-  const MW_RAND_MAX = 100;
-  const MW_POLL_UNDER = 10;
 
   ## Median Value of Trust
   var $median = 0.0;
