@@ -36,6 +36,9 @@ class TextTrust extends ExtensionClass
 
   ## Median Value of Trust
   var $median = 0.0;
+
+  ## Number of times a revision is looked at.
+  var $times_rev_loaded = 0;
     
   ## map trust values to html color codes
   var $COLORS = array(
@@ -176,20 +179,18 @@ colors text according to trust.'
    if(!isset($_GET['trust'])){
     return true;
    } 
-
-   /**
-   This method is being called multiple times for each page. The upshot of
-   this is that the first time it is invoked, everything is good.
-   After that though the footer is gettting messed up.
-   To avoid this, we test to see if we are dealing with a footer, and only
-   proceed if we are not.
-  */
-   $pos1 = strpos($text, "{{SITENAME}}");    
-   $pos2 = strpos($text, "{{PLURAL");
-   if($pos1 !== false || $pos2 !== false){
-     return true;
-   }
    
+   /**
+    This method is being called multiple times for each page. 
+    We only pull the colored text for the first time through.
+   */
+   if ($this->times_rev_loaded > 0){
+     $this->times_rev_loaded++;
+     return true;
+   } else {
+     $this->times_rev_loaded++;
+   }
+
    // Otherwise, see if there is colored text in the db.
    $dbr =& wfGetDB( DB_SLAVE );
    $rev_id = $parser->mRevisionId;
