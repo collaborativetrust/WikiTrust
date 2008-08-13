@@ -44,13 +44,13 @@ let lock_timeout = 30
 
 (** This is the top-level code of the wiki online xml evaluation. 
     This is used for testing only: *)
-let db_user = ref ""
+let db_user = ref "wikiuser"
 let set_db_user u = db_user := u
 let db_pass = ref ""
 let set_db_pass p = db_pass := p
-let db_name = ref ""
+let db_name = ref "wikidb"
 let set_db_name d = db_name := d
-let log_name = ref ""
+let log_name = ref "/dev/null"
 let set_log_name d = log_name := d
 let db_host_name = ref "localhost"
 let set_db_host d = db_host_name := d
@@ -59,23 +59,43 @@ let set_db_port d = db_port := d
 let synch_log = ref false
 let noop s = ()
 let delete_all = ref false
+let reputation_speed = ref 1.
+let set_reputation_speed f = reputation_speed := f
+let requested_rev_id = ref None
+let set_requested_rev_id d = requested_rev_id := Some d
 
 (* Figure out what to do and how we are going to do it. *)
 let command_line_format = 
-  [("-db_user", Arg.String set_db_user, "<user>: DB user to use");
-   ("-db_name", Arg.String set_db_name, "<name>: Name of the DB to use");
-   ("-db_pass", Arg.String set_db_pass, "<pass>: DB password");
-   ("-db_host", Arg.String set_db_host, "<pass>: DB host");
-   ("-db_port", Arg.Int set_db_port, "<port>: DB port");
-   ("-log_file", Arg.String set_log_name, "<logger.out>: Logger output file");
-   ("-synch_log", Arg.Set synch_log, ": Runs the logger in synchnonized mode");
-   ("-delete_all", Arg.Set delete_all, "Deletes all information in the db before proceeding");
+  [("-db_user", Arg.String set_db_user, "<string>: DB user to use (default: wikiuser)");
+   ("-db_name", Arg.String set_db_name, "<string>: Name of the DB to use (default: wikidb)");
+   ("-db_pass", Arg.String set_db_pass, "<string>: DB password");
+   ("-db_host", Arg.String set_db_host, "<string>: DB host (default: localhost)");
+   ("-db_port", Arg.Int set_db_port, "<int>: DB port (default: 3306)");
+   ("-rev_id",  Arg.Int set_requested_rev_id, "<int>: (optional) revision ID that we want to ensure it is colored");
+   ("-log_file", Arg.String set_log_name, "<filename>: Logger output file (default: /dev/null)");
+   ("-rep_speed", Arg.Float set_reputation_speed, "<float>: Speed at which users gain reputation; 1.0 for large wikis");
+   ("-delete_all", Arg.Set delete_all, ": Recomputes all reputations and trust from scratch.  BE CAREFUL!! This may take a LONG time for large wikis.");
   ]
 
-let _ = Arg.parse command_line_format noop "Usage: eval_online_wiki";;
+let _ = Arg.parse command_line_format noop "
+This command computes user reputations and text trust for a wiki. 
+The command assumes that the wiki database already contains some special 
+tables for reputation and trust, and computes the missing reputation and 
+trust values, in chronological order.  The code is thread-safe, meaning
+that more than one instance can be active at the same time; an instance
+terminates when all the work is done, or if there are too many active
+instances (measured not from the number of active instances, but from 
+the amount of DB contention that is generated, so the code is 
+auto-throttling).  The command can be called whenever someone edits a 
+revision, in which case it will just color the latest revision 
+according to trust, and it will update user reputations accordingly.
+
+Usage: eval_online_wiki";;
 
 let logger = new Online_log.logger !log_name !synch_log;;
 let trust_coeff = Online_types.get_default_coeff;;
+let f m n = !reputation_speed *. (trust_coeff.Online_types.dynamic_rep_scaling m n) in 
+trust_coeff.Online_types.dynamic_rep_scaling <- f;;
 
 (* This is the function that evaluates a revision. 
    The function is recursive, because if some past revision of the same page 
@@ -96,7 +116,7 @@ let rec evaluate_revision (db: Online_db.db) (page_id: int) (rev_id: int) : unit
 (* Does all the work of processing the given page and revision *)
 let db = new Online_db.db !db_user !db_pass !db_name !db_host_name !db_port in
  
-(* debug *) (* If requested, we erase all coloring.  REMOVE THIS FOR THE PRODUCTION CODE! *)
+(* If requested, we erase all coloring, and we recompute it from scratch. *)
 if !delete_all then db#delete_all true; 
 
 (* Loops over all revisions, in chronological order, since the last colored one. *)
@@ -106,39 +126,13 @@ if !delete_all then db#delete_all true;
    colored revision, and then we pull from the db all revisions with time greater or 
    equal to t (equal, to handle revisions with the same timestamp). *)
 let revs = 
-  try 
+  try begin 
     let timestamp = db#fetch_last_colored_rev_time in 
-    db#fetch_all_revs_after timestamp
-  with Online_db.DB_Not_Found -> db#fetch_all_revs 
+    match !requested_rev_id with 
+      None -> db#fetch_all_revs_after timestamp
+    | Some r_id -> db#fetch_all_revs_including_after r_id timestamp
+  end with Online_db.DB_Not_Found -> db#fetch_all_revs 
 in 
-
-(* Algorithm: 
-
-revs := chronological list;
-tried :=\emptyset; 
-
-while revs \neq \emptyset { 
-  r = pop (revs);
-
-  if (page(r) is locked)
-   {
-     if(page(r) \in tried) {
-	lock page(r);
-	color(r);
-	release page(r);
-	tried := tried \setminus {page(r)};
-      } else {
-	tried := tried \cup {page(r)};
-      }
-   } else
-   {
-    lock page(r);
-    color(r);
-    release page(r);
-   }
-}
-
- *)
 
 let tried : (int, unit) Hashtbl.t = Hashtbl.create 10 in 
 let color_more_revisions = ref true in 
@@ -152,10 +146,16 @@ while !color_more_revisions do begin
       (* Tries to acquire the page lock. 
 	 If it succeeds, colors the page. 
 	 We set the timeout for waiting as follows. 
-	 If the page has already been tried, we need to wait on it, so we choose a long timeout, and we keep trying until we 
-	 get the lock. 
-	 If the page has not been tried yet, we set a short timeout, and if we don't get the lock we move on to the next 
-	 revision. *)
+	 - If the page has already been tried, we need to wait on it, so we choose a long timeout. 
+	   If we don't get the page by the long timeout, this means that there is too much db 
+	   lock contention (too many simultaneously active coloring processes), and we terminate. 
+	 - If the page has not been tried yet, we set a short timeout, and if we don't get the lock,
+	   we move on to the next revision. 
+	 This algorithm ensures an "overtake by at most 1" property: if there are many coloring
+	 processes active simultaneously, and r_k, r_{k+1} are two revisions of a page p, it is 
+	 possible that a process is coloring r_k while another is coloring a revision r' after r_k 
+	 belonging to a different page p', but this revision r' cannot be past r_{k+1}. 
+       *)
       let already_tried = Hashtbl.mem tried page_id in 
       let got_it = 
 	if already_tried 

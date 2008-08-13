@@ -169,6 +169,14 @@ class db
       let s = Printf. sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision WHERE rev_timestamp >= %s ORDER BY rev_timestamp ASC" (ml2timestamp timestamp) in  
       db_exec dbh s
 
+    (** [sth_select_all_revs_including_after [rev_id] (int * int * int * int * int * int)] returns all 
+        revs created after the given timestamp, or that have revision id [rev_id]. *)
+    method fetch_all_revs_including_after (rev_id: int) (timestamp : timestamp_t) : Mysql.result =  
+      (* Note: the >= is very important in the following query, to correctly handle the case
+	 of revisions with the same timestamp. *)
+      let s = Printf. sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision WHERE rev_timestamp >= %s OR rev_id = %s ORDER BY rev_timestamp ASC" (ml2timestamp timestamp) (ml2int rev_id) in  
+      db_exec dbh s
+
     (** [fetch_all_revs] returns a cursor that points to all revisions in the database, 
 	in ascending order of timestamp. *)
     method fetch_all_revs : Mysql.result = 

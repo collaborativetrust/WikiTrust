@@ -202,7 +202,13 @@ colors text according to trust.'
      if ($colored_text){
        $text = $colored_text;
      }
-   } 
+   } else { 
+     // If colored text does not exist, we start a coloring that explicitly requests
+     // the uncolored revision to be colored.  This is useful in case there are holes
+     // in the chronological order of the revisions that have been colored. 
+     $command = "nohup $wgTrustCmd -rev_id $rev_id -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname >> $wgTrustDebugLog 2>&1 & echo $!";
+     $pid = shell_exec($command);
+   }
    
    $dbr->freeResult( $res );
    return true;
