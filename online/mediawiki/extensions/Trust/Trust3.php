@@ -19,15 +19,6 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307
 # USA
 
-  /**
-   Cache in mem median val
-  xx Remove locks
-   Comment 1st hack
-  xx get db values
-
-   */
-
-
 ## MW extension
 # This defines a custom MW function to map trust values to HTML markup
 
@@ -37,9 +28,6 @@ class TextTrust extends ExtensionClass
   ## the css tag to use
   const TRUST_CSS_TAG = "background-color"; ## color the background
   #$TRUST_CSS_TAG = "color"; ## color just the text
-  
-  ## Path to eval_online_wiki
-  const EVAL_ONLINE_WIKI = "/home/ipye/git/wikitrust/online/analysis/eval_online_wiki -log_name /dev/null";
   
   ## Trust normalization values;
   const MAX_TRUST_VALUE = 9;
@@ -130,12 +118,14 @@ colors text according to trust.'
  Called after any edits are made.
 */
  function ucscRunColoring(&$article, &$user, &$text, &$summary, $minor, $watch, $sectionanchor, &$flags, $revision) { 
-   global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype;
+   global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog;
    
    $pid = -1;
    
    // Start the coloring.
-   $pid = shell_exec("nohup " . self::EVAL_ONLINE_WIKI . " -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname >> /dev/null 2>&1 & echo $!");
+   $command = "nohup $wgTrustCmd -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname >> $wgTrustDebugLog 2>&1 & echo $!";
+   // $pid = shell_exec("/bin/echo '$command' >> $wgTrustDebugLog");
+   $pid = shell_exec($command);
   
    if($pid)
      return true;
