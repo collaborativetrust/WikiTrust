@@ -100,9 +100,11 @@ class revision
 
     method private read_quality_info : unit = 
       if not quality_info_valid then begin 
+	(* We read it at most once, even in case of failure: 
+	   otherwise, if we fail, we keep trying to read it. *)
+	quality_info_valid <- true;
 	try 
-          quality_info <- db#read_revision_info rev_id;
-	  quality_info_valid <- true
+          quality_info <- db#read_revision_info rev_id
 	with Online_db.DB_Not_Found -> ()
       end
 

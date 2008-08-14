@@ -314,12 +314,16 @@ class page
 	the length is proper, and resetting the list otherwise. *)
     method private read_valid_author_sigs (rev_id: int) (l: int) : 
       Author_sig.packed_author_signature_t array = 
+      let create_new_sigs () = begin 
+	if debug then Printf.printf "Invalid sigs for revision %d: recreated.\n" rev_id;
+	Array.create l Author_sig.empty_sigs
+      end in 
       try 
 	let sig_a = db#read_author_sigs rev_id in 
 	if Array.length (sig_a) = l 
 	then sig_a
-	else Array.create l Author_sig.empty_sigs
-      with Online_db.DB_Not_Found -> Array.create l Author_sig.empty_sigs
+	else create_new_sigs ()
+      with Online_db.DB_Not_Found -> create_new_sigs ()
 
 
     (** [insert_revision_in_lists] inserts the revision in the 
@@ -327,11 +331,21 @@ class page
 	old signatures from revisions whose author signatures will no longer be 
 	considered. *)
     method private insert_revision_in_lists : unit = 
-      (* We keep track of which revisions we are throwing out, so that
-         we can later remove the signatures. *)
-      let thrown_out = ref Vec.empty in 
       let cur_rev = Vec.get 0 revs in 
-
+      (* We keep track of which revisions we are throwing out, so that
+         we can later remove the signatures. 
+         If the list of recent revisions has grown to max size, we 
+         propose to throw out its oldest element. 
+         We will later check whether this last element belongs to one 
+         of the other lists. *)
+      let (thrown_out, recent_not_thrown_out) = 
+	let recent_l = Vec.length recent_revs in 
+	if recent_l = trust_coeff.n_revs_to_consider 
+	then (ref (Vec.singleton (Vec.get (recent_l - 1) recent_revs)),
+	      (Vec.remove (recent_l - 1) recent_revs))
+	else (ref Vec.empty, recent_revs)
+      in 
+      
       (* Trust first.  For trust, we keep the highest trust revisions so far. *)
       (* Finds the minimum of the trust for the revisions in the list, and their index *)
       if hi_trust_revs = Vec.empty
@@ -353,8 +367,9 @@ class page
 	let cur_trust = cur_rev#get_overall_trust in 
 	let min_rev = Vec.get !min_trust_idx hi_trust_revs in
 	if (cur_trust >= !min_trust) && (cur_rev#get_id != min_rev#get_id) then begin 
+	  (* We insert the current revision *)
 	  if (Vec.length hi_trust_revs) = trust_coeff.len_hi_trust_revs then begin 
-	    (* We throw out the minimum revision *)
+	    (* We throw out the minimum revision if needed to keep list bounded *)
 	    thrown_out := Vec.append min_rev !thrown_out; 
 	    hi_trust_revs <- Vec.remove !min_trust_idx hi_trust_revs
 	  end;
@@ -390,9 +405,10 @@ class page
 	 in some list *)
       let same_id (r1: rev_t) (r2: rev_t) = (r1#get_id = r2#get_id) in 
       let test_not_in_list (r: rev_t) = 
-	(Vec.exists (same_id r) hi_rep_revs) || 
-	(Vec.exists (same_id r) hi_trust_revs) || 
-	(Vec.exists (same_id r) revs)
+	not (
+	  (Vec.exists (same_id r) hi_rep_revs) || 
+	  (Vec.exists (same_id r) hi_trust_revs) || 
+	  (Vec.exists (same_id r) recent_not_thrown_out))
       in 
       let not_in_any_list = Vec.filter test_not_in_list !thrown_out in 
       let delete_sigs_of_rev (r: rev_t) = db#delete_author_sigs r#get_id in 

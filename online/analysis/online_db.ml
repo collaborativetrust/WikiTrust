@@ -51,7 +51,7 @@ exception DB_Internal_Error
 (* Timestamp in the DB *)
 type timestamp_t = int * int * int * int * int * int
 
-let debug_mode = false;;
+let debug_mode = true;;
 
 (* This is the function that sexplib uses to convert floats *)
 Sexplib.Conv.default_string_of_float := (fun n -> sprintf "%.4G" n);;
