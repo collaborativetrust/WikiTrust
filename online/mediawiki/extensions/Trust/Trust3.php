@@ -33,12 +33,21 @@ class TextTrust extends ExtensionClass
   const MAX_TRUST_VALUE = 9;
   const MIN_TRUST_VALUE = 0;
   const TRUST_MULTIPLIER = 10;
-
+  
   ## Median Value of Trust
   var $median = 0.0;
 
   ## Number of times a revision is looked at.
   var $times_rev_loaded = 0;
+
+  ## Load the article we are talking about
+  var $title;
+
+  ## And the last revision of the title
+  var $current_rev;
+
+  ## Should we do all the fancy trust processing?
+  var $trust_engaged = false;
     
   ## map trust values to html color codes
   var $COLORS = array(
@@ -82,22 +91,32 @@ colors text according to trust.'
     
     global $wgHooks, $wgParser;
     
-# Add a hook to initialise the magic word
-    $wgHooks['LanguageGetMagic'][] = array( &$this, 'ucscColorTrust_Magic');
-    
-# And add a hook so the colored text is found. 
-    $wgHooks['ParserBeforeStrip'][] = array( &$this, 'ucscSeeIfColored');
-    
 # And add and extra tab.
     $wgHooks['SkinTemplateTabs'][] = array( &$this, 'ucscTrustTemplate');
-    
+
+# And add a hook so the colored text is found. 
+    $wgHooks['ParserBeforeStrip'][] = array( &$this, 'ucscSeeIfColored');
+
 # Color saved text
     $wgHooks['ArticleSaveComplete'][] = array( &$this, 'ucscRunColoring');
+
+# If the trust tab is not selected, don't worry about things any more.
+    if(!isset($_GET['trust'])){
+      $this->trust_engaged = false;
+      return;
+    } 
+    $this->trust_engaged = true;
+    
+# Add a hook to initialise the magic words
+    $wgHooks['LanguageGetMagic'][] = array( &$this, 'ucscColorTrust_Magic');
    
-# Set a function hook associating the "example" magic word with our function
+# Set a function hook associating the blame and trust words with a callback function
     $wgParser->setFunctionHook( 't', array( &$this, 'ucscColorTrust_Render'));
     $wgParser->setFunctionHook( 'to', array( &$this, 'ucscOrigin_Render'), SFH_NO_HASH );
 
+# After everything, make the blame info work
+    $wgHooks['ParserAfterTidy'][] = array( &$this, 'ucscOrigin_Finalize');
+    
 # Pull the median value
     $this->update_median();
   }
@@ -127,6 +146,7 @@ colors text according to trust.'
    
    // Start the coloring.
    $command = "nohup $wgTrustCmd -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname >> $wgTrustDebugLog 2>&1 & echo $!";
+   
    // $pid = shell_exec("/bin/echo '$command' >> $wgTrustDebugLog");
    $pid = shell_exec($command);
   
@@ -161,25 +181,37 @@ colors text according to trust.'
  }
  
  /**
- If colored text exists, use it instead of the normal text, 
- but only if the trust tab is selected.
-*/
+  If colored text exists, use it instead of the normal text, 
+  but only if the trust tab is selected.
+  
+  TODO: Make this function work with caching turned on.
+ */
  function ucscSeeIfColored(&$parser, &$text, &$strip_state) { 
-   global $wgParserCacheType;
-   // disable the parser cache for this transaction.
-   // Hacked up from code found in the ParserCacheControl extension
-   // http://www.bluecortex.com
-   $wgParserCacheType = CACHE_NONE;
-   $apc =& wfGetParserCacheStorage();
    
-   $pc = & ParserCache::singleton();
-   $pc->mMemc = $apc;
+   global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog;
+
+   // Turn off caching for this instance.
+   $parser->disableCache();
+
+   // Return if trust is not selected.
+   if (!$this->trust_engaged)
+     return true;
    
-  // If we don't want colored text, return true immediatly.
-   if(!isset($_GET['trust'])){
-    return true;
-   } 
+   // Save the title object, if it is not already present
+   if (!$this->title){
+     $this->title = $parser->getTitle();
+   }
    
+   // Load the current revision id.
+   if (!$this->current_rev){
+     if ($parser->mRevisionId){
+       $this->current_rev = $parser->mRevisionId;
+     } else {
+       // Sometimes the revisionId field is not filled in.
+       $this->current_rev = $this->title->getPreviousRevisionID( PHP_INT_MAX );
+     }
+   }
+  
    /**
     This method is being called multiple times for each page. 
     We only pull the colored text for the first time through.
@@ -190,62 +222,64 @@ colors text according to trust.'
    } else {
      $this->times_rev_loaded++;
    }
-
+   
    // Otherwise, see if there is colored text in the db.
    $dbr =& wfGetDB( DB_SLAVE );
-   $rev_id = $parser->mRevisionId;
-  
+   
    $res = $dbr->select('wikitrust_colored_markup', 'revision_text',
-		       array( 'revision_id' => $rev_id ), array());
+		       array( 'revision_id' => $this->current_rev ), array());
    if ($res){
      $row = $dbr->fetchRow($res);
-     $colored_text = $row['revision_text'];
+     $colored_text = $row[0];
      if ($colored_text){
        $text = $colored_text;
+     } else { 
+       // If colored text does not exist, we start a coloring that explicitly requests
+       // the uncolored revision to be colored.  This is useful in case there are holes
+       // in the chronological order of the revisions that have been colored. 
+       $command = "nohup $wgTrustCmd -rev_id " . $this->current_rev . " -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname >> $wgTrustDebugLog 2>&1 & echo $!";
+       $pid = shell_exec($command);
      }
-   } else { 
-     // If colored text does not exist, we start a coloring that explicitly requests
-     // the uncolored revision to be colored.  This is useful in case there are holes
-     // in the chronological order of the revisions that have been colored. 
-     $command = "nohup $wgTrustCmd -rev_id $rev_id -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname >> $wgTrustDebugLog 2>&1 & echo $!";
-     $pid = shell_exec($command);
+   } else {
+     return false;
    }
    
    $dbr->freeResult( $res );
    return true;
-}
+ }
  
+ /* Register the tags we are intersted in expanding. */
  function ucscColorTrust_Magic( &$magicWords, $langCode ) {
-# Add the magic word
-# The first array element is case sensitive, in this case it is not case sensitive
-# All remaining elements are synos, $langCode ) {
-# Add the magic word
-# The first array element is case sensitive, in this case it is not case sensitive
-# All remaining elements are synonyms for our parser function
    $magicWords[ 't' ] = array( 0, 't' );
-   $magicWords[ 'to' ] = array( 0, 'to' ); 
-  # unless we return true, other parser functions extensions won't get loaded.
+   $magicWords[ 'to' ] = array( 0, 'to' );
+   return true;
+ }
+ 
+ /* Blame Map */
+ function ucscOrigin_Render( &$parser, $origin = 0 ) {  
+   $output = "<span onclick='showOrigin($origin)'>";     
+   $output = "<span class=BLAME_MAP:$origin:>";
+   return array( $output, "noparse" => false, "isHTML" => false );  
+ }
+ 
+ /* Turn the finished blame info into a clickable span tag. */
+ function ucscOrigin_Finalize(&$parser, &$text) {
+   $count = 0;
+   $text = preg_replace('/class=\"BLAME_MAP:(\d+):\"/', "onclick='showOrigin($1)'", $text, -1, $count);
    return true;
  }
 
- function ucscOrigin_Render( &$parser, $origin = 0 ) {
-   $output = "<span onclick='showOrigin($origin)'>";     
-   return array( $output, "noparse" => true, "isHTML" => false );  
- }
-
- ## here, we are given a value and an optional start tag
- ## and return a string to take the place of the {{#trust tag
+ /* Text Trust */
  function ucscColorTrust_Render( &$parser, $value = 0 ) {
-# The parser function itself
-# The input parameters are wikitext with templates expanded
-# The output should be wikitext too
    $class = $this->computeColorFromFloat($value);
    $output = "<span class=$class>";
    return array ( $output, "noparse" => false, "isHTML" => false );
  }
  
-## Maps from the online trust values to the css trust values.
-## Normalize the value for growing wikis.
+ /** 
+  Maps from the online trust values to the css trust values.
+  Normalize the value for growing wikis.
+ */
  function computeColorFromFloat($trust){
    
    $normalized_value = min(self::MAX_TRUST_VALUE, max(self::MIN_TRUST_VALUE, 
@@ -254,12 +288,12 @@ colors text according to trust.'
    return $this->computeColor3($normalized_value);
  }
  
- ## this function maps a trust value to a HTML color representing the trust value
+ /* Maps a trust value to a HTML color representing the trust value. */
  function computeColor3($fTrustValue){
    return $this->COLORS[$fTrustValue];
  }
 }    
-
-TextTrust::singleton();
+    
+    TextTrust::singleton();
 
 ?>
