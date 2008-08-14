@@ -295,33 +295,37 @@ class db
         None -> raise DB_Not_Found
       | Some x -> not_null str2ml x.(0)
 
-    (** [write_author_sigs rev_id sigs] writes that the author signatures 
-	for the revision [rev_id] are [sigs]. *)
-    method write_author_sigs (rev_id: int) 
+    (** [write_trust_origin_sigs rev_id trust origin sigs] writes that the 
+	revision [rev_id] is associated with [trust], [origin], and [sigs]. *)
+    method write_trust_origin_sigs (rev_id: int) 
+      (trust: float array)
+      (origin: int array)
       (sigs: Author_sig.packed_author_signature_t array) : unit = 
-      let g = sexp_of_array Author_sig.sexp_of_sigs in 
-      let s = string_of__of__sexp_of g sigs in 
-      let s2 = Printf.sprintf "INSERT INTO wikitrust_sigs (revision_id, sigs) VALUES (%s, %s) ON DUPLICATE KEY UPDATE sigs = %s" (ml2int rev_id) (ml2str s) (ml2str s) in 
-      ignore (db_exec dbh s2 )
+      let g0 = sexp_of_array sexp_of_float in 
+      let s0 = ml2str (string_of__of__sexp_of g0 trust) in
+      let g1 = sexp_of_array sexp_of_int in 
+      let s1 = ml2str (string_of__of__sexp_of g1 origin) in 
+      let g2 = sexp_of_array Author_sig.sexp_of_sigs in 
+      let s2 = ml2str (string_of__of__sexp_of g2 sigs) in 
+      let sdb = Printf.sprintf "INSERT INTO wikitrust_sigs (revision_id, trust, origin, sigs) VALUES (%s, %s, %s, %s) ON DUPLICATE KEY UPDATE trust = %s, origin = %s, sigs = %s" (ml2int rev_id) s0 s1 s2 s0 s1 s2 in 
+      ignore (db_exec dbh sdb )
 
-      (** [read_author_sigs rev_id] reads the author signatures for the revision 
-	[rev_id]. 
-	Note that we can keep the signatures separate from the text 
-	because it is not a bit deal if we occasionally mis-align text and 
-	signatures when we change the parsing algorithm: all that can happen 
-	is that occasinally an author can give trust twice to the same piece of text. 
-	However, it is imperative that in the calling code we check that the list
-	of signatures has the same length as the list of words. 
-        *)
-    method read_author_sigs 
-      (rev_id: int) : Author_sig.packed_author_signature_t array = 
-      let s = Printf.sprintf  "SELECT sigs FROM wikitrust_sigs WHERE revision_id = %s" (ml2int rev_id) in 
+      (** [read_trust_origin_sigs rev_id] reads the trust, 
+	  origin, and author sigs for the revision [rev_id]. *)
+    method read_trust_origin_sigs (rev_id: int) 
+      : (float array * int array * Author_sig.packed_author_signature_t array) = 
+      let s = Printf.sprintf  "SELECT trust, origin, sigs FROM wikitrust_sigs WHERE revision_id = %s" (ml2int rev_id) in 
       let result = db_exec dbh s in 
       match Mysql.fetch result with 
 	None -> raise DB_Not_Found
       | Some x -> begin
-	  let g sx = array_of_sexp Author_sig.sigs_of_sexp sx in 
-	  of_string__of__of_sexp g (not_null str2ml x.(0))
+	  let g0 sx = array_of_sexp float_of_sexp sx in 
+	  let trust = of_string__of__of_sexp g0 (not_null str2ml x.(0)) in 
+	  let g1 sx = array_of_sexp int_of_sexp sx in 
+	  let origin = of_string__of__of_sexp g1 (not_null str2ml x.(1)) in 
+	  let g2 sx = array_of_sexp Author_sig.sigs_of_sexp sx in 
+	  let sigs = of_string__of__of_sexp g2 (not_null str2ml x.(2)) in 
+	  (trust, origin, sigs)
 	end
 
    (** [delete_author_sigs rev_id] removes from the db the author signatures for [rev_id]. *)

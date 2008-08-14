@@ -165,20 +165,19 @@ class db :
 	and origin information. *)
     method read_colored_markup : int -> string
 
-    (** [write_author_sigs rev_id sigs] writes that the author signatures 
-	for the revision [rev_id] are [sigs]. *)
-    method write_author_sigs : int -> Author_sig.packed_author_signature_t array -> unit
+    (** [write_trust_origin_sigs rev_id trust origin sigs] writes that the 
+	revision [rev_id] is associated with [trust], [origin], and [sigs]. *)
+    method write_trust_origin_sigs : 
+      int -> 
+      float array -> 
+      int array -> 
+      Author_sig.packed_author_signature_t array -> unit 
 
-    (** [read_author_sigs rev_id] reads the author signatures for the revision 
-	[rev_id]. 
-	Note that we can keep the signatures separate from the text 
-	because it is not a bit deal if we occasionally mis-align text and 
-	signatures when we change the parsing algorithm: all that can happen 
-	is that occasinally an author can give trust twice to the same piece of text. 
-	However, it is imperative that in the calling code we check that the list
-	of signatures has the same length as the list of words. 
-        *)
-    method read_author_sigs : int -> Author_sig.packed_author_signature_t array
+      (** [read_trust_origin_sigs rev_id] reads the trust, 
+	  origin, and author sigs for the revision [rev_id]. *)
+    method read_trust_origin_sigs : 
+      int -> 
+      (float array * int array * Author_sig.packed_author_signature_t array)
 
     (** [delete_author_sigs rev_id] removes from the db the author signatures for [rev_id]. *)
     method delete_author_sigs : int -> unit
