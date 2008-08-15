@@ -118,12 +118,12 @@ colors text according to trust.'
  Called after any edits are made.
 */
  function ucscRunColoring(&$article, &$user, &$text, &$summary, $minor, $watch, $sectionanchor, &$flags, $revision) { 
-   global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog;
+   global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgRepSpeed;
    
    $pid = -1;
    
    // Start the coloring.
-   $command = "nohup $wgTrustCmd -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname >> $wgTrustDebugLog 2>&1 & echo $!";
+   $command = "nohup $wgTrustCmd -rep_speed $wgRepSpeed -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname >> $wgTrustDebugLog 2>&1 & echo $!";
    // $pid = shell_exec("/bin/echo '$command' >> $wgTrustDebugLog");
    $pid = shell_exec($command);
   
@@ -162,7 +162,8 @@ colors text according to trust.'
  but only if the trust tab is selected.
 */
  function ucscSeeIfColored(&$parser, &$text, &$strip_state) { 
-   global $wgParserCacheType;
+   global $wgParserCacheType, $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgRepSpeed;
+
    // disable the parser cache for this transaction.
    // Hacked up from code found in the ParserCacheControl extension
    // http://www.bluecortex.com
@@ -206,7 +207,7 @@ colors text according to trust.'
      // If colored text does not exist, we start a coloring that explicitly requests
      // the uncolored revision to be colored.  This is useful in case there are holes
      // in the chronological order of the revisions that have been colored. 
-     $command = "nohup $wgTrustCmd -rev_id $rev_id -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname >> $wgTrustDebugLog 2>&1 & echo $!";
+     $command = "nohup $wgTrustCmd -rev_id $rev_id -rep_speed $wgRepSpeed -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname >> $wgTrustDebugLog 2>&1 & echo $!";
      $pid = shell_exec($command);
    }
    

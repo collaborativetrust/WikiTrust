@@ -18,6 +18,8 @@ $wgUseTidy = true;
 $wgTrustCmd = "/home/luca/wikitrust/online/analysis/eval_online_wiki"; 
 $wgTrustLog = "/tmp/{$wgDBname}-trust.log";
 $wgTrustDebugLog = "/tmp/{$wgDBname}-trust-debug.log";
+$wgRepSpeed = 1.0;
+
 require_once( $IP . "/extensions/Trust/ExtensionClass.php");
 require_once( $IP . "/extensions/Trust/Trust3.php" );
 
