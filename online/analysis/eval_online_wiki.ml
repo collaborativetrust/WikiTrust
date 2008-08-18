@@ -94,7 +94,7 @@ Usage: eval_online_wiki";;
 
 let logger = new Online_log.logger !log_name !synch_log;;
 let trust_coeff = Online_types.get_default_coeff;;
-let f m n = !reputation_speed *. (trust_coeff.Online_types.dynamic_rep_scaling m n) in 
+let f m n = !reputation_speed *. (Online_types.default_dynamic_rep_scaling n m) in 
 trust_coeff.Online_types.dynamic_rep_scaling <- f;;
 
 (* This is the function that evaluates a revision. 

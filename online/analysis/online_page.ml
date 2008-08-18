@@ -214,9 +214,9 @@ class page
 	    if i = 0 then begin 
 	      (* If a revision has no text, we have to recover this at a lower level,
 		 since text is not something we compute. *)
-	      ignore (r#get_words) 
+	      r#read_text
 	    end else begin
-	      try ignore (r#get_trust)
+	      try r#read_trust_origin_sigs
               with Online_db.DB_Not_Found -> raise (Missing_trust (r#get_page_id, r#get_id))
 	    end
 	  end done
@@ -310,28 +310,27 @@ class page
 	 average of the square trust. *)
       if m = 0 then 0. else tot_sq_tr *. tot_sq_tr /. n 
 
-    (** This method reads and validates a list of author signatures, checking that 
-	the length is proper, and resetting the list otherwise. *)
-    method private read_valid_author_sigs (rev_id: int) (l: int) : 
-      Author_sig.packed_author_signature_t array = 
-      try 
-	let sig_a = db#read_author_sigs rev_id in 
-	if Array.length (sig_a) = l 
-	then sig_a
-	else Array.create l Author_sig.empty_sigs
-      with Online_db.DB_Not_Found -> Array.create l Author_sig.empty_sigs
-
 
     (** [insert_revision_in_lists] inserts the revision in the 
 	list of high rep or high trust revisions if needed, and erases also 
 	old signatures from revisions whose author signatures will no longer be 
 	considered. *)
     method private insert_revision_in_lists : unit = 
-      (* We keep track of which revisions we are throwing out, so that
-         we can later remove the signatures. *)
-      let thrown_out = ref Vec.empty in 
       let cur_rev = Vec.get 0 revs in 
-
+      (* We keep track of which revisions we are throwing out, so that
+         we can later remove the signatures. 
+         If the list of recent revisions has grown to max size, we 
+         propose to throw out its oldest element. 
+         We will later check whether this last element belongs to one 
+         of the other lists. *)
+      let (thrown_out, recent_not_thrown_out) = 
+	let recent_l = Vec.length recent_revs in 
+	if recent_l = trust_coeff.n_revs_to_consider 
+	then (ref (Vec.singleton (Vec.get (recent_l - 1) recent_revs)),
+	      (Vec.remove (recent_l - 1) recent_revs))
+	else (ref Vec.empty, recent_revs)
+      in 
+      
       (* Trust first.  For trust, we keep the highest trust revisions so far. *)
       (* Finds the minimum of the trust for the revisions in the list, and their index *)
       if hi_trust_revs = Vec.empty
@@ -353,8 +352,9 @@ class page
 	let cur_trust = cur_rev#get_overall_trust in 
 	let min_rev = Vec.get !min_trust_idx hi_trust_revs in
 	if (cur_trust >= !min_trust) && (cur_rev#get_id != min_rev#get_id) then begin 
+	  (* We insert the current revision *)
 	  if (Vec.length hi_trust_revs) = trust_coeff.len_hi_trust_revs then begin 
-	    (* We throw out the minimum revision *)
+	    (* We throw out the minimum revision if needed to keep list bounded *)
 	    thrown_out := Vec.append min_rev !thrown_out; 
 	    hi_trust_revs <- Vec.remove !min_trust_idx hi_trust_revs
 	  end;
@@ -390,9 +390,10 @@ class page
 	 in some list *)
       let same_id (r1: rev_t) (r2: rev_t) = (r1#get_id = r2#get_id) in 
       let test_not_in_list (r: rev_t) = 
-	(Vec.exists (same_id r) hi_rep_revs) || 
-	(Vec.exists (same_id r) hi_trust_revs) || 
-	(Vec.exists (same_id r) revs)
+	not (
+	  (Vec.exists (same_id r) hi_rep_revs) || 
+	  (Vec.exists (same_id r) hi_trust_revs) || 
+	  (Vec.exists (same_id r) recent_not_thrown_out))
       in 
       let not_in_any_list = Vec.filter test_not_in_list !thrown_out in 
       let delete_sigs_of_rev (r: rev_t) = db#delete_author_sigs r#get_id in 
@@ -651,7 +652,10 @@ class page
         let chunk_0 = Revision.produce_annotated_markup rev0_seps chunk_0_trust chunk_0_origin true true in 
         (* And writes it out to the db *)
         db#write_colored_markup rev0_id (Buffer.contents chunk_0) rev0_timestr; 
-	db#write_author_sigs rev0_id chunk_0_sigs; 
+	rev0#set_trust  chunk_0_trust;
+	rev0#set_origin chunk_0_origin;
+	rev0#set_sigs   chunk_0_sigs;
+	rev0#write_trust_origin_sigs;
 
       end else begin 
 
@@ -691,12 +695,11 @@ class page
         (* Builds list of chunks of previous revision for comparison *)
         chunks_a.(0) <- rev1#get_words; 
         trust_a.(0)  <- rev1#get_trust;
+	sig_a.(0)    <- rev1#get_sigs;
         (* Calls the function that analyzes the difference 
            between revisions rev1_id --> rev0_id. Data relative to the previous revision
            is stored in the instance fields chunks_a *)
         let (new_chunks_10_a, medit_10_l) = Chdiff.text_tracking chunks_a rev0_t in 
-	(* Reads the author signatures *)
-	sig_a.(0) <- self#read_valid_author_sigs rev1_id (Array.length rev1#get_words); 
         (* Calls the function that computes the trust of the newest revision. *)
         (* If the author is the same, we do not increase the reputation 
 	   of exisiting text, to thwart a trivial attack. *)
@@ -730,7 +733,7 @@ class page
           let rev2 = Vec.get !close_idx revs in 
           chunks_a.(0) <- rev2#get_words; 
           trust_a.(0)  <- rev2#get_trust;
-	  sig_a.(0) <- self#read_valid_author_sigs rev2#get_id (Array.length chunks_a.(0));
+	  sig_a.(0)    <- rev2#get_sigs;
           (* Calls the function that analyzes the difference 
              between revisions rev2_id --> rev0_id. Data relative to the previous revision
              is stored in the instance fields chunks_a *)
@@ -777,10 +780,13 @@ class page
            and the information for the live text *)
         del_chunks_list <- self#compute_dead_chunk_list new_chunks_10_a new_trust_10_a 
 	  new_sigs_10_a new_origin_10_a del_chunks_list medit_10_l rev1_time rev0_time;
-        (* Writes the revision to disk *)
+        (* Writes the annotated markup, trust, origin, sigs to disk *)
         let buf = Revision.produce_annotated_markup rev0#get_seps new_trust_10_a.(0) new_origin_10_a.(0) true true in 
         db#write_colored_markup rev0_id (Buffer.contents buf) rev0_timestr;
-	db#write_author_sigs rev0_id new_sigs_10_a.(0); 
+	rev0#set_trust  new_trust_10_a.(0);
+	rev0#set_origin new_origin_10_a.(0);
+	rev0#set_sigs   new_sigs_10_a.(0);
+	rev0#write_trust_origin_sigs;
 	(* Computes the overall trust of the revision *)
 	let t = self#compute_overall_trust new_trust_10_a.(0) in 
 	rev0#set_overall_trust t
@@ -985,7 +991,7 @@ class page
 	self#insert_revision_in_lists;
 	(* Finally, we write back to disk the information of all revisions *)
 	if debug then print_string "   Writing the quality information...\n"; flush stdout;
-	let f r = r#write_to_db in 
+	let f r = r#write_quality_to_db in 
 	Vec.iter f revs;
 	(* We write also the page information *)
 	db#write_page_info page_id del_chunks_list page_info; 

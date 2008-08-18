@@ -1,11 +1,28 @@
-This directory is where we will develop the on-line system that colors
-edits according to trust in real-time, as they are made. 
+WikiTrust can be used to assign text trust and author reputation in
+real-time, as edits to a wiki are made.  Text trust is displayed via
+different colors for the text background, from dark orange (low trust)
+to white (maximum trust).  The colors can be easily changed by
+changing a skin file. 
 
-To have the code work, you need: 
+The extension can be added to an existing wiki, or to a new one. 
+If the extension is added to a new wiki, it will start computing
+reputations and trusts as soon as someone makes an edit, or requests
+to view a trust-colored revision.  The reputation and trust
+computation takes some time, after which the coloring is available. 
+If you switch the extension off, then on, the extension will compute
+the missing reputation and trust values in a self-healing,
+fault-tolerant fashion. 
+
+PREREQUISITES: 
 
 - Install mysql and mediawiki
 
-- Install the following packages: 
+- Install the following packages (for Ubuntu / Debian; for other
+  distributions, similar packages exist): 
+
+    ocaml (version 3.10.0 or greater)
+    ocaml-base
+    ocaml-native-compilers
     ocaml-findlib
     libmysql-ocaml
     libmysql-ocaml-dev
@@ -20,54 +37,98 @@ To have the code work, you need:
 
 - Make OcamlLdaLibs and install them (see instructions there). 
 
-- Make batch/analysis (see instructions there); installation is not
-  necessary. 
+INSTALLATION:
 
-- Make online/analysis (see instructions there); installation is not
-  necessary. 
+1) First, compile the code: 
 
-- Populate the mysql db with some test data.  To do so:
+  $ cd batch/analysis
+  $ make clean ; make all ; make allopt
+  $ cd ../../online/analysis
+  $ make clean ; make all ; make allopt
 
-  $ cd online/wikifeed
-  $ cp db_access_data.ini.sample db_access_data.ini
-  $ nano db_access_data.ini
+This creates an eval_online_wiki executable, which is what computes
+text trust and origin, and author reputation, in a wiki.  The
+executable is called whenever someone edit the wiki, or wishes to see
+a trust-colored version of a page. 
 
-  and fill db_access_data.ini with the data to access your database: 
-  host: you can use "localhost"
-  user: this is the wiki user name.  Usually, this is "wikiuser". 
-  pass: this is the password that you gave for mysql when installing
-  mediawiki. 
-  db: the mediawiki db, usually "wikidb". 
-
-  Then, go to the test-data directory, and fill the database with
-  data.  Precisely: 
-
-  $ cd ../test-data
-  $ cp script.sh.template script.sh
-  $ nano script.sh 
-
-  and insert the mysql root password where required. 
-  Optionally, comment out the last "ocamldebug" line if you wish; you
-  can always execute eval_online_wiki separately. 
-  Then, execute the script: 
-
-  $ ./script.sh
-
-- From here on, all you need to do is run
-  online/analysis/eval_online_wiki, and this will color the wiki
-  revisions in the database: 
-
-  $ ./eval_online_wiki -db_user wikiuser -db_pass <pwd> -db_name wikidb -log_name ~/temp/color.log
-
-- If the database tables to be used for the coloring ever change,
-  remove the old ones with sql/remove_wikitrust_tables.sql, as in: 
+2) Second, we need to create the database tables that the trust
+coloring extension will use.  Assuming that the mediawiki database is
+called  "wikidb" (this is the default name: you give a name to the
+database when you create the wiki instance during the MediaWiki
+installation process), proceed as follows: 
 
   $ cd ../sql
   $ mysql -u root -p wikidb
   mysql> \. remove_wikitrust_tables.sql
   mysql> \. create_wikitrust_tables.sql
- 
-================================================================
+  mysql> bye 
 
+3) Next, you need to install the trust coloring extension in
+mediawiki.  There are two ways to do this:
 
-  
+3a) Leaving the files in place, and using symbolic links.  This is the
+preferred course of action: in this way, when we release bug fixes via
+git, you can simply update your version of WikiTrust, recompile the
+code if needed (most likely), and be done with it.  In alternative 3b)
+below, you would need to then copy the new files to appropriate
+places. 
+
+To build symbolic links in Ubuntu you can proceed as follows (the
+process is similar for other distributions; only the destination
+directory path may be different): 
+
+  $ cd wikitrust/online/mediawiki/extensions
+  $ sudo ln -s ExtMan.php /var/lib/mediawiki/extensions
+  $ sudo ln -s Trust /var/lib/mediawiki/extensions
+  $ cd ../skins
+  $ sudo ln -s Trust.php /var/lib/mediawiki/skins
+  $ sudo ln -s trust /var/lib/mediawiki/skins
+
+3b) Alternatively, use 'cp' statements rather than symbolic links. 
+
+4) Finally, you should activate the extension by editing
+LocalSettings.php (part of the MediaWiki installation), adding the
+following lines: 
+
+  # Trust extension	
+  $wgUseTidy = true;
+  $wgTrustCmd = "/home/username/wikitrust/online/analysis/eval_online_wiki"; 
+  $wgTrustLog = "/somedir/{$wgDBname}-trust.log";
+  $wgTrustDebugLog = "/somedir/{$wgDBname}-trust-debug.log";
+  $wgRepSpeed = 1.0;
+
+  require_once( $IP . "/extensions/Trust/ExtensionClass.php");
+  require_once( $IP . "/extensions/Trust/Trust3.php" );
+
+And make the installation readable from the Web server, if you use
+method 3a): 
+
+  $ chmod -R a+rX /home/username/wikitrust
+
+Above, we are requesting that two logs be created: 
+
+  $wgTrustLog = "/somedir/{$wgDBname}-trust.log";
+
+This creates a log of the analysis of how useful each contribution to
+the wiki is, as well as a log of all user reputation changes. 
+We advise you to create such a log: it contains very useful
+information, and it is likely that we will develop a variety of tools
+to extract the information present.  You don't want to miss out.  Note
+that you are responsible for rotating / compressing the log (e.g., via
+logrotate, or /etc/logrotate.conf or /etc/logrotate.d/
+
+On the other hand, the log requested via 
+
+  $wgTrustDebugLog = "/somedir/{$wgDBname}-trust-debug.log";
+
+is just useful to us to track down bugs and other problems, and can be
+safely disabled.  You can disable these logs via: 
+
+  $wgTrustLog = "/dev/null";
+  $wgTrustDebugLog = "/dev/null";
+
+DEPLOYMENT: 
+
+You should now see a trust tab.  Click on it, or edit a revision, and
+the trust of all revision text, and the reputation of all authors,
+will be computed. 

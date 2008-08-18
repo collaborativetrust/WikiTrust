@@ -62,11 +62,12 @@ class revision
          since we do not necessarily read the text of all the revisions we 
          may want to keep track: reading the text is expensive. *)
     val time = time_init
-    val mutable words : word array option = None
-    val mutable trust : float array option = None
-    val mutable origin : int array option = None
-    val mutable seps  : Text.sep_t array option = None 
-    val mutable sep_word_idx : int array option = None 
+    val mutable words : word array = [| |]
+    val mutable seps  : Text.sep_t array = [| |] 
+    val mutable sep_word_idx : int array = [| |] 
+    val mutable sigs : Author_sig.packed_author_signature_t array = [| |]
+    val mutable trust : float array = [| |]
+    val mutable origin : int array = [| |]
 
     (* These quantities keep track of the quality of a revision *)
     (* First, I have a flag that says whether I have read the quantities 
@@ -98,90 +99,67 @@ class revision
     method get_is_anon : bool = is_anon
     method get_time_string : string = time_string
 
-    method private read_quality_info : unit = 
-      if not quality_info_valid then begin 
-	try 
-          quality_info <- db#read_revision_info rev_id;
-	  quality_info_valid <- true
-	with Online_db.DB_Not_Found -> ()
-      end
-
-      (* Reads the colored revision text from the db, and splits it appropriately *)
-    method private read_colored_text : unit = 
-      (* If there is an error here, it is transmitted up, so that the 
-         reader deals in appropriate ways with the lack of trust information *)
-      let text_vec = Vec.singleton (db#read_colored_markup rev_id) in 
-      let (w, t, o, s_idx, s) = Text.split_into_words_seps_and_info text_vec in 
-      words <- Some w; 
-      trust <- Some t; 
-      origin <- Some o; 
-      seps <- Some s; 
-      sep_word_idx <- Some s_idx
-
       (* Reads the revision text from the db, and splits it appropriately *)
-    method private read_text : unit = 
+    method read_text : unit = 
       try 
         let text_vec = Vec.singleton (db#read_rev_text text_id) in 
         let (w, t, o, s_idx, s) = Text.split_into_words_seps_and_info text_vec in 
-        words <- Some w; 
-        seps <- Some s; 
-        sep_word_idx <- Some s_idx
-      with Online_db.DB_Not_Found -> begin 
-        (* If the text has not been found, it is considered null. *)
-        words <- Some [| |];
-        seps <- Some [| |];
-        sep_word_idx <- Some [| |]
+        words <- w; 
+        seps <- s; 
+        sep_word_idx <- s_idx;
+      with Online_db.DB_Not_Found -> ()
+
+    (** Reads the text, trust and sigs of text from the db *)
+    method read_trust_origin_sigs : unit = 
+      (* If there is an error here, it is transmitted up, so that the 
+         reader deals in appropriate ways with the lack of trust information *)
+      self#read_text; 
+      let (t, o, s) = db#read_trust_origin_sigs rev_id in 
+      trust <- t; 
+      origin <- o; 
+      sigs <- s;
+      (* Checks that the text and trust, sigs information have the same length *)
+      let sigs_len = Array.length sigs in 
+      let trust_len = Array.length trust in 
+      let origin_len = Array.length origin in 
+      let text_len = Array.length words in 
+      if sigs_len != text_len then begin
+	sigs <- Array.create text_len Author_sig.empty_sigs;
+	Printf.printf "Warning: reconstructed sigs for revision %d\n" rev_id;
+      end;
+      if trust_len != text_len then begin
+	trust <- Array.create text_len 0.;
+	Printf.printf "Warning: reconstructed trust for revision %d\n" rev_id;
+      end;
+      if origin_len != text_len then begin
+	origin <- Array.create text_len 0;
+	Printf.printf "Warning: reconstructed origin for revision %d\n" rev_id;
       end
 
-    method get_words : word array =
-      match words with 
-        Some w -> w
-      | None -> begin 
-          self#read_text;
-          match words with 
-            Some w -> w
-          | None -> raise ReadTextError
-        end
+    (** Writes the trust, origin, and sigs to the db *)
+    method write_trust_origin_sigs : unit = 
+      db#write_trust_origin_sigs rev_id trust origin sigs
 
-    method get_trust : float array =
-      match trust with 
-        Some w -> w
-      | None -> begin 
-          self#read_colored_text;
-          match trust with 
-            Some w -> w
-          | None -> raise ReadTextError
-        end
+    method get_words : word array = words
+    method get_seps : Text.sep_t array = seps
+    method get_sep_word_idx : int array = sep_word_idx
+    method get_trust : float array = trust
+    method set_trust (t: float array) = trust <- t
+    method get_origin : int array = origin
+    method set_origin (o: int array) = origin <- o 
+    method get_sigs : Author_sig.packed_author_signature_t array = sigs
+    method set_sigs (s: Author_sig.packed_author_signature_t array) = sigs <- s
 
-    method get_origin : int array =
-      match origin with 
-        Some w -> w
-      | None -> begin 
-          self#read_colored_text;
-          match origin with 
-            Some w -> w
-          | None -> raise ReadTextError
-        end
-
-    method get_seps : Text.sep_t array = 
-      match seps with 
-        Some w -> w
-      | None -> begin 
-          self#read_colored_text;
-          match seps with 
-            Some w -> w
-          | None -> raise ReadTextError
-        end
-
-    method get_sep_word_idx : int array = 
-      match sep_word_idx with 
-        Some w -> w
-      | None -> begin 
-          self#read_colored_text;
-          match sep_word_idx with 
-            Some w -> w
-          | None -> raise ReadTextError
-        end
+    (** Reads the quality info if required. *)
+    method private read_quality_info : unit = 
+      if not quality_info_valid then begin 
+	(* We read it at most once, even in case of failure: 
+	   otherwise, if we fail, we keep trying to read it. *)
+	quality_info_valid <- true;
+	try 
+          quality_info <- db#read_revision_info rev_id
+	with Online_db.DB_Not_Found -> ()
+      end
 
     (** Adds edit quality information *)
     method add_edit_quality_info (delta: float) (new_q: float) (rep_gain: float) : unit = 
@@ -213,8 +191,8 @@ class revision
       quality_info.nix_bit <- true;
       modified_quality_info <- true 
 
-    (** [write_to_db] writes all revision information to the db. *)
-    method write_to_db : unit = 
+    (** [write_quality_to_db] writes all revision quality information to the db. *)
+    method write_quality_to_db : unit = 
       self#read_quality_info; 
       db#write_revision_info rev_id quality_info
 

@@ -1,10 +1,15 @@
-The batch directory contains the tool for the analysis of wiki dump
-files; look in batch/doc/README for instructions on how to build and
-use that code. 
+WikiTrust consists of two bodies of code: a batch one, and an online
+one. 
 
-The online directory contains the tool for the real-time analysis of
-wiki edits; look in online/doc/README for instructions on how to build
-and use that code. 
+The batch system enables you to analyze wikis in batch fashion, and
+can be used to compute many quantities of interest, such as text
+origin, analize reversions, detect edit wars, and much more. 
+To install the batch system, follow the instructions in the
+batch/README directory. 
 
-The TODO file in this directory is for developers; it contains a list
-of things that needs to be done. 
+The online system enables you to compute and display text trust in
+real-time, as edits to the wiki are made.  The online system also
+computes author reputations, and it tracks, for each word, the
+revision where the word was originated. 
+To install the online system, follow the instructions in the
+online/README directory. 
