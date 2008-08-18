@@ -295,37 +295,42 @@ class db
         None -> raise DB_Not_Found
       | Some x -> not_null str2ml x.(0)
 
-    (** [write_trust_origin_sigs rev_id trust origin sigs] writes that the 
-	revision [rev_id] is associated with [trust], [origin], and [sigs]. *)
-    method write_trust_origin_sigs (rev_id: int) 
+    (** [write_trust_origin_sigs rev_id words trust origin sigs] writes that the 
+	revision [rev_id] is associated with [words], [trust], [origin], and [sigs]. *)
+    method write_words_trust_origin_sigs (rev_id: int) 
+      (words: string array)
       (trust: float array)
       (origin: int array)
       (sigs: Author_sig.packed_author_signature_t array) : unit = 
-      let g0 = sexp_of_array sexp_of_float in 
-      let s0 = ml2str (string_of__of__sexp_of g0 trust) in
-      let g1 = sexp_of_array sexp_of_int in 
-      let s1 = ml2str (string_of__of__sexp_of g1 origin) in 
-      let g2 = sexp_of_array Author_sig.sexp_of_sigs in 
-      let s2 = ml2str (string_of__of__sexp_of g2 sigs) in 
-      let sdb = Printf.sprintf "INSERT INTO wikitrust_sigs (revision_id, trust, origin, sigs) VALUES (%s, %s, %s, %s) ON DUPLICATE KEY UPDATE trust = %s, origin = %s, sigs = %s" (ml2int rev_id) s0 s1 s2 s0 s1 s2 in 
+      let g_words = sexp_of_array sexp_of_string in 
+      let s_words = ml2str (string_of__of__sexp_of g_words words) in
+      let g_trust = sexp_of_array sexp_of_float in 
+      let s_trust = ml2str (string_of__of__sexp_of g_trust trust) in
+      let g_origin = sexp_of_array sexp_of_int in 
+      let s_origin = ml2str (string_of__of__sexp_of g_origin origin) in 
+      let g_sigs = sexp_of_array Author_sig.sexp_of_sigs in 
+      let s_sigs = ml2str (string_of__of__sexp_of g_sigs sigs) in 
+      let sdb = Printf.sprintf "INSERT INTO wikitrust_sigs (revision_id, words, trust, origin, sigs) VALUES (%s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE words = %s, trust = %s, origin = %s, sigs = %s" (ml2int rev_id) s_words s_trust s_origin s_sigs s_words s_trust s_origin s_sigs in 
       ignore (db_exec dbh sdb )
 
-      (** [read_trust_origin_sigs rev_id] reads the trust, 
-	  origin, and author sigs for the revision [rev_id]. *)
-    method read_trust_origin_sigs (rev_id: int) 
-      : (float array * int array * Author_sig.packed_author_signature_t array) = 
-      let s = Printf.sprintf  "SELECT trust, origin, sigs FROM wikitrust_sigs WHERE revision_id = %s" (ml2int rev_id) in 
+      (** [read_words_trust_origin_sigs rev_id] reads the words, trust, 
+	  origin, and author sigs for the revision [rev_id] from the [wikitrust_sigs] table. *)
+    method read_words_trust_origin_sigs (rev_id: int) 
+      : (string array * float array * int array * Author_sig.packed_author_signature_t array) = 
+      let s = Printf.sprintf  "SELECT words, trust, origin, sigs FROM wikitrust_sigs WHERE revision_id = %s" (ml2int rev_id) in 
       let result = db_exec dbh s in 
       match Mysql.fetch result with 
 	None -> raise DB_Not_Found
       | Some x -> begin
-	  let g0 sx = array_of_sexp float_of_sexp sx in 
-	  let trust = of_string__of__of_sexp g0 (not_null str2ml x.(0)) in 
-	  let g1 sx = array_of_sexp int_of_sexp sx in 
-	  let origin = of_string__of__of_sexp g1 (not_null str2ml x.(1)) in 
-	  let g2 sx = array_of_sexp Author_sig.sigs_of_sexp sx in 
-	  let sigs = of_string__of__of_sexp g2 (not_null str2ml x.(2)) in 
-	  (trust, origin, sigs)
+	  let g_words sx = array_of_sexp string_of_sexp sx in 
+	  let words = of_string__of__of_sexp g_words (not_null str2ml x.(0)) in 
+	  let g_trust sx = array_of_sexp float_of_sexp sx in 
+	  let trust = of_string__of__of_sexp g_trust (not_null str2ml x.(1)) in 
+	  let g_origin sx = array_of_sexp int_of_sexp sx in 
+	  let origin = of_string__of__of_sexp g_origin (not_null str2ml x.(2)) in 
+	  let g_sigs sx = array_of_sexp Author_sig.sigs_of_sexp sx in 
+	  let sigs = of_string__of__of_sexp g_sigs (not_null str2ml x.(3)) in 
+	  (words, trust, origin, sigs)
 	end
 
    (** [delete_author_sigs rev_id] removes from the db the author signatures for [rev_id]. *)

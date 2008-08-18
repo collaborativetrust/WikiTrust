@@ -43,6 +43,7 @@ GRANT ALL ON wikitrust_colored_markup TO wikiuser;
 
 CREATE TABLE wikitrust_sigs (
        revision_id      int PRIMARY KEY,
+       words		longtext NOT NULL,
        trust            longtext NOT NULL,
        origin           longtext NOT NULL,
        sigs     	longtext NOT NULL

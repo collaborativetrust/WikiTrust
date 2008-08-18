@@ -216,7 +216,7 @@ class page
 		 since text is not something we compute. *)
 	      r#read_text
 	    end else begin
-	      try r#read_trust_origin_sigs
+	      try r#read_words_trust_origin_sigs
               with Online_db.DB_Not_Found -> raise (Missing_trust (r#get_page_id, r#get_id))
 	    end
 	  end done
@@ -655,7 +655,10 @@ class page
 	rev0#set_trust  chunk_0_trust;
 	rev0#set_origin chunk_0_origin;
 	rev0#set_sigs   chunk_0_sigs;
-	rev0#write_trust_origin_sigs;
+	rev0#write_words_trust_origin_sigs;
+	(* Computes the overall trust of the revision *)
+	let t = self#compute_overall_trust chunk_0_trust in 
+	rev0#set_overall_trust t
 
       end else begin 
 
@@ -712,7 +715,7 @@ class page
           trust_a 
 	  sig_a
           new_chunks_10_a 
-          rev0#get_seps 
+          rev0_seps 
           medit_10_l
           weight_user 
 	  rev0_uid
@@ -750,7 +753,7 @@ class page
             trust_a
 	    sig_a
             new_chunks_20_a 
-            rev0#get_seps 
+            rev0_seps 
             medit_20_l
             weight_user 
 	    rev0_uid
@@ -781,12 +784,12 @@ class page
         del_chunks_list <- self#compute_dead_chunk_list new_chunks_10_a new_trust_10_a 
 	  new_sigs_10_a new_origin_10_a del_chunks_list medit_10_l rev1_time rev0_time;
         (* Writes the annotated markup, trust, origin, sigs to disk *)
-        let buf = Revision.produce_annotated_markup rev0#get_seps new_trust_10_a.(0) new_origin_10_a.(0) true true in 
+        let buf = Revision.produce_annotated_markup rev0_seps new_trust_10_a.(0) new_origin_10_a.(0) true true in 
         db#write_colored_markup rev0_id (Buffer.contents buf) rev0_timestr;
 	rev0#set_trust  new_trust_10_a.(0);
 	rev0#set_origin new_origin_10_a.(0);
 	rev0#set_sigs   new_sigs_10_a.(0);
-	rev0#write_trust_origin_sigs;
+	rev0#write_words_trust_origin_sigs;
 	(* Computes the overall trust of the revision *)
 	let t = self#compute_overall_trust new_trust_10_a.(0) in 
 	rev0#set_overall_trust t

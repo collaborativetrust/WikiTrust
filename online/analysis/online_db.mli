@@ -165,19 +165,20 @@ class db :
 	and origin information. *)
     method read_colored_markup : int -> string
 
-    (** [write_trust_origin_sigs rev_id trust origin sigs] writes that the 
-	revision [rev_id] is associated with [trust], [origin], and [sigs]. *)
-    method write_trust_origin_sigs : 
+    (** [write_trust_origin_sigs rev_id words trust origin sigs] writes that the 
+	revision [rev_id] is associated with [words], [trust], [origin], and [sigs]. *)
+    method write_words_trust_origin_sigs : 
       int -> 
+      string array -> 
       float array -> 
       int array -> 
       Author_sig.packed_author_signature_t array -> unit 
 
-      (** [read_trust_origin_sigs rev_id] reads the trust, 
-	  origin, and author sigs for the revision [rev_id]. *)
-    method read_trust_origin_sigs : 
+      (** [read_words_trust_origin_sigs rev_id] reads the words, trust, 
+	  origin, and author sigs for the revision [rev_id] from the [wikitrust_sigs] table. *)
+    method read_words_trust_origin_sigs : 
       int -> 
-      (float array * int array * Author_sig.packed_author_signature_t array)
+      (string array * float array * int array * Author_sig.packed_author_signature_t array)
 
     (** [delete_author_sigs rev_id] removes from the db the author signatures for [rev_id]. *)
     method delete_author_sigs : int -> unit

@@ -110,14 +110,32 @@ class revision
       with Online_db.DB_Not_Found -> ()
 
     (** Reads the text, trust and sigs of text from the db *)
-    method read_trust_origin_sigs : unit = 
-      (* If there is an error here, it is transmitted up, so that the 
-         reader deals in appropriate ways with the lack of trust information *)
-      self#read_text; 
-      let (t, o, s) = db#read_trust_origin_sigs rev_id in 
-      trust <- t; 
-      origin <- o; 
-      sigs <- s;
+    method read_words_trust_origin_sigs : unit = 
+      (* For the older revisions, we don't need the seps. 
+	 So, we read the words, trust, etc, from the sigs table, if we can. 
+	 This has two advantages.  First, less parsing is needed, so it's faster. 
+	 Second, the information is consistent. 
+	 If this is not found, then we parse the colored text. *)
+      try begin 
+	let (w, t, o, s) = db#read_words_trust_origin_sigs rev_id in 
+	words <- w; 
+	trust <- t; 
+	origin <- o; 
+	sigs <- s
+      end with Online_db.DB_Not_Found -> begin 
+	(* Not found: we parse the colored text.  If this is also not found, 
+	   we let the error pop up, so that the caller knows that the revision 
+	   needs to be colored. *)
+	let text_vec = Vec.singleton (db#read_colored_markup rev_id) in 
+	let (w, t, o, s_idx, s) = Text.split_into_words_seps_and_info text_vec in 
+	words <- w; 
+	trust <- t; 
+	origin <- o; 
+	sigs <- [| |];
+	seps <- s; 
+	sep_word_idx <- s_idx;
+	Printf.printf "Warning: pre-parsed text of revision %d not found, reconstructed.\n" rev_id
+      end; 
       (* Checks that the text and trust, sigs information have the same length *)
       let sigs_len = Array.length sigs in 
       let trust_len = Array.length trust in 
@@ -137,8 +155,8 @@ class revision
       end
 
     (** Writes the trust, origin, and sigs to the db *)
-    method write_trust_origin_sigs : unit = 
-      db#write_trust_origin_sigs rev_id trust origin sigs
+    method write_words_trust_origin_sigs : unit = 
+      db#write_words_trust_origin_sigs rev_id words trust origin sigs
 
     method get_words : word array = words
     method get_seps : Text.sep_t array = seps
