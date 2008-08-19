@@ -131,7 +131,7 @@ function checkCtrlState(event) {
 .trust10 {
   background-color: #FFFFFF;
 }
-/*]]>*/</script>';
+/*]]>*/</style>';
 
   public static function &singleton( )
   { return parent::singleton( ); }
@@ -160,10 +160,7 @@ colors text according to trust.'
     parent::setup();
     
     global $wgHooks, $wgParser;
-    
-    $this->addHeadScript($this->trustJS);
-    $this->addHeadScript($this->trustCSS);
-
+   
 # And add and extra tab.
     $wgHooks['SkinTemplateTabs'][] = array( &$this, 'ucscTrustTemplate');
 
@@ -179,7 +176,11 @@ colors text according to trust.'
       return;
     } 
     $this->trust_engaged = true;
-    
+   
+# Add trust CSS and JS
+    $this->addHeadScript($this->trustJS); 
+    $this->addHeadScript($this->trustCSS);
+ 
 # Add a hook to initialise the magic words
     $wgHooks['LanguageGetMagic'][] = array( &$this, 'ucscColorTrust_Magic');
    
@@ -205,6 +206,11 @@ colors text according to trust.'
      $this->median = $row['median']; 
    } 
    $dbr->freeResult( $res );
+
+   // check for divide by 0 errors.
+   if ($this->median == 0)
+     $this->median = 1;
+   
    return $this->median;
  }
  

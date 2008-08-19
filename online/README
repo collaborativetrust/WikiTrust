@@ -59,9 +59,9 @@ installation process), proceed as follows:
 
   $ cd ../sql
   $ mysql -u root -p wikidb
-  mysql> \. remove_wikitrust_tables.sql
-  mysql> \. create_wikitrust_tables.sql
-  mysql> bye 
+  mysql> \. remove_wikitrust_tables.sql;
+  mysql> \. create_wikitrust_tables.sql;
+  mysql> \q
 
 3) Next, you need to install the trust coloring extension in
 mediawiki.  There are two ways to do this:
@@ -77,8 +77,8 @@ To build symbolic links in Ubuntu you can proceed as follows (the
 process is similar for other distributions; only the destination
 directory path may be different): 
 
-  $ cd wikitrust/online/mediawiki/extensions
-  $ sudo ln -s Trust /var/lib/mediawiki/extensions
+  $ cd /var/lib/mediawiki/extensions 
+  $ sudo ln -s /home/username/wikitrust/online/mediawiki/extensions/Trust .
 
 3b) Alternatively, use 'cp' statements rather than symbolic links. 
 
