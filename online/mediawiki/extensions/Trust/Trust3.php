@@ -63,6 +63,76 @@ class TextTrust extends ExtensionClass
 		  "trust10",
 		  );
   
+
+  var $trustJS = '<script type="text/javascript">/*<![CDATA[*/
+var ctrlState = false;
+function showOrigin(revnum) {
+  //if (ctrlState) {
+    document.location.href = "/index.php?title=" + wgPageName + "&oldid=" + revnum;
+ // }
+}
+
+function checkForCtrlDown(event) {
+  if (event.ctrlKey) { ctrlState = true; }
+  //alert (event.keyCode + " " + event.ctrlKey + " " + ctrlState);
+}
+
+function clearCtrlState(event) {
+  //alert(event.keyCode + " " + ctrlState);
+  ctrlState = false;
+}
+
+function checkCtrlState(event) {
+  //alert(ctrlState);
+}
+/*]]>*/</script>';
+
+  var $trustCSS = '<style type="text/css">/*<![CDATA[*/
+.trust0 {
+  background-color: #FFB947;
+}
+
+.trust1 {
+  background-color: #FFC05C;
+}
+
+.trust2 {
+  background-color: #FFC870;
+}
+
+.trust3 {
+  background-color: #FFD085;
+}
+
+.trust4 {
+  background-color: #FFD899;
+}
+
+.trust5 {
+  background-color: #FFE0AD;
+}
+
+.trust6 {
+  background-color: #FFE8C2;
+}
+
+.trust7 {
+  background-color: #FFEFD6;
+}
+
+.trust8 {
+  background-color: #FFF7EB;
+}
+
+.trust9 {
+  background-color: #FFFFFF;
+}
+
+.trust10 {
+  background-color: #FFFFFF;
+}
+/*]]>*/</script>';
+
   public static function &singleton( )
   { return parent::singleton( ); }
   
@@ -91,6 +161,9 @@ colors text according to trust.'
     
     global $wgHooks, $wgParser;
     
+    $this->addHeadScript($this->trustJS);
+    $this->addHeadScript($this->trustCSS);
+
 # And add and extra tab.
     $wgHooks['SkinTemplateTabs'][] = array( &$this, 'ucscTrustTemplate');
 
