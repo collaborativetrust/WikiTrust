@@ -457,9 +457,9 @@ let separate_string_tags (pv: piece_t Vec.t) : piece_t Vec.t =
 
 let title_start_e = "\\(\n==+\\)"
 let title_start_r = Str.regexp title_start_e 
-let title_end_e = "\\(==+[ \t]*$\\)"
+let title_end_e = "\\(==+[ \t]*\n\\)"
 let title_end_r     = Str.regexp title_end_e
-let par_break_tag_e = "\\(\n[ \t]*$\\)\\|\\(\n----+[ \t]*$\\)"
+let par_break_tag_e = "\\(\n[ \t]*\n\\)\\|\\(\n----+[ \t]*\n\\)"
 let par_break_tag_r = Str.regexp par_break_tag_e 
 let one_liner_r = Str.regexp (title_start_e ^ "\\|" ^ title_end_e ^ "\\|" ^ par_break_tag_e) 
 
@@ -479,22 +479,25 @@ let separate_titles (v: piece_t Vec.t) : piece_t Vec.t =
         (* s is a splittable string.  Looks for titles in it *)
         let l = Str.full_split one_liner_r s in 
         (* Now, we process the list l, adding to w the results. *)
-        (* Function g is folded_left on list l, and on w, 
-           to produce the result. *)
-        let g (ww: piece_t Vec.t) (el: Str.split_result) : piece_t Vec.t = 
+        (* Function g is folded_left on list l to produce the result. 
+	   wws consists of a pair: the piece_t Vec.t already produced, and 
+	   a string of reported text.  This reported text can occasionally contain a \n. *)
+        let g (wws: (piece_t Vec.t) * string) (el: Str.split_result) : (piece_t Vec.t) * string = 
+	  let (ww, leftover) = wws in 
           match el with 
             Str.Delim t -> begin 
 	      (* There are now two cases, depending on whether we matched 
 		 a paragraph break, or a title *)
 	      if Str.string_match title_start_r t 0 
-	      then Vec.append (WS_title_start t) ww
+	      then (Vec.append (WS_title_start t) ww, "")
 	      else if Str.string_match par_break_tag_r t 0 
-	      then Vec.append (WS_par_break t) ww
-	      else Vec.append (WS_title_end t) ww
+	      then (Vec.append (WS_par_break t) ww, "\n")
+	      else (Vec.append (WS_title_end t) ww, "\n")
 	    end
-          | Str.Text t -> Vec.append (TXT_splittable t) ww
+          | Str.Text t -> (Vec.append (TXT_splittable (leftover ^ t)) ww, "")
         in (* end of function g *)
-        List.fold_left g w l
+        let (r, _) = List.fold_left g (w, "") l in 
+	r
       end
     | _ -> Vec.append d w
   in (* end of function f *)
@@ -707,12 +710,14 @@ let split_string_preserving_markup (text: string) : piece_t Vec.t =
   let text3 = remove_html_comments text2 in 
   let text' = text3 in 
   (* Now does the splitting *)
-  let p0 = Vec.singleton (TXT_splittable text') in 
-  let p1 = separate_string_tags p0 in 
-  let p2 = separate_titles      p1 in 
-  let p3 = separate_line_tags   p2 in 
-  let p4 = separate_table_tags  p3 in
-  separate_whitespace p4
+  let p = Vec.singleton (TXT_splittable text') in 
+  let result = 
+    separate_whitespace (
+      separate_table_tags (
+	separate_line_tags (
+	  separate_titles (
+	    separate_string_tags p)))) in 
+  result
 
 (* This function strips all whitespace from the end of a string. 
    Believe it or not, I could not find an efficient way of doing this 
@@ -944,7 +949,7 @@ let split_into_words (text_v: string Vec.t) : word array =
 (* **************************************************************** *)
 (* Unit testing *)
 
-if false then begin
+if true then begin
   let s0 = "\n[[image:Charles Lyell.jpg|thumb|Charles Lyell]]\n[[Image:Lyell Principles frontispiece.jpg|thumb|The frontispiece from ''Principles of Geology'']]\n'''Sir Charles Lyell, 1st Baronet''', [[Order of the Thistle|KT]], ([[November 14]], [[1797]] &ndash; [[February 22]], [[1875]]), [[Scotland|Scottish]] [[lawyer]], [[geologist]], and populariser of [[Uniformitarianism (science)|uniformitarianism]].\n\nHe won the [[Copley Medal]] in 1858 and the [[Wollaston Medal]] in 1866.  After the [[Great Chicago Fire]], Lyell was one of the first to donate books to help found the [[Chicago Public Library]].\n\nUpon his death in 1875, he was buried in [[Westminster Abbey]].\n" in
   let s1 = "\n#REDIRECT [[Pollo con piselli]]\n== Titolo == \n<pre> Codice con [[markup[[ bla ]] boh]] e \n == titolo ==\n</pre>\n ==titolo2.\n=========== \n========\n == title ==" in
   let s2 = "\n{| class=\"toccolours\"  border=1 cellpadding=2 cellspacing=2 style=\"width: 700px; margin: 0 0 1em 1em; border-collapse: collapse; border: 1px solid #E2E2E2;\"\n\n|-\n! bgcolor=\"#E7EBEE\" | 1972 Debut Tour<br><br>Roy Wood's only live ELO tour.<br>After the tour, Wood, Hunt&auml;d and <br>McDowell leave ELO and form Wizzard.\n| \n* [[Roy Wood]] - [[vocals]], [[cello]], [[bass guitar]], [[guitar]], [[woodwind]]\n* [[Jeff Lynne]] - [[vocals]], [[lead guitar]], [[piano]]\n|-\n! bgcolor=\"#E7EBEE\" | 1972 - 1973 ELO 2 Tour<br><br>Bassist Mike de Albuquerque and cellist Colin Walker join ELO after the departure of Wood, Hunt, McDowell, Craig and Smith.\n| \n* [[Jeff Lynne]] - [[Vocals]], [[lead guitar]]\n* [[Bev Bevan]] - [[drums]], [[percussion]]\n|}\n" in 
@@ -965,10 +970,12 @@ if false then begin
   let s17 = "\n&amp;nbsp; &lt;br&gt;gatto <br> pollo&lt;br&gt;gatto &lt;br&gt; gotto &lt;br/&gt;pollo &lt;br/&gt;pollo &lt;br&gt; pollo &lt;br/&gt;" in 
   let s18 = "\n* Bullet \n*: cont \n::: ecco \n \n \n**:: non so \n##: fatto" in
   let s19 = "{{to:32}} Gatto {{#t:0.12}} posso {{to:94854}} {{#t:0.12}} cane {{to:343}}" in 
+  let s20 = "Quando vado a\n[[storia]]\ndi amore\nnon so cosa fare.\n" in 
 
-  let l = [s0; s1; s2; s3; s4; s5; s6; s7; s8; s9; s10; s11; s12; s13; s14; s15; s16; s17; s18; s19] in
+  let l = [s0; s1; s2; s3; s4; s5; s6; s7; s8; s9; s10; s11; s12; s13; s14; s15; s16; s17; s18; s19; s20] in
 
   let f x = 
+    Printf.printf "Original:\n%S\n" x;
     let x_v = Vec.singleton x in 
     let (word_v, trust_v, orig_v, _, sep_v) = split_into_words_seps_and_info x_v in 
     print_string "Words:\n";
