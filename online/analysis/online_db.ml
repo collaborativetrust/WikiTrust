@@ -51,13 +51,13 @@ exception DB_Internal_Error
 (* Timestamp in the DB *)
 type timestamp_t = int * int * int * int * int * int
 
-let debug_mode = true;;
+let debug_mode = false;;
 
 (* This is the function that sexplib uses to convert floats *)
-Sexplib.Conv.default_string_of_float := (fun n -> sprintf "%.4G" n);;
+Sexplib.Conv.default_string_of_float := (fun n -> sprintf "%.3G" n);;
 
 (* This is the function that sexplib uses to convert strings *)
-Sexplib.Conv.default_string_of_string := (fun str -> sprintf "%s" str);;
+(* Sexplib.Conv.default_string_of_string := (fun str -> sprintf "%s" str);; *)
 
 (* Should a commit be issued after every insert? This is needed if there are multiple clients. *)
 let commit_frequently = false;;
