@@ -246,8 +246,14 @@ class trust_revision :
     (* private *)  method output_rev_text : bool -> out_channel -> unit
   end
 
-(** [produce_annotated_markup seps word_trust word_origin trust_is_float include_origin out_buf]
-    produces the annotated text of the revision, with trust, and puts it into the Buffer.t 
-    [out_buf]. *)
+(** [produce_annotated_markup seps word_trust word_origin trust_is_float include_origin combined]
+    produces the annotated text of the revision, with trust, and returns a Buffer.t buffer. 
+    The parameters are: 
+    [seps] : the seps array
+    [word_trust] : the word trust array
+    [word_origin] : the word origin array
+    [trust_is_float] : do we need to write out trust as a float?
+    [include_origin] : do we need to include origin information? 
+ *)
 val produce_annotated_markup : 
   (Text.sep_t array) -> (float array) -> (int array) -> bool -> bool -> Buffer.t
