@@ -463,12 +463,7 @@ let par_break_tag_e = "\\(\n[ \t]*$\\)\\|\\(\n----+[ \t]*$\\)"
 let par_break_tag_r = Str.regexp par_break_tag_e 
 let one_liner_r = Str.regexp (title_start_e ^ "\\|" ^ title_end_e ^ "\\|" ^ par_break_tag_e) 
 
-(* This function separates out titles and paragraph breaks. 
-   What makes titles and paragraph breaks special is that they are delimited 
-   by two \n, and they need both in order to be correctly recognized. 
-   So, when we match them, we swallow a \n, but we must re-insert a new \n. 
-   In fact, if we did not, and an enumeration followed, our eating up the \n 
-   would cause us to miss recognizing the enumeration. *)
+(* This function separates out titles and paragraph breaks. *)
 let separate_titles (v: piece_t Vec.t) : piece_t Vec.t = 
   (* The function f is folded on v, and does the job.
      d is the piece that is to be analyzed. 
@@ -476,26 +471,56 @@ let separate_titles (v: piece_t Vec.t) : piece_t Vec.t =
   let f (d: piece_t) (w: piece_t Vec.t) : piece_t Vec.t = 
     match d with 
       TXT_splittable s -> begin 
-        (* s is a splittable string.  Looks for titles in it *)
-        let l = Str.full_split one_liner_r s in 
-        (* Now, we process the list l, adding to w the results. *)
-        (* Function g is folded_left on list l, and on w, 
-           to produce the result. *)
-        let g (ww: piece_t Vec.t) (el: Str.split_result) : piece_t Vec.t = 
+        (* s is a splittable string.  Looks for titles and paragraphs in it. 
+	   Makes it into an array, so we can more easily check for what is 
+	   in the following string. *)
+        let a = Array.of_list (Str.full_split one_liner_r s) in 
+	let a_last_idx = (Array.length a) - 1 in 
+        (* Now, we process the array a, adding to w the results. *)
+	let w_acc = ref w in 
+        (* Function g is iteri over a, adding to w_acc *)
+        let g (i: int) (el: Str.split_result) : unit = 
           match el with 
             Str.Delim t -> begin 
-	      (* There are now two cases, depending on whether we matched 
-		 a paragraph break, or a title *)
+	      (* Title starts are easy to find *)
 	      if Str.string_match title_start_r t 0 
-	      then Vec.append (WS_title_start t) ww
-	      else if Str.string_match par_break_tag_r t 0 
-	      then Vec.append (WS_par_break t) ww
-	      else Vec.append (WS_title_end t) ww
-	    end
-          | Str.Text t -> Vec.append (TXT_splittable t) ww
+	      then w_acc := Vec.append (WS_title_start t) !w_acc
+	      else begin 
+		(* This is the case for title ends and paragraph breaks. 
+		   For both of them, before accepting, we have to check that the 
+		   next piece of text begins with \n *)
+		if i < a_last_idx then begin 
+		  let next_t = match a.(i+1) with 
+		      Str.Delim t' -> t'
+		    | Str.Text  t' -> t'
+		  in 
+		  if String.length next_t > 0 then begin 
+		    if next_t.[0] = '\n' then begin 
+		      (* Ok, it is really a title end or paragraph break *)
+		      if Str.string_match par_break_tag_r t 0
+		      then w_acc := Vec.append (WS_par_break t) !w_acc
+		      else w_acc := Vec.append (WS_title_end t) !w_acc
+		    end else begin 
+		      (* No, it is not a title end or paragraph break *)
+		      w_acc := Vec.append (TXT_splittable t) !w_acc
+		    end
+		  end else begin 
+		    (* The next string has length 0 *)
+		    w_acc := Vec.append (TXT_splittable t) !w_acc
+		  end
+		end else begin 
+		  (* There is no next piece of text *)
+		  if Str.string_match par_break_tag_r t 0
+		  then w_acc := Vec.append (WS_par_break t) !w_acc
+		  else w_acc := Vec.append (WS_title_end t) !w_acc
+		end (* End of i < a_last_idx *)
+	      end (* Matched a paragraph break or title end *)
+	    end (* case for Str.Delim *)
+          | Str.Text t -> w_acc := Vec.append (TXT_splittable t) !w_acc
         in (* end of function g *)
-        List.fold_left g w l
-      end
+	Array.iteri g a; 
+	!w_acc
+      end (* End of case for TXT_splittable *)
     | _ -> Vec.append d w
   in (* end of function f *)
   Vec.fold f v Vec.empty
@@ -717,8 +742,8 @@ let split_string_preserving_markup (text: string) : piece_t Vec.t =
       separate_whitespace (
 	separate_table_tags (
 	  separate_line_tags (
-	    separate_string_tags (
-	      separate_titles p)))) in 
+	    separate_titles (
+	      separate_string_tags p)))) in 
     (* If the first piece is a newline, removes it. *)
     if Vec.length split = 0 
     then split
