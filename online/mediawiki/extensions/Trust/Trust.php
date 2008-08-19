@@ -34,6 +34,9 @@ class TextTrust extends ExtensionClass
   const MIN_TRUST_VALUE = 0;
   const TRUST_MULTIPLIER = 10;
   
+  ## Token to split trust and origin values on
+  const TRUST_SPLIT_TOKEN = ",";
+
   ## Median Value of Trust
   var $median = 0.0;
 
@@ -42,6 +45,12 @@ class TextTrust extends ExtensionClass
 
   ## Load the article we are talking about
   var $title;
+
+  ## Don't close the first opening span tag
+  var $first_span = true;
+
+  ## And the same for origin tags
+  var $first_origin = true;
 
   ## And the last revision of the title
   var $current_rev;
@@ -62,6 +71,9 @@ class TextTrust extends ExtensionClass
 		  "trust9",
 		  "trust10",
 		  );
+
+  ## Only write a new trust tag when the trust changes.
+  var $current_trust = "trust0";
   
   var $trustJS = '<script type="text/javascript">/*<![CDATA[*/
 var ctrlState = false;
@@ -184,10 +196,10 @@ colors text according to trust.'
    
 # Set a function hook associating the blame and trust words with a callback function
     $wgParser->setFunctionHook( 't', array( &$this, 'ucscColorTrust_Render'));
-    //   $wgParser->setFunctionHook( 'to', array( &$this, 'ucscOrigin_Render'), SFH_NO_HASH );
+    //  $wgParser->setFunctionHook( 'to', array( &$this, 'ucscOrigin_Render'), SFH_NO_HASH );
 
 # After everything, make the blame info work
-    // $wgHooks['ParserAfterTidy'][] = array( &$this, 'ucscOrigin_Finalize');
+    $wgHooks['ParserAfterTidy'][] = array( &$this, 'ucscOrigin_Finalize');
     
 # Pull the median value
     $this->update_median();
@@ -326,28 +338,60 @@ colors text according to trust.'
  /* Register the tags we are intersted in expanding. */
  function ucscColorTrust_Magic( &$magicWords, $langCode ) {
    $magicWords[ 't' ] = array( 0, 't' );
-   //   $magicWords[ 'to' ] = array( 0, 'to' );
+   // $magicWords[ 'to' ] = array( 0, 'to' );
    return true;
  }
  
  /* Blame Map */
  function ucscOrigin_Render( &$parser, $origin = 0 ) {  
-   $output = "<span onclick='showOrigin($origin)'>";     
-   $output = "<span class=BLAME_MAP:$origin:>";
+   //$output = "QQampo:span onclick='showOrigin($origin)'>";     
+   //$output = "<span class=BLAME_MAP:$origin:>";
+   $output = "BLAME_MAP:$origin:";
+
+   if ($this->first_origin){
+     $this->first_origin = false;
+   } else {
+     $output = "QQampo:/span:ampc:" . $output;
+   }
+
    return array( $output, "noparse" => false, "isHTML" => false );  
  }
  
  /* Turn the finished blame info into a clickable span tag. */
  function ucscOrigin_Finalize(&$parser, &$text) {
    $count = 0;
-   $text = preg_replace('/class=\"BLAME_MAP:(\d+):\"/', "onclick='showOrigin($1)'", $text, -1, $count);
+   //   $text = preg_replace('/class=\"BLAME_MAP:(\d+):\"/', "onclick='showOrigin($1)'", $text, -1, $count);
+   $text = preg_replace('/BLAME_MAP:(\d+):/', "<span onclick='showOrigin($1)'>", $text, -1, $count);
+   $text = preg_replace('/QQampo:/', "<", $text, -1, $count);
+   $text = preg_replace('/:ampc:/', ">", $text, -1, $count);
+   $text = preg_replace('/<\/p>/', "</span></p>", $text, -1, $count);
+   $text = preg_replace('/<p><\/span>/', "<p>", $text, -1, $count);
+   $text = preg_replace('/<li><\/span>/', "<li>", $text, -1, $count);
    return true;
  }
 
  /* Text Trust */
- function ucscColorTrust_Render( &$parser, $value = 0 ) {
-   $class = $this->computeColorFromFloat($value);
-   $output = "<span class=$class>";
+ function ucscColorTrust_Render( &$parser, $combinedValue = "0,0" ) {
+   
+   $splitVals = split(TRUST_SPLIT_TOKEN, $combinedValue);
+   $trustVal = $splitVals[0];
+   $originVal = $splitVals[1];
+   
+   $class = $this->computeColorFromFloat($trustVal);
+   $output = "QQampo:span class=$class:ampc:";
+   
+   /**if ($class == $this->current_trust && $this->first_span == false){
+     return "";
+     }*/
+   
+   $this->current_trust = $class;
+   
+   if ($this->first_span){
+     $this->first_span = false;
+   } else {
+     $output = "QQampo:/span:ampc:" . $output;
+   }
+   
    return array ( $output, "noparse" => false, "isHTML" => false );
  }
  
