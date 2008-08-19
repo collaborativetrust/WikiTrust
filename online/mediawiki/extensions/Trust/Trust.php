@@ -196,7 +196,6 @@ colors text according to trust.'
    
 # Set a function hook associating the blame and trust words with a callback function
     $wgParser->setFunctionHook( 't', array( &$this, 'ucscColorTrust_Render'));
-    //  $wgParser->setFunctionHook( 'to', array( &$this, 'ucscOrigin_Render'), SFH_NO_HASH );
 
 # After everything, make the blame info work
     $wgHooks['ParserAfterTidy'][] = array( &$this, 'ucscOrigin_Finalize');
@@ -338,14 +337,14 @@ colors text according to trust.'
  /* Register the tags we are intersted in expanding. */
  function ucscColorTrust_Magic( &$magicWords, $langCode ) {
    $magicWords[ 't' ] = array( 0, 't' );
-   // $magicWords[ 'to' ] = array( 0, 'to' );
    return true;
  }
  
  /* Blame Map */
+ /** Not used currently.
  function ucscOrigin_Render( &$parser, $origin = 0 ) {  
-   //$output = "QQampo:span onclick='showOrigin($origin)'>";     
-   //$output = "<span class=BLAME_MAP:$origin:>";
+   $output = "QQampo:span onclick='showOrigin($origin)'>";     
+   $output = "<span class=BLAME_MAP:$origin:>";
    $output = "BLAME_MAP:$origin:";
 
    if ($this->first_origin){
@@ -356,12 +355,13 @@ colors text according to trust.'
 
    return array( $output, "noparse" => false, "isHTML" => false );  
  }
- 
- /* Turn the finished blame info into a clickable span tag. */
+ */
+
+ /* Turn the finished trust info into a span tag. Also handle closing tags. */
  function ucscOrigin_Finalize(&$parser, &$text) {
    $count = 0;
    //   $text = preg_replace('/class=\"BLAME_MAP:(\d+):\"/', "onclick='showOrigin($1)'", $text, -1, $count);
-   $text = preg_replace('/BLAME_MAP:(\d+):/', "<span onclick='showOrigin($1)'>", $text, -1, $count);
+   // $text = preg_replace('/BLAME_MAP:(\d+):/', "<span onclick='showOrigin($1)'>", $text, -1, $count);
    $text = preg_replace('/QQampo:/', "<", $text, -1, $count);
    $text = preg_replace('/:ampc:/', ">", $text, -1, $count);
    $text = preg_replace('/<\/p>/', "</span></p>", $text, -1, $count);
@@ -373,6 +373,7 @@ colors text according to trust.'
  /* Text Trust */
  function ucscColorTrust_Render( &$parser, $combinedValue = "0,0" ) {
    
+   // Split the value into trust and origin information.
    $splitVals = split(TRUST_SPLIT_TOKEN, $combinedValue);
    $trustVal = $splitVals[0];
    $originVal = $splitVals[1];
@@ -380,12 +381,7 @@ colors text according to trust.'
    $class = $this->computeColorFromFloat($trustVal);
    $output = "QQampo:span class=$class:ampc:";
    
-   /**if ($class == $this->current_trust && $this->first_span == false){
-     return "";
-     }*/
-   
    $this->current_trust = $class;
-   
    if ($this->first_span){
      $this->first_span = false;
    } else {
@@ -400,7 +396,6 @@ colors text according to trust.'
   Normalize the value for growing wikis.
  */
  function computeColorFromFloat($trust){
-   
    $normalized_value = min(self::MAX_TRUST_VALUE, max(self::MIN_TRUST_VALUE, 
 						      ($trust * self::TRUST_MULTIPLIER) 
 						      / $this->median));
