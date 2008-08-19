@@ -78,11 +78,7 @@ process is similar for other distributions; only the destination
 directory path may be different): 
 
   $ cd wikitrust/online/mediawiki/extensions
-  $ sudo ln -s ExtMan.php /var/lib/mediawiki/extensions
   $ sudo ln -s Trust /var/lib/mediawiki/extensions
-  $ cd ../skins
-  $ sudo ln -s Trust.php /var/lib/mediawiki/skins
-  $ sudo ln -s trust /var/lib/mediawiki/skins
 
 3b) Alternatively, use 'cp' statements rather than symbolic links. 
 
