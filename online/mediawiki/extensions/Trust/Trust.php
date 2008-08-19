@@ -184,10 +184,10 @@ colors text according to trust.'
    
 # Set a function hook associating the blame and trust words with a callback function
     $wgParser->setFunctionHook( 't', array( &$this, 'ucscColorTrust_Render'));
-    $wgParser->setFunctionHook( 'to', array( &$this, 'ucscOrigin_Render'), SFH_NO_HASH );
+    //   $wgParser->setFunctionHook( 'to', array( &$this, 'ucscOrigin_Render'), SFH_NO_HASH );
 
 # After everything, make the blame info work
-    $wgHooks['ParserAfterTidy'][] = array( &$this, 'ucscOrigin_Finalize');
+    // $wgHooks['ParserAfterTidy'][] = array( &$this, 'ucscOrigin_Finalize');
     
 # Pull the median value
     $this->update_median();
@@ -326,7 +326,7 @@ colors text according to trust.'
  /* Register the tags we are intersted in expanding. */
  function ucscColorTrust_Magic( &$magicWords, $langCode ) {
    $magicWords[ 't' ] = array( 0, 't' );
-   $magicWords[ 'to' ] = array( 0, 'to' );
+   //   $magicWords[ 'to' ] = array( 0, 'to' );
    return true;
  }
  
