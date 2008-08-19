@@ -63,7 +63,6 @@ class TextTrust extends ExtensionClass
 		  "trust10",
 		  );
   
-
   var $trustJS = '<script type="text/javascript">/*<![CDATA[*/
 var ctrlState = false;
 function showOrigin(revnum) {
@@ -158,7 +157,6 @@ colors text according to trust.'
   public function setup()
   {
     parent::setup();
-    
     global $wgHooks, $wgParser;
    
 # And add and extra tab.
