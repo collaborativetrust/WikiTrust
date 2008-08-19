@@ -94,7 +94,7 @@ following lines:
   $wgRepSpeed = 1.0;
 
   require_once( $IP . "/extensions/Trust/ExtensionClass.php");
-  require_once( $IP . "/extensions/Trust/Trust3.php" );
+  require_once( $IP . "/extensions/Trust/Trust.php" );
 
 And make the installation readable from the Web server, if you use
 method 3a): 
