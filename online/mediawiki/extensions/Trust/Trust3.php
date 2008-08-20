@@ -67,7 +67,7 @@ class TextTrust extends ExtensionClass
 var ctrlState = false;
 function showOrigin(revnum) {
   //if (ctrlState) {
-    document.location.href = wgScriptPath + "/index.php?title=" + wgPageName + "&oldid=" + revnum;
+    document.location.href = wgScriptPath + "/index.php?title=" + wgPageName + "&diff=" + revnum;
  // }
 }
 
