@@ -649,7 +649,7 @@ class page
 	in 
         (* Produces the live chunk, consisting of the text of the revision, annotated
            with trust and origin information *)
-        let chunk_0 = Revision.produce_annotated_markup rev0_seps chunk_0_trust chunk_0_origin true true in 
+        let chunk_0 = Revision.produce_annotated_markup rev0_seps chunk_0_trust chunk_0_origin false true in 
         (* And writes it out to the db *)
         db#write_colored_markup rev0_id (Buffer.contents chunk_0) rev0_timestr; 
 	rev0#set_trust  chunk_0_trust;
@@ -784,7 +784,7 @@ class page
         del_chunks_list <- self#compute_dead_chunk_list new_chunks_10_a new_trust_10_a 
 	  new_sigs_10_a new_origin_10_a del_chunks_list medit_10_l rev1_time rev0_time;
         (* Writes the annotated markup, trust, origin, sigs to disk *)
-        let buf = Revision.produce_annotated_markup rev0_seps new_trust_10_a.(0) new_origin_10_a.(0) true true in 
+        let buf = Revision.produce_annotated_markup rev0_seps new_trust_10_a.(0) new_origin_10_a.(0) false true in 
         db#write_colored_markup rev0_id (Buffer.contents buf) rev0_timestr;
 	rev0#set_trust  new_trust_10_a.(0);
 	rev0#set_origin new_origin_10_a.(0);

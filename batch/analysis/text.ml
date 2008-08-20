@@ -82,8 +82,7 @@ type piece_t =   WS_title_start of string
 	       | TXT_splittable of string 
 	       | TXT_armored_char of string 
 	       | TXT_word of string
-	       | INFO_trust of float (* all subsequent text has this trust *)
-	       | INFO_origin of int (* all subsequent text has this origin *)
+	       | INFO_trust of float * int (* all subsequent text has this trust and origin *)
 
 (* Regular expressions to separate words for reputation analysis *)
 (* This is the regexp used to split for reputation analysis *)
@@ -216,8 +215,6 @@ let end_tag_7_r  = Str.regexp "&lt;/\\([a-zA-Z1-9_]+\\) *&gt;"
  *)
 let beg_trust_8 = "{{#t:"
 let beg_trust_8_r = Str.regexp beg_trust_8
-let beg_origin_9 = "{{to:"
-let beg_origin_9_r = Str.regexp beg_origin_9
 
 let tag_name_r = Str.regexp "[a-zA-Z1-9_]+"
 (* let single_close_r = Str.regexp "&gt;" *)
@@ -233,7 +230,7 @@ let match_brbr_r = Str.regexp_case_fold (beg_link_1 ^ "\\|" ^ beg_link_5 ^ "\\|"
 (* These are openings or closures of tags that close with ].  Check that it is a single ] ! *)
 let match_br_r = Str.regexp (beg_link_2  ^ "\\|" ^ end_link_2)
 (* These are openings or closures of tags that close with }} *)
-let match_cbr_r = Str.regexp (beg_stub_3 ^ "\\|" ^ beg_trust_8 ^ "\\|" ^ beg_origin_9 ^ "\\|" ^ end_stub_3)
+let match_cbr_r = Str.regexp (beg_stub_3 ^ "\\|" ^ beg_trust_8 ^ "\\|" ^ end_stub_3)
 
 let max_nested_tags = 20
 type token_t = LeftTok | OpenTag | RedirTok
@@ -284,7 +281,6 @@ let separate_string_tags (pv: piece_t Vec.t) : piece_t Vec.t =
               in 
 	      (* These will be updated if needed *)
 	      let is_trust = ref false in 
-	      let is_origin = ref false in 
 	      match tag_kind with 
 		OpenTag -> begin 
 		  let len_opening = 1 in 
@@ -357,18 +353,12 @@ let separate_string_tags (pv: piece_t Vec.t) : piece_t Vec.t =
 		end (* OpenTag and OpenCodedTag *)
 	      | LeftTok | RedirTok -> begin 
 		  let start_attempt = ref match_end_pos in 
-		  let trust_origin_num_start = ref 0 in 
-		  if tag_kind = LeftTok then begin 
-		    (* Checks whether this is a trust or origin token. *)
-		    if Str.string_match beg_trust_8_r text match_start_pos then begin 
-		      is_trust := true;
-		      start_attempt := Str.match_end ();
-		      trust_origin_num_start := !start_attempt;
-		    end else if Str.string_match beg_origin_9_r text match_start_pos then begin 
-		      is_origin := true;
-		      start_attempt := Str.match_end ();
-		      trust_origin_num_start := !start_attempt;
-		    end
+		  let trust_num_start = ref 0 in 
+		  (* Checks whether this is a trust token. *)
+		  if tag_kind = LeftTok && (Str.string_match beg_trust_8_r text match_start_pos) then begin 
+		    is_trust := true;
+		    start_attempt := Str.match_end ();
+		    trust_num_start := !start_attempt;
 		  end;
 		  (* Looks for the closing token if any. Keeps track of the open/close deficit. *)
 		  (* Careful: Redirect comes with an initial imbalance of 0 in the start *)
@@ -403,14 +393,17 @@ let separate_string_tags (pv: piece_t Vec.t) : piece_t Vec.t =
 			    end; 
 			    let tag_atomic = match tag_kind with 
 				LeftTok -> begin
-				  if !is_origin then begin
-				    let piece_atomic = String.sub text 
-				      !trust_origin_num_start (beg_closing - !trust_origin_num_start) in 
-				    INFO_origin (int_of_string piece_atomic)
-				  end else if !is_trust then begin 
-				    let piece_atomic = String.sub text 
-				      !trust_origin_num_start (beg_closing - !trust_origin_num_start) in 
-				    INFO_trust (float_of_string piece_atomic)
+				  if !is_trust then begin 
+				    let piece_atomic = String.sub text !trust_num_start (beg_closing - !trust_num_start) in 
+				    let l = Str.split_delim (Str.regexp ",") piece_atomic in 
+				    let (t, o) =  match l with 
+					t' :: o' :: _ -> (t', o') 
+				      | t' :: [] -> (t', "")
+				      | [] -> ("", "")
+				    in 
+				    let t'' = try float_of_string t with Failure "float_of_string" -> 0. in 
+				    let o'' = try int_of_string   o with Failure "int_of_string"   -> 0  in
+				    INFO_trust (t'', o'')
 				  end else begin
 				    let piece_atomic = String.sub text match_start_pos (end_closing - match_start_pos) in 
 				    TXT_tag piece_atomic
@@ -952,10 +945,11 @@ let split_into_words_seps_and_info (text_v: string Vec.t)
 	word_idx := !word_idx + 1;
 	sep_idx  := !sep_idx  + 1
       end
-	(* I store the new word trust *)
-    | INFO_trust x -> trust := x 
-	(* I store the new word origin *)
-    | INFO_origin k -> origin := k
+	(* I store the new word trust and origin *)
+    | INFO_trust (x, k) -> begin 
+	trust := x;
+	origin := k
+      end
     | TXT_splittable _ -> ()
   in 
   Vec.iter f piece_v; 

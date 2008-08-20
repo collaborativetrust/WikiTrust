@@ -319,20 +319,36 @@ let produce_annotated_markup
     else 0 (* No trust for empty pages. *) 
   end
   in 
-  let print_next_color i = begin 
-    let c = next_word_color i in 
-    if trust_is_float 
-    then Printf.bprintf out_buf "{{#t:%.2f}}" c
-    else Printf.bprintf out_buf "{{#t:%d}}" (approx c); 
-    curr_color := approx c 
-  end 
-  in 
-  let print_next_origin i = begin 
-    let c = next_word_origin i in 
-    Printf.bprintf out_buf "{{to:%d}}" c; 
-    curr_origin := c 
+  (* Prints the tag.  [always_print] indicates that the tag
+     must be printed even if the info has not changed. 
+     [i] is the order of the word. *)
+  let print_tag (always_print: bool) (i: int) : unit = begin 
+    let new_color_float = next_word_color i in
+    let new_color_int = approx new_color_float in 
+    let new_origin = next_word_origin i in 
+    (* Prints the tag if one of these holds: 
+       - trust_is_float holds
+       - always_print holds
+       - the info has changed. *)
+    if include_origin then begin 
+      (* include origin *)
+      if trust_is_float || always_print || (new_color_int != !curr_color) || (new_origin != !curr_origin) then begin 
+	if trust_is_float
+	then Printf.bprintf out_buf "{{#t:%.2f,%d}}" new_color_float new_origin
+	else Printf.bprintf out_buf "{{#t:%d,%d}}"   new_color_int   new_origin
+      end
+    end else begin 
+      (* do not include origin *)
+      if trust_is_float || always_print || (new_color_int != !curr_color) || then begin 
+	if trust_is_float
+	then Printf.bprintf out_buf "{{#t:%.2f,}}" new_color_float
+	else Printf.bprintf out_buf "{{#t:%d,}}"   new_color_int  
+      end
+    end;
+    curr_color := new_color_int;
+    curr_origin := new_origin
   end
-  in 
+  in
   (* We write the text of the revision *)
   let word_idx = ref 0 in 
   (* This function f is iterated on the array *)
@@ -343,12 +359,12 @@ let produce_annotated_markup
     | Text.Table_cell (t, i) | Text.Table_caption (t, i) -> begin 
 	Buffer.add_string out_buf t; 
 	word_idx := i + 1;
-	print_next_color (i + 1); if include_origin then print_next_origin (i + 1)
+	print_tag true !word_idx
       end
 	(* Things that must be followed by the color *)
     | Text.Newline t -> begin 
 	Buffer.add_string out_buf t; 
-	print_next_color !word_idx; if include_origin then print_next_origin !word_idx
+	print_tag true !word_idx
       end
         (* Things that are not followed by the color and do not increase the word index *)
     | Text.Space t | Text.Par_break t -> 
@@ -361,19 +377,14 @@ let produce_annotated_markup
       end
         (* Things that are preceded and followed by the color, and increase the word index *)
     | Text.Tag (t, i) -> begin 
-        print_next_color i; if include_origin then print_next_origin i; 
+        print_tag true i;
         Buffer.add_string out_buf t; 
         word_idx := i + 1;
-        print_next_color (i + 1); if include_origin then print_next_origin (i + 1)
+	print_tag true !word_idx
       end
         (* Things that may be preceded by the color, if the color has changed. *)
     | Text.Word (t, i) -> begin 
-        let c = approx (next_word_color i) in 
-        if c <> !curr_color || trust_is_float then print_next_color i; 
-        if include_origin then begin 
-	  let o = next_word_origin i in 
-          if o <> !curr_origin then print_next_origin i
-	end; 
+	print_tag false i;
         Buffer.add_string out_buf t; 
         word_idx := i + 1
       end
