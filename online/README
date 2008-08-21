@@ -59,8 +59,8 @@ installation process), proceed as follows:
 
   $ cd ../sql
   $ mysql -u root -p wikidb
-  mysql> \. remove_wikitrust_tables.sql;
-  mysql> \. create_wikitrust_tables.sql;
+  mysql> \. remove_wikitrust_tables.sql
+  mysql> \. create_wikitrust_tables.sql
   mysql> \q
 
 3) Next, you need to install the trust coloring extension in
