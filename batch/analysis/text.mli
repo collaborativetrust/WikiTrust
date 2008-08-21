@@ -70,19 +70,21 @@ type sep_t =
   | Redirect of string * int
       (** redirection tag, along with the position in the word array *)
 
-val split_into_words : string Vec.t -> word array
-  (** [split_into_words sv] splits a Vec of strings [sv] into an array of words.
+val split_into_words : bool -> string Vec.t -> word array
+  (** [split_into_words arm sv] splits a Vec of strings [sv] into an array of words.
+      [arm] denotes whether < and > have to be rearmed into &lt; and &gt; 
       Used for reputation analysis. *)
 
 val split_into_words_seps_and_info : 
-  string Vec.t -> ((word array) * (float array) * (int array) * (int array) * (sep_t array))
-  (** [split_into_words_and_seps sv] splits a Vec of strings [sv] into:
+  bool -> string Vec.t -> ((word array) * (float array) * (int array) * (int array) * (sep_t array))
+  (** [split_into_words_seps_and_info arm sv] splits a Vec of strings [sv] into:
    - an array of words (excluding separators, such as white space, etc)
    - an array of trust values of words (float) 
    - an array of origins of words (int) 
    - an array giving, for each word, its place in the sep array (int)
    - the array of seps, where words, etc, have their position in the word array 
      annotated. 
+   [arm] denotes whether < and > have to be rearmed into &lt; and &gt; 
 *)
 
 val print_words : word array -> unit

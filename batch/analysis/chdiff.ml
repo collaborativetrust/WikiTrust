@@ -856,15 +856,15 @@ if false then begin
     Array.make l 0
   in 
 
-  let ta1 = Text.split_into_words (Vec.singleton ts1) in 
-  let ta2 = Text.split_into_words (Vec.singleton ts2) in 
-  let ta3 = Text.split_into_words (Vec.singleton ts3) in 
-  let ta4 = Text.split_into_words (Vec.singleton ts4) in 
-  let ta5 = Text.split_into_words (Vec.singleton ts5) in 
-  let ta6 = Text.split_into_words (Vec.singleton ts6) in 
-  let ta7 = Text.split_into_words (Vec.singleton ts7) in 
-  let ta8 = Text.split_into_words (Vec.singleton ts8) in 
-  let ta9 = Text.split_into_words (Vec.singleton ts9) in 
+  let ta1 = Text.split_into_words false (Vec.singleton ts1) in 
+  let ta2 = Text.split_into_words false (Vec.singleton ts2) in 
+  let ta3 = Text.split_into_words false (Vec.singleton ts3) in 
+  let ta4 = Text.split_into_words false (Vec.singleton ts4) in 
+  let ta5 = Text.split_into_words false (Vec.singleton ts5) in 
+  let ta6 = Text.split_into_words false (Vec.singleton ts6) in 
+  let ta7 = Text.split_into_words false (Vec.singleton ts7) in 
+  let ta8 = Text.split_into_words false (Vec.singleton ts8) in 
+  let ta9 = Text.split_into_words false (Vec.singleton ts9) in 
 
   let ia1 = make_init_attr ta1 in 
 
@@ -977,7 +977,7 @@ if false then begin
   let ts10 = "In generale, il bene comune non coincide con quello individuale, dato che le persone non badano a quello comune se non quando gli fa comodo." in 
 
   let tsa = [| ts1; ts2; ts3; ts4; ts5; ts6; ts7; ts8; ts9; ts10 |] in 
-  let taa = Array.map (function x -> Text.split_into_words (Vec.singleton x)) tsa in 
+  let taa = Array.map (function x -> Text.split_into_words false (Vec.singleton x)) tsa in 
   let (c, l) = text_tracking [| taa.(0) |] taa.(1) in 
   Text.print_words taa.(0);
   Text.print_words taa.(1);
@@ -1013,8 +1013,8 @@ if false then
     let text3b = "dopo che mi sono svegliato, a me piace bere il mio caffe'" in
     
     let test_edit_diff t1 t2 = 
-      let w1 = Text.split_into_words (Vec.singleton t1) in 
-      let w2 = Text.split_into_words (Vec.singleton t2) in 
+      let w1 = Text.split_into_words false (Vec.singleton t1) in 
+      let w2 = Text.split_into_words false (Vec.singleton t2) in 
       let i2 = make_index_diff w2 in 
       let e = edit_diff w1 w2 i2 in 
       Text.print_words w1; 
@@ -1040,16 +1040,16 @@ if false then begin
   let ts9 = ts7 in 
   let ts10 = "In generale, il bene comune non coincide con quello individuale. Questo e' causato dal fatto che le persone badano al loro bene privato, piuttosto che al bene comune." in
 
-  let ta1  = Text.split_into_words (Vec.singleton ts1) in 
-  let ta2  = Text.split_into_words (Vec.singleton ts2) in 
-  let ta3  = Text.split_into_words (Vec.singleton ts3) in 
-  let ta4  = Text.split_into_words (Vec.singleton ts4) in 
-  let ta5  = Text.split_into_words (Vec.singleton ts5) in 
-  let ta6  = Text.split_into_words (Vec.singleton ts6) in 
-  let ta7  = Text.split_into_words (Vec.singleton ts7) in 
-  let ta8  = Text.split_into_words (Vec.singleton ts8) in 
-  let ta9  = Text.split_into_words (Vec.singleton ts9) in 
-  let ta10 = Text.split_into_words (Vec.singleton ts10) in 
+  let ta1  = Text.split_into_words false (Vec.singleton ts1) in 
+  let ta2  = Text.split_into_words false (Vec.singleton ts2) in 
+  let ta3  = Text.split_into_words false (Vec.singleton ts3) in 
+  let ta4  = Text.split_into_words false (Vec.singleton ts4) in 
+  let ta5  = Text.split_into_words false (Vec.singleton ts5) in 
+  let ta6  = Text.split_into_words false (Vec.singleton ts6) in 
+  let ta7  = Text.split_into_words false (Vec.singleton ts7) in 
+  let ta8  = Text.split_into_words false (Vec.singleton ts8) in 
+  let ta9  = Text.split_into_words false (Vec.singleton ts9) in 
+  let ta10 = Text.split_into_words false (Vec.singleton ts10) in 
 
   let t = [|ta1; ta2; ta3; ta4; ta5; ta6; ta7; ta8; ta9; ta10|] in 
   let len = Array.length (t) in 

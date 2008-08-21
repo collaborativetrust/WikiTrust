@@ -675,11 +675,13 @@ let lt_r = Str.regexp "<"
 let gt_r = Str.regexp ">"
 (* This function splits the whitespace, 
    taking also care of the &lt; and &gt; substitution *)
-let separate_whitespace (v: piece_t Vec.t) : piece_t Vec.t = 
+let separate_whitespace (arm: bool) (v: piece_t Vec.t) : piece_t Vec.t = 
   (* The function rearm re-arms the < and > tags *)
   let rearm (s: string) = 
-    let s' = Str.global_replace lt_r "&lt;" s in 
-    Str.global_replace gt_r "&gt;" s' 
+    if arm then begin 
+      let s' = Str.global_replace lt_r "&lt;" s in 
+      Str.global_replace gt_r "&gt;" s' 
+    end else s
   in 
   (* The function f is folded over v *)
   let f (d: piece_t) (piece_v: piece_t Vec.t) : piece_t Vec.t = 
@@ -718,10 +720,13 @@ let separate_whitespace (v: piece_t Vec.t) : piece_t Vec.t =
 let a_lt_r = Str.regexp "&lt;"
 let a_gt_r = Str.regexp "&gt;"
 (* This function splits a string respecting the Wiki markup language. *)
-let split_string_preserving_markup (text: string) : piece_t Vec.t = 
-  (* First, I replace &lt; and &gt; with < and >, otherwise, it's just too hard *)
-  let text1  = Str.global_replace a_lt_r "<" text  in 
-  let text2 = Str.global_replace a_gt_r ">" text1 in
+let split_string_preserving_markup (arm: bool) (text: string) : piece_t Vec.t = 
+  (* First, I replace &lt; and &gt; with < and > if requested *)
+  let text2 = 
+    if arm 
+    then Str.global_replace a_gt_r ">" (Str.global_replace a_lt_r "<" text)
+    else text
+  in
   let text3 = remove_html_comments text2 in 
   (* Makes sure the string begins with \n, to find markup at the beginning of a line *)
   if String.length text3 = 0 
@@ -732,7 +737,7 @@ let split_string_preserving_markup (text: string) : piece_t Vec.t =
     (* Now does the splitting *)
     let p = Vec.singleton (TXT_splittable text') in 
     let split = 
-      separate_whitespace (
+      separate_whitespace arm (
 	separate_table_tags (
 	  separate_line_tags (
 	    separate_titles (
@@ -784,10 +789,10 @@ let normalize_ws (s: string) : string =
    - the array of seps, where words, etc, have their position in the word array 
      annotated. 
 *)
-let split_into_words_seps_and_info (text_v: string Vec.t) 
+let split_into_words_seps_and_info (arm: bool) (text_v: string Vec.t) 
     : (word array) * (float array) * (int array) * (int array) * (sep_t array) = 
   (* First, uses a visitor to construct a piece_t Vec.t called piece_v *)
-  let vn l d r = Vec.concat (Vec.concat l (split_string_preserving_markup d)) r in 
+  let vn l d r = Vec.concat (Vec.concat l (split_string_preserving_markup arm d)) r in 
   let piece_v = Vec.visit_post Vec.empty vn text_v in 
 
 
@@ -969,9 +974,9 @@ let split_into_words_seps_and_info (text_v: string Vec.t)
    entirely compatible with the one used for trust analysis, and it is 
    consequently slower. *)
 
-let split_into_words (text_v: string Vec.t) : word array = 
+let split_into_words (arm: bool) (text_v: string Vec.t) : word array = 
   (* First, we generate a word Vec.t *)
-  let (word_a, _, _, _, _) = split_into_words_seps_and_info text_v in 
+  let (word_a, _, _, _, _) = split_into_words_seps_and_info arm text_v in 
   word_a;;
 
 
@@ -1006,7 +1011,7 @@ if false then begin
   let f x = 
     Printf.printf "Original:\n%S\n" x;
     let x_v = Vec.singleton x in 
-    let (word_v, trust_v, orig_v, _, sep_v) = split_into_words_seps_and_info x_v in 
+    let (word_v, trust_v, orig_v, _, sep_v) = split_into_words_seps_and_info true x_v in 
     print_string "Words:\n";
     let g0 s = Printf.printf "%S " s in 
     Array.iter g0 word_v; 

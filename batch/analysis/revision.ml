@@ -104,7 +104,7 @@ class plain_revision
   object (self)
     inherit revision id page_id timestamp time contributor user_id ip_addr username is_minor comment text_init 
 
-    val words : word array = Text.split_into_words text_init
+    val words : word array = Text.split_into_words true text_init
 
     method get_words : word array = words
     method get_n_words : int = Array.length words
@@ -408,7 +408,7 @@ class trust_revision
   (comment: string)
   (text_init: string Vec.t) (* Text of the revision, still to be split into words *)
   =
-  let (t, _, _, swi, s) = Text.split_into_words_seps_and_info text_init in 
+  let (t, _, _, swi, s) = Text.split_into_words_seps_and_info true text_init in 
 
   object (self)
     inherit revision id page_id timestamp time contributor user_id ip_addr username is_minor comment text_init 

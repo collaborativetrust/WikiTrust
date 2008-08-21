@@ -376,17 +376,17 @@ if false then begin
   let ts9 = ts7 in 
   let ts10 = "In generale, il bene comune non coincide con quello individuale. Questo e' causato dal fatto che le persone badano al loro bene privato, piuttosto che al bene comune." in
 
-  let ta0  = Text.split_into_words (Vec.singleton ts0) in 
-  let ta1  = Text.split_into_words (Vec.singleton ts1) in 
-  let ta2  = Text.split_into_words (Vec.singleton ts2) in 
-  let ta3  = Text.split_into_words (Vec.singleton ts3) in 
-  let ta4  = Text.split_into_words (Vec.singleton ts4) in 
-  let ta5  = Text.split_into_words (Vec.singleton ts5) in 
-  let ta6  = Text.split_into_words (Vec.singleton ts6) in 
-  let ta7  = Text.split_into_words (Vec.singleton ts7) in 
-  let ta8  = Text.split_into_words (Vec.singleton ts8) in 
-  let ta9  = Text.split_into_words (Vec.singleton ts9) in 
-  let ta10 = Text.split_into_words (Vec.singleton ts10) in 
+  let ta0  = Text.split_into_words false (Vec.singleton ts0) in 
+  let ta1  = Text.split_into_words false (Vec.singleton ts1) in 
+  let ta2  = Text.split_into_words false (Vec.singleton ts2) in 
+  let ta3  = Text.split_into_words false (Vec.singleton ts3) in 
+  let ta4  = Text.split_into_words false (Vec.singleton ts4) in 
+  let ta5  = Text.split_into_words false (Vec.singleton ts5) in 
+  let ta6  = Text.split_into_words false (Vec.singleton ts6) in 
+  let ta7  = Text.split_into_words false (Vec.singleton ts7) in 
+  let ta8  = Text.split_into_words false (Vec.singleton ts8) in 
+  let ta9  = Text.split_into_words false (Vec.singleton ts9) in 
+  let ta10 = Text.split_into_words false (Vec.singleton ts10) in 
  
   let w = [|ts0; ts1; ts2; ts3; ts4; ts5; ts6; ts7; ts8; ts9; ts10|] in 
   let t = [|ta0; ta1; ta2; ta3; ta4; ta5; ta6; ta7; ta8; ta9; ta10|] in 
