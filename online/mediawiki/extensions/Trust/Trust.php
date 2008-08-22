@@ -35,7 +35,13 @@ class TextTrust extends ExtensionClass
   const TRUST_MULTIPLIER = 10;
   
   ## Token to split trust and origin values on
-  const TRUST_SPLIT_TOKEN = ",";
+  const TRUST_SPLIT_TOKEN = ',';
+
+  ## Token to be replaed with <
+  const TRUST_OPEN_TOKEN = "QQampo:";
+  
+  ## Token to be replaed with >
+  const TRUST_CLOSE_TOKEN = ":ampc:";
 
   ## Median Value of Trust
   var $median = 0.0;
@@ -340,30 +346,11 @@ colors text according to trust.'
    return true;
  }
  
- /* Blame Map */
- /** Not used currently.
- function ucscOrigin_Render( &$parser, $origin = 0 ) {  
-   $output = "QQampo:span onclick='showOrigin($origin)'>";     
-   $output = "<span class=BLAME_MAP:$origin:>";
-   $output = "BLAME_MAP:$origin:";
-
-   if ($this->first_origin){
-     $this->first_origin = false;
-   } else {
-     $output = "QQampo:/span:ampc:" . $output;
-   }
-
-   return array( $output, "noparse" => false, "isHTML" => false );  
- }
- */
-
  /* Turn the finished trust info into a span tag. Also handle closing tags. */
  function ucscOrigin_Finalize(&$parser, &$text) {
    $count = 0;
-   //   $text = preg_replace('/class=\"BLAME_MAP:(\d+):\"/', "onclick='showOrigin($1)'", $text, -1, $count);
-   // $text = preg_replace('/BLAME_MAP:(\d+):/', "<span onclick='showOrigin($1)'>", $text, -1, $count);
-   $text = preg_replace('/QQampo:/', "<", $text, -1, $count);
-   $text = preg_replace('/:ampc:/', ">", $text, -1, $count);
+   $text = preg_replace('/' . self::TRUST_OPEN_TOKEN . '/', "<", $text, -1, $count);
+   $text = preg_replace('/' . self::TRUST_CLOSE_TOKEN .'/', ">", $text, -1, $count);
    $text = preg_replace('/<\/p>/', "</span></p>", $text, -1, $count);
    $text = preg_replace('/<p><\/span>/', "<p>", $text, -1, $count);
    $text = preg_replace('/<li><\/span>/', "<li>", $text, -1, $count);
@@ -374,18 +361,19 @@ colors text according to trust.'
  function ucscColorTrust_Render( &$parser, $combinedValue = "0,0" ) {
    
    // Split the value into trust and origin information.
-   $splitVals = split(TRUST_SPLIT_TOKEN, $combinedValue);
-   $trustVal = $splitVals[0];
-   $originVal = $splitVals[1];
+   // 0 = trust
+   // 1 = origin
+   $splitVals = explode(self::TRUST_SPLIT_TOKEN, $combinedValue);
    
-   $class = $this->computeColorFromFloat($trustVal);
-   $output = "QQampo:span class=$class:ampc:";
-   
+   $class = $this->computeColorFromFloat($splitVals[0]);
+   $output = self::TRUST_OPEN_TOKEN . "span class=\"$class\" onclick=\"showOrigin(" 
+     . $splitVals[1] . ")\"" . self::TRUST_CLOSE_TOKEN;
+
    $this->current_trust = $class;
    if ($this->first_span){
      $this->first_span = false;
    } else {
-     $output = "QQampo:/span:ampc:" . $output;
+     $output = self::TRUST_OPEN_TOKEN . "/span" . self::TRUST_CLOSE_TOKEN . $output;
    }
    
    return array ( $output, "noparse" => false, "isHTML" => false );
