@@ -13,6 +13,7 @@ If you switch the extension off, then on, the extension will compute
 the missing reputation and trust values in a self-healing,
 fault-tolerant fashion. 
 
+
 PREREQUISITES: 
 
 - Install mysql and mediawiki
@@ -36,6 +37,7 @@ PREREQUISITES:
   as well as all dependent packages. 
 
 - Make OcamlLdaLibs and install them (see instructions there). 
+
 
 INSTALLATION:
 
@@ -123,11 +125,31 @@ safely disabled.  You can disable these logs via:
   $wgTrustLog = "/dev/null";
   $wgTrustDebugLog = "/dev/null";
 
+
 DEPLOYMENT: 
 
 You should now see a trust tab.  Click on it, or edit a revision, and
 the trust of all revision text, and the reputation of all authors,
 will be computed. 
+
+
+COMPUTING THE TRUST COLORING:
+
+The trust coloring is computed automatically whenever a user edits an
+article, or requests to view the trust informaton for a revision.  In
+particular, when a user edits an article, or when someone asks to view
+the trust information, WikiTrust computes the trust coloring not only
+for the newest revision, but for all past revisions of all wiki
+articles that have not been colored yet.
+
+You can also compute the trust coloring from the command line, via the
+command: 
+
+  $ ./eval_online_wiki -db_user <username> -db_pass <pwd> -db_name <db_name>
+
+eval_online_wiki computes trust for all revisions for which the trust
+information has not been computed yet. 
+
 
 RECOMPUTING THE TRUST COLORING:
 
