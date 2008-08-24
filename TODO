@@ -1,5 +1,0 @@
-- Move to the functions is_anonymous and not_anonymous as a way to
-  check whether a user is anonymous. 
-
-- Database error recovery robustness for the online part. 
-
