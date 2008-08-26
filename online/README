@@ -16,27 +16,53 @@ fault-tolerant fashion.
 
 PREREQUISITES: 
 
-- Install mysql and mediawiki
+- Install mysql and mediawiki.  In Ubuntu / Debian, you can install
+  the packages: 
 
-- Install the following packages (for Ubuntu / Debian; for other
-  distributions, similar packages exist): 
-
-    ocaml (version 3.10.0 or greater)
-    ocaml-base
-    ocaml-native-compilers
-    ocaml-findlib
-    libmysql-ocaml
-    libmysql-ocaml-dev
-    libextlib-ocaml-dev
-    python-mysqldb
     mediawiki
     mysql-server
     mysql-client
     tidy
 
-  as well as all dependent packages. 
+  In other distributions, follow the instructions at
+  www.mediawiki.org. 
 
-- Make OcamlLdaLibs and install them (see instructions there). 
+- We need now to install some packages for Ocaml.  There are two
+  methods: 
+
+  (a) In Ubuntu / Debian, you can install: 
+
+        ocaml (version 3.10.0 or greater)
+        ocaml-base
+        ocaml-native-compilers
+        ocaml-findlib
+        libmysql-ocaml
+        libmysql-ocaml-dev
+        libextlib-ocaml-dev
+  
+        python-mysqldb (this is optional: it is used only in
+                        load_data.py to load data in a wiki from 
+                        a dump file). 
+
+  (b) Alternatively, you can use Godi.  This also removes the need to be
+      root for installing Ocaml packages.  Get godi from 
+      http://godi.camlcity.org/godi/index.html and download godi. 
+      Follow the instructions to install it.  Here, I will assume that 
+      you install it in ~/ocaml/ : 
+
+        $ ./bootstrap --prefix ~/ocaml
+
+      For Windows, look at the instructions in the godi README file. 
+
+      Install the following Ocaml packages from godi:
+        godi-findlib
+        godi-extlib
+        godi-ocaml-mysql
+
+ - Make OcamlLdaLibs and install them.  If you used godi: 
+      $ make all-godi
+   If you did not use godi: 
+      $ make all
 
 
 INSTALLATION:
