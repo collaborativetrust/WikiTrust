@@ -29,6 +29,11 @@ class TextTrust extends ExtensionClass
   const TRUST_CSS_TAG = "background-color"; ## color the background
   #$TRUST_CSS_TAG = "color"; ## color just the text
   
+  ## ColorText is called multiple times, but we only want to color it once.
+  ## However, the time we want to color depends on the situation.
+  const DEFAULT_TIME_TO_COLOR = 0;
+  const DIFF_TOKEN_TO_COLOR = "Lin";
+
   ## Trust normalization values;
   const MAX_TRUST_VALUE = 9;
   const MIN_TRUST_VALUE = 0;
@@ -61,6 +66,9 @@ class TextTrust extends ExtensionClass
   ## And the last revision of the title
   var $current_rev;
 
+  ## Only add the scripts once.
+  var $scripts_added = false;
+
   ## Should we do all the fancy trust processing?
   var $trust_engaged = false;
     
@@ -81,7 +89,8 @@ class TextTrust extends ExtensionClass
   ## Only write a new trust tag when the trust changes.
   var $current_trust = "trust0";
   
-  var $trustJS = '<script type="text/javascript">/*<![CDATA[*/
+  var $trustJS = '
+<script type="text/javascript">/*<![CDATA[*/
 var ctrlState = false;
 function showOrigin(revnum) {
   //if (ctrlState) {
@@ -104,7 +113,8 @@ function checkCtrlState(event) {
 }
 /*]]>*/</script>';
 
-  var $trustCSS = '<style type="text/css">/*<![CDATA[*/
+  var $trustCSS = '
+<style type="text/css">/*<![CDATA[*/
 .trust0 {
   background-color: #FFB947;
 }
@@ -175,7 +185,7 @@ colors text according to trust.'
   public function setup()
   {
     parent::setup();
-    global $wgHooks, $wgParser;
+    global $wgHooks, $wgParser, $wgRequest;
    
 # And add and extra tab.
     $wgHooks['SkinTemplateTabs'][] = array( &$this, 'ucscTrustTemplate');
@@ -186,16 +196,15 @@ colors text according to trust.'
 # Color saved text
     $wgHooks['ArticleSaveComplete'][] = array( &$this, 'ucscRunColoring');
 
-# If the trust tab is not selected, don't worry about things any more.
-    if(!isset($_GET['trust'])){
+# If the trust tab is not selected, or some other tabs are don't worry about things any more.
+    if(!$wgRequest->getVal('trust') || $wgRequest->getVal('action')){
       $this->trust_engaged = false;
       return;
     } 
     $this->trust_engaged = true;
    
 # Add trust CSS and JS
-    $this->addHeadScript($this->trustJS); 
-    $this->addHeadScript($this->trustCSS);
+    $wgHooks['OutputPageBeforeHTML'][] = array( &$this, 'ucscColorTrust_OP');
  
 # Add a hook to initialise the magic words
     $wgHooks['LanguageGetMagic'][] = array( &$this, 'ucscColorTrust_Magic');
@@ -208,6 +217,19 @@ colors text according to trust.'
     
 # Pull the median value
     $this->update_median();
+  }
+  
+  /**
+   Called just before rendering HTML.
+   We add the coloring scripts here.
+  */
+  function ucscColorTrust_OP(&$out, &$text){
+    if (!$this->scripts_added){ // Only add the scripts once.
+      $out->addScript($this->trustJS); 
+      $out->addScript($this->trustCSS);
+      $this->scripts_added = true;
+    }
+    return true;
   }
 
  /**
@@ -251,9 +273,14 @@ colors text according to trust.'
 # Actually add the tab.
  function ucscTrustTemplate($skin, &$content_actions) { 
   
-   global $wgTrustTabText;
+   global $wgTrustTabText, $wgRequest;
    if (!isset($wgTrustTabText)){
      $wgTrustTabText = "trust";
+   }
+   
+   if ($wgRequest->getVal('action')){
+     // we don't want trust for actions.
+     return true;
    }
    
    $trust_qs = $_SERVER['QUERY_STRING'];
@@ -267,8 +294,8 @@ colors text according to trust.'
 				       'text' => $wgTrustTabText,
 				       'href' => 
 				       $_SERVER['PHP_SELF'] . $trust_qs );
-   
-   if(isset($_GET['trust'])){
+
+   if($wgRequest->getVal('trust')){
      $content_actions['trust']['class'] = 'selected';
      $content_actions['nstab-main']['class'] = '';
      $content_actions['nstab-main']['href'] .= '';
@@ -285,11 +312,11 @@ colors text according to trust.'
   TODO: Make this function work with caching turned on.
  */
  function ucscSeeIfColored(&$parser, &$text, &$strip_state) { 
-   global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgRepSpeed;
+   global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgRepSpeed, $wgRequest;
 
    // Turn off caching for this instance.
    $parser->disableCache();
-
+   
    // Return if trust is not selected.
    if (!$this->trust_engaged)
      return true;
@@ -312,12 +339,23 @@ colors text according to trust.'
    /**
     This method is being called multiple times for each page. 
     We only pull the colored text for the first time through.
+    If we are in a diff situation though, we use the 3rd time through.
    */
-   if ($this->times_rev_loaded > 0){
+   
+   $time_to_color = self::DEFAULT_TIME_TO_COLOR;
+   if ($wgRequest->getVal('diff')){
      $this->times_rev_loaded++;
-     return true;
+     // For diffs, look for the absence of the diff token instead of counting
+     if(substr($text,0,3) == self::DIFF_TOKEN_TO_COLOR){
+       return true;
+     }
    } else {
-     $this->times_rev_loaded++;
+     if ($this->times_rev_loaded != $time_to_color){
+       $this->times_rev_loaded++;
+       return true;
+     } else {
+       $this->times_rev_loaded++;
+     }
    }
    
    // Otherwise, see if there is colored text in the db.
