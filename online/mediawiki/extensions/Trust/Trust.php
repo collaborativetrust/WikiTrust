@@ -251,6 +251,11 @@ colors text according to trust.'
 # Actually add the tab.
  function ucscTrustTemplate($skin, &$content_actions) { 
   
+   global $wgTrustTabText;
+   if (!isset($wgTrustTabText)){
+     $wgTrustTabText = "trust";
+   }
+   
    $trust_qs = $_SERVER['QUERY_STRING'];
    if($trust_qs){
      $trust_qs = "?" . $trust_qs .  "&trust=t";
@@ -259,7 +264,7 @@ colors text according to trust.'
    }
    
    $content_actions['trust'] = array ( 'class' => '',
-				       'text' => 'Trust',
+				       'text' => $wgTrustTabText,
 				       'href' => 
 				       $_SERVER['PHP_SELF'] . $trust_qs );
    

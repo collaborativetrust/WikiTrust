@@ -92,6 +92,7 @@ following lines:
   $wgTrustLog = "/somedir/{$wgDBname}-trust.log";
   $wgTrustDebugLog = "/somedir/{$wgDBname}-trust-debug.log";
   $wgRepSpeed = 1.0;
+  $wgTrustTabText = "Trust";
 
   require_once( $IP . "/extensions/Trust/ExtensionClass.php");
   require_once( $IP . "/extensions/Trust/Trust.php" );
