@@ -29,9 +29,7 @@ class TextTrust extends ExtensionClass
   const TRUST_CSS_TAG = "background-color"; ## color the background
   #$TRUST_CSS_TAG = "color"; ## color just the text
   
-  ## ColorText is called multiple times, but we only want to color it once.
-  ## However, the time we want to color depends on the situation.
-  const DEFAULT_TIME_TO_COLOR = 0;
+  ## ColorText is called multiple times, but we only want to color true text.
   const DIFF_TOKEN_TO_COLOR = "Lin";
 
   ## Trust normalization values;
@@ -56,6 +54,9 @@ class TextTrust extends ExtensionClass
 
   ## Load the article we are talking about
   var $title;
+
+  ## Only color the text once.
+  var $colored = false;
 
   ## Don't close the first opening span tag
   var $first_span = true;
@@ -339,24 +340,21 @@ colors text according to trust.'
    /**
     This method is being called multiple times for each page. 
     We only pull the colored text for the first time through.
-    If we are in a diff situation though, we use the 3rd time through.
    */
+   if ($this->colored){
+     return true;
+   }
    
-   $time_to_color = self::DEFAULT_TIME_TO_COLOR;
    if ($wgRequest->getVal('diff')){
      $this->times_rev_loaded++;
      // For diffs, look for the absence of the diff token instead of counting
      if(substr($text,0,3) == self::DIFF_TOKEN_TO_COLOR){
        return true;
      }
-   } else {
-     if ($this->times_rev_loaded != $time_to_color){
-       $this->times_rev_loaded++;
-       return true;
-     } else {
-       $this->times_rev_loaded++;
-     }
-   }
+   } 
+   
+   // if we made it here, we are going to color some text
+   $this->colored = true;
    
    // Otherwise, see if there is colored text in the db.
    $dbr =& wfGetDB( DB_SLAVE );

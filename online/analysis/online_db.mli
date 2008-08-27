@@ -47,11 +47,8 @@ exception DB_Not_Found;;
 type timestamp_t
 
 class db : 
-  string (* user *) -> 
-  string (* auth *) ->
-  string (* database name *) -> 
-  string (* database host name *) ->
-  int (* database port *) ->  
+  Mysql.db ->
+  Mysql.db option ->
 
   object
 

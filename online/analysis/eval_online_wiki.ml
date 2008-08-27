@@ -34,6 +34,7 @@ POSSIBILITY OF SUCH DAMAGE.
  *)
 
 open Printf
+open Mysql
 
 (** This is a timeout for how long we wait for database locks. 
     If we wait longer than this, then the db is too busy, and we quit all work. 
@@ -44,18 +45,33 @@ let lock_timeout = 30
 
 (** This is the top-level code of the wiki online xml evaluation. 
     This is used for testing only: *)
+(* Wikitrust DB *)
 let db_user = ref "wikiuser"
 let set_db_user u = db_user := u
 let db_pass = ref ""
 let set_db_pass p = db_pass := p
 let db_name = ref "wikidb"
 let set_db_name d = db_name := d
-let log_name = ref "/dev/null"
-let set_log_name d = log_name := d
 let db_host_name = ref "localhost"
 let set_db_host d = db_host_name := d
 let db_port = ref 3306
 let set_db_port d = db_port := d
+(* Mediawiki DB -- defaults to the same as Wikitrust DB *)
+let use_seperate_mediawiki_db = ref false
+let mw_db_user = ref "wikiuser"
+let set_mw_db_user u = mw_db_user := u
+let mw_db_pass = ref ""
+let set_mw_db_pass p = mw_db_pass := p
+let mw_db_name = ref "wikidb"
+let set_mw_db_name d = mw_db_name := d; use_seperate_mediawiki_db := true
+let mw_db_host_name = ref "localhost"
+let set_mw_db_host d = mw_db_host_name := d
+let mw_db_port = ref 3306
+let set_mw_db_port d = mw_db_port := d
+
+(* Other paramiters *)
+let log_name = ref "/dev/null"
+let set_log_name d = log_name := d
 let synch_log = ref false
 let noop s = ()
 let delete_all = ref false
@@ -71,6 +87,11 @@ let command_line_format =
    ("-db_pass", Arg.String set_db_pass, "<string>: DB password");
    ("-db_host", Arg.String set_db_host, "<string>: DB host (default: localhost)");
    ("-db_port", Arg.Int set_db_port, "<int>: DB port (default: 3306)");
+   ("-mw_db_user", Arg.String set_mw_db_user, "<string>: Mediawiki DB user to use (default: wikiuser)");
+   ("-mw_db_name", Arg.String set_mw_db_name, "<string>: Name of the Mediawiki DB to use (default: wikidb)");
+   ("-mw_db_pass", Arg.String set_mw_db_pass, "<string>: Mediawiki DB password");
+   ("-mw_db_host", Arg.String set_mw_db_host, "<string>: Mediawiki DB host (default: localhost)");
+   ("-mw_db_port", Arg.Int set_mw_db_port, "<int>: Mediawiki DB port (default: 3306)");
    ("-rev_id",  Arg.Int set_requested_rev_id, "<int>: (optional) revision ID that we want to ensure it is colored");
    ("-log_file", Arg.String set_log_name, "<filename>: Logger output file (default: /dev/null)");
    ("-rep_speed", Arg.Float set_reputation_speed, "<float>: Speed at which users gain reputation; 1.0 for large wikis");
@@ -114,7 +135,16 @@ let rec evaluate_revision (db: Online_db.db) (page_id: int) (rev_id: int) : unit
   end;;
 
 (* Does all the work of processing the given page and revision *)
-let db = new Online_db.db !db_user !db_pass !db_name !db_host_name !db_port in
+let wikitrust_db = {dbhost = Some !db_host_name; dbname = Some !db_name; 
+		    dbport = Some !db_port; dbpwd = Some !db_pass; 
+		    dbuser = Some !db_user} in
+let mediawiki_db : Mysql.db option ref = ref None in
+if !use_seperate_mediawiki_db then mediawiki_db := Some {
+  dbhost = Some !mw_db_host_name; dbname = Some !mw_db_name; 
+  dbport = Some !mw_db_port; dbpwd = Some !mw_db_pass; 
+  dbuser = Some !mw_db_user};  
+
+let db = new Online_db.db wikitrust_db !mediawiki_db in
  
 (* If requested, we erase all coloring, and we recompute it from scratch. *)
 if !delete_all then db#delete_all true; 
