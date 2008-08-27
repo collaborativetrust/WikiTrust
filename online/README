@@ -16,21 +16,21 @@ fault-tolerant fashion.
 
 PREREQUISITES: 
 
-- Install mysql and mediawiki.  In Ubuntu / Debian, you can install
-  the packages: 
+1) Install mysql and mediawiki.  In Ubuntu / Debian, you can install
+   the packages: 
 
-    mediawiki
-    mysql-server
-    mysql-client
-    tidy
+     mediawiki
+     mysql-server
+     mysql-client
+     tidy
 
-  In other distributions, follow the instructions at
-  www.mediawiki.org. 
+   In other distributions, follow the instructions at
+   www.mediawiki.org. 
 
-- We need now to install some packages for Ocaml.  There are two
-  methods: 
+2) We need now to install some packages for Ocaml.  There are two
+   methods: 
 
-  (a) In Ubuntu / Debian, you can install: 
+   (2a) In Ubuntu / Debian, you can install: 
 
         ocaml (version 3.10.0 or greater)
         ocaml-base
@@ -44,22 +44,18 @@ PREREQUISITES:
                         load_data.py to load data in a wiki from 
                         a dump file). 
 
-  (b) Alternatively, you can use Godi.  This also removes the need to be
-      root for installing Ocaml packages.  Get godi from 
-      http://godi.camlcity.org/godi/index.html and download godi. 
-      Follow the instructions to install it.  Here, I will assume that 
-      you install it in ~/ocaml/ : 
+   (2b) Alternatively, you can use Godi.  This also removes the need to be
+        root for installing Ocaml packages.  Get godi from 
+        http://godi.camlcity.org/godi/index.html and download godi. 
+        Follow the instructions to install it.
+        For Windows, look at the instructions in the godi README file. 
 
-        $ ./bootstrap --prefix ~/ocaml
+        Install the following Ocaml packages from godi:
+          godi-extlib
+          godi-findlib
+          godi-ocaml-mysql
 
-      For Windows, look at the instructions in the godi README file. 
-
-      Install the following Ocaml packages from godi:
-        godi-findlib
-        godi-extlib
-        godi-ocaml-mysql
-
- - Make OcamlLdaLibs and install them.  If you used godi: 
+3) Make OcamlLdaLibs and install them.  If you used godi: 
       $ make all-godi
    If you did not use godi: 
       $ make all
@@ -69,9 +65,7 @@ INSTALLATION:
 
 1) First, compile the code: 
 
-  $ cd batch/analysis
-  $ make clean ; make all ; make allopt
-  $ cd ../../online/analysis
+  $ cd online/analysis
   $ make clean ; make all ; make allopt
 
 This creates an eval_online_wiki executable, which is what computes
