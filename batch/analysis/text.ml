@@ -518,17 +518,12 @@ let separate_titles (v: piece_t Vec.t) : piece_t Vec.t =
   in (* end of function f *)
   Vec.fold f v Vec.empty
 
-(* Bullets *)
-let bullet_tag = "\\(\n\\*+:? *\\)"
+(* Bullets and colons *)
+let bullet_tag = "\\(\n\\(\\*\\|#\\|:\\)+ *\\)"
 let bullet_tag_r = Str.regexp bullet_tag
-let number_tag = "\\(\n#+:? *\\)"
-let number_tag_r = Str.regexp number_tag
-let colon_tag = "\\(\n:+ *\\)"
-let colon_tag_r = Str.regexp colon_tag
 (* Indent *)
 let indent_tag = "\\(\n +\\)"
 let indent_tag_r = Str.regexp indent_tag
-(* Colon-indent *)
 (* Tables beginnings and ends.  Note that by reading these tags till the end of the line,
    we can ensure that any formatting instructions are not broken. *)
 let begin_table   = "\\(\n{|[^\n]*\\)" (* The \n{| starts the tag.  After that there is formatting till \n *)
@@ -543,7 +538,7 @@ let table_caption_r = Str.regexp table_caption
 (* Line start stuff *)
 (* This goes into WS_bullet *)
 let line_start_r = Str.regexp (
-  bullet_tag ^ "\\|" ^ number_tag ^ "\\|" ^ colon_tag
+  bullet_tag 
   (* This goes into WS_indent *)
   ^ "\\|" ^ indent_tag
   (* This goes into WS_table_line *)
@@ -568,9 +563,7 @@ let separate_line_tags (v: piece_t Vec.t) : piece_t Vec.t =
 	    Str.Text t -> Vec.append (TXT_splittable t) ww
           | Str.Delim t -> begin
 	      (* We must distinguish which tag has been matched *)
-	      if (Str.string_match bullet_tag_r t 0) || 
-		(Str.string_match number_tag_r t 0) || 
-		(Str.string_match colon_tag_r t 0)
+	      if (Str.string_match bullet_tag_r t 0)
 	      then Vec.append (WS_bullet t) ww
 	      else if (Str.string_match indent_tag_r t 0) 
 	      then Vec.append (WS_indent t) ww

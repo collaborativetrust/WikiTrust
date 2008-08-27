@@ -84,17 +84,23 @@ online_evalopt: $(OUR_OPT_ONLINE_OBJS)
 	$(OCAMLOPT) -linkpkg -o eval_online_wiki $(OCAMLOPT_FLAGS) $(OUR_LIBS_OPT) $(OUR_OPT_ONLINE_OBJS) eval_online_wiki.ml
 
 
-all: online_eval
-allopt: online_evalopt
+all:
+	cd ../../batch/analysis; make all
+	make online_eval
+allopt:
+	cd ../../batch/analysis; make allopt
+	make online_evalopt
+
 universe: all allopt
 
+clean:
+	cd ../../batch/analysis; make clean
+	rm -f *.o *.cmo *.cmx *.cmi .depends run_harness eval_online_wiki
 #
 # Boilerplate code for building ocaml dependencies, and
 # "make clean".
 #
 
-clean:
-	rm -f *.o *.cmo *.cmx *.cmi .depends run_harness eval_online_wiki
 
 .depends: *.ml
 	$(OCAMLDEP) $^ > $@

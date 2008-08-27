@@ -49,13 +49,13 @@ INI_FILE = BASE_DIR + "db_access_data.ini"
 
 ## Usage method
 def usage():
-  print "Usage: python set_test.py [-h, --help] dump1 dump2 ... dumpn "
+  print "Usage: python load_data.py [-h, --help, --clear_db] dump1 dump2 ... dumpn "
 
 
 ## A list of files to load
 dumps = []
 
-def load_dump(dump):                                                                                            
+def load_dump(dump): 
         
   global ini_config
 
@@ -67,19 +67,21 @@ def load_dump(dump):
   return
 
 try:
-  opts, args = getopt.gnu_getopt(sys.argv[1:], "h", ["help"])
+  opts, args = getopt.gnu_getopt(sys.argv[1:], "h", ["help", "clear_db"])
 except getopt.GetoptError:
   # print help information and exit:
   usage()
   sys.exit(2)
 
+do_clear = False
 for a in args:
   dumps.append(a)
 for o, a in opts:
   if o in ("-h", "--help"):
     usage()
     sys.exit(2)
-
+  if o in ("--clear_db"):
+    do_clear = True
 ## parse the ini file
 ini_config = ConfigParser.ConfigParser()
 ini_config.readfp(open(INI_FILE))
@@ -90,11 +92,12 @@ user=ini_config.get('db', 'user'), passwd=ini_config.get('db', 'pass') \
     , db=ini_config.get('db', 'db') )
 curs = connection.cursor()
 
-# clear out the pull db                                                                 
-curs.execute("delete from text")                                                        
-curs.execute("delete from page")                                                        
-curs.execute("delete from revision")                                                    
-connection.commit()   
+# clear out the pull db if requested
+if do_clear: 
+  curs.execute("delete from text")     
+  curs.execute("delete from page")     
+  curs.execute("delete from revision")
+  connection.commit()
 
 for dump in dumps:
   load_dump(dump) 
