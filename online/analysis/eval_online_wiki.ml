@@ -45,29 +45,31 @@ let lock_timeout = 30
 
 (** This is the top-level code of the wiki online xml evaluation. 
     This is used for testing only: *)
-(* Wikitrust DB *)
-let db_user = ref "wikiuser"
-let set_db_user u = db_user := u
-let db_pass = ref ""
-let set_db_pass p = db_pass := p
-let db_name = ref "wikidb"
-let set_db_name d = db_name := d
-let db_host_name = ref "localhost"
-let set_db_host d = db_host_name := d
-let db_port = ref 3306
-let set_db_port d = db_port := d
-(* Mediawiki DB -- defaults to the same as Wikitrust DB *)
-let use_seperate_mediawiki_db = ref false
+
+(* Mediawiki DB *)
 let mw_db_user = ref "wikiuser"
 let set_mw_db_user u = mw_db_user := u
 let mw_db_pass = ref ""
 let set_mw_db_pass p = mw_db_pass := p
 let mw_db_name = ref "wikidb"
-let set_mw_db_name d = mw_db_name := d; use_seperate_mediawiki_db := true
-let mw_db_host_name = ref "localhost"
-let set_mw_db_host d = mw_db_host_name := d
+let set_mw_db_name d = mw_db_name := d
+let mw_db_host = ref "localhost"
+let set_mw_db_host d = mw_db_host := d
 let mw_db_port = ref 3306
 let set_mw_db_port d = mw_db_port := d
+
+(* Wikitrust DB *)
+let use_separate_dbs = ref false
+let wt_db_user = ref "wikiuser"
+let set_wt_db_user u = wt_db_user := u; use_separate_dbs := true
+let wt_db_pass = ref ""
+let set_wt_db_pass p = wt_db_pass := p; use_separate_dbs := true
+let wt_db_name = ref "wikidb"
+let set_wt_db_name d = wt_db_name := d; use_separate_dbs := true
+let wt_db_host = ref "localhost"
+let set_wt_db_host d = wt_db_host := d; use_separate_dbs := true
+let wt_db_port = ref 3306
+let set_wt_db_port d = wt_db_port := d; use_separate_dbs := true
 
 (* Other paramiters *)
 let log_name = ref "/dev/null"
@@ -82,16 +84,19 @@ let set_requested_rev_id d = requested_rev_id := Some d
 
 (* Figure out what to do and how we are going to do it. *)
 let command_line_format = 
-  [("-db_user", Arg.String set_db_user, "<string>: DB user to use (default: wikiuser)");
-   ("-db_name", Arg.String set_db_name, "<string>: Name of the DB to use (default: wikidb)");
-   ("-db_pass", Arg.String set_db_pass, "<string>: DB password");
-   ("-db_host", Arg.String set_db_host, "<string>: DB host (default: localhost)");
-   ("-db_port", Arg.Int set_db_port, "<int>: DB port (default: 3306)");
-   ("-mw_db_user", Arg.String set_mw_db_user, "<string>: Mediawiki DB user to use (default: wikiuser)");
-   ("-mw_db_name", Arg.String set_mw_db_name, "<string>: Name of the Mediawiki DB to use (default: wikidb)");
-   ("-mw_db_pass", Arg.String set_mw_db_pass, "<string>: Mediawiki DB password");
-   ("-mw_db_host", Arg.String set_mw_db_host, "<string>: Mediawiki DB host (default: localhost)");
-   ("-mw_db_port", Arg.Int set_mw_db_port, "<int>: Mediawiki DB port (default: 3306)");
+  [
+   ("-db_user", Arg.String set_mw_db_user, "<string>: Mediawiki DB username (default: wikiuser)");
+   ("-db_name", Arg.String set_mw_db_name, "<string>: Mediawiki DB name (default: wikidb)");
+   ("-db_pass", Arg.String set_mw_db_pass, "<string>: Mediawiki DB password");
+   ("-db_host", Arg.String set_mw_db_host, "<string>: Mediawiki DB host (default: localhost)");
+   ("-db_port", Arg.Int set_mw_db_port,    "<int>: Mediawiki DB port (default: 3306)");
+
+   ("-wt_db_user", Arg.String set_wt_db_user, "<string>: Wikitrust DB username (specify only if the wikitrust db is different from the mediawiki db) (default: wikiuser)");
+   ("-wt_db_name", Arg.String set_wt_db_name, "<string>: Wikitrust DB name (specify only if the wikitrust db is different from the mediawiki db) (default: wikidb)");
+   ("-wt_db_pass", Arg.String set_wt_db_pass, "<string>: Wikitrust DB password (specify only if the wikitrust db is different from the mediawiki db)");
+   ("-wt_db_host", Arg.String set_wt_db_host, "<string>: Wikitrust DB host (specify only if the wikitrust db is different from the mediawiki db) (default: localhost)");
+   ("-wt_db_port", Arg.Int set_wt_db_port, "<int>: Wikitrust DB port (specify only if the wikitrust db is different from the mediawiki db) (default: 3306)");
+
    ("-rev_id",  Arg.Int set_requested_rev_id, "<int>: (optional) revision ID that we want to ensure it is colored");
    ("-log_file", Arg.String set_log_name, "<filename>: Logger output file (default: /dev/null)");
    ("-rep_speed", Arg.Float set_reputation_speed, "<float>: Speed at which users gain reputation; 1.0 for large wikis");
@@ -135,16 +140,25 @@ let rec evaluate_revision (db: Online_db.db) (page_id: int) (rev_id: int) : unit
   end;;
 
 (* Does all the work of processing the given page and revision *)
-let wikitrust_db = {dbhost = Some !db_host_name; dbname = Some !db_name; 
-		    dbport = Some !db_port; dbpwd = Some !db_pass; 
-		    dbuser = Some !db_user} in
-let mediawiki_db : Mysql.db option ref = ref None in
-if !use_seperate_mediawiki_db then mediawiki_db := Some {
-  dbhost = Some !mw_db_host_name; dbname = Some !mw_db_name; 
-  dbport = Some !mw_db_port; dbpwd = Some !mw_db_pass; 
-  dbuser = Some !mw_db_user};  
+let mediawiki_db = {
+  dbhost = Some !mw_db_host;
+  dbname = Some !mw_db_name;
+  dbport = Some !mw_db_port;
+  dbpwd  = Some !mw_db_pass;
+  dbuser = Some !mw_db_user;
+}
+let wikitrust_db_opt = 
+  if !use_separate_dbs 
+  then Some { 
+    dbhost = Some !wt_db_host;
+    dbname = Some !wt_db_name;
+    dbport = Some !wt_db_port;
+    dbpwd  = Some !wt_db_pass;
+    dbuser = Some !wt_db_user;
+  }
+  else None
 
-let db = new Online_db.db wikitrust_db !mediawiki_db in
+let db = new Online_db.db mediawiki_db wikitrust_db_opt in 
  
 (* If requested, we erase all coloring, and we recompute it from scratch. *)
 if !delete_all then db#delete_all true; 
