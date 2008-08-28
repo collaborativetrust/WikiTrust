@@ -68,16 +68,30 @@ let db_exec dbh s =
     implementation. *)
 
 class db  
-  (db_wikitrust : Mysql.db)
-  (db_mediawiki : Mysql.db option) = 
+  (db_mediawiki : Mysql.db)
+  (db_wikitrust_opt : Mysql.db option) = 
    
-  let wikitrust_dbh = (Mysql.connect db_wikitrust) in
-  let mediawiki_dbh = match db_mediawiki with
-    | None -> ref wikitrust_dbh
-    | Some param -> ref (Mysql.connect param) in
-  let wikitrust_database = match db_wikitrust.dbname with
-    | None -> ""
-    | Some n -> n in
+  let mediawiki_dbh = Mysql.connect db_mediawiki in
+  let wikitrust_dbh = match db_wikitrust_opt with
+    | None -> mediawiki_dbh
+    | Some d -> Mysql.connect d in
+  let separate_dbs = match db_wikitrust_opt with 
+      None -> false
+    | Some _ -> true in 
+  (* name used for locking *)
+  let wikitrust_database = begin 
+    match db_wikitrust_opt with 
+      None -> begin 
+	match db_mediawiki.dbname with 
+	  Some x -> x
+	| None -> "wikitrust"
+      end
+    | Some d -> begin 
+	match d.dbname with 
+	  Some x -> x
+	| None -> "wikitrust"
+      end
+  end in 
     
   object(self)
 
@@ -114,7 +128,7 @@ class db
     (* Commits any changes to the db *)
     method commit : bool =
       ignore (db_exec wikitrust_dbh "COMMIT");
-      ignore (db_exec !mediawiki_dbh "COMMIT");
+      ignore (db_exec mediawiki_dbh "COMMIT");
       match Mysql.status wikitrust_dbh with
         StatusError err -> false
       | _ -> true
@@ -162,7 +176,7 @@ class db
       (* Note: the >= is very important in the following query, to correctly handle the case
 	 of revisions with the same timestamp. *)
       let s = Printf. sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision WHERE rev_timestamp >= %s ORDER BY rev_timestamp ASC" (ml2timestamp timestamp) in  
-      db_exec !mediawiki_dbh s
+      db_exec mediawiki_dbh s
 
     (** [sth_select_all_revs_including_after [rev_id] (int * int * int * int * int * int)] returns all 
         revs created after the given timestamp, or that have revision id [rev_id]. *)
@@ -170,13 +184,13 @@ class db
       (* Note: the >= is very important in the following query, to correctly handle the case
 	 of revisions with the same timestamp. *)
       let s = Printf. sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision WHERE rev_timestamp >= %s OR rev_id = %s ORDER BY rev_timestamp ASC" (ml2timestamp timestamp) (ml2int rev_id) in  
-      db_exec !mediawiki_dbh s
+      db_exec mediawiki_dbh s
 
     (** [fetch_all_revs] returns a cursor that points to all revisions in the database, 
 	in ascending order of timestamp. *)
     method fetch_all_revs : Mysql.result = 
       let s= Printf.sprintf  "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision ORDER BY rev_timestamp ASC"  in
-      db_exec !mediawiki_dbh s 
+      db_exec mediawiki_dbh s 
   
     (* ================================================================ *)
     (* Page methods. *)
@@ -209,7 +223,7 @@ class db
     (** [fetch_revs page_id timestamp] returns a cursor that points to all 
 	revisions of page [page_id] with time prior or equal to [timestamp]. *)
     method fetch_revs (page_id : int) (timestamp: timestamp_t) : Mysql.result =
-      db_exec !mediawiki_dbh (Printf.sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision WHERE rev_page = %s AND rev_timestamp <= %s ORDER BY rev_timestamp DESC" (ml2int page_id) (ml2timestamp timestamp))
+      db_exec mediawiki_dbh (Printf.sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision WHERE rev_page = %s AND rev_timestamp <= %s ORDER BY rev_timestamp DESC" (ml2int page_id) (ml2timestamp timestamp))
 
 
     (* ================================================================ *)
@@ -226,7 +240,7 @@ class db
     (** [read_revision rev_id] reads a revision by id, returning the row *)
     method read_revision (rev_id: int) : string option array option = 
       let s = Printf.sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision WHERE rev_id = %s" (ml2int rev_id) in
-      fetch (db_exec !mediawiki_dbh s)
+      fetch (db_exec mediawiki_dbh s)
 
     (** [write_revision_info rev_id quality_info elist] writes the wikitrust data 
 	associated with revision with id [rev_id] *)
@@ -249,7 +263,7 @@ class db
    (** [fetch_rev_timestamp rev_id] returns the timestamp of revision [rev_id] *)
     method fetch_rev_timestamp (rev_id: int) : timestamp_t = 
       let s = Printf.sprintf "SELECT rev_timestamp FROM revision WHERE rev_id = %s" (ml2int rev_id) in 
-      let result = db_exec !mediawiki_dbh s in 
+      let result = db_exec mediawiki_dbh s in 
       match fetch result with 
 	None -> raise DB_Not_Found
       | Some row -> not_null timestamp2ml row.(0)
@@ -257,7 +271,7 @@ class db
     (** [get_rev_text text_id] returns the text associated with text id [text_id] *)
     method read_rev_text (text_id: int) : string =
       let s = Printf.sprintf "SELECT old_text FROM text WHERE old_id = %s" (ml2int text_id) in
-      let result = db_exec !mediawiki_dbh s in 
+      let result = db_exec mediawiki_dbh s in 
       match Mysql.fetch result with 
         None -> raise DB_Not_Found
       | Some y -> not_null str2ml y.(0)
