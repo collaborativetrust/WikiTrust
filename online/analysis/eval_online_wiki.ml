@@ -81,6 +81,8 @@ let reputation_speed = ref 1.
 let set_reputation_speed f = reputation_speed := f
 let requested_rev_id = ref None
 let set_requested_rev_id d = requested_rev_id := Some d
+let color_delay = ref 0.
+let set_color_delay f = color_delay := f 
 
 (* Figure out what to do and how we are going to do it. *)
 let command_line_format = 
@@ -100,6 +102,7 @@ let command_line_format =
    ("-rev_id",  Arg.Int set_requested_rev_id, "<int>: (optional) revision ID that we want to ensure it is colored");
    ("-log_file", Arg.String set_log_name, "<filename>: Logger output file (default: /dev/null)");
    ("-rep_speed", Arg.Float set_reputation_speed, "<float>: Speed at which users gain reputation; 1.0 for large wikis");
+   ("-throttle_delay", Arg.Float set_color_delay, "<float>: Amount of time (on average) to wait between analysis of revisions.  This can be used to throttle the computation, not to use too many resources.");
    ("-delete_all", Arg.Set delete_all, ": Recomputes all reputations and trust from scratch.  BE CAREFUL!! This may take a LONG time for large wikis.");
   ]
 
@@ -123,6 +126,15 @@ let trust_coeff = Online_types.get_default_coeff;;
 let f m n = !reputation_speed *. (Online_types.default_dynamic_rep_scaling n m) in 
 trust_coeff.Online_types.dynamic_rep_scaling <- f;;
 
+(* There are two types of throttle delay: a second each time we are multiples of an int, 
+   or a number of seconds before each revision. *)
+let each_revision_delay = int_of_float !color_delay;;
+let every_n_revisions_delay = 
+  let frac = !color_delay -. (floor !color_delay) in 
+  if frac > 0.001
+  then Some (max 1 (int_of_float (1. /. frac)))
+  else None;;
+  
 (* This is the function that evaluates a revision. 
    The function is recursive, because if some past revision of the same page 
    that falls within the analysis horizon is not yet evaluated and colored
@@ -180,13 +192,24 @@ in
 
 let tried : (int, unit) Hashtbl.t = Hashtbl.create 10 in 
 let color_more_revisions = ref true in 
+let revision_counter = ref 0 in 
 while !color_more_revisions do begin 
   match Mysql.fetch revs with 
     None -> color_more_revisions := false
   | Some r -> begin 
+      revision_counter := !revision_counter + 1; 
       let rev = Online_revision.make_revision r db in 
       let page_id = rev#get_page_id in 
       let rev_id  = rev#get_id in 
+
+      (* Waits, if so requested to throttle the computation. *)
+      if each_revision_delay > 0 then Unix.sleep (each_revision_delay); 
+      match every_n_revisions_delay with 
+	Some d -> begin 
+	  if (!revision_counter mod d) = 0 then Unix.sleep (1)
+	end
+      | None -> (); 
+
       (* Tries to acquire the page lock. 
 	 If it succeeds, colors the page. 
 	 We set the timeout for waiting as follows. 
