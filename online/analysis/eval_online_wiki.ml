@@ -127,8 +127,10 @@ let rec evaluate_revision (db: Online_db.db) (page_id: int) (rev_id: int) : unit
   Printf.printf "Evaluating revision %d of page %d\n" rev_id page_id;
   try
     let page = new Online_page.page db logger page_id rev_id trust_coeff in
-    page#eval
+    page#eval;
+    Printf.printf "Evaluated revision %d of page %d\n" rev_id page_id
   with Online_page.Missing_trust (page_id', rev_id') -> begin
+    Printf.printf "Error! missing trust for %d of page %d\n" rev_id' page_id';  
     (* We need to evaluate page_id', rev_id' first *)
     evaluate_revision db page_id' rev_id';
     evaluate_revision db page_id rev_id
