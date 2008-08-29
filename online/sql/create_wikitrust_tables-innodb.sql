@@ -40,6 +40,7 @@ CREATE TABLE wikitrust_colored_markup (
 	revision_createdon varchar(32) NOT NULL
 ) ENGINE=InnoDB;
 GRANT ALL ON wikitrust_colored_markup TO wikiuser;
+CREATE INDEX wikitrust_colored_markup_createdon_idx ON wikitrust_colored_markup (revision_createdon);
 
 CREATE TABLE wikitrust_sigs (
        revision_id      int PRIMARY KEY,

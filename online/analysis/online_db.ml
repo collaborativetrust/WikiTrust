@@ -67,6 +67,7 @@ type revision_t = {rev_id:int; rev_page:int; rev_text_id:int; rev_timestamp:stri
 		 rev_user:int; rev_user_text:string; rev_is_minor:bool;
 		 rev_comment:string} 
 
+(* Only return this may revisions to a query, even if there are more. *)
 let max_revs_to_return = 100000;;
 
 let set_is_minor ism = match ism with
