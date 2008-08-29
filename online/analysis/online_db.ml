@@ -60,7 +60,10 @@ Sexplib.Conv.default_string_of_float := (fun n -> sprintf "%.3G" n);;
 let commit_frequently = false;;
 
 let db_exec dbh s = 
-  if debug_mode then print_endline s;
+  if debug_mode then begin 
+    print_endline s;
+    flush stdout
+  end;
   Mysql.exec dbh s
 
 
