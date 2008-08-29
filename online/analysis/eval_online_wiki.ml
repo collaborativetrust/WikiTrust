@@ -257,14 +257,22 @@ while !color_more_revisions do begin
 	match !max_rev_to_color with 
 	  None -> ()
 	| Some n -> begin 
-	    if !n_colored_revs > n then color_more_revisions := false
+	    if !n_colored_revs > n then begin 
+	      color_more_revisions := false;
+	      Printf.printf "Colored as many pages as requested; terminating.\n";
+	      flush stdout;
+	    end
 	  end
       end else begin 
 	(* We could not get the lock.  
 	   If we have already tried the page, this means we waited LONG time; 
 	   we quit everything, as it means there is some problem. *)
 	if already_tried 
-	then color_more_revisions := false
+	then begin
+	  color_more_revisions := false;
+	  Printf.printf "Waited too long for lock of page %d; terminating.\n" page_id;
+	  flush stdout;
+	end
 	else Hashtbl.add tried page_id ();
       end (* not got it *)
     end (* for a revision r that needs to be colored *)
