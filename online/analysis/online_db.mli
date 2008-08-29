@@ -42,6 +42,9 @@ open Online_types;;
     be read from the database. *)
 exception DB_Not_Found;;
 
+(* Raised when a commit fails. *)
+exception DB_TXN_Bad;;
+
 (* Which DB should be used for the next transaction? *)
 type current_db_t = MediaWiki | WikiTrust | Both;;
 
@@ -80,6 +83,9 @@ class db :
 
     (** Start a transaction *)
     method start_transaction : current_db_t -> unit
+
+    (** Rollback a transaction *)
+    method rollback_transaction : (current_db_t) -> unit 
 
     (** Commit of transaction *)
     method commit : bool

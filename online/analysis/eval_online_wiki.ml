@@ -158,12 +158,17 @@ let rec evaluate_revision (db: Online_db.db) (page_id: int) (rev_id: int) : unit
       try 
 	let times_tried = ref 0 in
 	  while !times_tried < !times_to_retry_trans do
-	    db#start_transaction Online_db.Both;
-	    Printf.printf "Evaluating revision %d of page %d\n" rev_id page_id;
-	    let page = new Online_page.page db logger page_id rev_id trust_coeff in
-	      page#eval;
-	      if db#commit then times_tried := !times_to_retry_trans 
-	      else times_tried := !times_tried + 1
+	    try
+	      db#start_transaction Online_db.Both;
+	      Printf.printf "Evaluating revision %d of page %d\n" rev_id page_id;
+	      let page = new Online_page.page db logger page_id rev_id trust_coeff in
+		page#eval;
+		ignore(db#commit); 
+		times_tried := !times_to_retry_trans 
+	    with Online_db.DB_TXN_Bad -> (
+	      times_tried := !times_tried + 1; 
+	      db#rollback_transaction Online_db.Both
+	    )
 	  done
       with Online_page.Missing_trust (page_id', rev_id') -> begin
 	(* We need to evaluate page_id', rev_id' first *)
@@ -211,16 +216,27 @@ if !delete_all then db#delete_all true;
    colored revision, and then we pull from the db all revisions with time greater or 
    equal to t (equal, to handle revisions with the same timestamp). *)
 
-db#start_transaction Online_db.Both;
-  let revs =
-  try begin 
-    let timestamp = db#fetch_last_colored_rev_time in 
-    match !requested_rev_id with 
-      None -> db#fetch_all_revs_after timestamp
-    | Some r_id -> db#fetch_all_revs_including_after r_id timestamp
-  end with Online_db.DB_Not_Found -> db#fetch_all_revs
-in
-if not (db#commit) then raise Online_db.DB_Not_Found;
+let revs = ref [] in
+let times_tried = ref 0 in
+while !times_tried < !times_to_retry_trans do 
+  db#start_transaction Online_db.Both;
+  try
+    let r =
+      try begin 
+	let timestamp = db#fetch_last_colored_rev_time in 
+	  match !requested_rev_id with 
+	      None -> db#fetch_all_revs_after timestamp
+	    | Some r_id -> db#fetch_all_revs_including_after r_id timestamp
+      end with Online_db.DB_Not_Found -> db#fetch_all_revs
+    in
+      revs := r;
+      ignore(db#commit);
+      times_tried := !times_to_retry_trans;
+  with Online_db.DB_TXN_Bad -> times_tried := !times_tried + 1; 
+    db#rollback_transaction Online_db.Both
+done;
+
+
 
 let tried : (int, unit) Hashtbl.t = Hashtbl.create 10 in 
 let color_more_revisions = ref true in 
@@ -289,5 +305,5 @@ let color_revs r =
     end (* for a revision r that needs to be colored *)
 in
 
-List.iter color_revs revs
+List.iter color_revs !revs
 

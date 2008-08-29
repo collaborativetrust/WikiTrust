@@ -48,6 +48,9 @@ exception DB_Not_Found
 (* Internal error *)
 exception DB_Internal_Error
 
+(* Commit failed for some reason *)
+exception DB_TXN_Bad
+
 (* Timestamp in the DB *)
 type timestamp_t = int * int * int * int * int * int
 
@@ -164,16 +167,24 @@ class db
 	| WikiTrust -> ignore (db_exec wikitrust_dbh "START TRANSACTION")
 	| Both -> if separate_dbs then ( ignore (db_exec mediawiki_dbh "START TRANSACTION");
 		    ignore (db_exec wikitrust_dbh "START TRANSACTION");)
+
+    (** rollback a transaction. *)
+    method rollback_transaction (cdb : current_db_t) : unit =
+      match cdb with
+	| MediaWiki -> ignore (db_exec mediawiki_dbh "ROLLBACK")
+	| WikiTrust -> ignore (db_exec wikitrust_dbh "ROLLBACK")
+	| Both -> if separate_dbs then ( ignore (db_exec mediawiki_dbh "ROLLBACK");
+		    ignore (db_exec wikitrust_dbh "ROLLBACK");)
 	    
     (* Commits any changes to the db *)
     method commit : bool =
       ignore (db_exec wikitrust_dbh "COMMIT");
       match Mysql.status wikitrust_dbh with
-        | StatusError err -> Printf.printf "Error committing transaction! \n" ; false
+        | StatusError err -> Printf.printf "Error committing transaction! \n" ; raise DB_TXN_Bad
 	| _ -> ( 
 	    if separate_dbs then ignore (db_exec mediawiki_dbh "COMMIT");
 	    match Mysql.status wikitrust_dbh with
-              | StatusError err -> Printf.printf "Error committing transaction! \n" ; false
+              | StatusError err -> Printf.printf "Error committing transaction! \n" ; raise DB_TXN_Bad
 	      | _ -> true
 	  )
 	    
