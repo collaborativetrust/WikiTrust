@@ -37,6 +37,7 @@ open Vec;;
 open Online_types;;
 open Mysql;;
 open Eval_defs;;
+open Online_db;;
 
 type word = string;;
 exception ReadTextError
@@ -216,7 +217,18 @@ class revision
 
   end (* revision class *)
 
-let make_revision row db: revision = 
+let make_revision (rev : Online_db.revision_t) db: revision = 
+  new revision db 
+    rev.rev_id
+    rev.rev_page
+    rev.rev_text_id
+    rev.rev_timestamp
+    rev.rev_user
+    rev.rev_user_text
+    rev.rev_is_minor
+    rev.rev_comment
+
+let make_revision_from_cursor row db: revision = 
   let set_is_minor ism = match ism with
     | 0 -> false
     | 1 -> true

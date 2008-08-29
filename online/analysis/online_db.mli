@@ -42,9 +42,18 @@ open Online_types;;
     be read from the database. *)
 exception DB_Not_Found;;
 
+(* Which DB should be used for the next transaction? *)
+type current_db_t = MediaWiki | WikiTrust | Both;;
+
 (** This is the type of timestamps; abstract, since we don't need to play 
     with them now *)
 type timestamp_t
+
+(* Represents the revision table in memory *)
+type revision_t = {rev_id:int; rev_page:int; 
+		   rev_text_id:int; rev_timestamp:string; 
+		   rev_user:int; rev_user_text:string;
+		   rev_is_minor:bool; rev_comment:string} 
 
 class db : 
   Mysql.db ->
@@ -69,6 +78,9 @@ class db :
 	mutual exclusion on the updates for page [page_id]. *)
     method release_page_lock : int -> unit
 
+    (** Start a transaction *)
+    method start_transaction : current_db_t -> unit
+
     (** Commit of transaction *)
     method commit : bool
 
@@ -91,15 +103,15 @@ class db :
     
     (** [sth_select_all_revs_after (int * int * int * int * int * int)] returns all 
         revs created after the given timestamp. *)
-    method fetch_all_revs_after : timestamp_t -> Mysql.result
+    method fetch_all_revs_after : timestamp_t -> revision_t list
 
     (** [sth_select_all_revs_including_after [rev_id] (int * int * int * int * int * int)] returns all 
         revs created after the given timestamp, or that have revision id [rev_id]. *)
-    method fetch_all_revs_including_after : int -> timestamp_t -> Mysql.result
+    method fetch_all_revs_including_after : int -> timestamp_t ->  revision_t list
 
     (** [fetch_all_revs] Returns a pointer to a result set consisting in all the 
 	revisions of the database, in ascending temporal order. *)
-    method fetch_all_revs : Mysql.result
+    method fetch_all_revs : revision_t list
 
     (* ================================================================ *)
     (* Page methods.  We assume we have a lock on the page when calling
@@ -119,7 +131,7 @@ class db :
 
     (** [fetch_revs page_id timestamp] returns a cursor that points to all 
 	revisions of page [page_id] with time prior or equal to [timestamp]. *)
-    method fetch_revs : int -> timestamp_t -> Mysql.result
+    method fetch_revs : int -> timestamp_t -> revision_t list 
  
     (* ================================================================ *)
     (* Revision methods.  We assume we have a lock on the page to which 

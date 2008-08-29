@@ -59,13 +59,41 @@ Sexplib.Conv.default_string_of_float := (fun n -> sprintf "%.3f" n);;
 (* Should a commit be issued after every insert? This is needed if there are multiple clients. *)
 let commit_frequently = false;;
 
+(* Which DB should be used for the next transaction? *)
+type current_db_t = MediaWiki | WikiTrust | Both;;
+
+(* Represents the revision table in memory *)
+type revision_t = {rev_id:int; rev_page:int; rev_text_id:int; rev_timestamp:string; 
+		 rev_user:int; rev_user_text:string; rev_is_minor:bool;
+		 rev_comment:string} 
+
+let max_revs_to_return = 100000;;
+
+let set_is_minor ism = match ism with
+  | 0 -> false
+  | 1 -> true
+  | _ -> assert false 
+
+(* Given a row, return a new online revision *)
+let rev_row2revision_t row =
+  {
+    rev_id = (not_null int2ml row.(0)); (* rev id *)
+    rev_page = (not_null int2ml row.(1)); (* page id *)        
+    rev_text_id = (not_null int2ml row.(2)); (* text id *)
+    rev_timestamp = (not_null str2ml row.(3)); (* timestamp *)
+    rev_user = (not_null int2ml row.(4)); (* user id *)
+    rev_user_text = (not_null str2ml row.(5)); (* user name *)
+    rev_is_minor = (set_is_minor (not_null int2ml row.(6))); (* is_minor *)
+    rev_comment = (not_null str2ml row.(7)); (* comment *)
+  } 
+  
+
 let db_exec dbh s = 
   if debug_mode then begin 
     print_endline s;
     flush stdout
   end;
   Mysql.exec dbh s
-
 
 (** This class provides a handle for accessing the database in the on-line 
     implementation. *)
@@ -128,17 +156,29 @@ class db
       let s = Printf.sprintf "SELECT RELEASE_LOCK(%s)" (ml2str lock_name) in 
       ignore (db_exec wikitrust_dbh s)
 
+    (** Start a transaction. *)
+    method start_transaction (cdb : current_db_t) : unit =
+      match cdb with
+	| MediaWiki -> ignore (db_exec mediawiki_dbh "START TRANSACTION")
+	| WikiTrust -> ignore (db_exec wikitrust_dbh "START TRANSACTION")
+	| Both -> if separate_dbs then ( ignore (db_exec mediawiki_dbh "START TRANSACTION");
+		    ignore (db_exec wikitrust_dbh "START TRANSACTION");)
+	    
     (* Commits any changes to the db *)
     method commit : bool =
       ignore (db_exec wikitrust_dbh "COMMIT");
-      ignore (db_exec mediawiki_dbh "COMMIT");
       match Mysql.status wikitrust_dbh with
-        StatusError err -> false
-      | _ -> true
+        | StatusError err -> Printf.printf "Error committing transaction! \n" ; false
+	| _ -> ( 
+	    if separate_dbs then ignore (db_exec mediawiki_dbh "COMMIT");
+	    match Mysql.status wikitrust_dbh with
+              | StatusError err -> Printf.printf "Error committing transaction! \n" ; false
+	      | _ -> true
+	  )
 	    
     (* ================================================================ *)
     (* Global methods. *)
-
+	  
     
     (** [get_histogram] Returns a histogram showing the number of users 
 	at each reputation level, and the median. *)
@@ -175,26 +215,26 @@ class db
   
     (** [sth_select_all_revs_after (int * int * int * int * int * int)] returns all 
         revs created after the given timestamp. *)
-    method fetch_all_revs_after (timestamp : timestamp_t) : Mysql.result =  
+    method fetch_all_revs_after (timestamp : timestamp_t) : revision_t list =  
       (* Note: the >= is very important in the following query, to correctly handle the case
 	 of revisions with the same timestamp. *)
-      let s = Printf. sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision WHERE rev_timestamp >= %s ORDER BY rev_timestamp ASC" (ml2timestamp timestamp) in  
-      db_exec mediawiki_dbh s
+      let s = Printf. sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision WHERE rev_timestamp >= %s ORDER BY rev_timestamp ASC LIMIT %s" (ml2timestamp timestamp) (ml2int max_revs_to_return) in
+      	Mysql.map (db_exec mediawiki_dbh s) rev_row2revision_t
 
     (** [sth_select_all_revs_including_after [rev_id] (int * int * int * int * int * int)] returns all 
         revs created after the given timestamp, or that have revision id [rev_id]. *)
-    method fetch_all_revs_including_after (rev_id: int) (timestamp : timestamp_t) : Mysql.result =  
+    method fetch_all_revs_including_after (rev_id: int) (timestamp : timestamp_t) : revision_t list =  
       (* Note: the >= is very important in the following query, to correctly handle the case
 	 of revisions with the same timestamp. *)
-      let s = Printf. sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision WHERE rev_timestamp >= %s OR rev_id = %s ORDER BY rev_timestamp ASC" (ml2timestamp timestamp) (ml2int rev_id) in  
-      db_exec mediawiki_dbh s
+      let s = Printf. sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text,rev_minor_edit, rev_comment FROM revision WHERE rev_timestamp >= %s OR rev_id = %s ORDER BY rev_timestamp ASC LIMIT %s" (ml2timestamp timestamp) (ml2int rev_id) (ml2int max_revs_to_return) in  
+      	Mysql.map (db_exec mediawiki_dbh s) rev_row2revision_t
 
     (** [fetch_all_revs] returns a cursor that points to all revisions in the database, 
 	in ascending order of timestamp. *)
-    method fetch_all_revs : Mysql.result = 
-      let s= Printf.sprintf  "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision ORDER BY rev_timestamp ASC"  in
-      db_exec mediawiki_dbh s 
-  
+    method fetch_all_revs : revision_t list = 
+      let s= Printf.sprintf  "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision ORDER BY rev_timestamp ASC LIMIT %s" (ml2int max_revs_to_return) in
+	Mysql.map (db_exec mediawiki_dbh s) rev_row2revision_t
+	    
     (* ================================================================ *)
     (* Page methods. *)
 
@@ -225,9 +265,9 @@ class db
 
     (** [fetch_revs page_id timestamp] returns a cursor that points to all 
 	revisions of page [page_id] with time prior or equal to [timestamp]. *)
-    method fetch_revs (page_id : int) (timestamp: timestamp_t) : Mysql.result =
-      db_exec mediawiki_dbh (Printf.sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision WHERE rev_page = %s AND rev_timestamp <= %s ORDER BY rev_timestamp DESC" (ml2int page_id) (ml2timestamp timestamp))
-
+    method fetch_revs (page_id : int) (timestamp: timestamp_t) : revision_t list =
+      let s =  (Printf.sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision WHERE rev_page = %s AND rev_timestamp <= %s ORDER BY rev_timestamp DESC" (ml2int page_id) (ml2timestamp timestamp)) in
+	Mysql.map (db_exec mediawiki_dbh s) rev_row2revision_t
 
     (* ================================================================ *)
     (* Revision methods. *)
@@ -359,7 +399,7 @@ class db
 	a single operation, so to avoid database problems. *)
     method inc_rep (uid : int) (delta : float) =
       ignore (db_exec wikitrust_dbh "SET AUTOCOMMIT = 0");
-      ignore (db_exec wikitrust_dbh "LOCK TABLES wikitrust_user WRITE");
+      (* ignore (db_exec wikitrust_dbh "LOCK TABLES wikitrust_user WRITE"); *)
       let s = Printf.sprintf "INSERT INTO wikitrust_user (user_id, user_rep) VALUES (%s, %s) ON DUPLICATE KEY UPDATE user_rep = user_rep + %s" 
 	(ml2int uid) (ml2float delta) (ml2float delta) in 
       ignore (db_exec wikitrust_dbh s);
@@ -398,4 +438,5 @@ class db
       | false -> ignore (db_exec wikitrust_dbh "COMMIT")
 
   end;; (* online_db *)
+
 

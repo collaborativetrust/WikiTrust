@@ -85,6 +85,8 @@ let color_delay = ref 0.
 let set_color_delay f = color_delay := f 
 let max_rev_to_color = ref None
 let set_max_rev_to_color n = max_rev_to_color := Some n
+let times_to_retry_trans = ref 3
+let set_times_to_retry_trans n = times_to_retry_trans := n
 
 (* Figure out what to do and how we are going to do it. *)
 let command_line_format = 
@@ -106,6 +108,7 @@ let command_line_format =
    ("-rep_speed", Arg.Float set_reputation_speed, "<float>: Speed at which users gain reputation; 1.0 for large wikis");
    ("-throttle_delay", Arg.Float set_color_delay, "<float>: Amount of time (on average) to wait between analysis of revisions.  This can be used to throttle the computation, not to use too many resources.");
    ("-max_rev_to_do", Arg.Int set_max_rev_to_color, "<int>: Max number of revisions to process"); 
+ ("times_to_retry_trans", Arg.Int set_times_to_retry_trans, "<int>: Max number of times to retry a transation if it fails."); 
    ("-delete_all", Arg.Set delete_all, ": Recomputes all reputations and trust from scratch.  BE CAREFUL!! This may take a LONG time for large wikis.");
   ]
 
@@ -152,10 +155,16 @@ let rec evaluate_revision (db: Online_db.db) (page_id: int) (rev_id: int) : unit
   in 
   if one_more then begin 
     begin 
-      try
-	Printf.printf "Evaluating revision %d of page %d\n" rev_id page_id;
-	let page = new Online_page.page db logger page_id rev_id trust_coeff in
-	page#eval
+      try 
+	let times_tried = ref 0 in
+	  while !times_tried < !times_to_retry_trans do
+	    db#start_transaction Online_db.Both;
+	    Printf.printf "Evaluating revision %d of page %d\n" rev_id page_id;
+	    let page = new Online_page.page db logger page_id rev_id trust_coeff in
+	      page#eval;
+	      if db#commit then times_tried := !times_to_retry_trans 
+	      else times_tried := !times_tried + 1
+	  done
       with Online_page.Missing_trust (page_id', rev_id') -> begin
 	(* We need to evaluate page_id', rev_id' first *)
 	(* This if is a basic sanity check only. It should always be true *)
@@ -167,7 +176,7 @@ let rec evaluate_revision (db: Online_db.db) (page_id: int) (rev_id: int) : unit
       end
     end;
     n_colored_revs := !n_colored_revs + 1;
-    Printf.printf "Done evaluating revision %d of page %d\n" rev_id page_id
+    Printf.printf "Doon %d of page %d\n" rev_id page_id
   end;;
 
 
@@ -201,27 +210,29 @@ if !delete_all then db#delete_all true;
    large numbers of revisions.  So what we do is we retrieve the time t of the most recently
    colored revision, and then we pull from the db all revisions with time greater or 
    equal to t (equal, to handle revisions with the same timestamp). *)
-let revs = 
+
+db#start_transaction Online_db.Both;
+  let revs =
   try begin 
     let timestamp = db#fetch_last_colored_rev_time in 
     match !requested_rev_id with 
       None -> db#fetch_all_revs_after timestamp
     | Some r_id -> db#fetch_all_revs_including_after r_id timestamp
-  end with Online_db.DB_Not_Found -> db#fetch_all_revs 
-in 
+  end with Online_db.DB_Not_Found -> db#fetch_all_revs
+in
+ignore(db#commit);
 
 let tried : (int, unit) Hashtbl.t = Hashtbl.create 10 in 
 let color_more_revisions = ref true in 
 let revision_counter = ref 0 in 
-while !color_more_revisions do begin 
-  match Mysql.fetch revs with 
-    None -> color_more_revisions := false
-  | Some r -> begin 
-      revision_counter := !revision_counter + 1; 
-      let rev = Online_revision.make_revision r db in 
-      let page_id = rev#get_page_id in 
-      let rev_id  = rev#get_id in 
 
+let color_revs r =
+  begin 
+    revision_counter := !revision_counter + 1; 
+    let rev = Online_revision.make_revision r db in 
+    let page_id = rev#get_page_id in 
+    let rev_id  = rev#get_id in 
+      
       (* Waits, if so requested to throttle the computation. *)
       if each_revision_delay > 0 then Unix.sleep (each_revision_delay); 
       match every_n_revisions_delay with 
@@ -276,6 +287,7 @@ while !color_more_revisions do begin
 	else Hashtbl.add tried page_id ();
       end (* not got it *)
     end (* for a revision r that needs to be colored *)
-end done (* while there are revisions to color *)
+in
 
+List.iter color_revs revs
 
