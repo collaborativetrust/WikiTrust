@@ -57,14 +57,14 @@ let debug_mode = true;;
 Sexplib.Conv.default_string_of_float := (fun n -> sprintf "%.3f" n);;
 
 (* Should a commit be issued after every insert? This is needed if there are multiple clients. *)
-let commit_frequently = false;;
+let commit_frequently = true;;
 
 let db_exec dbh s = 
   if debug_mode then begin 
     print_endline s;
     flush stdout
   end;
-  Mysql.exec dbh s
+  Mysql.exec dbh s;
 
 
 (** This class provides a handle for accessing the database in the on-line 
@@ -97,6 +97,7 @@ class db
   end in 
     
   object(self)
+
 
     (* ================================================================ *)
     (* Locks and commits. *)
@@ -143,15 +144,19 @@ class db
     (** [get_histogram] Returns a histogram showing the number of users 
 	at each reputation level, and the median. *)
     method get_histogram : float array * float =
-    let s = Printf.sprintf "SELECT * FROM wikitrust_global" in
-      match fetch (db_exec wikitrust_dbh s) with
-        None -> raise DB_Not_Found
-      | Some row -> ([| not_null float2ml row.(1); not_null float2ml row.(2); not_null float2ml row.(3); 
-	                not_null float2ml row.(4);  not_null float2ml row.(5);
-	                not_null float2ml row.(6);  not_null float2ml row.(7);
-	                not_null float2ml row.(8);  not_null float2ml row.(9); not_null float2ml row.(10);
-	             |], (not_null float2ml row.(0)))
-    
+      let s = Printf.sprintf "SELECT * FROM wikitrust_global" in
+      let r =
+	match fetch (db_exec wikitrust_dbh s) with
+          None -> raise DB_Not_Found
+	| Some row -> ([| not_null float2ml row.(1); not_null float2ml row.(2); not_null float2ml row.(3); 
+	                  not_null float2ml row.(4);  not_null float2ml row.(5);
+	                  not_null float2ml row.(6);  not_null float2ml row.(7);
+	                  not_null float2ml row.(8);  not_null float2ml row.(9); not_null float2ml row.(10);
+	  |], (not_null float2ml row.(0)))
+      in 
+      if commit_frequently then ignore (db_exec wikitrust_dbh "COMMIT");
+      r
+
     (** write_histogram delta_hist median] increments the db histogram of user reputations according
 	to the array [delta_hist], and writes that the new median is [median]. *)
     method write_histogram (delta_hist : float array) (median: float) : unit = 
@@ -168,11 +173,14 @@ class db
 	has been colored.
         Raises DB_Not_Found if no revisions have been colored. *)    
     method fetch_last_colored_rev_time : timestamp_t = 
-    let s = "SELECT revision_createdon FROM wikitrust_colored_markup ORDER BY revision_createdon DESC LIMIT 1" in
-      match fetch (db_exec wikitrust_dbh s) with
-        None -> raise DB_Not_Found
-        | Some row -> (not_null timestamp2ml row.(0))
-  
+      let s = "SELECT revision_createdon FROM wikitrust_colored_markup ORDER BY revision_createdon DESC LIMIT 1" in
+      let r = match fetch (db_exec wikitrust_dbh s) with
+          None -> raise DB_Not_Found
+	| Some row -> (not_null timestamp2ml row.(0))
+      in 
+      if commit_frequently then ignore (db_exec wikitrust_dbh "COMMIT");
+      r
+	
     (** [sth_select_all_revs_after (int * int * int * int * int * int)] returns all 
         revs created after the given timestamp. *)
     method fetch_all_revs_after (timestamp : timestamp_t) : Mysql.result =  
@@ -207,8 +215,11 @@ class db
     method write_page_info (page_id : int) (c_list : chunk_t list) (p_info: page_info_t) : unit = 
       let chunks_string = ml2str (string_of__of__sexp_of (sexp_of_list sexp_of_chunk_t) c_list) in 
       let info_string = ml2str (string_of__of__sexp_of sexp_of_page_info_t p_info) in 
-      let s = Printf.sprintf "INSERT INTO wikitrust_page (page_id, deleted_chunks, page_info) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE deleted_chunks = %s, page_info = %s" 
-	(ml2int page_id) chunks_string info_string chunks_string info_string in  
+      let s = Printf.sprintf "DELETE FROM wikitrust_page where page_id = %s" (ml2int page_id) in 
+      ignore (db_exec wikitrust_dbh s); 
+      if commit_frequently then ignore (db_exec wikitrust_dbh "COMMIT");
+      let s = Printf.sprintf "INSERT INTO wikitrust_page (page_id, deleted_chunks, page_info) VALUES (%s, %s, %s)"
+	(ml2int page_id) chunks_string info_string in  
       ignore (db_exec wikitrust_dbh s);
       if commit_frequently then ignore (db_exec wikitrust_dbh "COMMIT")
 
@@ -217,12 +228,17 @@ class db
     method read_page_info (page_id : int) : (chunk_t list) * page_info_t =
       let s = Printf.sprintf "SELECT deleted_chunks, page_info FROM wikitrust_page WHERE page_id = %s" (ml2int page_id ) in
       let result = db_exec wikitrust_dbh s in 
-      match Mysql.fetch result with 
-	None -> raise DB_Not_Found
-      | Some x -> (
-	  of_string__of__of_sexp (list_of_sexp chunk_t_of_sexp) (not_null str2ml x.(0)), 
-	  of_string__of__of_sexp page_info_t_of_sexp (not_null str2ml x.(1)))
-
+      let r = begin 
+	match Mysql.fetch result with 
+	  None -> raise DB_Not_Found
+	| Some x -> (
+	    of_string__of__of_sexp (list_of_sexp chunk_t_of_sexp) (not_null str2ml x.(0)), 
+	    of_string__of__of_sexp page_info_t_of_sexp (not_null str2ml x.(1)))
+      end
+      in 
+      if commit_frequently then ignore (db_exec wikitrust_dbh "COMMIT");
+      r
+	    
     (** [fetch_revs page_id timestamp] returns a cursor that points to all 
 	revisions of page [page_id] with time prior or equal to [timestamp]. *)
     method fetch_revs (page_id : int) (timestamp: timestamp_t) : Mysql.result =
@@ -236,14 +252,21 @@ class db
 	colored for trust. *)
     method revision_needs_coloring (rev_id: int) : bool = 
       let s = Printf.sprintf "SELECT revision_createdon FROM wikitrust_colored_markup WHERE revision_id = %s" (ml2int rev_id) in 
-      match fetch (db_exec wikitrust_dbh s) with
-	None -> true
-      | Some _ -> false
-
+      let r = 
+	match fetch (db_exec wikitrust_dbh s) with
+	  None -> true
+	| Some _ -> false
+      in 
+      if commit_frequently then ignore (db_exec wikitrust_dbh "COMMIT");
+      r
+	    
     (** [read_revision rev_id] reads a revision by id, returning the row *)
     method read_revision (rev_id: int) : string option array option = 
       let s = Printf.sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision WHERE rev_id = %s" (ml2int rev_id) in
-      fetch (db_exec mediawiki_dbh s)
+      let r = fetch (db_exec mediawiki_dbh s) in 
+      if commit_frequently then ignore (db_exec wikitrust_dbh "COMMIT");
+      r
+
 
     (** [write_revision_info rev_id quality_info elist] writes the wikitrust data 
 	associated with revision with id [rev_id] *)
@@ -251,33 +274,47 @@ class db
       let t1 = ml2str (string_of__of__sexp_of sexp_of_qual_info_t quality_info) in 
       let t2 = ml2float quality_info.reputation_gain in 
       let t3 = ml2float quality_info.overall_trust in
-      let s2 =  Printf.sprintf "INSERT INTO wikitrust_revision (revision_id, quality_info, reputation_delta, overall_trust) VALUES (%s, %s, %s, %s) ON DUPLICATE KEY UPDATE quality_info = %s, reputation_delta = %s, overall_trust = %s"
- 	(ml2int rev_id) t1 t2 t3 t1 t2 t3 in 
-      ignore (db_exec wikitrust_dbh s2)
+      let s = Printf.sprintf "DELETE FROM wikitrust_revision WHERE revision_id = %s" (ml2int rev_id) in 
+      ignore (db_exec wikitrust_dbh s);
+      if commit_frequently then ignore (db_exec wikitrust_dbh "COMMIT");
+      let s =  Printf.sprintf "INSERT INTO wikitrust_revision (revision_id, quality_info, reputation_delta, overall_trust) VALUES (%s, %s, %s, %s)"
+ 	(ml2int rev_id) t1 t2 t3 in 
+      ignore (db_exec wikitrust_dbh s);
+      if commit_frequently then ignore (db_exec wikitrust_dbh "COMMIT")      
+
 
     (** [read_revision_info rev_id] reads the wikitrust information of revision_id *)
     method read_revision_info (rev_id: int) : qual_info_t = 
       let s = Printf.sprintf "SELECT quality_info FROM wikitrust_revision WHERE revision_id = %s" (ml2int rev_id) in 
       let result = db_exec wikitrust_dbh s in
-      match fetch result with
-        None -> raise DB_Not_Found
-      | Some x -> of_string__of__of_sexp qual_info_t_of_sexp (not_null str2ml x.(0))
+      let r = match fetch result with
+          None -> raise DB_Not_Found
+	| Some x -> of_string__of__of_sexp qual_info_t_of_sexp (not_null str2ml x.(0))
+      in 
+      if commit_frequently then ignore (db_exec wikitrust_dbh "COMMIT");
+      r
 
    (** [fetch_rev_timestamp rev_id] returns the timestamp of revision [rev_id] *)
     method fetch_rev_timestamp (rev_id: int) : timestamp_t = 
       let s = Printf.sprintf "SELECT rev_timestamp FROM revision WHERE rev_id = %s" (ml2int rev_id) in 
       let result = db_exec mediawiki_dbh s in 
-      match fetch result with 
-	None -> raise DB_Not_Found
-      | Some row -> not_null timestamp2ml row.(0)
+      let r = match fetch result with 
+	  None -> raise DB_Not_Found
+	| Some row -> not_null timestamp2ml row.(0)
+      in 
+      if commit_frequently then ignore (db_exec wikitrust_dbh "COMMIT");
+      r
 
     (** [get_rev_text text_id] returns the text associated with text id [text_id] *)
     method read_rev_text (text_id: int) : string =
       let s = Printf.sprintf "SELECT old_text FROM text WHERE old_id = %s" (ml2int text_id) in
       let result = db_exec mediawiki_dbh s in 
-      match Mysql.fetch result with 
-        None -> raise DB_Not_Found
-      | Some y -> not_null str2ml y.(0)
+      let r = match Mysql.fetch result with 
+          None -> raise DB_Not_Found
+	| Some y -> not_null str2ml y.(0)
+      in 
+      if commit_frequently then ignore (db_exec wikitrust_dbh "COMMIT");
+      r
 
     (** [write_colored_markup rev_id markup] writes, in a table with columns by 
 	(revision id, string), that the string [markup] is associated with the 
@@ -292,9 +329,12 @@ class db
     (* This is currently a first cut, which will be hopefully optimized later *)
     method write_colored_markup (rev_id : int) (markup : string) (createdon : string) : unit =
       let db_mkup = ml2str markup in 
-      let s2 = Printf.sprintf "INSERT INTO wikitrust_colored_markup (revision_id, revision_text, revision_createdon) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE revision_text = %s, revision_createdon = %s" 
-	(ml2int rev_id) db_mkup (ml2str createdon) db_mkup (ml2str createdon) in 
-      ignore (db_exec wikitrust_dbh s2);
+      let s = Printf.sprintf "DELETE FROM wikitrust_colored_markup WHERE revision_id = %s" (ml2int rev_id) in 
+      ignore (db_exec wikitrust_dbh s);
+      if commit_frequently then ignore (db_exec wikitrust_dbh "COMMIT");
+      let s = Printf.sprintf "INSERT INTO wikitrust_colored_markup (revision_id, revision_text, revision_createdon) VALUES (%s, %s, %s)"
+	(ml2int rev_id) db_mkup (ml2str createdon) in 
+      ignore (db_exec wikitrust_dbh s);
       if commit_frequently then ignore (db_exec wikitrust_dbh "COMMIT")
 
     (** [read_colored_markup rev_id] reads the text markup of a revision with id
@@ -303,9 +343,12 @@ class db
     method read_colored_markup (rev_id : int) : string =
       let s = Printf.sprintf  "SELECT revision_text FROM wikitrust_colored_markup WHERE revision_id = %s" (ml2int rev_id) in 
       let result = db_exec wikitrust_dbh s in
-      match Mysql.fetch result with
-        None -> raise DB_Not_Found
-      | Some x -> not_null str2ml x.(0)
+      let r = match Mysql.fetch result with
+          None -> raise DB_Not_Found
+	| Some x -> not_null str2ml x.(0)
+      in 
+      if commit_frequently then ignore (db_exec wikitrust_dbh "COMMIT");
+      r
 
     (** [write_trust_origin_sigs rev_id words trust origin sigs] writes that the 
 	revision [rev_id] is associated with [words], [trust], [origin], and [sigs]. *)
@@ -322,8 +365,13 @@ class db
       let s_origin = ml2str (string_of__of__sexp_of g_origin origin) in 
       let g_sigs = sexp_of_array Author_sig.sexp_of_sigs in 
       let s_sigs = ml2str (string_of__of__sexp_of g_sigs sigs) in 
-      let sdb = Printf.sprintf "INSERT INTO wikitrust_sigs (revision_id, words, trust, origin, sigs) VALUES (%s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE words = %s, trust = %s, origin = %s, sigs = %s" (ml2int rev_id) s_words s_trust s_origin s_sigs s_words s_trust s_origin s_sigs in 
-      ignore (db_exec wikitrust_dbh sdb )
+      let s = Printf.sprintf "DELETE FROM wikitrust_sigs WHERE revision_id = %s" (ml2int rev_id) in 
+      ignore (db_exec wikitrust_dbh s);
+      if commit_frequently then ignore (db_exec wikitrust_dbh "COMMIT"); 
+      let s = Printf.sprintf "INSERT INTO wikitrust_sigs (revision_id, words, trust, origin, sigs) VALUES (%s, %s, %s, %s, %s)" 
+	(ml2int rev_id) s_words s_trust s_origin s_sigs in 
+      ignore (db_exec wikitrust_dbh s);
+      if commit_frequently then ignore (db_exec wikitrust_dbh "COMMIT")
 
       (** [read_words_trust_origin_sigs rev_id] reads the words, trust, 
 	  origin, and author sigs for the revision [rev_id] from the [wikitrust_sigs] table. *)
@@ -331,24 +379,30 @@ class db
       : (string array * float array * int array * Author_sig.packed_author_signature_t array) = 
       let s = Printf.sprintf  "SELECT words, trust, origin, sigs FROM wikitrust_sigs WHERE revision_id = %s" (ml2int rev_id) in 
       let result = db_exec wikitrust_dbh s in 
-      match Mysql.fetch result with 
-	None -> raise DB_Not_Found
-      | Some x -> begin
-	  let g_words sx = array_of_sexp string_of_sexp sx in 
-	  let words = of_string__of__of_sexp g_words (not_null str2ml x.(0)) in 
-	  let g_trust sx = array_of_sexp float_of_sexp sx in 
-	  let trust = of_string__of__of_sexp g_trust (not_null str2ml x.(1)) in 
-	  let g_origin sx = array_of_sexp int_of_sexp sx in 
-	  let origin = of_string__of__of_sexp g_origin (not_null str2ml x.(2)) in 
-	  let g_sigs sx = array_of_sexp Author_sig.sigs_of_sexp sx in 
-	  let sigs = of_string__of__of_sexp g_sigs (not_null str2ml x.(3)) in 
-	  (words, trust, origin, sigs)
-	end
+      let r = match Mysql.fetch result with 
+	  None -> raise DB_Not_Found
+	| Some x -> begin
+	    let g_words sx = array_of_sexp string_of_sexp sx in 
+	    let words = of_string__of__of_sexp g_words (not_null str2ml x.(0)) in 
+	    let g_trust sx = array_of_sexp float_of_sexp sx in 
+	    let trust = of_string__of__of_sexp g_trust (not_null str2ml x.(1)) in 
+	    let g_origin sx = array_of_sexp int_of_sexp sx in 
+	    let origin = of_string__of__of_sexp g_origin (not_null str2ml x.(2)) in 
+	    let g_sigs sx = array_of_sexp Author_sig.sigs_of_sexp sx in 
+	    let sigs = of_string__of__of_sexp g_sigs (not_null str2ml x.(3)) in 
+	    (words, trust, origin, sigs)
+	  end
+      in 
+      if commit_frequently then ignore (db_exec wikitrust_dbh "COMMIT");
+      r
+
 
    (** [delete_author_sigs rev_id] removes from the db the author signatures for [rev_id]. *)
     method delete_author_sigs (rev_id: int) : unit =
       let s = Printf.sprintf  "DELETE FROM wikitrust_sigs WHERE revision_id = %s" (ml2int rev_id) in  
-      ignore (db_exec wikitrust_dbh s)
+      ignore (db_exec wikitrust_dbh s);
+      if commit_frequently then ignore (db_exec wikitrust_dbh "COMMIT")      
+
 
     (* ================================================================ *)
     (* User methods. *)
@@ -368,10 +422,12 @@ class db
     method get_rep (uid : int) : float =
       let s = Printf.sprintf "SELECT user_rep FROM wikitrust_user WHERE user_id = %s" (ml2int uid) in
       let result = db_exec wikitrust_dbh s in
-      match Mysql.fetch result with 
-        None -> raise DB_Not_Found
-      | Some x -> not_null float2ml x.(0)
-      
+      let r = match Mysql.fetch result with 
+          None -> raise DB_Not_Found
+	| Some x -> not_null float2ml x.(0)
+      in 
+      if commit_frequently then ignore (db_exec wikitrust_dbh "COMMIT");
+      r
 
     (* ================================================================ *)
     (* Debugging. *)
