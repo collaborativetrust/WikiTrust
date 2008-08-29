@@ -151,7 +151,6 @@ let rec evaluate_revision (db: Online_db.db) (page_id: int) (rev_id: int) : unit
     | None -> true
   in 
   if one_more then begin 
-    n_colored_revs := !n_colored_revs + 1;
     begin 
       try
 	Printf.printf "Evaluating revision %d of page %d\n" rev_id page_id;
@@ -159,11 +158,15 @@ let rec evaluate_revision (db: Online_db.db) (page_id: int) (rev_id: int) : unit
 	page#eval
       with Online_page.Missing_trust (page_id', rev_id') -> begin
 	(* We need to evaluate page_id', rev_id' first *)
-	Printf.printf "Missing trust info: we need first to evaluate revision %d of page %d\n" rev_id' page_id';
-	evaluate_revision db page_id' rev_id';
-	evaluate_revision db page_id rev_id
+	(* This if is a basic sanity check only. It should always be true *)
+	if rev_id' != rev_id then begin 
+	  Printf.printf "Missing trust info: we need first to evaluate revision %d of page %d\n" rev_id' page_id';
+	  evaluate_revision db page_id' rev_id';
+	  evaluate_revision db page_id rev_id
+	end
       end
     end;
+    n_colored_revs := !n_colored_revs + 1;
     Printf.printf "Done evaluating revision %d of page %d\n" rev_id page_id
   end;;
 
