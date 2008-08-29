@@ -220,7 +220,7 @@ db#start_transaction Online_db.Both;
     | Some r_id -> db#fetch_all_revs_including_after r_id timestamp
   end with Online_db.DB_Not_Found -> db#fetch_all_revs
 in
-ignore(db#commit);
+if not (db#commit) then raise Online_db.DB_Not_Found;
 
 let tried : (int, unit) Hashtbl.t = Hashtbl.create 10 in 
 let color_more_revisions = ref true in 
