@@ -51,7 +51,7 @@ exception DB_Internal_Error
 (* Timestamp in the DB *)
 type timestamp_t = int * int * int * int * int * int
 
-let debug_mode = false;;
+let debug_mode = true;;
 
 (* This is the function that sexplib uses to convert floats *)
 Sexplib.Conv.default_string_of_float := (fun n -> sprintf "%.3G" n);;
@@ -60,7 +60,10 @@ Sexplib.Conv.default_string_of_float := (fun n -> sprintf "%.3G" n);;
 let commit_frequently = false;;
 
 let db_exec dbh s = 
-  if debug_mode then print_endline s;
+  if debug_mode then begin 
+    print_endline s;
+    flush stdout
+  end;
   Mysql.exec dbh s
 
 

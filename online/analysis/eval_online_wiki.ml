@@ -41,7 +41,7 @@ open Mysql
     Notice that this provides an auto-throttling mechanism: if there are too many
     instances of coloring active at once, we won't get the lock quickly, and the 
     process will terminate. *)
-let lock_timeout = 30
+let lock_timeout = 20
 
 (** This is the top-level code of the wiki online xml evaluation. 
     This is used for testing only: *)
@@ -83,6 +83,8 @@ let requested_rev_id = ref None
 let set_requested_rev_id d = requested_rev_id := Some d
 let color_delay = ref 0.
 let set_color_delay f = color_delay := f 
+let max_rev_to_color = ref None
+let set_max_rev_to_color n = max_rev_to_color := Some n
 
 (* Figure out what to do and how we are going to do it. *)
 let command_line_format = 
@@ -103,6 +105,7 @@ let command_line_format =
    ("-log_file", Arg.String set_log_name, "<filename>: Logger output file (default: /dev/null)");
    ("-rep_speed", Arg.Float set_reputation_speed, "<float>: Speed at which users gain reputation; 1.0 for large wikis");
    ("-throttle_delay", Arg.Float set_color_delay, "<float>: Amount of time (on average) to wait between analysis of revisions.  This can be used to throttle the computation, not to use too many resources.");
+   ("-max_rev_to_do", Arg.Int set_max_rev_to_color, "<int>: Max number of revisions to process"); 
    ("-delete_all", Arg.Set delete_all, ": Recomputes all reputations and trust from scratch.  BE CAREFUL!! This may take a LONG time for large wikis.");
   ]
 
@@ -121,6 +124,7 @@ according to trust, and it will update user reputations accordingly.
 
 Usage: eval_online_wiki";;
 
+let n_colored_revs = ref 0;;
 let logger = new Online_log.logger !log_name !synch_log;;
 let trust_coeff = Online_types.get_default_coeff;;
 let f m n = !reputation_speed *. (Online_types.default_dynamic_rep_scaling n m) in 
@@ -135,23 +139,37 @@ let every_n_revisions_delay =
   then Some (max 1 (int_of_float (1. /. frac)))
   else None;;
   
+
 (* This is the function that evaluates a revision. 
    The function is recursive, because if some past revision of the same page 
    that falls within the analysis horizon is not yet evaluated and colored
    for trust, it evaluates and colors it first. 
  *)
 let rec evaluate_revision (db: Online_db.db) (page_id: int) (rev_id: int) : unit = 
-  Printf.printf "Evaluating revision %d of page %d\n" rev_id page_id;
-  try
-    let page = new Online_page.page db logger page_id rev_id trust_coeff in
-    page#eval;
-    Printf.printf "Evaluated revision %d of page %d\n" rev_id page_id
-  with Online_page.Missing_trust (page_id', rev_id') -> begin
-    Printf.printf "Error! missing trust for %d of page %d\n" rev_id' page_id';  
-    (* We need to evaluate page_id', rev_id' first *)
-    evaluate_revision db page_id' rev_id';
-    evaluate_revision db page_id rev_id
+  let one_more = match !max_rev_to_color with 
+      Some n -> !n_colored_revs < n
+    | None -> true
+  in 
+  if one_more then begin 
+    begin 
+      try
+	Printf.printf "Evaluating revision %d of page %d\n" rev_id page_id;
+	let page = new Online_page.page db logger page_id rev_id trust_coeff in
+	page#eval
+      with Online_page.Missing_trust (page_id', rev_id') -> begin
+	(* We need to evaluate page_id', rev_id' first *)
+	(* This if is a basic sanity check only. It should always be true *)
+	if rev_id' != rev_id then begin 
+	  Printf.printf "Missing trust info: we need first to evaluate revision %d of page %d\n" rev_id' page_id';
+	  evaluate_revision db page_id' rev_id';
+	  evaluate_revision db page_id rev_id
+	end
+      end
+    end;
+    n_colored_revs := !n_colored_revs + 1;
+    Printf.printf "Done evaluating revision %d of page %d\n" rev_id page_id
   end;;
+
 
 (* Does all the work of processing the given page and revision *)
 let mediawiki_db = {
@@ -235,7 +253,12 @@ while !color_more_revisions do begin
 	(* Processes page *)
 	if already_tried then Hashtbl.remove tried page_id; 
 	evaluate_revision db page_id rev_id;
-	db#release_page_lock page_id
+	db#release_page_lock page_id;
+	match !max_rev_to_color with 
+	  None -> ()
+	| Some n -> begin 
+	    if !n_colored_revs > n then color_more_revisions := false
+	  end
       end else begin 
 	(* We could not get the lock.  
 	   If we have already tried the page, this means we waited LONG time; 
