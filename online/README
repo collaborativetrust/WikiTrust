@@ -109,7 +109,8 @@ following lines:
   $wgTrustLog = "/somedir/{$wgDBname}-trust.log";
   $wgTrustDebugLog = "/somedir/{$wgDBname}-trust-debug.log";
   $wgRepSpeed = 1.0;
-  $wgTrustTabText = "check text"; 
+  $wgTrustTabText = "check text";
+  $wgTrustExplanation = "text which appears at the bottom of each colored page";
 
   require_once( $IP . "/extensions/Trust/ExtensionClass.php");
   require_once( $IP . "/extensions/Trust/Trust.php" );
