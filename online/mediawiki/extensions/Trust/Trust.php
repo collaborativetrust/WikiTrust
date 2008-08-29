@@ -313,9 +313,9 @@ colors text according to trust.'
   TODO: Make this function work with caching turned on.
  */
  function ucscSeeIfColored(&$parser, &$text, &$strip_state) { 
-   global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgRepSpeed, $wgRequest;
+   global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgRepSpeed, $wgRequest, $wgTrustExplanation;
 
-   // Turn off caching for this instance.
+   // Turn off caching for this instanching for this instance.
    $parser->disableCache();
    
    // Return if trust is not selected.
@@ -365,7 +365,7 @@ colors text according to trust.'
      $row = $dbr->fetchRow($res);
      $colored_text = $row[0];
      if ($colored_text){
-       $text = $colored_text;
+       $text = $colored_text . "\n" . $wgTrustExplanation;
      } else { 
        // If colored text does not exist, we start a coloring that explicitly requests
        // the uncolored revision to be colored.  This is useful in case there are holes
@@ -436,7 +436,7 @@ colors text according to trust.'
    return $this->COLORS[$fTrustValue];
  }
 }    
-    
-    TextTrust::singleton();
+
+TextTrust::singleton();
 
 ?>
