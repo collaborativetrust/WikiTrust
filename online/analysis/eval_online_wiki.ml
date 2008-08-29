@@ -135,21 +135,27 @@ let every_n_revisions_delay =
   then Some (max 1 (int_of_float (1. /. frac)))
   else None;;
   
+
 (* This is the function that evaluates a revision. 
    The function is recursive, because if some past revision of the same page 
    that falls within the analysis horizon is not yet evaluated and colored
    for trust, it evaluates and colors it first. 
  *)
 let rec evaluate_revision (db: Online_db.db) (page_id: int) (rev_id: int) : unit = 
-  Printf.printf "Evaluating revision %d of page %d\n" rev_id page_id;
-  try
-    let page = new Online_page.page db logger page_id rev_id trust_coeff in
-    page#eval
-  with Online_page.Missing_trust (page_id', rev_id') -> begin
-    (* We need to evaluate page_id', rev_id' first *)
-    evaluate_revision db page_id' rev_id';
-    evaluate_revision db page_id rev_id
-  end;;
+  begin 
+    try
+      Printf.printf "Evaluating revision %d of page %d\n" rev_id page_id;
+      let page = new Online_page.page db logger page_id rev_id trust_coeff in
+      page#eval
+    with Online_page.Missing_trust (page_id', rev_id') -> begin
+      (* We need to evaluate page_id', rev_id' first *)
+      Printf.printf "Missing trust info: we need first to evaluate revision %d of page %d\n" rev_id' page_id';
+      evaluate_revision db page_id' rev_id';
+      evaluate_revision db page_id rev_id
+    end
+  end;
+  Printf.printf "Done evaluating revision %d of page %d\n" rev_id page_id;;
+
 
 (* Does all the work of processing the given page and revision *)
 let mediawiki_db = {

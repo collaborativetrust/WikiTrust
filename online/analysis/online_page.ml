@@ -181,9 +181,16 @@ class page
 	      else begin (* We must choose the least revision *)
 		let r1 = Vec.get 0 w1 in 
 		let r2 = Vec.get 0 w2 in 
-		if r1#get_id = r2#get_id then merge (Vec.append r1 v) (Vec.remove 0 w1) (Vec.remove 0 w2)
-		else if r1#get_time > r2#get_time then merge (Vec.append r1 v) (Vec.remove 0 w1) w2
-		else merge (Vec.append r2 v) w1 (Vec.remove 0 w2)
+		let t1 = r1#get_time in 
+		let t2 = r2#get_time in 
+		let i1 = r1#get_id in 
+		let i2 = r2#get_id in 
+		if (t1, i1) = (t2, i2) then merge (Vec.append r1 v) (Vec.remove 0 w1) (Vec.remove 0 w2)
+		else begin 
+		  if (t1, i1) > (t2, i2) 
+		  then merge (Vec.append r1 v) (Vec.remove 0 w1) w2
+		  else merge (Vec.append r2 v) w1 (Vec.remove 0 w2)
+		end
 	      end
 	    in merge Vec.empty v1 v2
 	  in 
@@ -191,10 +198,11 @@ class page
 	  (* Produces the Vec of all revisions *)
 	  revs <- merge_chron recent_revs (merge_chron hi_rep_revs hi_trust_revs); 
 	  if debug then begin 
-	    Printf.printf "N. of recent   revisions: %d\n" (Vec.length recent_revs); 
-	    Printf.printf "N. of hi-trust revisions: %d\n" (Vec.length hi_trust_revs); 
-	    Printf.printf "N. of hi-rep   revisions: %d\n" (Vec.length hi_rep_revs); 
-	    Printf.printf "N. of total    revisions: %d\n" (Vec.length revs)
+	    let f (r: rev_t) : unit = Printf.printf "%d " r#get_id in 
+	    Printf.printf "Recent   revisions: "; Vec.iter f recent_revs; Printf.printf "\n";
+	    Printf.printf "Hi-trust revisions: "; Vec.iter f hi_trust_revs; Printf.printf "\n";
+	    Printf.printf "Hi-rep   revisions: "; Vec.iter f hi_rep_revs; Printf.printf "\n";
+	    Printf.printf "Total    revisions: "; Vec.iter f revs; Printf.printf "\n";
 	  end;
 
 	  (* Sets the current time *)
