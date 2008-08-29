@@ -54,7 +54,7 @@ type timestamp_t = int * int * int * int * int * int
 let debug_mode = true;;
 
 (* This is the function that sexplib uses to convert floats *)
-Sexplib.Conv.default_string_of_float := (fun n -> sprintf "%.3G" n);;
+Sexplib.Conv.default_string_of_float := (fun n -> sprintf "%.3f" n);;
 
 (* Should a commit be issued after every insert? This is needed if there are multiple clients. *)
 let commit_frequently = false;;
