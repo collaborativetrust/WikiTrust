@@ -407,13 +407,20 @@ class db
     (* ================================================================ *)
     (* User methods. *)
 
+    (** TODO: split this method into locking first, so we can write all updates in a single go, then unlocking *)
+
     (** [inc_rep uid delta] increments the reputation of user [uid] by [delta] in
 	a single operation, so to avoid database problems. *)
     method inc_rep (uid : int) (delta : float) =
+      ignore (db_exec wikitrust_dbh "SET AUTOCOMMIT = 0");
+      ignore (db_exec wikitrust_dbh "LOCK TABLES wikitrust_user WRITE");
       let s = Printf.sprintf "INSERT INTO wikitrust_user (user_id, user_rep) VALUES (%s, %s) ON DUPLICATE KEY UPDATE user_rep = user_rep + %s" 
 	(ml2int uid) (ml2float delta) (ml2float delta) in 
       ignore (db_exec wikitrust_dbh s);
-      if commit_frequently then ignore (db_exec wikitrust_dbh "COMMIT")
+      ignore (db_exec wikitrust_dbh "COMMIT");
+      ignore (db_exec wikitrust_dbh "UNLOCK TABLES");
+      ignore (db_exec wikitrust_dbh "SET AUTOCOMMIT = 1");
+
   
     (** [get_rep uid] gets the reputation of user [uid], from a table 
 	      relating user ids to their reputation 
