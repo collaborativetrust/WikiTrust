@@ -54,7 +54,7 @@ exception DB_TXN_Bad
 (* Timestamp in the DB *)
 type timestamp_t = int * int * int * int * int * int
 
-let debug_mode = true;;
+let debug_mode = false;;
 
 (* This is the function that sexplib uses to convert floats *)
 Sexplib.Conv.default_string_of_float := (fun n -> sprintf "%.3f" n);;
