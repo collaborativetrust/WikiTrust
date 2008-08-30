@@ -62,29 +62,35 @@ class page
     initializer 
       (* Now, I want the first revision returned to be the one with 
 	 the specified rev_id, or less. *)
-    let rec handle_revs r = match r with
-      | [] -> next_rev <- None
-      | hd::tl -> (	     
-	  let rev = Online_revision.make_revision hd db in 
-	  let fetched_rev_id = rev#get_id in 
-	    if fetched_rev_id <= rev_id then  
-	      next_rev <- Some rev 
-	    else handle_revs tl
-	  ) in
-      handle_revs revs
+      let greater = ref true in 
+      while !greater do begin 
+	match Mysql.fetch revs with
+          None -> begin 
+	    greater := false; 
+	    next_rev <- None
+	  end
+        | Some row -> begin 
+	    let rev = Online_revision.make_revision row db in 
+	    let fetched_rev_id = rev#get_id in 
+	    if fetched_rev_id <= rev_id then begin 
+	      next_rev <- Some rev; 
+	      greater := false
+	    end
+	  end
+      end done
 
     (* This method gets, every time, the previous revision of the page, 
        starting from the revision id that was given as input. *)
     method get_rev : Online_revision.revision option =
       match next_rev with 
-	  None -> None 
-	| Some r -> (
-	    match List.length revs with
-	      | 0 -> next_rev <- None; next_rev
-	      | _ -> (
-		  next_rev <- Some (Online_revision.make_revision (List.hd revs) db);
-		  revs <- List.tl revs; next_rev
-		)
-	  )
+	None -> None 
+      | Some r -> begin 
+	  begin 
+	    match Mysql.fetch revs with
+              None -> next_rev <- None 
+            | Some row -> next_rev <- Some (Online_revision.make_revision row db)
+	  end; 
+	  Some r
+	end
 
   end (* End page *)

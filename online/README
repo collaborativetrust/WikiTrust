@@ -74,11 +74,9 @@ installation process), proceed as follows:
   $ cd ../sql
   $ mysql -u root -p wikidb
   mysql> \. remove_wikitrust_tables.sql
-  mysql> \. create_wikitrust_tables-innodb.sql
+  mysql> \. create_wikitrust_tables.sql
   mysql> \q
 
-Alternatively, replace create_wikitrust_tables-innodb.sql with create_wikitrust_tables-myisam.sql
-To use MyISAM tables.
 
 3) Next, you need to install the trust coloring extension in
 mediawiki.  There are two ways to do this:

@@ -63,6 +63,8 @@ class page :
   (* revision_id *) int -> 
   (** Coefficients to be used for the evaluation *)
   (* trust_coeff *) Online_types.trust_coeff_t ->
+  (** Whether to use transactions to ensure integrity *)
+  (* use_transactions *) bool -> 
   object
     (** Call this method exactly once! *)
     method eval : unit

@@ -55,21 +55,12 @@ class page
   (page_id: int) 
   (revision_id: int) 
   (trust_coeff: trust_coeff_t) 
+  (n_retries: int) 
 
 = 
   
   object (self) 
-    (** Flag that says if the  needs coloring. 
-	If the page is already colored, the evaluation does nothing. *)
-    val mutable needs_coloring: bool = false
-    (** This is the Vec of recent revisions *)
-    val mutable recent_revs: rev_t Vec.t = Vec.empty 
-    (** This is the Vec of high-rep revisions *)
-    val mutable hi_rep_revs: rev_t Vec.t = Vec.empty 
-    (** This is the Vec of high-trust revisions *)
-    val mutable hi_trust_revs: rev_t Vec.t = Vec.empty 
-    (** This is the Vec of revisions for the page to which the last revision (included) is compared,
-	obtained by union of the above. *)
+    (** This is the Vec of revisions for the page to which the last revision (included) is compared *)
     val mutable revs: rev_t Vec.t = Vec.empty 
 
     (** These are the edit lists.  The position (i, j) is the edit list 
@@ -100,136 +91,115 @@ class page
       past_hi_trust_revs = page_info_default.past_hi_trust_revs;
     }
 
-    (** This initializer reads the past revisions from the online database, 
+    (** This method checks whether a revision needs coloring, and 
+	reads the past revisions from the online database, 
         puts them into the revs Vec, and also produces the [revid_to_rev] 
         hash table.
      *)
-    initializer 
+    method private read_page_revisions : unit = 
+      (* Reads the page information *)
       begin 
-	(* First, checks whether the page has already been colored. *)
-	needs_coloring <- db#revision_needs_coloring revision_id; 
-	if needs_coloring then begin 
-	  (* Reads the page information *)
-	  begin 
-	    try 
-	      let (cl, pinfo) = db#read_page_info page_id in 
-	      del_chunks_list <- cl; 
-	      page_info <- pinfo
-	    with Online_db.DB_Not_Found -> ();
-	  end;
-	  (* Reads the most recent revisions *)
-	  let db_p = new Db_page.page db page_id revision_id in 
-	  let i = ref trust_coeff.n_revs_to_consider in 
-	  while (!i > 0) do begin 
-            match db_p#get_rev with
-              None -> i := 0 (* We have read all revisions *)
-            | Some r -> begin
-		let rid = r#get_id in 
-		Hashtbl.add revid_to_rev rid r;
-		recent_revs <- Vec.append r recent_revs; 
-		revs <- Vec.append r revs; 
-		i := !i - 1;
-	      end (* Some r *)
-	  end done;
+	try 
+	  let (cl, pinfo) = db#read_page_info page_id in 
+	  del_chunks_list <- cl; 
+	  page_info <- pinfo
+	with Online_db.DB_Not_Found -> ();
+      end;
+      (* Reads the most recent revisions *)
+      let db_p = new Db_page.page db page_id revision_id in 
+      let i = ref trust_coeff.n_revs_to_consider in 
+      while (!i > 0) do begin 
+        match db_p#get_rev with
+          None -> i := 0 (* We have read all revisions *)
+        | Some r -> begin
+	    let rid = r#get_id in 
+	    Hashtbl.add revid_to_rev rid r;
+	    recent_revs <- Vec.append r recent_revs; 
+	    revs <- Vec.append r revs; 
+	    i := !i - 1;
+	  end (* Some r *)
+      end done;
 
-	  (* This is a function that finds and returns a revision in an array given its id *)
-	  let find_rev_by_id (id: int) (v: rev_t Vec.t) : rev_t option = 
-	    let f r = (r#get_id = id) in 
-	    match Vec.find f 0 v with 
-	      Some (i, rev) -> Some rev
-	    | None -> None
-	  in 
-
-	  (* Builds the Vec of high trust revisions *)
-	  (* The function f is folded on the list, and produces the Vec *)
-	  let f (u: rev_t Vec.t) (id: int) : rev_t Vec.t = 
-	    match find_rev_by_id id recent_revs with 
-	      Some r -> Vec.append r u
-	    | None -> begin 
-		(* We must read it from disk *)
-		match Online_revision.read_revision db id with 
-		  None -> u (* nothing to add: can't be found *)
-		| Some r' -> Vec.append r' u
-	      end
-	  in 
-	  hi_trust_revs <- List.fold_left f Vec.empty page_info.past_hi_trust_revs;
-	  
-	  (* Builds the Vec of high rep revisions *)
-	  (* The function f is folded on the list, and produces the Vec *)
-	  let f (u: rev_t Vec.t) (id: int) : rev_t Vec.t = 
-	    match find_rev_by_id id recent_revs with 
-	      Some r -> Vec.append r u
-	    | None -> begin 
-		(* Maybe it's in the high trust list? *)
-		match find_rev_by_id id hi_trust_revs with 
-		  Some r -> Vec.append r u 
-		| None -> begin 
-		    (* We must read it from disk *)
-		    match Online_revision.read_revision db id with 
-		      None -> u (* nothing to add: can't be found *)
-		    | Some r' -> Vec.append r' u
-		  end
-	      end
-	  in 
-	  hi_rep_revs <- List.fold_left f Vec.empty page_info.past_hi_rep_revs;
-
-	  (* This function merges two lists of revisions in chronological order *)
-	  let merge_chron (v1: rev_t Vec.t) (v2: rev_t Vec.t) : rev_t Vec.t = 
-	    let rec merge v w1 w2 = 
-	      if w1 = Vec.empty then Vec.concat v w2
-	      else if w2 = Vec.empty then Vec.concat v w1
-	      else begin (* We must choose the least revision *)
-		let r1 = Vec.get 0 w1 in 
-		let r2 = Vec.get 0 w2 in 
-		let t1 = r1#get_time in 
-		let t2 = r2#get_time in 
-		let i1 = r1#get_id in 
-		let i2 = r2#get_id in 
-		if (t1, i1) = (t2, i2) then merge (Vec.append r1 v) (Vec.remove 0 w1) (Vec.remove 0 w2)
-		else begin 
-		  if (t1, i1) > (t2, i2) 
-		  then merge (Vec.append r1 v) (Vec.remove 0 w1) w2
-		  else merge (Vec.append r2 v) w1 (Vec.remove 0 w2)
-		end
-	      end
-	    in merge Vec.empty v1 v2
-	  in 
-
-	  (* Produces the Vec of all revisions *)
-	  revs <- merge_chron recent_revs (merge_chron hi_rep_revs hi_trust_revs); 
-	  if debug then begin 
-	    let f (r: rev_t) : unit = Printf.printf "%d " r#get_id in 
-	    Printf.printf "Recent   revisions: "; Vec.iter f recent_revs; Printf.printf "\n";
-	    Printf.printf "Hi-trust revisions: "; Vec.iter f hi_trust_revs; Printf.printf "\n";
-	    Printf.printf "Hi-rep   revisions: "; Vec.iter f hi_rep_revs; Printf.printf "\n";
-	    Printf.printf "Total    revisions: "; Vec.iter f revs; Printf.printf "\n";
-	  end;
-
-	  (* Sets the current time *)
-	  let n_revs = Vec.length recent_revs in 
-	  if n_revs > 0 then begin 
-	    let r = Vec.get 0 recent_revs in 
-	    curr_time <- r#get_time
-	  end;
-
-	  (* Reads the revision text, as we will need it, and there are advantages in 
-	     reading it now.  For the most recent revision, we read the normal text; 
-	     for the others, the colored text *)
-	  (* This is the place where we detect "holes" in the coloring.
-             For this reason it is best to start from the oldest (n_revs - 1) revision. *)
-	  for i = n_revs - 1 downto 0 do begin 
-	    let r = Vec.get i revs in
-	    if i = 0 then begin 
-	      (* If a revision has no text, we have to recover this at a lower level,
-		 since text is not something we compute. *)
-	      r#read_text
-	    end else begin
-	      try r#read_words_trust_origin_sigs
-              with Online_db.DB_Not_Found -> raise (Missing_trust (r#get_page_id, r#get_id))
+      (* This function returns a revision, reading it from disk if needed and possible *)
+      let find_revision (id: int) : rev_t option = 
+	if Hashtbl.mem revid_to_rev id 
+	then Some (Hashtbl.find revid_to_rev id)
+	else begin 
+	  match Online_revision.read_revision db id with 
+	    Some r -> begin 
+	      Hashtbl.add revid_to_rev id r;
+	      Some r
 	    end
-	  end done
-	end (* If needs_coloring *)
-      end (* and end of initializer *)
+	  | None -> None
+	end
+      in 
+
+      (* The function f is folded on a list of revision ids, and produces a Vec of rev_t *)
+      let f (u: rev_t Vec.t) (id: int) : rev_t Vec.t = 
+	match find_revision id with 
+	  Some r -> Vec.append r u
+	| None -> u
+      in 
+
+      (* Builds the Vec of high trust and high reputation revisions *)
+      let hi_trust_revs = List.fold_left f Vec.empty page_info.past_hi_trust_revs in 
+      let hi_rep_revs   = List.fold_left f Vec.empty page_info.past_hi_rep_revs in 
+
+      (* This function merges two lists of revisions in chronological order *)
+      let merge_chron (v1: rev_t Vec.t) (v2: rev_t Vec.t) : rev_t Vec.t = 
+	let rec merge v w1 w2 = 
+	  if w1 = Vec.empty then Vec.concat v w2
+	  else if w2 = Vec.empty then Vec.concat v w1
+	  else begin (* We must choose the least revision *)
+	    let r1 = Vec.get 0 w1 in 
+	    let r2 = Vec.get 0 w2 in 
+	    let t1 = r1#get_time in 
+	    let t2 = r2#get_time in 
+	    let i1 = r1#get_id in 
+	    let i2 = r2#get_id in 
+	    if (t1, i1) = (t2, i2) then merge (Vec.append r1 v) (Vec.remove 0 w1) (Vec.remove 0 w2)
+	    else begin 
+	      if (t1, i1) > (t2, i2) 
+	      then merge (Vec.append r1 v) (Vec.remove 0 w1) w2
+	      else merge (Vec.append r2 v) w1 (Vec.remove 0 w2)
+	    end
+	  end
+	in merge Vec.empty v1 v2
+      in 
+
+      (* Produces the Vec of all revisions *)
+      revs <- merge_chron recent_revs (merge_chron hi_rep_revs hi_trust_revs); 
+      if debug then begin 
+	let f (r: rev_t) : unit = Printf.printf "%d " r#get_id in 
+	Printf.printf "Recent   revisions: "; Vec.iter f recent_revs; Printf.printf "\n";
+	Printf.printf "Hi-trust revisions: "; Vec.iter f hi_trust_revs; Printf.printf "\n";
+	Printf.printf "Hi-rep   revisions: "; Vec.iter f hi_rep_revs; Printf.printf "\n";
+	Printf.printf "Total    revisions: "; Vec.iter f revs; Printf.printf "\n";
+      end;
+
+      (* Sets the current time *)
+      let n_revs = Vec.length recent_revs in 
+      if n_revs > 0 then begin 
+	let r = Vec.get 0 recent_revs in 
+	curr_time <- r#get_time
+      end;
+
+      (* Reads the revision text, as we will need it, and there are advantages in 
+	 reading it now.  For the most recent revision, we read the normal text; 
+	 for the others, the colored text *)
+      (* This is the place where we detect "holes" in the coloring.
+         For this reason it is best to start from the oldest (n_revs - 1) revision. *)
+      for i = n_revs - 1 downto 0 do begin 
+	let r = Vec.get i revs in
+	if i = 0 then begin 
+	  (* If a revision has no text, we have to recover this at a lower level,
+	     since text is not something we compute. *)
+	  r#read_text
+	end else begin
+	  try r#read_words_trust_origin_sigs
+          with Online_db.DB_Not_Found -> raise (Missing_trust (r#get_page_id, r#get_id))
+	end
+      end done
 
 
       (** High-Median of an array *)
@@ -296,7 +266,22 @@ class page
         processes will merge without problems. *)
     method private write_all_reps : unit = 
       let f uid = function 
-	  (old_r, Some r) ->  db#inc_rep uid (r -. old_r)
+	  (old_r, Some r) ->  begin 
+	    (* Writes the reputation change to disk, as a small transaction *)
+	    let n_attempts = ref 0 in 
+	    while !n_attempts < n_retries do begin 
+	      try begin 
+		db#start_transaction Online_db.Both;
+		db#inc_rep uid (r -. old_r);
+		ignore (db#commit Online_db.Both);
+		n_attempts := n_retries
+	      end with _ -> begin 
+		(* Roll back *)
+		db#rollback_transaction Online_db.Both;
+		n_attempts := !n_attempts + 1
+	      end
+	    end done (* End of the multiple attempts at the transaction *)
+	  end
 	| (old_r, None) -> ()
       in Hashtbl.iter f rep_cache
 
@@ -526,7 +511,7 @@ class page
       let n_els = 1 + List.length chunk_l in 
       let chunks_a = Array.make n_els [| |] in 
       let trust_a  = Array.make n_els [| |] in 
-      let sigs_a    = Array.make n_els [| |] in 
+      let sigs_a   = Array.make n_els [| |] in 
       let origin_a = Array.make n_els [| |] in
       let age_a    = Array.make n_els 0 in 
       let time_a   = Array.make n_els 0. in 
@@ -980,41 +965,75 @@ class page
         The method computes also the effects on author reputation as a result of the new revision. *)
     method eval : unit = 
 
-      (* We do something only if the revision needs coloring *)
-      if needs_coloring then begin 
+      (* Keep track of whether the revision needs coloring, on how many tries we have made *)
+      let needs_coloring = ref false in 
+      let n_attempts = ref 0 in 
 
-	(* Computes the edit distances *)
-	if debug then print_string "   Computing edit lists...\n"; flush stdout;
-	self#compute_edit_lists; 
-	(* Computes, and writes to disk, the trust of the newest revision *)
-	if debug then print_string "   Computing trust...\n"; flush stdout;
-	self#compute_trust;
+      (* This is the main transaction body.  
+	 We do in this body the computation that needs to be consistent for a page. *)
+      while !n_attempts < n_retries do begin 
+	try begin 
+
+	  db#start_transaction Online_db.Both;
+
+	  (* We do something only if the revision needs coloring *)
+	  needs_coloring := db#revision_needs_coloring revision_id;
+	  if !needs_coloring then begin
+
+	    (* Reads the previous revisions *)
+	    self#read_page_revisions; 
+	  
+	    (* Computes the edit distances *)
+	    if debug then print_string "   Computing edit lists...\n"; flush stdout;
+	    self#compute_edit_lists; 
+	    (* Computes, and writes to disk, the trust of the newest revision *)
+	    if debug then print_string "   Computing trust...\n"; flush stdout;
+	    self#compute_trust;
 	
-	(* We now process the reputation update. *)
-	if debug then print_string "   Computing edit incs...\n"; flush stdout;
-	self#compute_edit_inc;
-	(* and we write them to disk *)
+	    (* We now process the reputation update. *)
+	    if debug then print_string "   Computing edit incs...\n"; flush stdout;
+	    self#compute_edit_inc;
+	
+	    (* Inserts the revision in the list of high rep or high trust revisions, 
+	       and deletes old signatures *)
+	    self#insert_revision_in_lists;
+	    (* We write to disk the page information *)
+	    db#write_page_info page_id del_chunks_list page_info;
+
+	    (* We write back to disk the information of all revisions *)
+	    if debug then print_string "   Writing the quality information...\n"; flush stdout;
+	    let f r = r#write_quality_to_db in 
+	    Vec.iter f revs;
+
+	    ignore (db#commit Online_db.Both);
+	    n_attempts := n_retries
+
+	  end else begin
+	    (* The revision is already colored; there is nothing to do *)
+	    ignore (db#commit Online_db.Both);
+	    n_attempts := n_retries
+	  end
+
+	end (* try: this is the end of the main transaction *)
+	with Online_db.DB_TXN_Bad -> begin 
+	  (* Roll back *)
+	  db#rollback_transaction Online_db.Both;
+	  n_attempts := !n_attempts + 1
+	end
+      end done; (* End of the multiple attempts at the transaction *)
+
+      (* If the revision needed coloring, we need to write reputations and revision 
+	 quality information to disk *)
+      if !needs_coloring then begin 
+
+	(* We write to disk all reputation changes *)
 	if debug then print_string "   Writing the reputations...\n"; flush stdout;
 	self#write_all_reps;
 	
-	(* Inserts the revision in the list of high rep or high trust revisions, 
-	   and deletes old signatures *)
-	self#insert_revision_in_lists;
-	(* Finally, we write back to disk the information of all revisions *)
-	if debug then print_string "   Writing the quality information...\n"; flush stdout;
-	let f r = r#write_quality_to_db in 
-	Vec.iter f revs;
-	(* We write also the page information *)
-	db#write_page_info page_id del_chunks_list page_info; 
-	
-	(* Commits the transaction *)
-	if not db#commit then raise (Missing_trust (page_id, revision_id));
-	
-	(* Flushes the logger.  *)
-	logger#flush;
-	
 	if debug then print_string "   All done!\n"; flush stdout;
-      end (* eval method *)	
-	
+      end; (* needs coloring *)
+      (* Flushes the logger.  *)
+      logger#flush
+
   end (* class *)
 

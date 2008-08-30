@@ -83,8 +83,8 @@ let requested_rev_id = ref None
 let set_requested_rev_id d = requested_rev_id := Some d
 let color_delay = ref 0.
 let set_color_delay f = color_delay := f 
-let max_rev_to_color = ref None
-let set_max_rev_to_color n = max_rev_to_color := Some n
+let max_rev_to_color = ref 1000
+let set_max_rev_to_color n = max_rev_to_color := n
 let times_to_retry_trans = ref 3
 let set_times_to_retry_trans n = times_to_retry_trans := n
 
@@ -107,7 +107,7 @@ let command_line_format =
    ("-log_file", Arg.String set_log_name, "<filename>: Logger output file (default: /dev/null)");
    ("-rep_speed", Arg.Float set_reputation_speed, "<float>: Speed at which users gain reputation; 1.0 for large wikis");
    ("-throttle_delay", Arg.Float set_color_delay, "<float>: Amount of time (on average) to wait between analysis of revisions.  This can be used to throttle the computation, not to use too many resources.");
-   ("-max_rev_to_do", Arg.Int set_max_rev_to_color, "<int>: Max number of revisions to process"); 
+   ("-max_rev_to_do", Arg.Int set_max_rev_to_color, "<int>: Max number of revisions to process (default: 1000) "); 
  ("times_to_retry_trans", Arg.Int set_times_to_retry_trans, "<int>: Max number of times to retry a transation if it fails."); 
    ("-delete_all", Arg.Set delete_all, ": Recomputes all reputations and trust from scratch.  BE CAREFUL!! This may take a LONG time for large wikis.");
   ]
@@ -149,27 +149,12 @@ let every_n_revisions_delay =
    for trust, it evaluates and colors it first. 
  *)
 let rec evaluate_revision (db: Online_db.db) (page_id: int) (rev_id: int) : unit = 
-  let one_more = match !max_rev_to_color with 
-      Some n -> !n_colored_revs < n
-    | None -> true
-  in 
-  if one_more then begin 
+  if !n_colored_revs < !max_rev_to_color then 
     begin 
       try 
-	let times_tried = ref 0 in
-	  while !times_tried < !times_to_retry_trans do
-	    try
-	      db#start_transaction Online_db.Both;
-	      Printf.printf "Evaluating revision %d of page %d\n" rev_id page_id;
-	      let page = new Online_page.page db logger page_id rev_id trust_coeff in
-		page#eval;
-		ignore(db#commit); 
-		times_tried := !times_to_retry_trans 
-	    with Online_db.DB_TXN_Bad -> (
-	      times_tried := !times_tried + 1; 
-	      db#rollback_transaction Online_db.Both
-	    )
-	  done
+	Printf.printf "Evaluating revision %d of page %d\n" rev_id page_id;
+	let page = new Online_page.page db logger page_id rev_id trust_coeff in
+	page#eval;
       with Online_page.Missing_trust (page_id', rev_id') -> begin
 	(* We need to evaluate page_id', rev_id' first *)
 	(* This if is a basic sanity check only. It should always be true *)
@@ -177,11 +162,10 @@ let rec evaluate_revision (db: Online_db.db) (page_id: int) (rev_id: int) : unit
 	  Printf.printf "Missing trust info: we need first to evaluate revision %d of page %d\n" rev_id' page_id';
 	  evaluate_revision db page_id' rev_id';
 	  evaluate_revision db page_id rev_id
-	end
-      end
-    end;
+	end (* rev_id' != rev_id *)
+    end; (* with: Was missing trust of a previous revision *)
     n_colored_revs := !n_colored_revs + 1;
-    Printf.printf "Doon %d of page %d\n" rev_id page_id
+    Printf.printf "Done revision %d of page %d\n" rev_id page_id
   end;;
 
 
@@ -209,7 +193,7 @@ let db = new Online_db.db mediawiki_db wikitrust_db_opt in
 (* If requested, we erase all coloring, and we recompute it from scratch. *)
 if !delete_all then db#delete_all true; 
 
-(* Loops over all revisions, in chronological order, since the last colored one. *)
+(* Generates the list of revisions, in chronological order, since the last colored one. *)
 (* The obvious way would be to do a join, of the revisions which do NOT appear in the 
    colored table, sorted chronologically.  However, this can be quite inefficient for 
    large numbers of revisions.  So what we do is we retrieve the time t of the most recently
@@ -225,23 +209,30 @@ while !times_tried < !times_to_retry_trans do
       try begin 
 	let timestamp = db#fetch_last_colored_rev_time in 
 	  match !requested_rev_id with 
-	      None -> db#fetch_all_revs_after timestamp
-	    | Some r_id -> db#fetch_all_revs_including_after r_id timestamp
-      end with Online_db.DB_Not_Found -> db#fetch_all_revs
+	    (* The apparently absurd '+20' in the following lines is to cover for the 
+	       case where many revisions have the same timestamp; some of the revisions
+	       that are returned, in fact, may be already colored. *)
+	      None -> db#fetch_all_revs_after timestamp (!max_rev_to_color + 20)
+	    | Some r_id -> db#fetch_all_revs_including_after r_id timestamp (!max_rev_to_color + 20)
+		(* The correctness of the following line hinges on the fact that the above fetch_all
+		   queries cannot raise DB_Not_Found. *)
+      end with Online_db.DB_Not_Found -> db#fetch_all_revs (!max_rev_to_color + 20)
     in
       revs := r;
-      ignore(db#commit);
+      ignore(db#commit Online_db.Both);
       times_tried := !times_to_retry_trans;
   with Online_db.DB_TXN_Bad -> times_tried := !times_tried + 1; 
     db#rollback_transaction Online_db.Both
 done;
 
 
-
 let tried : (int, unit) Hashtbl.t = Hashtbl.create 10 in 
 let color_more_revisions = ref true in 
 let revision_counter = ref 0 in 
 
+(* This function is mapped on the list of revisions to be colored.  
+   r is a row describing a revision read from the database; it will be made into
+   a revision inside color_revs. *)
 let color_revs r =
   begin 
     revision_counter := !revision_counter + 1; 

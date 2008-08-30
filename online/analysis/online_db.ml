@@ -48,7 +48,7 @@ exception DB_Not_Found
 (* Internal error *)
 exception DB_Internal_Error
 
-(* Commit failed for some reason *)
+(* Commit failed, or other database error that may have to cause a rollback. *)
 exception DB_TXN_Bad
 
 (* Timestamp in the DB *)
@@ -59,19 +59,20 @@ let debug_mode = false;;
 (* This is the function that sexplib uses to convert floats *)
 Sexplib.Conv.default_string_of_float := (fun n -> sprintf "%.3f" n);;
 
-(* Should a commit be issued after every insert? This is needed if there are multiple clients. *)
-let commit_frequently = false;;
-
 (* Which DB should be used for the next transaction? *)
 type current_db_t = MediaWiki | WikiTrust | Both;;
 
 (* Represents the revision table in memory *)
-type revision_t = {rev_id:int; rev_page:int; rev_text_id:int; rev_timestamp:string; 
-		 rev_user:int; rev_user_text:string; rev_is_minor:bool;
-		 rev_comment:string} 
-
-(* Only return this may revisions to a query, even if there are more. *)
-let max_revs_to_return = 100000;;
+type revision_t = {
+  rev_id: int; 
+  rev_page: int; 
+  rev_text_id: int; 
+  rev_timestamp: string; 
+  rev_user: int; 
+  rev_user_text: string; 
+  rev_is_minor: bool;
+  rev_comment: string
+} 
 
 let set_is_minor ism = match ism with
   | 0 -> false
@@ -97,7 +98,10 @@ let db_exec dbh s =
     print_endline s;
     flush stdout
   end;
-  Mysql.exec dbh s
+  try 
+    Mysql.exec dbh s
+  with _ -> raise DB_TXN_Bad
+
 
 (** This class provides a handle for accessing the database in the on-line 
     implementation. *)
@@ -162,36 +166,60 @@ class db
 
     (** Start a transaction. *)
     method start_transaction (cdb : current_db_t) : unit =
+      Printf.printf "START TRANSACTION\n"
       match cdb with
 	| MediaWiki -> ignore (db_exec mediawiki_dbh "START TRANSACTION")
 	| WikiTrust -> ignore (db_exec wikitrust_dbh "START TRANSACTION")
-	| Both -> if separate_dbs then ( ignore (db_exec mediawiki_dbh "START TRANSACTION");
-		    ignore (db_exec wikitrust_dbh "START TRANSACTION");)
+	| Both -> begin 
+	    ignore (db_exec mediawiki_dbh "START TRANSACTION");
+	    if separate_dbs then ignore (db_exec wikitrust_dbh "START TRANSACTION")
+	  end
 
     (** rollback a transaction. *)
     method rollback_transaction (cdb : current_db_t) : unit =
-      match cdb with
+      begin 
+	match cdb with
 	| MediaWiki -> ignore (db_exec mediawiki_dbh "ROLLBACK")
 	| WikiTrust -> ignore (db_exec wikitrust_dbh "ROLLBACK")
-	| Both -> if separate_dbs then ( ignore (db_exec mediawiki_dbh "ROLLBACK");
-		    ignore (db_exec wikitrust_dbh "ROLLBACK");)
+	| Both -> begin
+	    ignore (db_exec mediawiki_dbh "ROLLBACK");
+	    if separate_dbs then ignore (db_exec wikitrust_dbh "ROLLBACK")
+	  end
+      end;
+      Printf.printf "ROLLBACK\n"
 	    
     (* Commits any changes to the db *)
-    method commit : bool =
-      ignore (db_exec wikitrust_dbh "COMMIT");
-      match Mysql.status wikitrust_dbh with
-        | StatusError err -> Printf.printf "Error committing transaction! \n" ; raise DB_TXN_Bad
-	| _ -> ( 
-	    if separate_dbs then ignore (db_exec mediawiki_dbh "COMMIT");
-	    match Mysql.status wikitrust_dbh with
-              | StatusError err -> Printf.printf "Error committing transaction! \n" ; raise DB_TXN_Bad
-	      | _ -> true
-	  )
+    method commit (CDB : current_db_t) : bool =
+      let commit_mw () = begin
+	ignore (db_exec mediawiki_dbh "COMMIT");
+	match Mysql.status mediawiki_dbh with 
+	| StatusError err -> begin 
+	    Printf.printf "COMMIT ERROR on mediawiki db\n";
+	    raise DB_TXN_Bad
+	  end
+	| _ -> Printf.printf "COMMIT on mediawiki db\n"
+      end in 
+      let commit_wt () = begin
+	ignore (db_exec wikitrust_dbh "COMMIT");
+	match Mysql.status wikitrust_dbh with 
+	| StatusError err -> begin 
+	    Printf.printf "COMMIT ERROR on wikitrust db\n";
+	    raise DB_TXN_Bad
+	  end
+	| _ -> Printf.printf "COMMIT on wikitrust db\n"
+      end in 
+      match cdb with
+      | MediaWiki -> commit_mw ()
+      | WikiTrust -> commit_wt ()
+      | Both -> begin
+	  commit_mw ();
+	  commit_wt ()
+	end
+
 	    
     (* ================================================================ *)
     (* Global methods. *)
-	  
-    
+	      
     (** [get_histogram] Returns a histogram showing the number of users 
 	at each reputation level, and the median. *)
     method get_histogram : float array * float =
@@ -212,8 +240,8 @@ class db
 	(ml2float delta_hist.(0)) (ml2float delta_hist.(1)) (ml2float delta_hist.(2)) (ml2float delta_hist.(3)) 
 	(ml2float delta_hist.(4)) (ml2float delta_hist.(5)) (ml2float delta_hist.(6)) (ml2float delta_hist.(7)) 
 	(ml2float delta_hist.(8)) (ml2float delta_hist.(9)) in 
-      ignore (db_exec wikitrust_dbh s);
-      if commit_frequently then ignore (db_exec wikitrust_dbh "COMMIT")      
+      ignore (db_exec wikitrust_dbh s)
+
 
     (** [fetch_last_colored_rev_time_string] returns the time string (in the 
 	yyyymmddhhmmss format used in the db) of the most recent revision that 
@@ -227,7 +255,7 @@ class db
   
     (** [sth_select_all_revs_after (int * int * int * int * int * int)] returns all 
         revs created after the given timestamp. *)
-    method fetch_all_revs_after (timestamp : timestamp_t) : revision_t list =  
+    method fetch_all_revs_after (timestamp : timestamp_t) (max_revs_to_return: int) : revision_t list =  
       (* Note: the >= is very important in the following query, to correctly handle the case
 	 of revisions with the same timestamp. *)
       let s = Printf. sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision WHERE rev_timestamp >= %s ORDER BY rev_timestamp ASC LIMIT %s" (ml2timestamp timestamp) (ml2int max_revs_to_return) in
@@ -235,7 +263,7 @@ class db
 
     (** [sth_select_all_revs_including_after [rev_id] (int * int * int * int * int * int)] returns all 
         revs created after the given timestamp, or that have revision id [rev_id]. *)
-    method fetch_all_revs_including_after (rev_id: int) (timestamp : timestamp_t) : revision_t list =  
+    method fetch_all_revs_including_after (rev_id: int) (timestamp : timestamp_t) (max_revs_to_return: int): revision_t list =  
       (* Note: the >= is very important in the following query, to correctly handle the case
 	 of revisions with the same timestamp. *)
       let s = Printf. sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text,rev_minor_edit, rev_comment FROM revision WHERE rev_timestamp >= %s OR rev_id = %s ORDER BY rev_timestamp ASC LIMIT %s" (ml2timestamp timestamp) (ml2int rev_id) (ml2int max_revs_to_return) in  
@@ -243,7 +271,7 @@ class db
 
     (** [fetch_all_revs] returns a cursor that points to all revisions in the database, 
 	in ascending order of timestamp. *)
-    method fetch_all_revs : revision_t list = 
+    method fetch_all_revs (max_revs_to_return: int) : revision_t list = 
       let s= Printf.sprintf  "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision ORDER BY rev_timestamp ASC LIMIT %s" (ml2int max_revs_to_return) in
 	Mysql.map (db_exec mediawiki_dbh s) rev_row2revision_t
 	    
@@ -261,8 +289,8 @@ class db
       let info_string = ml2str (string_of__of__sexp_of sexp_of_page_info_t p_info) in 
       let s = Printf.sprintf "INSERT INTO wikitrust_page (page_id, deleted_chunks, page_info) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE deleted_chunks = %s, page_info = %s" 
 	(ml2int page_id) chunks_string info_string chunks_string info_string in  
-      ignore (db_exec wikitrust_dbh s);
-      if commit_frequently then ignore (db_exec wikitrust_dbh "COMMIT")
+      ignore (db_exec wikitrust_dbh s)
+
 
     (** [read_page_info page_id] returns the list of dead chunks associated
 	with the page [page_id]. *)
@@ -277,9 +305,9 @@ class db
 
     (** [fetch_revs page_id timestamp] returns a cursor that points to all 
 	revisions of page [page_id] with time prior or equal to [timestamp]. *)
-    method fetch_revs (page_id : int) (timestamp: timestamp_t) : revision_t list =
-      let s =  (Printf.sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision WHERE rev_page = %s AND rev_timestamp <= %s ORDER BY rev_timestamp DESC" (ml2int page_id) (ml2timestamp timestamp)) in
-	Mysql.map (db_exec mediawiki_dbh s) rev_row2revision_t
+    method fetch_revs (page_id : int) (timestamp: timestamp_t) : Mysql.result =
+      db_exec mediawiki_dbh (Printf.sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision WHERE rev_page = %s AND rev_timestamp <= %s ORDER BY rev_timestamp DESC" (ml2int page_id) (ml2timestamp timestamp))
+
 
     (* ================================================================ *)
     (* Revision methods. *)
@@ -346,8 +374,8 @@ class db
       let db_mkup = ml2str markup in 
       let s2 = Printf.sprintf "INSERT INTO wikitrust_colored_markup (revision_id, revision_text, revision_createdon) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE revision_text = %s, revision_createdon = %s" 
 	(ml2int rev_id) db_mkup (ml2str createdon) db_mkup (ml2str createdon) in 
-      ignore (db_exec wikitrust_dbh s2);
-      if commit_frequently then ignore (db_exec wikitrust_dbh "COMMIT")
+      ignore (db_exec wikitrust_dbh s2)
+
 
     (** [read_colored_markup rev_id] reads the text markup of a revision with id
 	[rev_id].  The markup is the text of the revision, annontated with trust

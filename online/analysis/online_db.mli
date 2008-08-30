@@ -85,10 +85,10 @@ class db :
     method start_transaction : current_db_t -> unit
 
     (** Rollback a transaction *)
-    method rollback_transaction : (current_db_t) -> unit 
+    method rollback_transaction : current_db_t -> unit 
 
     (** Commit of transaction *)
-    method commit : bool
+    method commit : current_db_t -> bool
 
     (* ================================================================ *)
     (* Global methods. *)
@@ -137,7 +137,7 @@ class db :
 
     (** [fetch_revs page_id timestamp] returns a cursor that points to all 
 	revisions of page [page_id] with time prior or equal to [timestamp]. *)
-    method fetch_revs : int -> timestamp_t -> revision_t list 
+    method fetch_revs : int -> timestamp_t -> Mysql.result
  
     (* ================================================================ *)
     (* Revision methods.  We assume we have a lock on the page to which 

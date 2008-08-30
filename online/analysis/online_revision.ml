@@ -210,7 +210,7 @@ class revision
       quality_info.nix_bit <- true;
       modified_quality_info <- true 
 
-    (** [write_quality_to_db] writes all revision quality information to the db. *)
+    (** [write_quality_to_db n_attempts] writes all revision quality information to the db. *)
     method write_quality_to_db : unit = 
       self#read_quality_info; 
       db#write_revision_info rev_id quality_info
