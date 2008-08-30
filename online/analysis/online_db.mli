@@ -61,6 +61,7 @@ type revision_t = {rev_id:int; rev_page:int;
 class db : 
   Mysql.db ->
   Mysql.db option ->
+  bool ->
 
   object
 
@@ -88,7 +89,7 @@ class db :
     method rollback_transaction : current_db_t -> unit 
 
     (** Commit of transaction *)
-    method commit : current_db_t -> bool
+    method commit : current_db_t -> unit
 
     (* ================================================================ *)
     (* Global methods. *)
@@ -107,17 +108,17 @@ class db :
         Raises DB_Not_Found if no revisions have been colored. *)    
     method fetch_last_colored_rev_time : timestamp_t
     
-    (** [sth_select_all_revs_after (int * int * int * int * int * int)] returns all 
-        revs created after the given timestamp. *)
-    method fetch_all_revs_after : timestamp_t -> revision_t list
+    (** [sth_select_all_revs_after (int * int * int * int * int * int) lim] returns all 
+        revs created after the given timestamp, with a limit of [lim] revisions. *)
+    method fetch_all_revs_after : timestamp_t -> int -> revision_t list
 
-    (** [sth_select_all_revs_including_after [rev_id] (int * int * int * int * int * int)] returns all 
-        revs created after the given timestamp, or that have revision id [rev_id]. *)
-    method fetch_all_revs_including_after : int -> timestamp_t ->  revision_t list
+    (** [sth_select_all_revs_including_after [rev_id] (int * int * int * int * int * int) lim] returns all 
+        revs created after the given timestamp, or that have revision id [rev_id], with a limit of [lim] revisions. *)
+    method fetch_all_revs_including_after : int -> timestamp_t ->  int -> revision_t list
 
-    (** [fetch_all_revs] Returns a pointer to a result set consisting in all the 
-	revisions of the database, in ascending temporal order. *)
-    method fetch_all_revs : revision_t list
+    (** [fetch_all_revs lim] Returns a pointer to a result set consisting in all the 
+	revisions of the database, in ascending temporal order,  with a limit of [lim] revisions. *)
+    method fetch_all_revs : int -> revision_t list
 
     (* ================================================================ *)
     (* Page methods.  We assume we have a lock on the page when calling
@@ -135,9 +136,10 @@ class db :
 	with the page [page_id], along with the page info. *)
     method read_page_info : int -> (Online_types.chunk_t list) * Online_types.page_info_t
 
-    (** [fetch_revs page_id timestamp] returns a cursor that points to all 
-	revisions of page [page_id] with time prior or equal to [timestamp]. *)
-    method fetch_revs : int -> timestamp_t -> Mysql.result
+    (** [fetch_revs page_id timestamp n_limit] returns a cursor that points to all 
+	revisions of page [page_id] with time prior or equal to [timestamp], 
+	limiting the result to at most [n_limit] entries. *)
+    method fetch_revs : int -> timestamp_t -> int -> Mysql.result
  
     (* ================================================================ *)
     (* Revision methods.  We assume we have a lock on the page to which 

@@ -45,6 +45,13 @@ class page :
   int -> (* revision id.  This is the first revision to read; after this, 
 	    each read operation returns the previous revision (so the
 	    read is backwards. *)
+  int -> (* number of revisions to fetch, used to limit the query to 
+	    the database.  Note that this class can return more (as there 
+	    is some slack in the query, see inside the class for details) 
+	    or fewer revisions (in case e.g. the page has fewer than the
+	    specified number of revisions), so that the caller must still
+	    then check on reading that the desired number of revisions
+	    is returned. *)
   object
     (* This method gets, every time, the previous revision of the page, 
        starting from the revision id that was given as input. 

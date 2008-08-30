@@ -87,6 +87,7 @@ let max_rev_to_color = ref 1000
 let set_max_rev_to_color n = max_rev_to_color := n
 let times_to_retry_trans = ref 3
 let set_times_to_retry_trans n = times_to_retry_trans := n
+let dump_db_calls = ref false
 
 (* Figure out what to do and how we are going to do it. *)
 let command_line_format = 
@@ -108,7 +109,8 @@ let command_line_format =
    ("-rep_speed", Arg.Float set_reputation_speed, "<float>: Speed at which users gain reputation; 1.0 for large wikis");
    ("-throttle_delay", Arg.Float set_color_delay, "<float>: Amount of time (on average) to wait between analysis of revisions.  This can be used to throttle the computation, not to use too many resources.");
    ("-max_rev_to_do", Arg.Int set_max_rev_to_color, "<int>: Max number of revisions to process (default: 1000) "); 
- ("times_to_retry_trans", Arg.Int set_times_to_retry_trans, "<int>: Max number of times to retry a transation if it fails."); 
+   ("-times_to_retry_trans", Arg.Int set_times_to_retry_trans, "<int>: Max number of times to retry a transation if it fails."); 
+   ("-dump_db_calls", Arg.Set dump_db_calls, ": Writes to the db log all database calls.  This is very verbose; use only for debugging.");
    ("-delete_all", Arg.Set delete_all, ": Recomputes all reputations and trust from scratch.  BE CAREFUL!! This may take a LONG time for large wikis.");
   ]
 
@@ -153,7 +155,7 @@ let rec evaluate_revision (db: Online_db.db) (page_id: int) (rev_id: int) : unit
     begin 
       try 
 	Printf.printf "Evaluating revision %d of page %d\n" rev_id page_id;
-	let page = new Online_page.page db logger page_id rev_id trust_coeff in
+	let page = new Online_page.page db logger page_id rev_id trust_coeff !times_to_retry_trans in
 	page#eval;
       with Online_page.Missing_trust (page_id', rev_id') -> begin
 	(* We need to evaluate page_id', rev_id' first *)
@@ -188,7 +190,7 @@ let wikitrust_db_opt =
   }
   else None
 
-let db = new Online_db.db mediawiki_db wikitrust_db_opt in 
+let db = new Online_db.db mediawiki_db wikitrust_db_opt !dump_db_calls in 
  
 (* If requested, we erase all coloring, and we recompute it from scratch. *)
 if !delete_all then db#delete_all true; 
@@ -219,7 +221,7 @@ while !times_tried < !times_to_retry_trans do
       end with Online_db.DB_Not_Found -> db#fetch_all_revs (!max_rev_to_color + 20)
     in
       revs := r;
-      ignore(db#commit Online_db.Both);
+      db#commit Online_db.Both;
       times_tried := !times_to_retry_trans;
   with Online_db.DB_TXN_Bad -> times_tried := !times_tried + 1; 
     db#rollback_transaction Online_db.Both
@@ -272,15 +274,11 @@ let color_revs r =
 	if already_tried then Hashtbl.remove tried page_id; 
 	evaluate_revision db page_id rev_id;
 	db#release_page_lock page_id;
-	match !max_rev_to_color with 
-	  None -> ()
-	| Some n -> begin 
-	    if !n_colored_revs > n then begin 
-	      color_more_revisions := false;
-	      Printf.printf "Colored as many pages as requested; terminating.\n";
-	      flush stdout;
-	    end
-	  end
+	if !n_colored_revs > !max_rev_to_color then begin 
+	  color_more_revisions := false;
+	  Printf.printf "Colored as many pages as requested; terminating.\n";
+	  flush stdout;
+	end
       end else begin 
 	(* We could not get the lock.  
 	   If we have already tried the page, this means we waited LONG time; 

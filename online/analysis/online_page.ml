@@ -60,7 +60,15 @@ class page
 = 
   
   object (self) 
-    (** This is the Vec of revisions for the page to which the last revision (included) is compared *)
+
+    (** This is the Vec of recent revisions *)
+    val mutable recent_revs: rev_t Vec.t = Vec.empty 
+    (** This is the Vec of high-rep revisions *)
+    val mutable hi_rep_revs: rev_t Vec.t = Vec.empty 
+    (** This is the Vec of high-trust revisions *)
+    val mutable hi_trust_revs: rev_t Vec.t = Vec.empty 
+    (** This is the Vec of revisions for the page to which the last revision (included) is compared,
+	obtained by union of the above. *)
     val mutable revs: rev_t Vec.t = Vec.empty 
 
     (** These are the edit lists.  The position (i, j) is the edit list 
@@ -106,7 +114,7 @@ class page
 	with Online_db.DB_Not_Found -> ();
       end;
       (* Reads the most recent revisions *)
-      let db_p = new Db_page.page db page_id revision_id in 
+      let db_p = new Db_page.page db page_id revision_id trust_coeff.n_revs_to_consider in 
       let i = ref trust_coeff.n_revs_to_consider in 
       while (!i > 0) do begin 
         match db_p#get_rev with
@@ -119,7 +127,7 @@ class page
 	    i := !i - 1;
 	  end (* Some r *)
       end done;
-
+      
       (* This function returns a revision, reading it from disk if needed and possible *)
       let find_revision (id: int) : rev_t option = 
 	if Hashtbl.mem revid_to_rev id 
@@ -133,18 +141,18 @@ class page
 	  | None -> None
 	end
       in 
-
+      
       (* The function f is folded on a list of revision ids, and produces a Vec of rev_t *)
       let f (u: rev_t Vec.t) (id: int) : rev_t Vec.t = 
 	match find_revision id with 
 	  Some r -> Vec.append r u
 	| None -> u
       in 
-
+      
       (* Builds the Vec of high trust and high reputation revisions *)
       let hi_trust_revs = List.fold_left f Vec.empty page_info.past_hi_trust_revs in 
       let hi_rep_revs   = List.fold_left f Vec.empty page_info.past_hi_rep_revs in 
-
+      
       (* This function merges two lists of revisions in chronological order *)
       let merge_chron (v1: rev_t Vec.t) (v2: rev_t Vec.t) : rev_t Vec.t = 
 	let rec merge v w1 w2 = 
@@ -166,7 +174,7 @@ class page
 	  end
 	in merge Vec.empty v1 v2
       in 
-
+      
       (* Produces the Vec of all revisions *)
       revs <- merge_chron recent_revs (merge_chron hi_rep_revs hi_trust_revs); 
       if debug then begin 
@@ -176,14 +184,14 @@ class page
 	Printf.printf "Hi-rep   revisions: "; Vec.iter f hi_rep_revs; Printf.printf "\n";
 	Printf.printf "Total    revisions: "; Vec.iter f revs; Printf.printf "\n";
       end;
-
+      
       (* Sets the current time *)
       let n_revs = Vec.length recent_revs in 
       if n_revs > 0 then begin 
 	let r = Vec.get 0 recent_revs in 
 	curr_time <- r#get_time
       end;
-
+      
       (* Reads the revision text, as we will need it, and there are advantages in 
 	 reading it now.  For the most recent revision, we read the normal text; 
 	 for the others, the colored text *)
@@ -202,28 +210,28 @@ class page
       end done
 
 
-      (** High-Median of an array *)
-      method private compute_hi_median (a: float array) =
-	let total = Array.fold_left (+.) 0. a in 
-	let mass_below = ref (total *. trust_coeff.hi_median_perc) in 
-	let median = ref 0. in 
-	let i = ref 0 in 
-	while (!mass_below > 0.) && (!i < max_rep_val) do begin 
-	  if a.(!i) > !mass_below then begin 
-	    (* Median is in this column *)
-	    median := !median +. !mass_below /. a.(!i);
-	    mass_below := 0.; 
-	  end else begin 
-	    (* Median is above this column *)
-	    mass_below := !mass_below -. a.(!i); 
-	    i := !i + 1;
-	    median := !median +. 1. 
-	  end
-	end done;
-	if debug then 
-	  Printf.printf "%.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f \n" 
-	    a.(0) a.(1) a.(2) a.(3) a.(4) a.(5) a.(6) a.(7) a.(8) a.(9) !median; 
-	!median
+    (** High-Median of an array *)
+    method private compute_hi_median (a: float array) =
+      let total = Array.fold_left (+.) 0. a in 
+      let mass_below = ref (total *. trust_coeff.hi_median_perc) in 
+      let median = ref 0. in 
+      let i = ref 0 in 
+      while (!mass_below > 0.) && (!i < max_rep_val) do begin 
+	if a.(!i) > !mass_below then begin 
+	  (* Median is in this column *)
+	  median := !median +. !mass_below /. a.(!i);
+	  mass_below := 0.; 
+	end else begin 
+	  (* Median is above this column *)
+	  mass_below := !mass_below -. a.(!i); 
+	  i := !i + 1;
+	  median := !median +. 1. 
+	end
+      end done;
+      if debug then 
+	Printf.printf "%.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f \n" 
+	  a.(0) a.(1) a.(2) a.(3) a.(4) a.(5) a.(6) a.(7) a.(8) a.(9) !median; 
+      !median
 
     (** This method returns the current value of the user reputation *)
     method private get_rep (uid: int) : float = 
@@ -273,7 +281,7 @@ class page
 	      try begin 
 		db#start_transaction Online_db.Both;
 		db#inc_rep uid (r -. old_r);
-		ignore (db#commit Online_db.Both);
+		db#commit Online_db.Both;
 		n_attempts := n_retries
 	      end with _ -> begin 
 		(* Roll back *)
@@ -1005,12 +1013,12 @@ class page
 	    let f r = r#write_quality_to_db in 
 	    Vec.iter f revs;
 
-	    ignore (db#commit Online_db.Both);
+	    db#commit Online_db.Both;
 	    n_attempts := n_retries
 
 	  end else begin
 	    (* The revision is already colored; there is nothing to do *)
-	    ignore (db#commit Online_db.Both);
+	    db#commit Online_db.Both;
 	    n_attempts := n_retries
 	  end
 
