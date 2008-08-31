@@ -232,7 +232,7 @@ let tried : (int, unit) Hashtbl.t = Hashtbl.create 10 in
 let color_more_revisions = ref true in 
 let revision_counter = ref 0 in 
 
-(* This function is mapped on the list of revisions to be colored.  
+(* This function is iterated on the list of revisions to be colored.  
    r is a row describing a revision read from the database; it will be made into
    a revision inside color_revs. *)
 let color_revs r =
@@ -242,56 +242,64 @@ let color_revs r =
     let page_id = rev#get_page_id in 
     let rev_id  = rev#get_id in 
       
-      (* Waits, if so requested to throttle the computation. *)
-      if each_revision_delay > 0 then Unix.sleep (each_revision_delay); 
+    (* Waits, if so requested to throttle the computation. *)
+    
+    if each_revision_delay > 0 then Unix.sleep (each_revision_delay); 
+    begin 
       match every_n_revisions_delay with 
 	Some d -> begin 
-	  if (!revision_counter mod d) = 0 then Unix.sleep (1)
+	  if (!revision_counter mod d) = 0 then Unix.sleep (1);
 	end
-      | None -> (); 
+      | None -> ()
+    end; 
+    
+    (* Tracks execution time *)
+    let t_start = Unix.gettimeofday () in 
 
-      (* Tries to acquire the page lock. 
-	 If it succeeds, colors the page. 
-	 We set the timeout for waiting as follows. 
-	 - If the page has already been tried, we need to wait on it, so we choose a long timeout. 
-	   If we don't get the page by the long timeout, this means that there is too much db 
-	   lock contention (too many simultaneously active coloring processes), and we terminate. 
-	 - If the page has not been tried yet, we set a short timeout, and if we don't get the lock,
-	   we move on to the next revision. 
-	 This algorithm ensures an "overtake by at most 1" property: if there are many coloring
-	 processes active simultaneously, and r_k, r_{k+1} are two revisions of a page p, it is 
-	 possible that a process is coloring r_k while another is coloring a revision r' after r_k 
-	 belonging to a different page p', but this revision r' cannot be past r_{k+1}. 
-       *)
-      let already_tried = Hashtbl.mem tried page_id in 
-      let got_it = 
-	if already_tried 
-        then db#get_page_lock page_id lock_timeout 
-        else db#get_page_lock page_id 0 in 
-      (* If we got it, we can color the page *)
-      if got_it then begin 
-	(* Processes page *)
-	if already_tried then Hashtbl.remove tried page_id; 
-	evaluate_revision db page_id rev_id;
-	db#release_page_lock page_id;
-	if !n_colored_revs > !max_rev_to_color then begin 
-	  color_more_revisions := false;
-	  Printf.printf "Colored as many pages as requested; terminating.\n";
-	  flush stdout;
-	end
-      end else begin 
-	(* We could not get the lock.  
-	   If we have already tried the page, this means we waited LONG time; 
-	   we quit everything, as it means there is some problem. *)
-	if already_tried 
-	then begin
-	  color_more_revisions := false;
-	  Printf.printf "Waited too long for lock of page %d; terminating.\n" page_id;
-	  flush stdout;
-	end
-	else Hashtbl.add tried page_id ();
-      end (* not got it *)
-    end (* for a revision r that needs to be colored *)
+    (* Tries to acquire the page lock. 
+       If it succeeds, colors the page. 
+       We set the timeout for waiting as follows. 
+       - If the page has already been tried, we need to wait on it, so we choose a long timeout. 
+       If we don't get the page by the long timeout, this means that there is too much db 
+       lock contention (too many simultaneously active coloring processes), and we terminate. 
+       - If the page has not been tried yet, we set a short timeout, and if we don't get the lock,
+       we move on to the next revision. 
+       This algorithm ensures an "overtake by at most 1" property: if there are many coloring
+       processes active simultaneously, and r_k, r_{k+1} are two revisions of a page p, it is 
+       possible that a process is coloring r_k while another is coloring a revision r' after r_k 
+       belonging to a different page p', but this revision r' cannot be past r_{k+1}. 
+     *)
+    let already_tried = Hashtbl.mem tried page_id in 
+    let got_it = 
+      if already_tried 
+      then db#get_page_lock page_id lock_timeout 
+      else db#get_page_lock page_id 0 in 
+    (* If we got it, we can color the page *)
+    if got_it then begin 
+      (* Processes page *)
+      if already_tried then Hashtbl.remove tried page_id; 
+      evaluate_revision db page_id rev_id;
+      db#release_page_lock page_id;
+      if !n_colored_revs > !max_rev_to_color then begin 
+	color_more_revisions := false;
+	Printf.printf "Colored as many pages as requested; terminating.\n";
+	flush stdout;
+      end
+    end else begin 
+      (* We could not get the lock.  
+	 If we have already tried the page, this means we waited LONG time; 
+	 we quit everything, as it means there is some problem. *)
+      if already_tried 
+      then begin
+	color_more_revisions := false;
+	Printf.printf "Waited too long for lock of page %d; terminating.\n" page_id;
+	flush stdout;
+      end
+      else Hashtbl.add tried page_id ();
+    end; (* not got it *)
+    let t_end = Unix.gettimeofday () in 
+    Printf.printf "Analysis took %f seconds.\n" (t_end -. t_start)
+  end (* for a revision r that needs to be colored *)
 in
 
 List.iter color_revs !revs
