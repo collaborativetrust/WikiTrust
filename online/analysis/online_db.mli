@@ -66,6 +66,10 @@ class db :
   object
 
     (* ================================================================ *)
+    (* Disconnect *)
+    method close : unit 
+
+    (* ================================================================ *)
     (* Locks. *)
 
     (** [get_page_lock page_id timeout] gets a lock for page [page_id], to guarantee 

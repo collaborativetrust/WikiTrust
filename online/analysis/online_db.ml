@@ -133,6 +133,12 @@ class db
       with _ -> raise DB_TXN_Bad
 
     (* ================================================================ *)
+    (* Disconnect *)
+    method close : unit = 
+      Mysql.disconnect mediawiki_dbh;
+      if separate_dbs then Mysql.disconnect wikitrust_dbh
+
+    (* ================================================================ *)
     (* Locks and commits. *)
 
     (** [get_page_lock page_id timeout] gets a lock for page [page_id], to guarantee 
