@@ -70,6 +70,12 @@ class revision
     val mutable trust : float array = [| |]
     val mutable origin : int array = [| |]
 
+    (* debug
+    initializer begin 
+      Printf.printf "Make revision r_id %d p_id %d text_id %d user_id %d user_name %S\n" rev_id page_id text_id user_id username
+    end
+       *)
+
     (* These quantities keep track of the quality of a revision *)
     (* First, I have a flag that says whether I have read the quantities 
        or not.  They are not read by default; they reside in a 

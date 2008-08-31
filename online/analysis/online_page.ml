@@ -150,8 +150,8 @@ class page
       in 
       
       (* Builds the Vec of high trust and high reputation revisions *)
-      let hi_trust_revs = List.fold_left f Vec.empty page_info.past_hi_trust_revs in 
-      let hi_rep_revs   = List.fold_left f Vec.empty page_info.past_hi_rep_revs in 
+      hi_trust_revs <- List.fold_left f Vec.empty page_info.past_hi_trust_revs;
+      hi_rep_revs   <- List.fold_left f Vec.empty page_info.past_hi_rep_revs;
       
       (* This function merges two lists of revisions in chronological order *)
       let merge_chron (v1: rev_t Vec.t) (v2: rev_t Vec.t) : rev_t Vec.t = 
@@ -274,18 +274,18 @@ class page
         processes will merge without problems. *)
     method private write_all_reps : unit = 
       let f uid = function 
-	  (old_r, Some r) ->  begin 
+	  (old_r, Some r) ->  if abs_float (r -. old_r) > 0.001 then begin 
 	    (* Writes the reputation change to disk, as a small transaction *)
 	    let n_attempts = ref 0 in 
 	    while !n_attempts < n_retries do begin 
 	      try begin 
-		db#start_transaction Online_db.Both;
+		db#start_transaction Online_db.WikiTrust;
 		db#inc_rep uid (r -. old_r);
-		db#commit Online_db.Both;
+		db#commit Online_db.WikiTrust;
 		n_attempts := n_retries
 	      end with _ -> begin 
 		(* Roll back *)
-		db#rollback_transaction Online_db.Both;
+		db#rollback_transaction Online_db.WikiTrust;
 		n_attempts := !n_attempts + 1
 	      end
 	    end done (* End of the multiple attempts at the transaction *)
