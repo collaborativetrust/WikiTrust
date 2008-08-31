@@ -620,7 +620,10 @@ class page
       let rev0_time = rev0#get_time in 
       let rev0_l = Array.length rev0_t in 
       let rev0_seps = rev0#get_seps in 
-      let rev0_timestr = rev0#get_time_string in
+      let rev0_timestamp = rev0#get_timestamp in
+
+      (* debug *)
+      Printf.printf "Revision %d has timestring %S\n" rev0_id rev0#get_time_string; 
 
       (* Gets the author reputation from the db. 
          As we are not holding the reputation lock at this point, we do not use
@@ -652,7 +655,7 @@ class page
            with trust and origin information *)
         let chunk_0 = Revision.produce_annotated_markup rev0_seps chunk_0_trust chunk_0_origin false true in 
         (* And writes it out to the db *)
-        db#write_colored_markup rev0_id (Buffer.contents chunk_0) rev0_timestr; 
+        db#write_colored_markup rev0_id (Buffer.contents chunk_0) rev0_timestamp; 
 	rev0#set_trust  chunk_0_trust;
 	rev0#set_origin chunk_0_origin;
 	rev0#set_sigs   chunk_0_sigs;
@@ -786,7 +789,7 @@ class page
 	  new_sigs_10_a new_origin_10_a del_chunks_list medit_10_l rev1_time rev0_time;
         (* Writes the annotated markup, trust, origin, sigs to disk *)
         let buf = Revision.produce_annotated_markup rev0_seps new_trust_10_a.(0) new_origin_10_a.(0) false true in 
-        db#write_colored_markup rev0_id (Buffer.contents buf) rev0_timestr;
+        db#write_colored_markup rev0_id (Buffer.contents buf) rev0_timestamp;
 	rev0#set_trust  new_trust_10_a.(0);
 	rev0#set_origin new_origin_10_a.(0);
 	rev0#set_sigs   new_sigs_10_a.(0);

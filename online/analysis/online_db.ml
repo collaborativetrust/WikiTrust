@@ -51,9 +51,6 @@ exception DB_Internal_Error
 (* Commit failed, or other database error that may have to cause a rollback. *)
 exception DB_TXN_Bad
 
-(* Timestamp in the DB *)
-type timestamp_t = int * int * int * int * int * int;;
-
 (* This is the function that sexplib uses to convert floats *)
 Sexplib.Conv.default_string_of_float := (fun n -> sprintf "%.3f" n);;
 
@@ -375,11 +372,11 @@ class db
 	easy and efficient to read.  A filesystem implementation, for small wikis, 
 	may be highly advisable. *)
     (* This is currently a first cut, which will be hopefully optimized later *)
-    method write_colored_markup (rev_id : int) (markup : string) (createdon : string) : unit =
+    method write_colored_markup (rev_id : int) (markup : string) (createdon : timestamp_t) : unit =
       let db_mkup = ml2str markup in 
-      let s2 = Printf.sprintf "INSERT INTO wikitrust_colored_markup (revision_id, revision_text, revision_createdon) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE revision_text = %s, revision_createdon = %s" 
-	(ml2int rev_id) db_mkup (ml2str createdon) db_mkup (ml2str createdon) in 
-      ignore (self#db_exec wikitrust_dbh s2)
+      let s = Printf.sprintf "INSERT INTO wikitrust_colored_markup (revision_id, revision_text, revision_createdon) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE revision_text = %s, revision_createdon = %s" 
+	(ml2int rev_id) db_mkup (ml2timestamp createdon) db_mkup (ml2timestamp createdon) in 
+      ignore (self#db_exec wikitrust_dbh s)
 
 
     (** [read_colored_markup rev_id] reads the text markup of a revision with id
