@@ -56,6 +56,7 @@ class revision
   (comment: string)
   =
   let time_init = Timeconv.time_string_to_float time_string in 
+  let timestamp = Timeconv.time_string_to_timestamp time_string in 
 
   object (self : 'a)
     val is_anon : bool = (user_id = 0)
@@ -105,6 +106,7 @@ class revision
     method get_user_name : string = username 
     method get_is_anon : bool = is_anon
     method get_time_string : string = time_string
+    method get_timestamp : timestamp_t = timestamp
 
       (* Reads the revision text from the db, and splits it appropriately *)
     method read_text : unit = 

@@ -48,10 +48,6 @@ exception DB_TXN_Bad;;
 (* Which DB should be used for the next transaction? *)
 type current_db_t = MediaWiki | WikiTrust | Both;;
 
-(** This is the type of timestamps; abstract, since we don't need to play 
-    with them now *)
-type timestamp_t
-
 (* Represents the revision table in memory *)
 type revision_t = {rev_id:int; rev_page:int; 
 		   rev_text_id:int; rev_timestamp:string; 
@@ -169,7 +165,7 @@ class db :
     (** [get_rev_text text_id] returns the text associated with text id [text_id] *)
     method read_rev_text : int -> string 
 
-    (** [write_colored_markup rev_id markup] writes, in a table with columns by 
+    (** [write_colored_markup rev_id markup timestamp] writes, in a table with columns by 
 	(revision id, string), that the string [markup] is associated with the 
 	revision with id [rev_id]. 
 	The [markup] represents the main text of the revision, annotated with trust 
@@ -177,9 +173,12 @@ class db :
 	batch demo are. 
 	When visitors want the "colored" version of a wiki page, it is this chunk 
 	they want to see.  Therefore, it is very important that this chunk is 
-	easy and efficient to read.  A filesystem implementation, for small wikis, 
-	may be highly advisable. *)
-    method write_colored_markup : int -> string -> string -> unit 
+	easy and efficient to read.  A filesystem implementation, for very large wikis, 
+	may be used.
+	[timestamp] is the timestamp of the reputation information with respect to which the 
+	coloring has been computed. 
+     *)
+    method write_colored_markup : int -> string -> timestamp_t -> unit 
 
     (** [read_colored_markup rev_id] reads the text markup of a revision with id
 	[rev_id].  The markup is the text of the revision, annontated with trust

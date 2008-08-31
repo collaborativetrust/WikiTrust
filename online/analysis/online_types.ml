@@ -196,4 +196,5 @@ let page_info_default = {
   past_hi_trust_revs = [];
 }
 
-
+(* Timestamp in the DB *)
+type timestamp_t = int * int * int * int * int * int;;

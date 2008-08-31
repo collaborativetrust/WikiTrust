@@ -36,6 +36,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
 val time_to_float : int -> int -> int -> int -> int -> int -> float
 val time_string_to_float : string -> float
+val time_string_to_timestamp : string -> (int * int * int * int * int * int)
 val float_to_time : float -> int * int * int * int * int * int 
 val cmp : float -> float -> int
 val convert_time : string -> float
