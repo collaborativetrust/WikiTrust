@@ -255,7 +255,13 @@ class db
     let s = "SELECT revision_createdon FROM wikitrust_colored_markup ORDER BY revision_createdon DESC LIMIT 1" in
       match fetch (self#db_exec wikitrust_dbh s) with
         None -> raise DB_Not_Found
-        | Some row -> (not_null timestamp2ml row.(0))
+        | Some row -> begin (* debug *)
+	    let r = (not_null timestamp2ml row.(0)) in 
+	    let (r0, r1, r2, r3, r4, r5) = r in 
+	    Printf.printf "Last colored timestamp: %d %d %d %d %d %d \n" r0 r1 r2 r3 r4 r5;
+	    r
+	  end
+	    
   
     (** [sth_select_all_revs_after (int * int * int * int * int * int)] returns all 
         revs created after the given timestamp. *)
