@@ -298,7 +298,8 @@ let color_revs r =
       else Hashtbl.add tried page_id ();
     end; (* not got it *)
     let t_end = Unix.gettimeofday () in 
-    Printf.printf "Analysis took %f seconds.\n" (t_end -. t_start)
+    Printf.printf "Analysis took %f seconds.\n" (t_end -. t_start);
+    flush stdout
   end (* for a revision r that needs to be colored *)
 in
 
