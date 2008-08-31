@@ -102,19 +102,20 @@ class db :
 	to the array [delta_hist], and writes that the new median is [median]. *)
     method write_histogram : float array -> float -> unit 
 
-    (** [fetch_last_colored_rev_time_string] returns the time string (in the 
-	yyyymmddhhmmss format used in the db) of the most recent revision that 
-	has been colored.
+    (** [fetch_last_colored_rev_time_string] returns the timestamp and the 
+	revision id of the most recent revision that has been colored. 
         Raises DB_Not_Found if no revisions have been colored. *)    
-    method fetch_last_colored_rev_time : timestamp_t
+    method fetch_last_colored_rev_time : timestamp_t * int
     
-    (** [sth_select_all_revs_after (int * int * int * int * int * int) lim] returns all 
-        revs created after the given timestamp, with a limit of [lim] revisions. *)
-    method fetch_all_revs_after : timestamp_t -> int -> revision_t list
+    (** [sth_select_all_revs_after (int * int * int * int * int * int) rev_id limit] returns all 
+        revs created after the given timestamp, or at the same timestamp, with revision id at least [rev_id],
+	up to the maximum number [limit]. *)
+    method fetch_all_revs_after : timestamp_t -> int -> int -> revision_t list
 
-    (** [sth_select_all_revs_including_after [rev_id] (int * int * int * int * int * int) lim] returns all 
-        revs created after the given timestamp, or that have revision id [rev_id], with a limit of [lim] revisions. *)
-    method fetch_all_revs_including_after : int -> timestamp_t ->  int -> revision_t list
+    (** [sth_select_all_revs_including_after rev_id_incl (int * int * int * int * int * int) rev_id limit] returns all 
+        revs created after the given ([timestamp],[rev_id]), or that have revision id [rev_id_incl],
+	up to the maximum number [limit]. *)
+    method fetch_all_revs_including_after : int -> timestamp_t ->  int -> int -> revision_t list
 
     (** [fetch_all_revs lim] Returns a pointer to a result set consisting in all the 
 	revisions of the database, in ascending temporal order,  with a limit of [lim] revisions. *)
@@ -136,10 +137,9 @@ class db :
 	with the page [page_id], along with the page info. *)
     method read_page_info : int -> (Online_types.chunk_t list) * Online_types.page_info_t
 
-    (** [fetch_revs page_id timestamp n_limit] returns a cursor that points to all 
-	revisions of page [page_id] with time prior or equal to [timestamp], 
-	limiting the result to at most [n_limit] entries. *)
-    method fetch_revs : int -> timestamp_t -> int -> Mysql.result
+    (** [fetch_revs page_id timestamp rev_id fetch_limit] returns a cursor that points to at most [fetch_limit]
+	revisions of page [page_id] with time prior or equal to [timestamp], and revision id at most [rev_id]. *)
+    method fetch_revs : int -> timestamp_t -> int -> int -> Mysql.result
  
     (* ================================================================ *)
     (* Revision methods.  We assume we have a lock on the page to which 

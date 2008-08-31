@@ -244,42 +244,38 @@ class db
       ignore (self#db_exec wikitrust_dbh s)
 
 
-    (** [fetch_last_colored_rev_time_string] returns the time string (in the 
-	yyyymmddhhmmss format used in the db) of the most recent revision that 
-	has been colored.
+    (** [fetch_last_colored_rev_time_string] returns the timestamp and the 
+	revision id of the most recent revision that has been colored. 
         Raises DB_Not_Found if no revisions have been colored. *)    
-    method fetch_last_colored_rev_time : timestamp_t = 
-    let s = "SELECT revision_createdon FROM wikitrust_colored_markup ORDER BY revision_createdon DESC LIMIT 1" in
+    method fetch_last_colored_rev_time : (timestamp_t * int) = 
+    let s = "SELECT revision_createdon, revision_id FROM wikitrust_colored_markup ORDER BY revision_createdon DESC, revision_id DESC LIMIT 1" in
       match fetch (self#db_exec wikitrust_dbh s) with
         None -> raise DB_Not_Found
-        | Some row -> begin (* debug *)
-	    let r = (not_null timestamp2ml row.(0)) in 
-	    let (r0, r1, r2, r3, r4, r5) = r in 
-	    Printf.printf "Last colored timestamp: %d %d %d %d %d %d \n" r0 r1 r2 r3 r4 r5;
-	    r
-	  end
+        | Some row -> (not_null timestamp2ml row.(0), not_null int2ml row.(1)) 
 	    
   
-    (** [sth_select_all_revs_after (int * int * int * int * int * int)] returns all 
-        revs created after the given timestamp. *)
-    method fetch_all_revs_after (timestamp : timestamp_t) (max_revs_to_return: int) : revision_t list =  
-      (* Note: the >= is very important in the following query, to correctly handle the case
-	 of revisions with the same timestamp. *)
-      let s = Printf. sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision WHERE rev_timestamp >= %s ORDER BY rev_timestamp ASC LIMIT %s" (ml2timestamp timestamp) (ml2int max_revs_to_return) in
+    (** [sth_select_all_revs_after (int * int * int * int * int * int) rev_id limit] returns all 
+        revs created after the given timestamp, or at the same timestamp, with revision id at least [rev_id], 
+	up to the maximim number [limit]. *)
+    method fetch_all_revs_after (timestamp : timestamp_t) (rev_id: int) (max_revs_to_return: int) : revision_t list =  
+      let s = Printf. sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision WHERE (rev_timestamp, rev_id) > (%s, %s) ORDER BY rev_timestamp ASC, rev_id ASC LIMIT %s" 
+	(ml2timestamp timestamp) (ml2int rev_id) (ml2int max_revs_to_return) in
       	Mysql.map (self#db_exec mediawiki_dbh s) rev_row2revision_t
 
-    (** [sth_select_all_revs_including_after [rev_id] (int * int * int * int * int * int)] returns all 
-        revs created after the given timestamp, or that have revision id [rev_id]. *)
-    method fetch_all_revs_including_after (rev_id: int) (timestamp : timestamp_t) (max_revs_to_return: int): revision_t list =  
+    (** [sth_select_all_revs_including_after rev_id_incl (int * int * int * int * int * int) rev_id limit] returns all 
+        revs created after the given ([timestamp],[rev_id]), or that have revision id [rev_id_incl],
+	up to the maximum number [limit]. *)
+    method fetch_all_revs_including_after (rev_id_incl: int) (timestamp : timestamp_t) (rev_id: int) (max_revs_to_return: int): revision_t list =  
       (* Note: the >= is very important in the following query, to correctly handle the case
 	 of revisions with the same timestamp. *)
-      let s = Printf. sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text,rev_minor_edit, rev_comment FROM revision WHERE rev_timestamp >= %s OR rev_id = %s ORDER BY rev_timestamp ASC LIMIT %s" (ml2timestamp timestamp) (ml2int rev_id) (ml2int max_revs_to_return) in  
+      let s = Printf. sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text,rev_minor_edit, rev_comment FROM revision WHERE (rev_timestamp, rev_id) >= (%s, %s) OR rev_id = %s ORDER BY rev_timestamp ASC, rev_id ASC LIMIT %s" 
+	(ml2timestamp timestamp) (ml2int rev_id) (ml2int rev_id_incl) (ml2int max_revs_to_return) in
       	Mysql.map (self#db_exec mediawiki_dbh s) rev_row2revision_t
 
     (** [fetch_all_revs] returns a cursor that points to all revisions in the database, 
 	in ascending order of timestamp. *)
     method fetch_all_revs (max_revs_to_return: int) : revision_t list = 
-      let s= Printf.sprintf  "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision ORDER BY rev_timestamp ASC LIMIT %s" (ml2int max_revs_to_return) in
+      let s= Printf.sprintf  "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision ORDER BY rev_timestamp ASC, rev_id ASC LIMIT %s" (ml2int max_revs_to_return) in
 	Mysql.map (self#db_exec mediawiki_dbh s) rev_row2revision_t
 	    
     (* ================================================================ *)
@@ -310,10 +306,10 @@ class db
 	  of_string__of__of_sexp (list_of_sexp chunk_t_of_sexp) (not_null str2ml x.(0)), 
 	  of_string__of__of_sexp page_info_t_of_sexp (not_null str2ml x.(1)))
 
-    (** [fetch_revs page_id timestamp] returns a cursor that points to all 
-	revisions of page [page_id] with time prior or equal to [timestamp]. *)
-    method fetch_revs (page_id : int) (timestamp: timestamp_t) (fetch_limit: int): Mysql.result =
-      let s = Printf.sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision WHERE rev_page = %s AND rev_timestamp <= %s ORDER BY rev_timestamp DESC LIMIT %s" (ml2int page_id) (ml2timestamp timestamp) (ml2int fetch_limit) in 
+    (** [fetch_revs page_id timestamp rev_id fetch_limit] returns a cursor that points to at most [fetch_limit]
+	revisions of page [page_id] with time prior or equal to [timestamp], and revision id at most [rev_id]. *)
+    method fetch_revs (page_id : int) (timestamp: timestamp_t) (rev_id: int) (fetch_limit: int): Mysql.result =
+      let s = Printf.sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision WHERE rev_page = %s AND (rev_timestamp, rev_id) <= (%s, %s) ORDER BY rev_timestamp DESC, rev_id DESC LIMIT %s" (ml2int page_id) (ml2timestamp timestamp) (ml2int rev_id) (ml2int fetch_limit) in 
       self#db_exec mediawiki_dbh s
 
 

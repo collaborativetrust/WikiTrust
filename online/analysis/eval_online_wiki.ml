@@ -225,18 +225,22 @@ let analyze_a_bunch (n_revs_to_color: int) : bool =
     db#start_transaction Online_db.Both;
     try
       let r =
-	try begin 
-	  let timestamp = db#fetch_last_colored_rev_time in 
-	  match !requested_rev_id with 
-	    (* The apparently absurd '+5' in the following lines is to cover for the 
-	       case where many revisions have the same timestamp; some of the revisions
-	       that are returned, in fact, may be already colored. *)
-	    None -> db#fetch_all_revs_after timestamp (n_revs_to_color + 5)
-	  | Some r_id -> db#fetch_all_revs_including_after r_id timestamp (n_revs_to_color + 5)
-	      (* The correctness of the following line hinges on the fact that the above fetch_all
-		 queries cannot raise DB_Not_Found. *)
-	end with Online_db.DB_Not_Found -> db#fetch_all_revs (n_revs_to_color + 5)
-      in
+	begin 
+	  let last_colored = 
+	    try Some db#fetch_last_colored_rev_time
+	    with Online_db.DB_Not_Found -> None 
+	  in
+	  begin 
+	    match last_colored with 
+	      Some (last_timestamp, last_id) -> begin 
+		match !requested_rev_id with 
+		  None -> db#fetch_all_revs_after last_timestamp last_id n_revs_to_color
+		| Some r_id -> db#fetch_all_revs_including_after r_id last_timestamp last_id n_revs_to_color
+	      end
+	    | None -> db#fetch_all_revs n_revs_to_color
+	  end
+	end
+      in 
       revs := r;
       db#commit Online_db.Both;
       times_tried := !times_to_retry_trans;
@@ -248,7 +252,7 @@ let analyze_a_bunch (n_revs_to_color: int) : bool =
   done;
 
   (* Checks whether it got enough revs *)
-  let there_are_more_revs = (List.length !revs) >= (n_revs_to_color + 5) in 
+  let there_are_more_revs = (List.length !revs) >= n_revs_to_color in 
 
   (* Here begins the analysis algo, now that we know which revisions we must analyze *)
   (* This hashtable is used to implement the load-sharing algorithm. *)
