@@ -110,7 +110,7 @@ let command_line_format =
    ("-log_file", Arg.String set_log_name, "<filename>: Logger output file (default: /dev/null)");
    ("-rep_speed", Arg.Float set_reputation_speed, "<float>: Speed at which users gain reputation; 1.0 for large wikis");
    ("-throttle_delay", Arg.Float set_color_delay, "<float>: Amount of time (on average) to wait between analysis of revisions.  This can be used to throttle the computation, not to use too many resources.");
-   ("-max_rev_to_do", Arg.Int set_max_rev_to_color, "<int>: Max number of revisions to process (default: 100) "); 
+   ("-n_revs", Arg.Int set_max_rev_to_color, "<int>: Max number of revisions to process (default: 100) "); 
    ("-times_to_retry_trans", Arg.Int set_times_to_retry_trans, "<int>: Max number of times to retry a transation if it fails (default: 3)."); 
    ("-dump_db_calls", Arg.Set dump_db_calls, ": Writes to the db log all database calls.  This is very verbose; use only for debugging.");
    ("-delete_all", Arg.Set delete_all, ": Recomputes all reputations and trust from scratch.  BE CAREFUL!! This may take a LONG time for large wikis.");
