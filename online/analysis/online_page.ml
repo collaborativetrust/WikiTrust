@@ -622,9 +622,6 @@ class page
       let rev0_seps = rev0#get_seps in 
       let rev0_timestamp = rev0#get_timestamp in
 
-      (* debug *)
-      Printf.printf "Revision %d has timestring %S\n" rev0_id rev0#get_time_string; 
-
       (* Gets the author reputation from the db. 
          As we are not holding the reputation lock at this point, we do not use
          the internal method to get the reputation. *)

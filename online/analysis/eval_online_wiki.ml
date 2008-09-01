@@ -355,6 +355,7 @@ let do_more = ref true in
 let still_to_do = ref (!max_rev_to_color) in 
 while !do_more do begin 
   (* We do a bunch *)
+  Printf.printf "Start bunch analysis.\n";
   let bunch_size = min !still_to_do n_revs_color_in_one_connection in 
   let there_are_more = analyze_a_bunch bunch_size in 
   still_to_do := !still_to_do - bunch_size; 
