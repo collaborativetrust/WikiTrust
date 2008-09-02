@@ -34,7 +34,7 @@ PACKAGES = unix,str,vec,mapmin,hashtbl_bounded,fileinfo,intvmap,extlib,mysql,sex
 SYNTAX = camlp4o
 OUR_LIBS = evalwiki.cma
 OUR_LIBS_OPT = evalwiki.cmxa
-INCLUDES = -I ../../batch/analysis
+INCLUDES = -I ../batch/analysis
 
 OCAMLC=ocamlfind ocamlc -package $(PACKAGES) -syntax $(SYNTAX)
 OCAMLOPT=ocamlfind ocamlopt -package $(PACKAGES) -syntax $(SYNTAX)
@@ -85,16 +85,16 @@ online_evalopt: $(OUR_OPT_ONLINE_OBJS)
 
 
 all:
-	cd ../../batch/analysis; make all
+	cd ../batch/analysis; make all
 	make online_eval
 allopt:
-	cd ../../batch/analysis; make allopt
+	cd ../batch/analysis; make allopt
 	make online_evalopt
 
 universe: all allopt
 
 clean:
-	cd ../../batch/analysis; make clean
+	cd ../batch/analysis; make clean
 	rm -f *.o *.cmo *.cmx *.cmi .depends run_harness eval_online_wiki
 #
 # Boilerplate code for building ocaml dependencies, and

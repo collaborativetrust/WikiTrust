@@ -57,7 +57,6 @@ INSTALLATION:
 
 1) First, compile the code: 
 
-  $ cd online/analysis
   $ make clean ; make all ; make allopt
 
 This creates an eval_online_wiki executable, which is what computes
@@ -69,13 +68,19 @@ a trust-colored version of a page.
 coloring extension will use.  Assuming that the mediawiki database is
 called  "wikidb" (this is the default name: you give a name to the
 database when you create the wiki instance during the MediaWiki
-installation process), proceed as follows: 
+installation process), proceed as follows. 
 
-  $ cd ../sql
-  $ mysql -u root -p wikidb
-  mysql> \. remove_wikitrust_tables.sql
-  mysql> \. create_wikitrust_tables.sql
-  mysql> \q
+  2a) edit remove_wikitrust_tables.sql and
+      create_wikitrust_tables.sql, inserting the correct database user
+      name where needed.
+
+  2b) Assuming that the mediawiki database is called wikidb, do: 
+
+      $ cd sql
+      $ mysql -u root -p wikidb
+      mysql> \. remove_wikitrust_tables.sql
+      mysql> \. create_wikitrust_tables.sql
+      mysql> \q
 
 
 3) Next, you need to install the trust coloring extension in
@@ -93,7 +98,7 @@ process is similar for other distributions; only the destination
 directory path may be different): 
 
   $ cd /var/lib/mediawiki/extensions 
-  $ sudo ln -s /home/username/wikitrust/online/mediawiki/extensions/Trust .
+  $ sudo ln -s /home/username/wikitrust/mediawiki/extensions/Trust .
 
 3b) Alternatively, use 'cp' statements rather than symbolic links. 
 
@@ -103,7 +108,7 @@ following lines:
 
   # Trust extension	
   $wgUseTidy = true;
-  $wgTrustCmd = "/home/username/wikitrust/online/analysis/eval_online_wiki"; 
+  $wgTrustCmd = "/home/username/wikitrust/analysis/eval_online_wiki"; 
   $wgTrustLog = "/somedir/{$wgDBname}-trust.log";
   $wgTrustDebugLog = "/somedir/{$wgDBname}-trust-debug.log";
   $wgRepSpeed = 1.0;
