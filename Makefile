@@ -33,7 +33,7 @@ all:
 	cd analysis; make all
 
 allopt: 
-	cd analysis; make allopt
+	cd analysis; make allopt; cp eval_online_wiki .. 
 
 clean:
 	cd analysis; make clean
