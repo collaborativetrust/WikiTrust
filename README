@@ -27,14 +27,14 @@ PREREQUISITES:
    In other distributions, follow the instructions at
    www.mediawiki.org. 
 
-2) We need now to install some packages for Ocaml.  The best way is to
-   use godi (http://godi.camlcity.org), as this enables you to build
-   everything in userspace. 
+2) You need to install some packages for Ocaml.  There are two ways. 
 
-   Get godi from http://godi.camlcity.org/godi/index.html and download
-   godi. Follow the instructions to install it. For Windows, look at
-   the instructions in the godi README file.
-   Install the following Ocaml packages from godi:
+   2a) The best way is to use godi (http://godi.camlcity.org), as this
+       enables you to build everything in userspace.
+
+       Get godi from http://godi.camlcity.org/godi/index.html and
+       download godi. Follow the instructions to install it.  Install
+       the following Ocaml packages from godi:
 
           godi-extlib
           godi-findlib
@@ -42,14 +42,31 @@ PREREQUISITES:
 	  godi-sexplib
 	  godi-type-conv
 
-   If you do not wish to use godi, you can get the above packages
-   either from their source, or from the linux distribution you are
-   using. 
+   2b) If you do not wish to use godi, you can get the above packages
+       either from their source, or from the linux distribution you
+       are using.  For Ubuntu, you can use the following packages:
+
+         ocaml (version 3.10.0 or greater)
+         ocaml-base
+         ocaml-native-compilers
+         ocaml-findlib
+         libmysql-ocaml
+         libmysql-ocaml-dev
+         libextlib-ocaml-dev
+         python-mysqldb
+
+       You also need:
+
+         type-conv
+	 sexplib
+
+       Which are available from
+       http://www.janestcapital.com/ocaml/index.html .
 
 3) Make OcamlLdaLibs and install them. 
    If you can install without sudo rights: 
       $ make all
-   If you did not use godi: 
+   If you did not use godi, so that you need sudo rights to install: 
       $ make all-sudo
 
 
@@ -64,7 +81,7 @@ text trust and origin, and author reputation, in a wiki.  The
 executable is called whenever someone edit the wiki, or wishes to see
 a trust-colored version of a page. 
 
-2) Second, we need to create the database tables that the trust
+2) Second, you need to create the database tables that the trust
 coloring extension will use.  Assuming that the mediawiki database is
 called  "wikidb" (this is the default name: you give a name to the
 database when you create the wiki instance during the MediaWiki
@@ -86,21 +103,21 @@ installation process), proceed as follows.
 3) Next, you need to install the trust coloring extension in
 mediawiki.  There are two ways to do this:
 
-3a) Leaving the files in place, and using symbolic links.  This is the
-preferred course of action: in this way, when we release bug fixes via
-git, you can simply update your version of WikiTrust, recompile the
-code if needed (most likely), and be done with it.  In alternative 3b)
-below, you would need to then copy the new files to appropriate
-places. 
+  3a) Leaving the files in place, and using symbolic links.  This is
+      the preferred course of action: in this way, when we release bug
+      fixes via git, you can simply update your version of WikiTrust,
+      recompile the code if needed (most likely), and be done with it.
+      In alternative 3b) below, you would need to then copy the new
+      files to appropriate places.
 
-To build symbolic links in Ubuntu you can proceed as follows (the
-process is similar for other distributions; only the destination
-directory path may be different): 
+      To build symbolic links in Ubuntu you can proceed as follows
+      (the process is similar for other distributions; only the
+      destination directory path may be different):
 
-  $ cd /var/lib/mediawiki/extensions 
-  $ sudo ln -s /home/username/wikitrust/mediawiki/extensions/Trust .
+        $ cd /var/lib/mediawiki/extensions 
+        $ sudo ln -s /home/username/wikitrust/mediawiki/extensions/Trust .
 
-3b) Alternatively, use 'cp' statements rather than symbolic links. 
+  3b) Alternatively, use 'cp' statements rather than symbolic links. 
 
 4) Finally, you should activate the extension by editing
 LocalSettings.php (part of the MediaWiki installation), adding the
