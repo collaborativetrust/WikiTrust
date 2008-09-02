@@ -196,3 +196,8 @@ Typical values for these parameters are:
 username: wikiuser
 db_name: wikidb
 
+
+BATCH MODE:
+
+The tool has also a batch mode, useful for computing statistical
+quantities of a wiki.  Please see batch/README for more information.
