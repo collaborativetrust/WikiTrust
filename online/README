@@ -108,7 +108,16 @@ following lines:
   $wgTrustDebugLog = "/somedir/{$wgDBname}-trust-debug.log";
   $wgRepSpeed = 1.0;
   $wgTrustTabText = "check text";
-  $wgTrustExplanation = "text which appears at the bottom of each colored page";
+  $wgTrustExplanation = '{| border="1" cellpadding="5" cellspacing="0" style="background:lightgreen; color:b\
+lack"
+|-
+| The above text is colored according to how much it has been revised.  An orange background indicates new\
+, unrevised, text;  white is for text that has been revised by many reputed authors.  The colors are compu\
+ted by [http://trust.cse.ucsc.edu/WikiTrust WikiTrust].
+|-
+| If you click on a word, you will be redirected to the diff corresponding to the edit where the word was \
+introduced.
+|}';
 
   require_once( $IP . "/extensions/Trust/ExtensionClass.php");
   require_once( $IP . "/extensions/Trust/Trust.php" );
@@ -160,10 +169,15 @@ articles that have not been colored yet.
 You can also compute the trust coloring from the command line, via the
 command: 
 
-  $ ./eval_online_wiki -db_user <username> -db_pass <pwd> -db_name <db_name>
+  $ ./eval_online_wiki -n_revs 1000 -db_user <username> -db_pass <pwd> -db_name <db_name>
 
 eval_online_wiki computes trust for all revisions for which the trust
-information has not been computed yet. 
+information has not been computed yet.  The parameter -n_revs
+specifies the maximum number of revisions that are analyzed. 
+If you are interested in all the command-line options of
+eval_online_wiki, you can type: 
+
+  $ ./eval_online_wiki -help
 
 
 RECOMPUTING THE TRUST COLORING:
@@ -176,7 +190,7 @@ Obviously, this recomputation can be a time-consuming process on large
 wikis. 
 The command is: 
 
-  $ ./eval_online_wiki -delete_all -db_user <username> -db_pass <pwd>  -db_name <db_name>
+  $ ./eval_online_wiki -delete_all -n_revs 1000000 -db_user <username> -db_pass <pwd>  -db_name <db_name>
 
 Typical values for these parameters are: 
 username: wikiuser
