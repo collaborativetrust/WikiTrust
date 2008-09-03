@@ -21,7 +21,7 @@
 
 # This script created the wikitrust tables needed for an online analysis.
 # Usage: ./create_db.php "path to the target MediaWiki installation" 
-#                         database_root_user database_root_password 
+#                         database_root_user 
 #                         [remove]
 
 $mw_root = $argv[1];
@@ -37,7 +37,7 @@ $remove_scripts = array(); // The actual SQL to remove tables. Defined below.
 
 if(!$mw_root || !is_dir($mw_root) || !isset($dba)
    || !is_file($mw_root."/LocalSettings.php")){
-  print "Usage: ./create_db.php 'path to the target MediaWiki installation' database_root_user database_root_password [remove]\n";
+  print "Usage: ./create_db.php 'path to the target MediaWiki installation' database_root_user [remove]\n";
   exit(-1);
  }
 
