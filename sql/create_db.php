@@ -29,7 +29,7 @@ $dba = $argv[2];
 $dba_pass = "";
 
 // If true, we remove tables. If false, we create them.
-$do_remove = ($argv[3] == "remove")? true: false; 
+$do_remove = ($argc > 2 && $argv[3] == "remove")? true: false; 
 
 $db_tables = array(); // Store all of the tables currently present.
 $create_scripts = array(); // The actual SQL to create tables. Defined below.
