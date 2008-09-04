@@ -908,7 +908,8 @@ class page
 	    end done;
 	    let r_c1_id = (!r_c1)#get_id in 
 	    let r_c2_id = (!r_c2)#get_id in 
-	    let r_c2_rep = self#get_rep r_c2_id in 
+	    let r_c2_uid = (!r_c2)#get_user_id in 
+	    let r_c2_rep = self#get_rep r_c2_uid in 
 
 	    (* Computes the quality due to r_c2, rev1, rev2 *)
 	    let d_c2_1 = Hashtbl.find edit_dist (r_c2_id, rev1_id) in 
