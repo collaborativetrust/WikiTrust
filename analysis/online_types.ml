@@ -137,7 +137,7 @@ let default_trust_coeff = {
   max_rep = 22026.465795 -. 2.0;
   equate_anons = false;
   nix_interval = 24. *. 3600.;
-  nix_threshold = -0.4;
+  nix_threshold = 0.1;
   hi_median_perc = 0.9;
 };;
  
