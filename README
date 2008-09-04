@@ -45,19 +45,17 @@ eval_online_wiki from source.
    extension will use.  Assuming that the mediawiki database is called
    "wikidb" (this is the default name: you give a name to the database
    when you create the wiki instance during the MediaWiki installation
-   process), proceed as follows.
+   process), proceed as follows: 
 
-  3a) edit remove_wikitrust_tables.sql and
-      create_wikitrust_tables.sql, inserting the correct database user
-      name where needed.
+   $ cd sql
+   $ ./create_db.php "path_to_mediawiki" "mysql_root_user_name"
 
-  3b) Assuming that the mediawiki database is called wikidb, do: 
+   where path_to_mediawiki is the path to the mediawiki installation
+   (such as /usr/share/mediawiki). 
+   If you need to remove the tables, before recreating them, the
+   command is: 
 
-      $ cd sql
-      $ mysql -u root -p wikidb
-      mysql> \. remove_wikitrust_tables.sql
-      mysql> \. create_wikitrust_tables.sql
-      mysql> \q
+   $ ./create_db.php "path_to_mediawiki" "mysql_root_user_name" remove
 
 
 4) Next, you need to install the trust coloring extension in
