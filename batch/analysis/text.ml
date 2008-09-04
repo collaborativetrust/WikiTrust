@@ -448,9 +448,9 @@ let separate_string_tags (pv: piece_t Vec.t) : piece_t Vec.t =
   Vec.fold f pv Vec.empty
 
 
-let title_start_e = "\\(\n==+\\)"
+let title_start_e = "\\(\n=+\\)"
 let title_start_r = Str.regexp title_start_e 
-let title_end_e = "\\(==+[ \t]*$\\)"
+let title_end_e = "\\(=+[ \t]*$\\)"
 let title_end_r     = Str.regexp title_end_e
 let par_break_tag_e = "\\(\n[ \t]*$\\)\\|\\(\n----+[ \t]*$\\)"
 let par_break_tag_r = Str.regexp par_break_tag_e 

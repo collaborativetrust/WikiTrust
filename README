@@ -27,71 +27,31 @@ PREREQUISITES:
    In other distributions, follow the instructions at
    www.mediawiki.org. 
 
-2) You need to install some packages for Ocaml.  There are two ways. 
 
-   2a) The best way is to use godi (http://godi.camlcity.org), as this
-       enables you to build everything in userspace.
+================================================================
 
-       Get godi from http://godi.camlcity.org/godi/index.html and
-       download godi. Follow the instructions to install it.  Install
-       the following Ocaml packages from godi:
+THE FAST WAY: 
 
-          godi-extlib
-          godi-findlib
-          godi-ocaml-mysql
-	  godi-sexplib
-	  godi-type-conv
+We provide a statically-linked executable, which is built under
+Ubuntu, but should work under many versions of linux. 
+If you are happy using it, then you can use these abbreaviated
+instructions.  Otherwise, see at the bottom of this file for an
+alternative to step 2) below, which involves compiling
+eval_online_wiki from source. 
 
-   2b) If you do not wish to use godi, you can get the above packages
-       either from their source, or from the linux distribution you
-       are using.  For Ubuntu, you can use the following packages:
+2) Take a deep breath. 
 
-         ocaml (version 3.10.0 or greater)
-         ocaml-base
-         ocaml-native-compilers
-         ocaml-findlib
-         libmysql-ocaml
-         libmysql-ocaml-dev
-         libextlib-ocaml-dev
-         python-mysqldb
+3) You need to create the database tables that the trust coloring
+   extension will use.  Assuming that the mediawiki database is called
+   "wikidb" (this is the default name: you give a name to the database
+   when you create the wiki instance during the MediaWiki installation
+   process), proceed as follows.
 
-       You also need:
-
-         type-conv
-	 sexplib
-
-       Which are available from
-       http://www.janestcapital.com/ocaml/index.html .
-
-3) Make OcamlLdaLibs and install them. 
-   If you can install without sudo rights: 
-      $ make all
-   If you did not use godi, so that you need sudo rights to install: 
-      $ make all-sudo
-
-
-INSTALLATION:
-
-1) First, compile the code: 
-
-  $ make clean ; make all ; make allopt
-
-This creates an eval_online_wiki executable, which is what computes
-text trust and origin, and author reputation, in a wiki.  The
-executable is called whenever someone edit the wiki, or wishes to see
-a trust-colored version of a page. 
-
-2) Second, you need to create the database tables that the trust
-coloring extension will use.  Assuming that the mediawiki database is
-called  "wikidb" (this is the default name: you give a name to the
-database when you create the wiki instance during the MediaWiki
-installation process), proceed as follows. 
-
-  2a) edit remove_wikitrust_tables.sql and
+  3a) edit remove_wikitrust_tables.sql and
       create_wikitrust_tables.sql, inserting the correct database user
       name where needed.
 
-  2b) Assuming that the mediawiki database is called wikidb, do: 
+  3b) Assuming that the mediawiki database is called wikidb, do: 
 
       $ cd sql
       $ mysql -u root -p wikidb
@@ -100,10 +60,10 @@ installation process), proceed as follows.
       mysql> \q
 
 
-3) Next, you need to install the trust coloring extension in
-mediawiki.  There are two ways to do this:
+4) Next, you need to install the trust coloring extension in
+   mediawiki.  There are two ways to do this:
 
-  3a) Leaving the files in place, and using symbolic links.  This is
+  4a) Leaving the files in place, and using symbolic links.  This is
       the preferred course of action: in this way, when we release bug
       fixes via git, you can simply update your version of WikiTrust,
       recompile the code if needed (most likely), and be done with it.
@@ -117,107 +77,166 @@ mediawiki.  There are two ways to do this:
         $ cd /var/lib/mediawiki/extensions 
         $ sudo ln -s /home/username/wikitrust/mediawiki/extensions/Trust .
 
-  3b) Alternatively, use 'cp' statements rather than symbolic links. 
+  4b) Alternatively, use 'cp' statements rather than symbolic links: 
 
-4) Finally, you should activate the extension by editing
-LocalSettings.php (part of the MediaWiki installation), adding the
-following lines: 
+        $ cd /var/lib/mediawiki/extensions 
+        $ sudo cp -r /home/username/wikitrust/mediawiki/extensions/Trust .
 
-  # Trust extension	
-  $wgUseTidy = true;
-  $wgTrustCmd = "/home/username/wikitrust/analysis/eval_online_wiki"; 
-  $wgTrustLog = "/somedir/{$wgDBname}-trust.log";
-  $wgTrustDebugLog = "/somedir/{$wgDBname}-trust-debug.log";
-  $wgRepSpeed = 1.0;
-  $wgTrustTabText = "check text";
-  $wgTrustExplanation = '{| border="1" cellpadding="5" cellspacing="0" style="background:lightgreen; color:b\
-lack"
+5) You should activate the extension by editing
+   LocalSettings.php (part of the MediaWiki installation), adding the
+   following lines: 
+
+----start of configuration lines----
+# Trust extension	
+$wgUseTidy = true;
+$wgTrustCmd = "/home/username/wikitrust/analysis/eval_online_wiki"; 
+$wgTrustLog = "/somedir/{$wgDBname}-trust.log";
+$wgTrustDebugLog = "/somedir/{$wgDBname}-trust-debug.log";
+$wgRepSpeed = 1.0;
+$wgTrustTabText = "check text";
+$wgTrustExplanation = '{| border="1" cellpadding="5" cellspacing="0" style="background:lightgreen; color:black"
 |-
-| The above text is colored according to how much it has been revised.  An orange background indicates new\
-, unrevised, text;  white is for text that has been revised by many reputed authors.  The colors are compu\
-ted by [http://trust.cse.ucsc.edu/WikiTrust WikiTrust].
+| The above text is colored according to how much it has been revised.  An orange background indicates new, unrevised, text;  white is for text that has been revised by many reputed authors.  If you click on a word, you will be redirected to the diff corresponding to the edit where the word was introduced.
 |-
-| If you click on a word, you will be redirected to the diff corresponding to the edit where the word was \
-introduced.
+| The text color and origin are computed by [http://trust.cse.ucsc.edu/WikiTrust WikiTrust]; if you notice problems, you can submit a bug report [http://code.google.com/p/wikitrust/issues here].
 |}';
 
-  require_once( $IP . "/extensions/Trust/ExtensionClass.php");
-  require_once( $IP . "/extensions/Trust/Trust.php" );
+require_once( $IP . "/extensions/Trust/ExtensionClass.php");
+require_once( $IP . "/extensions/Trust/Trust.php" );
+----end of configuration lines----
 
-And make the installation readable from the Web server, if you use
-method 3a): 
+   Above, we are requesting that two logs be created: 
 
-  $ chmod -R a+rX /home/username/wikitrust
+     $wgTrustLog = "/somedir/{$wgDBname}-trust.log";
 
-Above, we are requesting that two logs be created: 
+   This creates a log of the analysis of how useful each contribution to
+   the wiki is, as well as a log of all user reputation changes. 
+   We advise you to create such a log: it contains very useful
+   information, and it is likely that we will develop a variety of tools
+   to extract the information present.  You don't want to miss out.  Note
+   that you are responsible for rotating / compressing the log (e.g., via
+   logrotate, or /etc/logrotate.conf or /etc/logrotate.d/
+   
+   On the other hand, the log requested via 
+   
+     $wgTrustDebugLog = "/somedir/{$wgDBname}-trust-debug.log";
+   
+   is just useful to us to track down bugs and other problems, and can be
+   safely disabled.  You can disable these logs via: 
+   
+     $wgTrustLog = "/dev/null";
+     $wgTrustDebugLog = "/dev/null";
 
-  $wgTrustLog = "/somedir/{$wgDBname}-trust.log";
+6) You need to make the installation readable from the web server. 
 
-This creates a log of the analysis of how useful each contribution to
-the wiki is, as well as a log of all user reputation changes. 
-We advise you to create such a log: it contains very useful
-information, and it is likely that we will develop a variety of tools
-to extract the information present.  You don't want to miss out.  Note
-that you are responsible for rotating / compressing the log (e.g., via
-logrotate, or /etc/logrotate.conf or /etc/logrotate.d/
+  6a) If you used method 4a), you can do: 
 
-On the other hand, the log requested via 
+        $ chmod -R a+rX /home/username/wikitrust
 
-  $wgTrustDebugLog = "/somedir/{$wgDBname}-trust-debug.log";
+  6b) If you used method 4b), you can do:
 
-is just useful to us to track down bugs and other problems, and can be
-safely disabled.  You can disable these logs via: 
+      	$ cd /var/lib/mediawiki/extensions 
+        $ sudo chown -R www-data:www-data Trust
+	$ cp /home/user/wikitrust/eval_online_wiki /usr/local/bin/
+	$ sudo chmod a+rx /usr/local/bin/eval_online_wiki
 
-  $wgTrustLog = "/dev/null";
-  $wgTrustDebugLog = "/dev/null";
+7) If there are already revisions in the wiki, you should first
+   analyze their trust, via: 
 
+     $ ./eval_online_wiki -n_revs 1000000 -db_user <username> -db_pass <pwd> -db_name <db_name>
 
-DEPLOYMENT: 
+   The '1000000' means that eval_online_wiki will compute the trust of
+   at most 1000000 revisions, then stop.  You can repeat the above
+   command as many times as needed (or with a larger or smaller bound)
+   until all revisions are analyzed for trust; each invocation will
+   analyze at most 1000000 additional revisions.  Typical values for
+   these parameters are:
 
-You should now see a trust tab.  Click on it, or edit a revision, and
-the trust of all revision text, and the reputation of all authors,
-will be computed. 
+     username: wikiuser
+     db_name: wikidb
 
+   If you wish to redo the analysis from scratch, throwing away the
+   results of previous analyses, you can use the option '-delete_all': 
 
-COMPUTING THE TRUST COLORING:
+     $ ./eval_online_wiki -delete_all -n_revs 1000000 -db_user <username> -db_pass <pwd>  -db_name <db_name>
 
-The trust coloring is computed automatically whenever a user edits an
-article, or requests to view the trust informaton for a revision.  In
-particular, when a user edits an article, or when someone asks to view
-the trust information, WikiTrust computes the trust coloring not only
-for the newest revision, but for all past revisions of all wiki
-articles that have not been colored yet.
+   Warning: the analysis can take a long time on very large wikis, so
+   do not use the option '-delete_all' lightly! 
 
-You can also compute the trust coloring from the command line, via the
-command: 
+8) You should now see a trust tab.  Click on it, or edit a revision, and
+   the trust of all revision text, and the reputation of all authors,
+   will be computed.  
 
-  $ ./eval_online_wiki -n_revs 1000 -db_user <username> -db_pass <pwd> -db_name <db_name>
+   The trust coloring is updated automatically whenever a user edits
+   an article, or requests to view the trust informaton for a
+   revision.  In particular, when a user edits an article, or when
+   someone asks to view the trust information, WikiTrust computes the
+   trust coloring not only for the newest revision, but for all past
+   revisions of all wiki articles that have not been colored yet.
 
-eval_online_wiki computes trust for all revisions for which the trust
-information has not been computed yet.  The parameter -n_revs
-specifies the maximum number of revisions that are analyzed. 
-If you are interested in all the command-line options of
-eval_online_wiki, you can type: 
+9) If you wish to upload pages to the wiki from a dump file, go to the
+   test-scripts directory, and follow the instructions in the README
+   file there. 
 
-  $ ./eval_online_wiki -help
+================================================================
 
+COMPILING FROM SOURCE
 
-RECOMPUTING THE TRUST COLORING:
+If you like, you can also build the packages from source. 
+Follow these instructions in place of step 2) above. 
 
-It is possible at any time to recompute from scratch the trust
-coloring of a wiki.  This can be useful, for instance, when some bug
-in the coloring code has been corrected, or when some new feature has
-been added. 
-Obviously, this recomputation can be a time-consuming process on large
-wikis. 
-The command is: 
+2a) You need to install some packages for Ocaml.  There are two ways. 
 
-  $ ./eval_online_wiki -delete_all -n_revs 1000000 -db_user <username> -db_pass <pwd>  -db_name <db_name>
+   2a1) The best way is to use godi (http://godi.camlcity.org), as this
+        enables you to build everything in userspace.
 
-Typical values for these parameters are: 
-username: wikiuser
-db_name: wikidb
+        Get godi from http://godi.camlcity.org/godi/index.html and
+        download godi. Follow the instructions to install it.  Install
+        the following Ocaml packages from godi:
 
+          godi-extlib
+          godi-findlib
+          godi-ocaml-mysql
+	  godi-sexplib
+	  godi-type-conv
+
+   2a2) If you do not wish to use godi, you can get the above packages
+        either from their source, or from the linux distribution you
+        are using.  For Ubuntu, you can use the following packages:
+
+          ocaml (version 3.10.0 or greater)
+          ocaml-base
+          ocaml-native-compilers
+          ocaml-findlib
+          libmysql-ocaml
+          libmysql-ocaml-dev
+          libextlib-ocaml-dev
+          python-mysqldb
+
+        You also need:
+
+          type-conv
+	  sexplib
+
+        Which are available from
+        http://www.janestcapital.com/ocaml/index.html .
+
+2b) Make OcamlLdaLibs and install them. 
+    If you can install without sudo rights: 
+      $ make all
+    If you did not use godi, so that you need sudo rights to install: 
+      $ make all-sudo
+
+2c) Compile the code: 
+
+      $ make clean ; make all ; make allopt
+
+    This creates an eval_online_wiki executable, which is what
+    computes text trust and origin, and author reputation, in a wiki.
+    The executable is called whenever someone edit the wiki, or wishes
+    to see a trust-colored version of a page.
+
+================================================================
 
 BATCH MODE:
 

@@ -907,7 +907,7 @@ class page
 	      let min_qual = min qual_012 qual_p12 in 
 	      (* computes the nixing bit *)
 	      if (not !rev1_nix) && (rev2_time -. rev0_time < trust_coeff.nix_interval) 
-		&& ((qual_012 < trust_coeff.nix_threshold) || (rev0_idx >= n_recent_revs - 1)) then begin 
+		&& ((qual_012 <= trust_coeff.nix_threshold) || (rev0_idx >= n_recent_revs - 1)) then begin 
 		  rev1_nix := true;
 		  rev1#set_nix_bit;
 		  let s = Printf.sprintf "\nNixed revision id %d\n" rev1_id in 

@@ -131,6 +131,7 @@ let chunk_idx = ref 0 in
 let n_pages_read = ref 0 in 
 let f = ref None in (* File name where to write *) 
 let f_name = ref "" in
+let d_name = ref "" in 
 Printf.printf "\nchunk_n_pages: %d \n" !chunk_n_pages; 
 (* init_offset is the number of chunks to split; converts it to the n. of pages *)
 init_offset := !init_offset * !chunk_n_pages;
@@ -139,14 +140,17 @@ let do_more = ref true in
 while !do_more do 
   begin 
     if !n_pages_read >= !init_offset then begin 
-      Printf.printf "\nWriting chunk index %07d " !chunk_idx; 
+      (* Printf.printf "\nWriting chunk index %08d " !chunk_idx; *)
       (* Opens the file for the chunk, and writes the preamble in it *)
-      f_name := !filename_prefix ^ (Printf.sprintf "%07d.xml" !chunk_idx);
+      d_name := !filename_prefix ^ (Printf.sprintf "/%03d/" (!chunk_idx / 1000));
+      f_name := !d_name ^ "wiki-" ^ (Printf.sprintf "%08d.xml" !chunk_idx);
+      (* Creates the directory if needed *)
+      if (!chunk_idx mod 1000 = 0) then ignore (Sys.command ("mkdir " ^ !d_name));
       let fp = open_out !f_name in 
       f := Some fp; 
       output_string fp !preamble
     end else begin 
-      Printf.printf "\nSkipping chunk index %07d " !chunk_idx; 
+      Printf.printf "\nSkipping chunk index %08d " !chunk_idx; 
     end; 
     (* Now writes the specified number of pages in the file *)
     let pages_written = ref 0 in 
@@ -211,7 +215,7 @@ while !do_more do
 	(* closes the file *)
 	close_out fp; 
 	(* and compresses it *)
-	do_more := (0 = Sys.command (!compress_cmd ^ " " ^ !f_name)) && !do_more 
+	do_more := (0 = Sys.command (!compress_cmd ^ " " ^ !f_name ^ "&")) && !do_more 
       end
     | None -> ()
   end
