@@ -862,7 +862,7 @@ class page
 	    (* Produces the array of differences *)
 	    delta_hist.(slot) <- delta_of_2; 
 	    (* and renormalizes the weight *)
-	    let renorm_w' = rev2_weight *. (float_of_int max_rep_val) /. new_hi_median in 
+	    let renorm_w' = rev2_weight *. ((float_of_int max_rep_val) /. new_hi_median) ** 2. in 
 	    max rev2_weight (min renorm_w' (float_of_int max_rep_val))
 	  end else rev2_weight in 
 
