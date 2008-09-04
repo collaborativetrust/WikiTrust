@@ -1,16 +1,19 @@
-1. Remove_wikitrust_tables.sql removes the tables used by wikitrust:
+The script create_db.php now handles both table creation and removal.
 
-mysql -u wikiuser -p wikidb
-\. remove_wikitrust_tables.sql
+To create tables:
+./create_db.php "path to mediawiki" "mysql root user"
 
-2. Create_wikitrust_tables.sql creates the db tables used by wikitrust:
+To remove tables:
+./create_db.php "path to mediawiki" "mysql root user" remove
 
-mysql -u root -p wikidb
-\. create_wikitrust_tables.sql
+For example, if mediawiki is at /usr/share/mediawiki and the root user is root, 
+One would use
 
-To refresh the set of tables, you can also do:
+./create_db.php /usr/share/mediawiki root
 
-mysql -u root -p wikidb
-\. remove_wikitrust_tables.sql
-\. create_wikitrust_tables.sql
+to create the tables, and 
+
+/create_db.php /usr/share/mediawiki root remove
+
+to remove the files.
 
