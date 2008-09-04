@@ -112,6 +112,23 @@ function clearCtrlState(event) {
 function checkCtrlState(event) {
   //alert(ctrlState);
 }
+
+// The ILikeThis functionality
+function iLikeThisCallback(http_request){
+  if ((http_request.readyState == 4) && (http_request.status == 200)) {
+    document.getElementById("agree-button-done").style.visibility = "visible";
+    document.getElementById("agree-button").style.visibility = "hidden";
+    return true;
+  } else {
+    alert(http_request.responseText);
+    return false;
+  }
+}
+
+function startILikeThis(){
+  return sajax_do_call( "TextTrust::handleILikeThis", [wgUserName, wgPageName] , iLikeThisCallback ); 
+}
+
 /*]]>*/</script>';
 
   var $trustCSS = '
@@ -159,6 +176,20 @@ function checkCtrlState(event) {
 .trust10 {
   background-color: #FFFFFF;
 }
+
+#agree-button-done {
+  visibility: hidden;
+  position: absolute;
+  top: 10px;
+  left: 500px;
+}
+
+#agree-button {
+  position: absolute;
+  top: 10px;
+  left: 500px;
+}
+
 /*]]>*/</style>';
 
   public static function &singleton( )
@@ -186,8 +217,14 @@ colors text according to trust.'
   public function setup()
   {
     parent::setup();
-    global $wgHooks, $wgParser, $wgRequest;
+    global $wgHooks, $wgParser, $wgRequest, $wgUseAjax, $wgAjaxExportList;
    
+# Code which takes the "I agree with this action".
+# This has to be statically called.
+    if($wgUseAjax){
+      $wgAjaxExportList[] = "TextTrust::handleILikeThis";
+    }
+    
 # And add and extra tab.
     $wgHooks['SkinTemplateTabs'][] = array( &$this, 'ucscTrustTemplate');
 
@@ -220,6 +257,14 @@ colors text according to trust.'
     $this->update_median();
   }
   
+  static function handleILikeThis($userName, $pageName){
+    if($userName != "null"){
+      // Do something here to update the trust of this revision.
+    }
+    $response = new AjaxResponse("Testing");
+    return $response;
+  }
+
   /**
    Called just before rendering HTML.
    We add the coloring scripts here.
@@ -313,11 +358,20 @@ colors text according to trust.'
   TODO: Make this function work with caching turned on.
  */
  function ucscSeeIfColored(&$parser, &$text, &$strip_state) { 
-   global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgRepSpeed, $wgRequest, $wgTrustExplanation;
+   global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgRepSpeed, $wgRequest, $wgTrustExplanation, $wgUseAjax;
 
    // Turn off caching for this instanching for this instance.
    $parser->disableCache();
    
+   // Text for showing the "I like it" button
+   $iLikeItText = "";
+   if ($wgUseAjax){
+     $iLikeItText = "
+".self::TRUST_OPEN_TOKEN."div id='agree-button'".self::TRUST_CLOSE_TOKEN."".self::TRUST_OPEN_TOKEN."input type='button' name='agree' value='I agree with this text' onclick='startILikeThis()' /".self::TRUST_CLOSE_TOKEN."".self::TRUST_OPEN_TOKEN."/div".self::TRUST_CLOSE_TOKEN."
+".self::TRUST_OPEN_TOKEN."div id='agree-button-done'".self::TRUST_CLOSE_TOKEN."Thank you for contributing.".self::TRUST_OPEN_TOKEN."/div".self::TRUST_CLOSE_TOKEN."
+";
+   }
+
    // Return if trust is not selected.
    if (!$this->trust_engaged)
      return true;
@@ -365,7 +419,7 @@ colors text according to trust.'
      $row = $dbr->fetchRow($res);
      $colored_text = $row[0];
      if ($colored_text){
-       $text = $colored_text . "\n" . $wgTrustExplanation;
+       $text = $iLikeItText . $colored_text . "\n" . $wgTrustExplanation;
      } else { 
        // If colored text does not exist, we start a coloring that explicitly requests
        // the uncolored revision to be colored.  This is useful in case there are holes
@@ -389,12 +443,15 @@ colors text according to trust.'
  
  /* Turn the finished trust info into a span tag. Also handle closing tags. */
  function ucscOrigin_Finalize(&$parser, &$text) {
+   global $wgUseAjax;
    $count = 0;
    $text = preg_replace('/' . self::TRUST_OPEN_TOKEN . '/', "<", $text, -1, $count);
    $text = preg_replace('/' . self::TRUST_CLOSE_TOKEN .'/', ">", $text, -1, $count);
    $text = preg_replace('/<\/p>/', "</span></p>", $text, -1, $count);
    $text = preg_replace('/<p><\/span>/', "<p>", $text, -1, $count);
    $text = preg_replace('/<li><\/span>/', "<li>", $text, -1, $count);
+
+  
    return true;
  }
 
