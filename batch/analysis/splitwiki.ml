@@ -211,7 +211,7 @@ while !do_more do
 	(* closes the file *)
 	close_out fp; 
 	(* and compresses it *)
-	do_more := (0 = Sys.command (!compress_cmd ^ " " ^ !f_name)) && !do_more 
+	do_more := (0 = Sys.command (!compress_cmd ^ " " ^ !f_name ^ "&")) && !do_more 
       end
     | None -> ()
   end
