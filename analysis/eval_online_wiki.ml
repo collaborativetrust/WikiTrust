@@ -197,7 +197,8 @@ let wikitrust_db_opt =
 if !delete_all then begin 
   let db = new Online_db.db mediawiki_db wikitrust_db_opt !dump_db_calls in 
   db#delete_all true; 
-  db#close
+  db#close;
+  Printf.printf "Cleared the db.\n"
 end
 
 (* [analyze_a_bunch n_revs_to_color] gets from the database at most 
