@@ -299,7 +299,7 @@ class page
 
 
     (** Computes the weight of a reputation *)
-    method private weight (r: float) : float = log (1.1 +. r)
+    method private weight (r: float) : float = log (1.2 +. r)
 
     (** Computes the overall trust of a revision *)
     method private compute_overall_trust (trust_a: float array) : float = 
@@ -929,8 +929,11 @@ class page
 		(* Nix it *)
 		rev1_nix := true;
 		rev1#set_nix_bit;
-		let s = Printf.sprintf "\nNixed revision id %d\n" rev1_id in 
-		logger#log s
+		let s = 
+		  if (q <= trust_coeff.nix_threshold)
+		  then Printf.sprintf "\n\nRevision %d has been nixed due to quality" rev1_id
+		  else Printf.sprintf "\n\nRevision %d has been nixed due to too frequent edits" rev1_id
+		in logger#log s
 	      end
 	    end;
 
@@ -955,7 +958,7 @@ class page
 	    rev1#add_edit_quality_info delta q (new_rep -. rev1_rep) ; 
 
             (* For logging purposes, produces the Edit_inc line *)
-            logger#log (Printf.sprintf "\nEditInc %10.0f PageId: %d Inc: %.4f Capd_inc: %.4f q: %.4f Delta: %.2f" 
+            logger#log (Printf.sprintf "\n\nEditInc %10.0f PageId: %d Inc: %.4f Capd_inc: %.4f q: %.4f Delta: %.2f" 
 	      (* time and page id *)
 	      rev2_time page_id rep_inc (new_rep -. rev1_rep) q delta);
 	    (* revision and user ids *)
@@ -966,16 +969,14 @@ class page
 	    logger#log (Printf.sprintf "\n  Total    revisions: "); Vec.iter f revs;
 	    logger#log (Printf.sprintf "\n  rev_c1: %d uid_c1: %d uname_c1: %S" 
 	      r_c1_id (!r_c1)#get_user_id (!r_c1)#get_user_name); 
-	    logger#log (Printf.sprintf "\n  rev_c2: %d uid_c2: %d uname_c2: %S" 
-	      r_c2_id (!r_c2)#get_user_id (!r_c2)#get_user_name); 
-	    logger#log (Printf.sprintf "\n  rev1: %d uid1: %d uname1: %S" 
-	      rev1_id rev1_uid rev1_uname); 
-	    logger#log (Printf.sprintf "\n  rev2: %d uid2: %d uname2: %S" 
-	      rev2_id rev2_uid rev2_uname); 
+	    logger#log (Printf.sprintf "\n  rev_c2: %d uid_c2: %d uname_c2: %S rev_c2_rep: %.3f" 
+	      r_c2_id (!r_c2)#get_user_id (!r_c2)#get_user_name r_c2_rep); 
+	    logger#log (Printf.sprintf "\n  rev1: %d uid1: %d uname1: %S r1_rep: %.3f Nixed: %B" 
+	      rev1_id rev1_uid rev1_uname rev1_rep rev1#get_nix); 
+	    logger#log (Printf.sprintf "\n  rev2: %d uid2: %d uname2: %S r2_rep: %.3f" 
+	      rev2_id rev2_uid rev2_uname rev2_rep); 
 	    logger#log (Printf.sprintf "\n  d_c1_1: %.2f d_c2_1: %.2f d_c2_2: %.2f d12: %.2f"
 	      !min_dist_to_1 d_c2_1 !min_dist_to_2 d12); 
-	    logger#log (Printf.sprintf "\n  nix1: %B r_c2_rep: %.3f r1_rep: %.3f r2_rep: %.3f" 
-	      rev1#get_nix r_c2_rep rev1_rep rev2_rep); 
 
 	  end (* rev1 is by non_anonymous *)
 	end done (* for rev1_idx *)
