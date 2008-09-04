@@ -98,6 +98,10 @@ class page
       past_hi_rep_revs = page_info_default.past_hi_rep_revs; 
       past_hi_trust_revs = page_info_default.past_hi_trust_revs;
     }
+    (** Information about the histogram *)
+    val delta_hist = Array.make Eval_defs.max_rep_val 0.
+    val mutable new_hi_median = 0.
+      
 
     (** This method checks whether a revision needs coloring, and 
 	reads the past revisions from the online database, 
@@ -814,12 +818,17 @@ class page
       (* This is the total number of recent revisions *)
       let n_recent_revs = Vec.length recent_revs in 
 
-      (* The "triangle" of revisions is formed as follows: rev2 (newest, and judge); rev1 (judged),
-	 revp (reference, immediately preceding rev1), rev0 (reference, before rev1).
-	 All revisions except rev0 must be in the recent_revs array. *)
+      (* The "triangle" of revisions is formed as follows: 
+	 rev2 (newest, and judge); 
+	 rev1 (judged);
+	 r_c1 (the closest in distance to rev1 but prior to rev1);
+	 r_c2 (the closest in distance to rev2 but prior to rev1).
+       *)
 
-      (* We do anything only if there are at least 3 recent revisions in total. *)
-      if n_recent_revs > 2 then begin 
+      (* We don't consider all revisions in recent_revisinons as candidate for being judged. 
+	 We only consider them if they can have enough past *)
+      let oldest_judged_idx = min (n_recent_revs - 2) (trust_coeff.n_revs_to_consider / 2) in 
+      if oldest_judged_idx > 0 then begin 
 
         let rev2 = Vec.get 0 revs in 
         let rev2_id    = rev2#get_id in 
@@ -849,11 +858,9 @@ class page
 	    histogram.(slot) <- histogram.(slot) +. delta_of_2; 
 	    if debug then Printf.printf "Incrementing slot %d by %f\n" slot delta_of_2;
 	    let new_hi_median' = self#compute_hi_median histogram in 
-	    let new_hi_median = max hi_median new_hi_median' in 
+	    new_hi_median <- max hi_median new_hi_median';
 	    (* Produces the array of differences *)
-	    let delta_hist = Array.make Eval_defs.max_rep_val 0. in 
 	    delta_hist.(slot) <- delta_of_2; 
-	    db#write_histogram delta_hist new_hi_median;
 	    (* and renormalizes the weight *)
 	    let renorm_w' = rev2_weight *. (float_of_int max_rep_val) /. new_hi_median in 
 	    max rev2_weight (min renorm_w' (float_of_int max_rep_val))
@@ -863,9 +870,9 @@ class page
 	
 	  (* We compute the reputation scaling dynamically taking care of the size of the recent_revision list and 
 	     the union of the recent revision list, hig reputation list and high trust list *)
-	let dynamic_rep_scaling_factor = trust_coeff.dynamic_rep_scaling n_revs n_recent_revs in
+	let dynamic_rep_scaling_factor = trust_coeff.dynamic_rep_scaling n_recent_revs trust_coeff.n_revs_to_consider in
 
-	for rev1_idx = 1 to n_recent_revs - 2 do begin 
+	for rev1_idx = 1 to oldest_judged_idx do begin 
           let rev1 = Vec.get rev1_idx revs in 
           let rev1_uid   = rev1#get_user_id in 
 	  (* We work only on non-anonymous rev1; otherwise, there is nothing to be updated. 
@@ -875,94 +882,104 @@ class page
             let rev1_uname = rev1#get_user_name in 
             let rev1_time  = rev1#get_time in 
 	    let rev1_nix   = ref (rev1#get_nix) in 
-	    (* We read the data for revp *)
-	    let revp_idx = rev1_idx + 1 in 
-            let revp = Vec.get revp_idx revs in 
-            let revp_id    = revp#get_id in 
-	    (* delta is the edit work from revp to rev1 *)
-	    let delta = Hashtbl.find edit_dist (revp_id, rev1_id) in 
-	    (* We read a few distances, to cut down on hashtable access *)
-            let d12 = Hashtbl.find edit_dist (rev2_id, rev1_id) in 
-	    let dp1 = Hashtbl.find edit_dist (rev1_id, revp_id) in
-	    let dp2 = Hashtbl.find edit_dist (rev2_id, revp_id) in 
-	    (* We compute the reputation due to a past rev0. 
-	       Note that rev0 does not need to be recent. *)
-	    for rev0_idx = rev1_idx + 1 to n_revs - 1 do begin 
-	      (* We need to read here the reputation of the author of rev1, as it may have changed for 
-		 each rev0 considered *)
-	      let rev1_rep   = self#get_rep rev1_uid in 
-	      (* Reads info for revision 0 *)
-              let rev0 = Vec.get rev0_idx revs in 
-              let rev0_id    = rev0#get_id in 
-              let rev0_uid   = rev0#get_user_id in 
-              let rev0_uname = rev0#get_user_name in 
-              let rev0_time  = rev0#get_time in 
-	      let rev0_rep   = self#get_rep rev0_uid in 
-	      (* Reads the other distances from the hash table *)
-              let d02 = Hashtbl.find edit_dist (rev2_id, rev0_id) in 
-              let d01 = Hashtbl.find edit_dist (rev1_id, rev0_id) in 
-	      (* computes the two qualities *)
-	      let qual_012 = qual d01 d12 d02 in 
-	      let qual_p12 = qual dp1 d12 dp2 in 
-	      let min_qual = min qual_012 qual_p12 in 
-	      (* computes the nixing bit *)
-	      if (not !rev1_nix) && (rev2_time -. rev0_time < trust_coeff.nix_interval) 
-		&& ((qual_012 <= trust_coeff.nix_threshold) || (rev0_idx >= n_recent_revs - 1)) then begin 
-		  rev1_nix := true;
-		  rev1#set_nix_bit;
-		  let s = Printf.sprintf "\nNixed revision id %d\n" rev1_id in 
-		  logger#log s
-		end;
-	      (* Computes inc_local_global (see paper) *)
-		
-	      let inc_local_global = dynamic_rep_scaling_factor *. delta *. min_qual *. renorm_w in
-	      (* Applies it according to algorithm LOCAL-GLOBAL *)
-	      let new_rep = 
-		if (!rev1_nix || rev2_time -. rev0_time < trust_coeff.nix_interval) 
-		  && inc_local_global > 0. then begin 
-		    (* caps the reputation increment *)
-		    let cap_rep = min rev2_rep rev0_rep in
-		    let capped_rep = min cap_rep (rev1_rep +. inc_local_global) in 
-		    max rev1_rep capped_rep
-		  end else begin 
-		    (* uncapped reputation increment *)
-		    rev1_rep +. inc_local_global
-		  end
-	      in 
-	      self#set_rep rev1_uid new_rep;
+	    let rev1_rep   = self#get_rep rev1_uid in 
+	    let d12        = Hashtbl.find edit_dist (rev2_id, rev1_id) in 
 
-	      (* Adds quality information for the revision *)
-	      rev1#add_edit_quality_info delta min_qual (new_rep -. rev1_rep) ; 
+	    (* Searches for r_c1 and r_c2 *)
+	    let revp = Vec.get (rev1_idx + 1) revs in 
+	    let revp_id = revp#get_id in 
+	    let min_dist_to_1 = ref (Hashtbl.find edit_dist (revp_id, rev1_id)) in 
+	    let min_dist_to_2 = ref (Hashtbl.find edit_dist (revp_id, rev2_id)) in 
+	    let r_c1  = ref revp in 
+	    let r_c2  = ref revp in 
+	    for i = rev1_idx + 2 to n_revs - 1 do begin 
+	      let r = Vec.get i revs in 
+	      let r_id = r#get_id in 
+	      let dist_to_1 = Hashtbl.find edit_dist (r_id, rev1_id) in 
+	      let dist_to_2 = Hashtbl.find edit_dist (r_id, rev2_id) in 
+	      if dist_to_1 < !min_dist_to_1 then begin 
+		min_dist_to_1 := dist_to_1;
+		r_c1  := r
+	      end;
+	      if dist_to_2 < !min_dist_to_2 then begin 
+		min_dist_to_2 := dist_to_2;
+		r_c2  := r
+	      end
+	    end done;
+	    let r_c1_id = (!r_c1)#get_id in 
+	    let r_c2_id = (!r_c2)#get_id in 
+	    let r_c2_rep = self#get_rep r_c2_id in 
 
-              (* For logging purposes, produces the Edit_inc line *)
-              logger#log (Printf.sprintf "\nEditInc %10.0f PageId: %d Inc: %.4f Capd_inc: %.4f Delta: %.2f" 
-		(* time and page id *)
-		rev2_time page_id inc_local_global (new_rep -. rev1_rep) delta);
-		(* revision and user ids *)
-	      logger#log (Printf.sprintf "\n  rev0: %d uid0: %d uname0: %S rev1: %d uid1: %d uname1: %S rev2: %d uid2: %d uname2: %S"
-		rev0_id rev0_uid rev0_uname 
-		rev1_id rev1_uid rev1_uname 
-		rev2_id rev2_uid rev2_uname);
-	      logger#log (Printf.sprintf "\n  d01: %.2f d02: %.2f d12: %.2f dp2: %.2f qual_012: %.3f qual_p12: %.3f" 
-		(* word distances *)
-		d01 d02 d12 dp2 
-		(* quality *)
-		qual_012 qual_p12);
-	      logger#log (Printf.sprintf "\n  n01: %d n12: %d t(h)01: %.4f t(h)12: %.4f nix0: %B nix1: %B nix2: %B r0: %.3f r1: %.3f r2: %.3f\n"
-		(* distances between revisions in n. of revisions *)
-		(rev0_idx - rev1_idx) rev1_idx
-		(* distances between revisions in hours *)
-		((rev1_time -. rev0_time) /. 3600.) ((rev2_time -. rev1_time) /. 3600.)
-		(* Nix bits *)
-		rev0#get_nix rev1#get_nix rev2#get_nix
-		(* Reputations *)
-		rev0_rep rev1_rep rev2_rep); 
+	    (* Computes the quality due to r_c2, rev1, rev2 *)
+	    let d_c2_1 = Hashtbl.find edit_dist (r_c2_id, rev1_id) in 
+	    let q = qual d_c2_1 d12 !min_dist_to_2 in 
+	    let delta = !min_dist_to_1 in 
 
-	    end done (* for rev0_idx *)
+	    (* computes the nixing bit *)
+	    if (not !rev1_nix) && (rev2_time -. rev1_time < trust_coeff.nix_interval) then begin 
+	      let last_of_recent_revs = Vec.get (n_recent_revs - 1) revs in 
+	      let last_of_recent_revs_time = last_of_recent_revs#get_time in 
+	      (* You can be nixed in two ways. *)
+	      if 
+		(* First reason: if the quality is below the threshold *)
+		(q <= trust_coeff.nix_threshold) ||
+		  (* Second reason: too many revisions in too short a time *)
+		  (rev1_time -. last_of_recent_revs_time < trust_coeff.nix_interval)
+	      then begin 
+		(* Nix it *)
+		rev1_nix := true;
+		rev1#set_nix_bit;
+		let s = Printf.sprintf "\nNixed revision id %d\n" rev1_id in 
+		logger#log s
+	      end
+	    end;
+
+	    (* Computes the uncapped reputation increment *)
+	    let rep_inc = dynamic_rep_scaling_factor *. delta *. q *. renorm_w in
+	       
+	    (* Applies the reputation increment according to reputation cap *)
+	    let new_rep = 
+	      if (!rev1_nix || rev2_time -. rev1_time < trust_coeff.nix_interval) && rep_inc > 0. then begin 
+		(* Short term or nixed: caps the reputation increment *)
+		let cap_rep = min rev2_rep r_c2_rep in
+		let capped_rep = min cap_rep (rev1_rep +. rep_inc) in 
+		max rev1_rep capped_rep
+	      end else begin 
+		(* uncapped reputation increment *)
+		rev1_rep +. rep_inc
+	      end
+	    in 
+	    self#set_rep rev1_uid new_rep;
+
+	    (* Adds quality information for the revision *)
+	    rev1#add_edit_quality_info delta q (new_rep -. rev1_rep) ; 
+
+            (* For logging purposes, produces the Edit_inc line *)
+            logger#log (Printf.sprintf "\nEditInc %10.0f PageId: %d Inc: %.4f Capd_inc: %.4f q: %.4f Delta: %.2f" 
+	      (* time and page id *)
+	      rev2_time page_id rep_inc (new_rep -. rev1_rep) q delta);
+	    (* revision and user ids *)
+	    let f (r: rev_t) : unit = logger#log (Printf.sprintf "%d " r#get_id) in 
+	    logger#log (Printf.sprintf "\n  Recent   revisions: "); Vec.iter f recent_revs;
+	    logger#log (Printf.sprintf "\n  Hi-trust revisions: "); Vec.iter f hi_trust_revs;
+	    logger#log (Printf.sprintf "\n  Hi-rep   revisions: "); Vec.iter f hi_rep_revs;
+	    logger#log (Printf.sprintf "\n  Total    revisions: "); Vec.iter f revs;
+	    logger#log (Printf.sprintf "\n  rev_c1: %d uid_c1: %d uname_c1: %S" 
+	      r_c1_id (!r_c1)#get_user_id (!r_c1)#get_user_name); 
+	    logger#log (Printf.sprintf "\n  rev_c2: %d uid_c2: %d uname_c2: %S" 
+	      r_c2_id (!r_c2)#get_user_id (!r_c2)#get_user_name); 
+	    logger#log (Printf.sprintf "\n  rev1: %d uid1: %d uname1: %S" 
+	      rev1_id rev1_uid rev1_uname); 
+	    logger#log (Printf.sprintf "\n  rev2: %d uid2: %d uname2: %S" 
+	      rev2_id rev2_uid rev2_uname); 
+	    logger#log (Printf.sprintf "\n  d_c1_1: %.2f d_c2_1: %.2f d_c2_2: %.2f d12: %.2f"
+	      !min_dist_to_1 d_c2_1 !min_dist_to_2 d12); 
+	    logger#log (Printf.sprintf "\n  nix1: %B r_c2_rep: %.3f r1_rep: %.3f r2_rep: %.3f" 
+	      rev1#get_nix r_c2_rep rev1_rep rev2_rep); 
 
 	  end (* rev1 is by non_anonymous *)
 	end done (* for rev1_idx *)
-      end (* method compute_edit_inc *)
+      end (* if oldest_judged_idx > 0 , and method compute_edit_inc *)
 
 
     (** This method computes the trust of the revision 0, given that the edit distances from 
@@ -1040,6 +1057,26 @@ class page
 	
 	if debug then print_string "   All done!\n"; flush stdout;
       end; (* needs coloring *)
+
+      (* Writes the new histogram *)
+      let n_attempts = ref 0 in 
+      while !n_attempts < n_retries do 
+	begin 
+	  try 
+	    begin 
+	      db#start_transaction Online_db.WikiTrust;
+	      db#write_histogram delta_hist new_hi_median;
+	      db#commit Online_db.WikiTrust;
+	      n_attempts := n_retries
+	    end 
+	  with Online_db.DB_TXN_Bad -> 
+	    begin 
+	      (* Roll back *)
+	      db#rollback_transaction Online_db.WikiTrust;
+	      n_attempts := !n_attempts + 1
+	    end
+	end done;
+
       (* Flushes the logger.  *)
       logger#flush
 

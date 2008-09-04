@@ -114,8 +114,9 @@ let n_past_revs = 6;;
 
 (* We compute the reputation scaling dynamically taking care of the size of the recent_revision list and 
    the union of the recent revision list, hig reputation list and high trust list *)
-let default_dynamic_rep_scaling n_revs n_recent_revs = 
-  1. /. (73.24 *. ( ( (float_of_int ( (n_revs - 1) * (n_recent_revs - 1) )) /. ( 11. ** 2.) ) ));;
+let default_dynamic_rep_scaling n_recent_revs max_n_recent_revs = 
+  let n_revs_judged = min (n_recent_revs - 2) (max_n_recent_revs / 2) in 
+  3. /. (float_of_int n_revs_judged)
 
 let default_trust_coeff = {
   n_revs_to_consider = n_past_revs;
