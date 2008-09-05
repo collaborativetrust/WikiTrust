@@ -217,11 +217,11 @@ colors text according to trust.'
   public function setup()
   {
     parent::setup();
-    global $wgHooks, $wgParser, $wgRequest, $wgUseAjax, $wgAjaxExportList;
+    global $wgHooks, $wgParser, $wgRequest, $wgUseAjax, $wgShowILike, $wgAjaxExportList;
    
 # Code which takes the "I agree with this action".
 # This has to be statically called.
-    if($wgUseAjax){
+    if($wgUseAjax && $wgShowILike){
       $wgAjaxExportList[] = "TextTrust::handleILikeThis";
     }
     
@@ -358,14 +358,14 @@ colors text according to trust.'
   TODO: Make this function work with caching turned on.
  */
  function ucscSeeIfColored(&$parser, &$text, &$strip_state) { 
-   global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgRepSpeed, $wgRequest, $wgTrustExplanation, $wgUseAjax;
+   global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgRepSpeed, $wgRequest, $wgTrustExplanation, $wgUseAjax, $wgShowILike;
 
    // Turn off caching for this instanching for this instance.
    $parser->disableCache();
    
    // Text for showing the "I like it" button
    $iLikeItText = "";
-   if ($wgUseAjax){
+   if ($wgUseAjax && $wgShowILike){
      $iLikeItText = "
 ".self::TRUST_OPEN_TOKEN."div id='agree-button'".self::TRUST_CLOSE_TOKEN."".self::TRUST_OPEN_TOKEN."input type='button' name='agree' value='I agree with this text' onclick='startILikeThis()' /".self::TRUST_CLOSE_TOKEN."".self::TRUST_OPEN_TOKEN."/div".self::TRUST_CLOSE_TOKEN."
 ".self::TRUST_OPEN_TOKEN."div id='agree-button-done'".self::TRUST_CLOSE_TOKEN."Thank you for contributing.".self::TRUST_OPEN_TOKEN."/div".self::TRUST_CLOSE_TOKEN."
@@ -443,7 +443,6 @@ colors text according to trust.'
  
  /* Turn the finished trust info into a span tag. Also handle closing tags. */
  function ucscOrigin_Finalize(&$parser, &$text) {
-   global $wgUseAjax;
    $count = 0;
    $text = preg_replace('/' . self::TRUST_OPEN_TOKEN . '/', "<", $text, -1, $count);
    $text = preg_replace('/' . self::TRUST_CLOSE_TOKEN .'/', ">", $text, -1, $count);
