@@ -87,6 +87,7 @@ eval_online_wiki from source.
 ----start of configuration lines----
 # Trust extension	
 $wgUseTidy = true;
+$wgUseAjax = true;
 $wgTrustCmd = "/home/username/wikitrust/analysis/eval_online_wiki"; 
 $wgTrustLog = "/somedir/{$wgDBname}-trust.log";
 $wgTrustDebugLog = "/somedir/{$wgDBname}-trust-debug.log";
