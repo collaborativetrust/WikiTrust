@@ -107,6 +107,9 @@ type trust_coeff_t = {
   (** The high-median of the reputations is used for the white value. 
    We choose it so that 90% of work is done below that value. *)
   mutable hi_median_perc: float;
+  (** This is a similar median, but is used to renormalize the weights of 
+      authors during the initial phase of a wiki *)
+  mutable hi_median_perc_boost: float;
 };;
 
 (* Number of past revisions to consider *)
@@ -114,8 +117,9 @@ let n_past_revs = 6;;
 
 (* We compute the reputation scaling dynamically taking care of the size of the recent_revision list and 
    the union of the recent revision list, hig reputation list and high trust list *)
-let default_dynamic_rep_scaling n_revs n_recent_revs = 
-  1. /. (73.24 *. ( ( (float_of_int ( (n_revs - 1) * (n_recent_revs - 1) )) /. ( 11. ** 2.) ) ));;
+let default_dynamic_rep_scaling n_recent_revs max_n_recent_revs = 
+  let n_revs_judged = min (n_recent_revs - 2) (max_n_recent_revs / 2) in 
+  3. /. (float_of_int n_revs_judged)
 
 let default_trust_coeff = {
   n_revs_to_consider = n_past_revs;
@@ -139,6 +143,7 @@ let default_trust_coeff = {
   nix_interval = 24. *. 3600.;
   nix_threshold = 0.1;
   hi_median_perc = 0.9;
+  hi_median_perc_boost = 0.7;
 };;
  
 let get_default_coeff : trust_coeff_t = default_trust_coeff ;;

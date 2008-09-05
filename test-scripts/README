@@ -3,7 +3,11 @@ dump into a wiki.
 
 Requirements : mediawiki, mysql, with a mediawiki installation all set
 up, and mwdumper.jar.  You can get mwdumper.jar from the download
-page for WikiTrust. 
+page for WikiTrust.  You also need all Python packages listed in
+load_data.py's import statements; in particular, in Ubuntu/Debian, you
+need to install the 
+
+  python-mysqldb
 
 First, copy db_access_data.ini.sample into db_access_data.ini and
 update the values defined there with the information about the
