@@ -214,10 +214,10 @@ class page
       end done
 
 
-    (** High-Median of an array *)
-    method private compute_hi_median (a: float array) =
+    (** High-m%-Median of an array *)
+    method private compute_hi_median (a: float array) (m: float) =
       let total = Array.fold_left (+.) 0. a in 
-      let mass_below = ref (total *. trust_coeff.hi_median_perc) in 
+      let mass_below = ref (total *. m) in 
       let median = ref 0. in 
       let i = ref 0 in 
       while (!mass_below > 0.) && (!i < max_rep_val) do begin 
@@ -233,8 +233,8 @@ class page
 	end
       end done;
       if debug then 
-	Printf.printf "%.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f \n" 
-	  a.(0) a.(1) a.(2) a.(3) a.(4) a.(5) a.(6) a.(7) a.(8) a.(9) !median; 
+	Printf.printf "%.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %2.0f%%-median: %.2f \n" 
+	  a.(0) a.(1) a.(2) a.(3) a.(4) a.(5) a.(6) a.(7) a.(8) a.(9) (m *. 100.) !median; 
       !median
 
     (** This method returns the current value of the user reputation *)
@@ -847,22 +847,36 @@ class page
 	   serving pages, we certainly do not want to write-lock the histogram 
 	   information while updating it.  Any small inconsistency in the median 
 	   value is temporary, and is largely irrelevant. *)
+        (* In order to renormalize, we need to find out a lower bound for the work 
+	   done by rev2; this is equal to the distance between rev2 and its closest
+	   predecessor. *)
+	let revp = Vec.get 1 revs in 
+	let revp_id = revp#get_id in 
+	let min_dist_to_2 = ref (Hashtbl.find edit_dist (revp_id, rev2_id)) in 
+	for i = 2 to n_revs - 1 do begin 
+	  let r = Vec.get i revs in 
+	  let r_id = r#get_id in 
+	  let dist_to_2 = Hashtbl.find edit_dist (r_id, rev2_id) in 
+	  if dist_to_2 < !min_dist_to_2 then min_dist_to_2 := dist_to_2
+	end done;
+	(* The minimum distance from rev2 is now !min_dist_to_2 *)
+
 	let renorm_w = 
 	  if not rev2#get_is_anon then begin 
 	    (* Increments the histogram according to the work of the judge *)
 	    let (histogram, hi_median) = db#get_histogram in 
-	    let rev_bef2 = Vec.get 1 revs in 
-	    let rev_bef2_id = rev_bef2#get_id in 
-	    let delta_of_2 = Hashtbl.find edit_dist (rev_bef2_id, rev2_id) in 
 	    let slot = max 0 (min 9 (int_of_float rev2_weight)) in 
-	    histogram.(slot) <- histogram.(slot) +. delta_of_2; 
-	    if debug then Printf.printf "Incrementing slot %d by %f\n" slot delta_of_2;
-	    let new_hi_median' = self#compute_hi_median histogram in 
+	    histogram.(slot) <- histogram.(slot) +. !min_dist_to_2; 
+	    if debug then Printf.printf "Incrementing slot %d by %f\n" slot !min_dist_to_2;
+	    let new_hi_median' = self#compute_hi_median histogram trust_coeff.hi_median_perc in 
 	    new_hi_median <- max hi_median new_hi_median';
 	    (* Produces the array of differences *)
-	    delta_hist.(slot) <- delta_of_2; 
-	    (* and renormalizes the weight *)
-	    let renorm_w' = rev2_weight *. ((float_of_int max_rep_val) /. new_hi_median) ** 2. in 
+	    delta_hist.(slot) <- !min_dist_to_2;
+	    (* Ok, now the histogram has been updated. 
+	       We now use the histogram to compute a hi_median_boost, for boosting 
+	       the user weight. *)
+	    let hi_median_boost = self#compute_hi_median histogram trust_coeff.hi_median_perc_boost in
+	    let renorm_w' = rev2_weight *. ((float_of_int max_rep_val) /. hi_median_boost) ** 2. in 
 	    max rev2_weight (min renorm_w' (float_of_int max_rep_val))
 	  end else rev2_weight in 
 

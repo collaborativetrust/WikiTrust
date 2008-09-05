@@ -107,6 +107,9 @@ type trust_coeff_t = {
   (** The high-median of the reputations is used for the white value. 
    We choose it so that 90% of work is done below that value. *)
   mutable hi_median_perc: float;
+  (** This is a similar median, but is used to renormalize the weights of 
+      authors during the initial phase of a wiki *)
+  mutable hi_median_perc_boost: float;
 };;
 
 (* Number of past revisions to consider *)
@@ -140,6 +143,7 @@ let default_trust_coeff = {
   nix_interval = 24. *. 3600.;
   nix_threshold = 0.1;
   hi_median_perc = 0.9;
+  hi_median_perc_boost = 0.7;
 };;
  
 let get_default_coeff : trust_coeff_t = default_trust_coeff ;;
