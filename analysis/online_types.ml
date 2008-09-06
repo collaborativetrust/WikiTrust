@@ -119,7 +119,7 @@ let n_past_revs = 6;;
    the union of the recent revision list, hig reputation list and high trust list *)
 let default_dynamic_rep_scaling n_recent_revs max_n_recent_revs = 
   let n_revs_judged = min (n_recent_revs - 2) (max_n_recent_revs / 2) in 
-  2. /. (float_of_int n_revs_judged)
+  1. /. (float_of_int n_revs_judged)
 
 let default_trust_coeff = {
   n_revs_to_consider = n_past_revs;

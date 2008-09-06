@@ -66,6 +66,6 @@ class page :
   (** Number of retries in the use of transactions *)
   (* n_retries *) int -> 
   object
-    (** Call this method exactly once! *)
-    method eval : unit
+    (** Call this method exactly once!  It returns whether it did something or not. *)
+    method eval : bool
   end

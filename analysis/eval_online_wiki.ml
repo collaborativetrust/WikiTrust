@@ -43,7 +43,7 @@ open Mysql
     process will terminate. *)
 let lock_timeout = 20
 (** This is the max number of revisions to color in a single db connection. *)
-let n_revs_color_in_one_connection = 100
+let n_revs_color_in_one_connection = 200
 
 (** This is the top-level code of the wiki online xml evaluation. 
     This is used for testing only: *)
@@ -159,8 +159,12 @@ let rec evaluate_revision (db: Online_db.db) (page_id: int) (rev_id: int) : unit
 	try 
 	  Printf.printf "Evaluating revision %d of page %d\n" rev_id page_id;
 	  let page = new Online_page.page db logger page_id rev_id trust_coeff !times_to_retry_trans in
-	  page#eval;
-
+	  if page#eval then begin 
+	    n_colored_revs := !n_colored_revs + 1;
+	    Printf.printf "Done revision %d of page %d\n" rev_id page_id;
+	  end else begin 
+	    Printf.printf "Revision %d of page %d was already done\n" rev_id page_id;
+	  end;
 	  (* Waits, if so requested to throttle the computation. *)
 	  if each_revision_delay > 0 then Unix.sleep (each_revision_delay); 
 	  begin 
@@ -181,10 +185,8 @@ let rec evaluate_revision (db: Online_db.db) (page_id: int) (rev_id: int) : unit
 		evaluate_revision db page_id' rev_id';
 		evaluate_revision db page_id rev_id
 	      end (* rev_id' != rev_id *)
-	  end; (* with: Was missing trust of a previous revision *)
-      end; (* End of try ... with ... *)
-      n_colored_revs := !n_colored_revs + 1;
-      Printf.printf "Done revision %d of page %d\n" rev_id page_id
+	  end (* with: Was missing trust of a previous revision *)
+      end (* End of try ... with ... *)
     end;;
 
 
@@ -284,68 +286,69 @@ let analyze_a_bunch (n_revs_to_color: int) : bool =
      r is a row describing a revision read from the database; it will be made into
      a revision inside color_revs. *)
   let color_revs r =
-    begin 
-      let rev = Online_revision.make_revision r db in 
-      let page_id = rev#get_page_id in 
-      let rev_id  = rev#get_id in 
-      
-      (* Tracks execution time *)
-      let t_start = Unix.gettimeofday () in 
-      
-      (* Tries to acquire the page lock. 
-	 If it succeeds, colors the page. 
-	 
-	 The page lock is not used for correctness: rather, it is used to limit 
-	 transaction parallelism, and to allow revisions to be analyzed in parallel: 
-	 otherwise, all processes would be trying to analyze them in the same order, 
-	 and they would just queue one behind the next. 
-	 The use of these locks, along with the [tried] hashtable, enforces bounded 
-	 overtaking, allowing some degree of out-of-order parallelism, while ensuring
-	 that the revisions of the same page are tried in the correct order. 
+    if !color_more_revisions then 
+      begin 
+	let rev = Online_revision.make_revision r db in 
+	let page_id = rev#get_page_id in 
+	let rev_id  = rev#get_id in 
+	
+	(* Tracks execution time *)
+	let t_start = Unix.gettimeofday () in 
+	
+	(* Tries to acquire the page lock. 
+	   If it succeeds, colors the page. 
+	   
+	   The page lock is not used for correctness: rather, it is used to limit 
+	   transaction parallelism, and to allow revisions to be analyzed in parallel: 
+	   otherwise, all processes would be trying to analyze them in the same order, 
+	   and they would just queue one behind the next. 
+	   The use of these locks, along with the [tried] hashtable, enforces bounded 
+	   overtaking, allowing some degree of out-of-order parallelism, while ensuring
+	   that the revisions of the same page are tried in the correct order. 
 
-	 We set the timeout for waiting as follows. 
-	 - If the page has already been tried, we need to wait on it, so we choose a long timeout. 
-	 If we don't get the page by the long timeout, this means that there is too much db 
-	 lock contention (too many simultaneously active coloring processes), and we terminate. 
-	 - If the page has not been tried yet, we set a short timeout, and if we don't get the lock,
-	 we move on to the next revision. 
-	 This algorithm ensures an "overtake by at most 1" property: if there are many coloring
-	 processes active simultaneously, and r_k, r_{k+1} are two revisions of a page p, it is 
-	 possible that a process is coloring r_k while another is coloring a revision r' after r_k 
-	 belonging to a different page p', but this revision r' cannot be past r_{k+1}. 
-       *)
-      let already_tried = Hashtbl.mem tried page_id in 
-      let got_it = 
-	if already_tried 
-	then db#get_page_lock page_id lock_timeout 
-	else db#get_page_lock page_id 0 in 
-      (* If we got it, we can color the page *)
-      if got_it then begin 
-	(* Processes page *)
-	if already_tried then Hashtbl.remove tried page_id; 
-	evaluate_revision db page_id rev_id;
-	db#release_page_lock page_id;
-	if !n_colored_revs >= n_revs_to_color then begin 
-	  color_more_revisions := false;
-	  Printf.printf "Colored as many pages as requested; terminating.\n";
-	  flush stdout;
-	end
-      end else begin 
-	(* We could not get the lock.  
-	   If we have already tried the page, this means we waited LONG time; 
-	   we quit everything, as it means there is some problem. *)
-	if already_tried 
-	then begin
-	  color_more_revisions := false;
-	  Printf.printf "Waited too long for lock of page %d; terminating.\n" page_id;
-	  flush stdout;
-	end
-	else Hashtbl.add tried page_id ();
-      end; (* not got it *)
-      let t_end = Unix.gettimeofday () in 
-      Printf.printf "Analysis took %f seconds.\n" (t_end -. t_start);
-      flush stdout
-    end (* for a revision r that needs to be colored *)
+	   We set the timeout for waiting as follows. 
+	   - If the page has already been tried, we need to wait on it, so we choose a long timeout. 
+	   If we don't get the page by the long timeout, this means that there is too much db 
+	   lock contention (too many simultaneously active coloring processes), and we terminate. 
+	   - If the page has not been tried yet, we set a short timeout, and if we don't get the lock,
+	   we move on to the next revision. 
+	   This algorithm ensures an "overtake by at most 1" property: if there are many coloring
+	   processes active simultaneously, and r_k, r_{k+1} are two revisions of a page p, it is 
+	   possible that a process is coloring r_k while another is coloring a revision r' after r_k 
+	   belonging to a different page p', but this revision r' cannot be past r_{k+1}. 
+	 *)
+	let already_tried = Hashtbl.mem tried page_id in 
+	let got_it = 
+	  if already_tried 
+	  then db#get_page_lock page_id lock_timeout 
+	  else db#get_page_lock page_id 0 in 
+	(* If we got it, we can color the page *)
+	if got_it then begin 
+	  (* Processes page *)
+	  if already_tried then Hashtbl.remove tried page_id; 
+	  evaluate_revision db page_id rev_id;
+	  db#release_page_lock page_id;
+	  if !n_colored_revs >= !max_rev_to_color then begin 
+	    color_more_revisions := false;
+	    Printf.printf "Colored as many pages as requested; terminating.\n";
+	    flush stdout;
+	  end
+	end else begin 
+	  (* We could not get the lock.  
+	     If we have already tried the page, this means we waited LONG time; 
+	     we quit everything, as it means there is some problem. *)
+	  if already_tried 
+	  then begin
+	    color_more_revisions := false;
+	    Printf.printf "Waited too long for lock of page %d; terminating.\n" page_id;
+	    flush stdout;
+	  end
+	  else Hashtbl.add tried page_id ();
+	end; (* not got it *)
+	let t_end = Unix.gettimeofday () in 
+	Printf.printf "Analysis took %f seconds.\n" (t_end -. t_start);
+	flush stdout
+      end (* for a revision r that needs to be colored *)
   in
 
   List.iter color_revs !revs;
@@ -358,12 +361,9 @@ in (* end of analyze_a_bunch *)
 
 (* This, finally, is the main loop *)
 let do_more = ref true in 
-let still_to_do = ref (!max_rev_to_color) in 
 while !do_more do begin 
   (* We do a bunch *)
-  Printf.printf "Start bunch analysis.\n";
-  let bunch_size = min !still_to_do n_revs_color_in_one_connection in 
-  let there_are_more = analyze_a_bunch bunch_size in 
-  still_to_do := !still_to_do - bunch_size; 
-  do_more := (!still_to_do > 0) && there_are_more
+  Printf.printf "Start the analysis of a bunch of size %d.\n" n_revs_color_in_one_connection;
+  let there_are_more = analyze_a_bunch n_revs_color_in_one_connection in 
+  do_more := (!n_colored_revs < !max_rev_to_color) && there_are_more
 end done

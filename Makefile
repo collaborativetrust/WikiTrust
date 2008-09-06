@@ -35,6 +35,9 @@ all:
 allopt: 
 	cd analysis; make allopt; cp eval_online_wiki .. 
 
+install: 
+	cp eval_online_wiki /usr/local/bin/
+
 clean:
 	cd analysis; make clean
 
