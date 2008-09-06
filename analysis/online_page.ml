@@ -955,7 +955,6 @@ class page
 	      end
 	    end;
 
-            (* Krish change: starts*)
             (* We compute the reputation increment by the local feedback for rev1, where rev1_prev is the 
               immediate previous revision of rev1. In this case, we always apply the repuation cap, where
 	      the cap is the minimum of the repuation of the judging revision rev2 and the rev1_prev (this 
@@ -973,10 +972,9 @@ class page
             let q_local          = qual dist_prev1 d12 dist_prev2 in 
 	    let delta_local      = dist_prev1 in
             let rep_inc_local    = dynamic_rep_scaling_factor *. delta_local *. q_local *. renorm_w in
-            let cap_rep_local    =  min rev2_rep rev1_prev_rep in
+            let cap_rep_local    = min rev2_rep rev1_prev_rep in
 	    let capped_rep_local = min cap_rep_local (rev1_rep +. rep_inc_local) in 
             let rev1_local       = max rev1_rep capped_rep_local in
-            (* Krish change: ends *)
 
 
 
@@ -1002,10 +1000,10 @@ class page
 		in
 		let cap_rep = min rev2_rep r_c2_cap_rep in
 		let capped_rep = min cap_rep (rev1_rep +. rep_inc) in 
-		max (max rev1_rep rev1_local) capped_rep    (* Krish change: included maximum with rev1_local *)
+		max (max rev1_rep rev1_local) capped_rep    
 	      end else begin 
 		(* uncapped reputation increment *)
-		max rev1_local (rev1_rep +. rep_inc)        (* Krish change: included maximum with rev1_local *)
+		max rev1_local (rev1_rep +. rep_inc)      
 	      end
 	    in 
 	    self#set_rep rev1_uid new_rep;
