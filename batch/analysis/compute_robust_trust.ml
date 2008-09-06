@@ -128,29 +128,31 @@ let compute_robust_trust
      (paragraph, itemization point) of [n] is labeled true. *)
   let spread_look (n: int) : unit = 
     (* Spreads upward *)
-    let word_idx = ref n in 
-    let fatto = ref false in 
-    while not !fatto do begin 
-      looked_at.(!word_idx) <- true;
-      if !word_idx = new_live_len - 1
-      then fatto := true
-      else begin 
-	word_idx := !word_idx + 1; 
-	fatto := looked_at.(!word_idx) || section_of_word.(!word_idx - 1) <> section_of_word.(!word_idx)
-      end
-    end done; 
-    (* Spreads downwards *)
-    let word_idx = ref n in 
-    let fatto = ref false in 
-    while not !fatto do begin 
-      looked_at.(!word_idx) <- true;
-      if !word_idx = 0
-      then fatto := true
-      else begin 
-	word_idx := !word_idx - 1; 
-	fatto := looked_at.(!word_idx) || section_of_word.(!word_idx + 1) <> section_of_word.(!word_idx)
-      end
-    end done
+    if not looked_at.(n) then begin 
+      let word_idx = ref n in 
+      let fatto = ref false in 
+      while not !fatto do begin 
+	looked_at.(!word_idx) <- true;
+	if !word_idx = new_live_len - 1
+	then fatto := true
+	else begin 
+	  word_idx := !word_idx + 1; 
+	  fatto := looked_at.(!word_idx) || section_of_word.(!word_idx - 1) <> section_of_word.(!word_idx)
+	end
+      end done;
+      (* Spreads downwards *)
+      let word_idx = ref n in 
+      let fatto = ref false in 
+      while not !fatto do begin 
+	looked_at.(!word_idx) <- true;
+	if !word_idx = 0
+	then fatto := true
+	else begin 
+	  word_idx := !word_idx - 1; 
+	  fatto := looked_at.(!word_idx) || section_of_word.(!word_idx + 1) <> section_of_word.(!word_idx)
+	end
+      end done
+    end (* if not looked_at.(n) *)
   in (* end of spread_look *)
 
   (* This function is used to determine whether the beginning of a move, that begins at position k, 
