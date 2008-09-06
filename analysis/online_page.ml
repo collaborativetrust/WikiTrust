@@ -955,6 +955,33 @@ class page
 	      end
 	    end;
 
+            (* Krish change: starts*)
+            (* We compute the reputation increment by the local feedback for rev1, where rev1_prev is the 
+              immediate previous revision of rev1. In this case, we always apply the repuation cap, where
+	      the cap is the minimum of the repuation of the judging revision rev2 and the rev1_prev (this 
+	      is because the previous version rev1_prev can be under control of the author of rev1). 
+              The reputation after local feedback is obtained as rev1_local, and we take the maximum of 
+              the local feedback and the reputation computation by improve-the-past algorithm. Since 
+              both are robust, the robust of the algorithm is ensured *)
+             (* Computes reputation after local feedback*) 
+            let rev1_prev        = Vec.get (rev1_idx + 1) revs in 
+	    let rev1_prev_id     = rev1_prev#get_id in 
+	    let rev1_prev_uid    = rev1_prev#get_user_id in 
+	    let rev1_prev_rep    = self#get_rep rev1_prev_uid in 
+            let dist_prev1       = Hashtbl.find edit_dist (rev1_prev_id, rev1_id) in 
+            let dist_prev2       = Hashtbl.find edit_dist (rev1_prev_id, rev2_id) in 
+            let q_local          = qual dist_prev1 d12 dist_prev2 in 
+	    let delta_local      = dist_prev1 in
+            let rep_inc_local    = dynamic_rep_scaling_factor *. delta_local *. q_local *. renorm_w in
+            let cap_rep_local    =  min rev2_rep rev1_prev_rep in
+	    let capped_rep_local = min cap_rep_local (rev1_rep +. rep_inc_local) in 
+            let rev1_local       = max rev1_rep capped_rep_local in
+            (* Krish change: ends *)
+
+
+
+
+
 	    (* Computes the uncapped reputation increment *)
 	    let rep_inc = dynamic_rep_scaling_factor *. delta *. q *. renorm_w in
 	       
@@ -975,10 +1002,10 @@ class page
 		in
 		let cap_rep = min rev2_rep r_c2_cap_rep in
 		let capped_rep = min cap_rep (rev1_rep +. rep_inc) in 
-		max rev1_rep capped_rep
+		max (max rev1_rep rev1_local) capped_rep    (* Krish change: included maximum with rev1_local *)
 	      end else begin 
 		(* uncapped reputation increment *)
-		rev1_rep +. rep_inc
+		max rev1_local (rev1_rep +. rep_inc)        (* Krish change: included maximum with rev1_local *)
 	      end
 	    in 
 	    self#set_rep rev1_uid new_rep;
