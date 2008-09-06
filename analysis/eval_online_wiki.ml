@@ -160,6 +160,17 @@ let rec evaluate_revision (db: Online_db.db) (page_id: int) (rev_id: int) : unit
 	  Printf.printf "Evaluating revision %d of page %d\n" rev_id page_id;
 	  let page = new Online_page.page db logger page_id rev_id trust_coeff !times_to_retry_trans in
 	  page#eval;
+
+	  (* Waits, if so requested to throttle the computation. *)
+	  if each_revision_delay > 0 then Unix.sleep (each_revision_delay); 
+	  begin 
+	    match every_n_revisions_delay with 
+	      Some d -> begin 
+		if (!n_colored_revs mod d) = 0 then Unix.sleep (1);
+	      end
+	    | None -> ()
+	  end; 
+
 	with Online_page.Missing_trust (page_id', rev_id') -> 
 	  begin
 	    (* We need to evaluate page_id', rev_id' first *)
@@ -268,29 +279,15 @@ let analyze_a_bunch (n_revs_to_color: int) : bool =
   let tried : (int, unit) Hashtbl.t = Hashtbl.create 10 in 
   (* color_more_revisions is used to decide when to stop the loop. *)
   let color_more_revisions = ref true in 
-  (* Revision counter is used to implement the throttling *)
-  let revision_counter = ref 0 in 
   
   (* This function is iterated on the list of revisions to be colored.  
      r is a row describing a revision read from the database; it will be made into
      a revision inside color_revs. *)
   let color_revs r =
     begin 
-      revision_counter := !revision_counter + 1; 
       let rev = Online_revision.make_revision r db in 
       let page_id = rev#get_page_id in 
       let rev_id  = rev#get_id in 
-      
-      (* Waits, if so requested to throttle the computation. *)
-      
-      if each_revision_delay > 0 then Unix.sleep (each_revision_delay); 
-      begin 
-	match every_n_revisions_delay with 
-	  Some d -> begin 
-	    if (!revision_counter mod d) = 0 then Unix.sleep (1);
-	  end
-	| None -> ()
-      end; 
       
       (* Tracks execution time *)
       let t_start = Unix.gettimeofday () in 
