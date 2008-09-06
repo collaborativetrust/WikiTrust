@@ -155,22 +155,26 @@ let every_n_revisions_delay =
 let rec evaluate_revision (db: Online_db.db) (page_id: int) (rev_id: int) : unit = 
   if !n_colored_revs < !max_rev_to_color then 
     begin 
-      try 
-	Printf.printf "Evaluating revision %d of page %d\n" rev_id page_id;
-	let page = new Online_page.page db logger page_id rev_id trust_coeff !times_to_retry_trans in
-	page#eval;
-      with Online_page.Missing_trust (page_id', rev_id') -> begin
-	(* We need to evaluate page_id', rev_id' first *)
-	(* This if is a basic sanity check only. It should always be true *)
-	if rev_id' != rev_id then begin 
-	  Printf.printf "Missing trust info: we need first to evaluate revision %d of page %d\n" rev_id' page_id';
-	  evaluate_revision db page_id' rev_id';
-	  evaluate_revision db page_id rev_id
-	end (* rev_id' != rev_id *)
-    end; (* with: Was missing trust of a previous revision *)
-    n_colored_revs := !n_colored_revs + 1;
-    Printf.printf "Done revision %d of page %d\n" rev_id page_id
-  end;;
+      begin (* try ... with ... *)
+	try 
+	  Printf.printf "Evaluating revision %d of page %d\n" rev_id page_id;
+	  let page = new Online_page.page db logger page_id rev_id trust_coeff !times_to_retry_trans in
+	  page#eval;
+	with Online_page.Missing_trust (page_id', rev_id') -> 
+	  begin
+	    (* We need to evaluate page_id', rev_id' first *)
+	    (* This if is a basic sanity check only. It should always be true *)
+	    if rev_id' != rev_id then 
+	      begin 
+		Printf.printf "Missing trust info: we need first to evaluate revision %d of page %d\n" rev_id' page_id';
+		evaluate_revision db page_id' rev_id';
+		evaluate_revision db page_id rev_id
+	      end (* rev_id' != rev_id *)
+	  end; (* with: Was missing trust of a previous revision *)
+      end; (* End of try ... with ... *)
+      n_colored_revs := !n_colored_revs + 1;
+      Printf.printf "Done revision %d of page %d\n" rev_id page_id
+    end;;
 
 
 (* Does all the work of processing the given page and revision *)
@@ -224,32 +228,36 @@ let analyze_a_bunch (n_revs_to_color: int) : bool =
   let times_tried = ref 0 in
   while !times_tried < !times_to_retry_trans do 
     db#start_transaction Online_db.Both;
-    try
-      let r =
-	begin 
-	  let last_colored = 
-	    try Some db#fetch_last_colored_rev_time
-	    with Online_db.DB_Not_Found -> None 
-	  in
+    begin (* try ... with ... *)
+      try
+	let r =
 	  begin 
-	    match last_colored with 
-	      Some (last_timestamp, last_id) -> begin 
-		match !requested_rev_id with 
-		  None -> db#fetch_all_revs_after last_timestamp last_id n_revs_to_color
-		| Some r_id -> db#fetch_all_revs_including_after r_id last_timestamp last_id n_revs_to_color
+	    let last_colored = 
+	      begin 
+		try Some db#fetch_last_colored_rev_time
+		with Online_db.DB_Not_Found -> None 
 	      end
-	    | None -> db#fetch_all_revs n_revs_to_color
+	    in
+	    begin 
+	      match last_colored with 
+		Some (last_timestamp, last_id) -> begin 
+		  match !requested_rev_id with 
+		    None -> db#fetch_all_revs_after last_timestamp last_id n_revs_to_color
+		  | Some r_id -> db#fetch_all_revs_including_after r_id last_timestamp last_id n_revs_to_color
+		end
+	      | None -> db#fetch_all_revs n_revs_to_color
+	    end
 	  end
-	end
-      in 
-      revs := r;
-      db#commit Online_db.Both;
-      times_tried := !times_to_retry_trans;
-    with Online_db.DB_TXN_Bad -> begin 
-      times_tried := !times_tried + 1; 
-      db#rollback_transaction Online_db.Both;
-      revs := []
-    end
+	in 
+	revs := r;
+	db#commit Online_db.Both;
+	times_tried := !times_to_retry_trans;
+      with Online_db.DB_TXN_Bad -> begin 
+	times_tried := !times_tried + 1; 
+	db#rollback_transaction Online_db.Both;
+	revs := []
+      end
+    end (* try ... with ... *)
   done;
 
   (* Checks whether it got enough revs *)
@@ -320,7 +328,7 @@ let analyze_a_bunch (n_revs_to_color: int) : bool =
 	if already_tried then Hashtbl.remove tried page_id; 
 	evaluate_revision db page_id rev_id;
 	db#release_page_lock page_id;
-	if !n_colored_revs > n_revs_to_color then begin 
+	if !n_colored_revs >= n_revs_to_color then begin 
 	  color_more_revisions := false;
 	  Printf.printf "Colored as many pages as requested; terminating.\n";
 	  flush stdout;

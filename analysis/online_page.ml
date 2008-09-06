@@ -266,8 +266,10 @@ class page
 	end else begin 
 	  (* We have to read it from disk *)
 	  let old_rep = 
-	    try db#get_rep uid
-	    with Online_db.DB_Not_Found -> 0.
+	    begin 
+	      try db#get_rep uid
+	      with Online_db.DB_Not_Found -> 0.
+	    end
 	  in 
 	  Hashtbl.add rep_cache uid (old_rep, Some r')
 	end
@@ -281,18 +283,19 @@ class page
 	  (old_r, Some r) ->  if abs_float (r -. old_r) > 0.001 then begin 
 	    (* Writes the reputation change to disk, as a small transaction *)
 	    let n_attempts = ref 0 in 
-	    while !n_attempts < n_retries do begin 
-	      try begin 
-		db#start_transaction Online_db.WikiTrust;
-		db#inc_rep uid (r -. old_r);
-		db#commit Online_db.WikiTrust;
-		n_attempts := n_retries
-	      end with _ -> begin 
-		(* Roll back *)
-		db#rollback_transaction Online_db.WikiTrust;
-		n_attempts := !n_attempts + 1
-	      end
-	    end done (* End of the multiple attempts at the transaction *)
+	    while !n_attempts < n_retries do 
+	      begin 
+		try begin 
+		  db#start_transaction Online_db.WikiTrust;
+		  db#inc_rep uid (r -. old_r);
+		  db#commit Online_db.WikiTrust;
+		  n_attempts := n_retries
+		end with _ -> begin 
+		  (* Roll back *)
+		  db#rollback_transaction Online_db.WikiTrust;
+		  n_attempts := !n_attempts + 1
+		end
+	      end done (* End of the multiple attempts at the transaction *)
 	  end
 	| (old_r, None) -> ()
       in Hashtbl.iter f rep_cache
@@ -629,10 +632,10 @@ class page
       (* Gets the author reputation from the db. 
          As we are not holding the reputation lock at this point, we do not use
          the internal method to get the reputation. *)
-      let rep_user = 
+      let rep_user = begin 
  	try db#get_rep rev0_uid
 	with Online_db.DB_Not_Found -> 0.
-      in 
+      end in 
       let weight_user = self#weight (rep_user) in 
 
       (* Now we proceed by cases, depending on whether this is the first revision of the 
@@ -931,9 +934,9 @@ class page
 	    let delta = !min_dist_to_1 in 
 
 	    (* computes the nixing bit *)
+	    let last_of_recent_revs = Vec.get (n_recent_revs - 1) revs in 
+	    let last_of_recent_revs_time = last_of_recent_revs#get_time in 
 	    if (not !rev1_nix) && (rev2_time -. rev1_time < trust_coeff.nix_interval) then begin 
-	      let last_of_recent_revs = Vec.get (n_recent_revs - 1) revs in 
-	      let last_of_recent_revs_time = last_of_recent_revs#get_time in 
 	      (* You can be nixed in two ways. *)
 	      if 
 		(* First reason: if the quality is below the threshold *)
@@ -958,8 +961,19 @@ class page
 	    (* Applies the reputation increment according to reputation cap *)
 	    let new_rep = 
 	      if (!rev1_nix || rev2_time -. rev1_time < trust_coeff.nix_interval) && rep_inc > 0. then begin 
-		(* Short term or nixed: caps the reputation increment *)
-		let cap_rep = min rev2_rep r_c2_rep in
+		(* Short term or nixed: caps the reputation increment. 
+		   The reputation of rev2 is always used as a cap. 
+		   The reputation of r_c2 is used as a cap only if the oldest of the recent revisions is older
+		   than nix_interval.  The idea is that if a stuffing attack does not occur (indicated by the 
+		   fact that recent_revs is not stuffed with revisions in a short time), the author of rev1
+		   does not have control on what r_c2 is, since this depends on rev2.  And if the author of rev1
+		   can contol what r_c2 is, why would she not enter r_c2 herself? *)
+		let r_c2_cap_rep = 
+		  if rev2_time -. last_of_recent_revs_time < trust_coeff.nix_interval
+		  then r_c2_rep
+		  else rev2_rep
+		in
+		let cap_rep = min rev2_rep r_c2_cap_rep in
 		let capped_rep = min cap_rep (rev1_rep +. rep_inc) in 
 		max rev1_rep capped_rep
 	      end else begin 
@@ -1012,56 +1026,57 @@ class page
 
       (* This is the main transaction body.  
 	 We do in this body the computation that needs to be consistent for a page. *)
-      while !n_attempts < n_retries do begin 
-	try begin 
+      while !n_attempts < n_retries do 
+	begin 
+	  try begin 
+	    
+	    db#start_transaction Online_db.Both;
+	    
+	    (* We do something only if the revision needs coloring *)
+	    needs_coloring := db#revision_needs_coloring revision_id;
+	    if !needs_coloring then begin
+	      
+	      (* Reads the previous revisions *)
+	      self#read_page_revisions; 
+	      
+	      (* Computes the edit distances *)
+	      if debug then print_string "   Computing edit lists...\n"; flush stdout;
+	      self#compute_edit_lists; 
+	      (* Computes, and writes to disk, the trust of the newest revision *)
+	      if debug then print_string "   Computing trust...\n"; flush stdout;
+	      self#compute_trust;
+	      
+	      (* We now process the reputation update. *)
+	      if debug then print_string "   Computing edit incs...\n"; flush stdout;
+	      self#compute_edit_inc;
+	      
+	      (* Inserts the revision in the list of high rep or high trust revisions, 
+		 and deletes old signatures *)
+	      self#insert_revision_in_lists;
+	      (* We write to disk the page information *)
+	      db#write_page_info page_id del_chunks_list page_info;
 
-	  db#start_transaction Online_db.Both;
+	      (* We write back to disk the information of all revisions *)
+	      if debug then print_string "   Writing the quality information...\n"; flush stdout;
+	      let f r = r#write_quality_to_db in 
+	      Vec.iter f revs;
 
-	  (* We do something only if the revision needs coloring *)
-	  needs_coloring := db#revision_needs_coloring revision_id;
-	  if !needs_coloring then begin
+	      db#commit Online_db.Both;
+	      n_attempts := n_retries
 
-	    (* Reads the previous revisions *)
-	    self#read_page_revisions; 
-	  
-	    (* Computes the edit distances *)
-	    if debug then print_string "   Computing edit lists...\n"; flush stdout;
-	    self#compute_edit_lists; 
-	    (* Computes, and writes to disk, the trust of the newest revision *)
-	    if debug then print_string "   Computing trust...\n"; flush stdout;
-	    self#compute_trust;
-	
-	    (* We now process the reputation update. *)
-	    if debug then print_string "   Computing edit incs...\n"; flush stdout;
-	    self#compute_edit_inc;
-	
-	    (* Inserts the revision in the list of high rep or high trust revisions, 
-	       and deletes old signatures *)
-	    self#insert_revision_in_lists;
-	    (* We write to disk the page information *)
-	    db#write_page_info page_id del_chunks_list page_info;
+	    end else begin
+	      (* The revision is already colored; there is nothing to do *)
+	      db#commit Online_db.Both;
+	      n_attempts := n_retries
+	    end
 
-	    (* We write back to disk the information of all revisions *)
-	    if debug then print_string "   Writing the quality information...\n"; flush stdout;
-	    let f r = r#write_quality_to_db in 
-	    Vec.iter f revs;
-
-	    db#commit Online_db.Both;
-	    n_attempts := n_retries
-
-	  end else begin
-	    (* The revision is already colored; there is nothing to do *)
-	    db#commit Online_db.Both;
-	    n_attempts := n_retries
+	  end (* try: this is the end of the main transaction *)
+	  with Online_db.DB_TXN_Bad -> begin 
+	    (* Roll back *)
+	    db#rollback_transaction Online_db.Both;
+	    n_attempts := !n_attempts + 1
 	  end
-
-	end (* try: this is the end of the main transaction *)
-	with Online_db.DB_TXN_Bad -> begin 
-	  (* Roll back *)
-	  db#rollback_transaction Online_db.Both;
-	  n_attempts := !n_attempts + 1
-	end
-      end done; (* End of the multiple attempts at the transaction *)
+	end done; (* End of the multiple attempts at the transaction *)
 
       (* If the revision needed coloring, we need to write reputations and revision 
 	 quality information to disk *)
