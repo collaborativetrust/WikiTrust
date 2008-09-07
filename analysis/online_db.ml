@@ -312,6 +312,14 @@ class db
       let s = Printf.sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM revision WHERE rev_page = %s AND (rev_timestamp, rev_id) <= (%s, %s) ORDER BY rev_timestamp DESC, rev_id DESC LIMIT %s" (ml2int page_id) (ml2timestamp timestamp) (ml2int rev_id) (ml2int fetch_limit) in 
       self#db_exec mediawiki_dbh s
 
+    (** [get_latest_rev_id page_id] returns the revision id of the most 
+	recent revision of page [page_id]. *)
+    method get_latest_rev_id (page_id: int) : int = 
+      let s = Printf.sprintf "SELECT rev_id FROM revision WHERE rev_page = %s ORDER BY rev_timestamp DESC, rev_id DESC LIMIT 1" (ml2int page_id) in 
+      match fetch (self#db_exec mediawiki_dbh s) with 
+	None -> raise DB_Not_Found
+      | Some x -> not_null int2ml x.(0)
+
 
     (* ================================================================ *)
     (* Revision methods. *)

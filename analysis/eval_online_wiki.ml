@@ -45,8 +45,7 @@ let lock_timeout = 20
 (** This is the max number of revisions to color in a single db connection. *)
 let n_revs_color_in_one_connection = 200
 
-(** This is the top-level code of the wiki online xml evaluation. 
-    This is used for testing only: *)
+(** This is the top-level code of the wiki online xml evaluation. *)
 
 (* Mediawiki DB *)
 let mw_db_user = ref "wikiuser"
@@ -190,7 +189,7 @@ let rec evaluate_revision (db: Online_db.db) (page_id: int) (rev_id: int) : unit
     end;;
 
 
-(* Does all the work of processing the given page and revision *)
+(* Prepares the database connection information *)
 let mediawiki_db = {
   dbhost = Some !mw_db_host;
   dbname = Some !mw_db_name;

@@ -141,6 +141,11 @@ class db :
 	revisions of page [page_id] with time prior or equal to [timestamp], and revision id at most [rev_id]. *)
     method fetch_revs : int -> timestamp_t -> int -> int -> Mysql.result
  
+    (** [get_latest_rev_id page_id] returns the revision id of the most 
+	recent revision of page [page_id]. *)
+    method get_latest_rev_id : int -> int
+
+
     (* ================================================================ *)
     (* Revision methods.  We assume we have a lock on the page to which 
        the revision belongs when calling these methods. *)
