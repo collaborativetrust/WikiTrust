@@ -205,7 +205,11 @@ class page
       if read_for_vote then begin 
 	let rev0 = Vec.get 0 revs in 
 	begin
-	  try rev0#read_words_trust_origin_sigs
+	  try
+	    (* This is used to read the seps *)
+	    rev0#read_text;
+	    (* And this reads the trust information *)
+	    rev0#read_words_trust_origin_sigs
           with Online_db.DB_Not_Found -> raise (Missing_trust (page_id, revision_id))
 	end
       end else begin 
@@ -1222,7 +1226,11 @@ class page
 	      done_something := true;
 	      logger#log (Printf.sprintf "\n\nUser %d voted for revision %d of page %d" voter_uid revision_id page_id);
 	      logger#flush; 
-	    end (* if this is the latest revision of the page *)
+	    end else begin 
+	      (* This is not the latest revision of the page *)
+	      db#commit Online_db.Both;
+	      n_attempts := n_retries;
+	    end	      
 	  end (* try portion *)
 	  with Online_db.DB_TXN_Bad | Online_db.DB_Not_Found -> begin 
 	    db#rollback_transaction Online_db.Both;
