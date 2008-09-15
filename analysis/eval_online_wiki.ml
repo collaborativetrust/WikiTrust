@@ -273,7 +273,8 @@ let analyze_a_bunch (n_revs_to_color: int) : bool =
     end (* try ... with ... *)
   done;
 
-  (* Checks whether it got enough revs *)
+  (* If we got fewer revisions than we asked, this means that there are 
+     none more to analyze.  It is useful to remember this. *)
   let there_are_more_revs = (List.length !revs) >= n_revs_to_color in 
 
   (* Here begins the analysis algo, now that we know which revisions we must analyze *)
@@ -355,8 +356,8 @@ let analyze_a_bunch (n_revs_to_color: int) : bool =
 
   (* Closes the db connection *)
   db#close;
-  (* Returns whether there are more revisions to analyze in the db *)
-  there_are_more_revs
+  (* Returns whether we should do more work, and whether there are more revisions to analyze in the db *)
+  there_are_more_revs && !color_more_revisions
 in (* end of analyze_a_bunch *)
 
 (* This, finally, is the main loop *)
