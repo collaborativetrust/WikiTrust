@@ -103,12 +103,15 @@ class page
     val mutable new_hi_median = 0.
     val mutable histogram_updated = false
 
-    (** This method checks whether a revision needs coloring, and 
-	reads the past revisions from the online database, 
+
+    (** This method reads the past revisions from the online database, 
         puts them into the revs Vec, and also produces the [revid_to_rev] 
         hash table.
+	The flag [read_for_vote] specifies that the revisions must 
+	be read for voting, in which case, a slightly different set of 
+	information is needed. 
      *)
-    method private read_page_revisions : unit = 
+    method private read_page_revisions (read_for_vote: bool) : unit = 
       (* Reads the page information *)
       begin 
 	try 
@@ -131,8 +134,9 @@ class page
 	    i := !i - 1;
 	  end (* Some r *)
       end done;
-      
-      (* This function returns a revision, reading it from disk if needed and possible *)
+            
+    (** [find_revision id] reads the revision from the hash table, 
+	if possible, and otherwise from disk. *)
       let find_revision (id: int) : rev_t option = 
 	if Hashtbl.mem revid_to_rev id 
 	then Some (Hashtbl.find revid_to_rev id)
@@ -145,7 +149,7 @@ class page
 	  | None -> None
 	end
       in 
-      
+
       (* The function f is folded on a list of revision ids, and produces a Vec of rev_t *)
       let f (u: rev_t Vec.t) (id: int) : rev_t Vec.t = 
 	match find_revision id with 
@@ -197,22 +201,34 @@ class page
       end;
       
       (* Reads the revision text, as we will need it, and there are advantages in 
-	 reading it now.  For the most recent revision, we read the normal text; 
-	 for the others, the colored text *)
-      (* This is the place where we detect "holes" in the coloring.
-         For this reason it is best to start from the oldest (n_revs - 1) revision. *)
-      for i = n_revs - 1 downto 0 do begin 
-	let r = Vec.get i revs in
-	if i = 0 then begin 
-	  (* If a revision has no text, we have to recover this at a lower level,
-	     since text is not something we compute. *)
-	  r#read_text
-	end else begin
-	  try r#read_words_trust_origin_sigs
-          with Online_db.DB_Not_Found -> raise (Missing_trust (r#get_page_id, r#get_id))
+	 reading it now. *) 
+      if read_for_vote then begin 
+	let rev0 = Vec.get 0 revs in 
+	begin
+	  try
+	    (* This is used to read the seps *)
+	    rev0#read_text;
+	    (* And this reads the trust information *)
+	    rev0#read_words_trust_origin_sigs
+          with Online_db.DB_Not_Found -> raise (Missing_trust (page_id, revision_id))
 	end
-      end done
-
+      end else begin 
+	(* For the most recent revision, we read the normal text; 
+	   for the others, the colored text *)
+	(* This is the place where we detect "holes" in the coloring.
+           For this reason it is best to start from the oldest (n_revs - 1) revision. *)
+	for i = n_revs - 1 downto 0 do begin 
+	  let r = Vec.get i revs in
+	  if i = 0 then begin 
+	    (* If a revision has no text, we have to recover this at a lower level,
+	       since text is not something we compute. *)
+	    r#read_text
+	  end else begin
+	    try r#read_words_trust_origin_sigs
+            with Online_db.DB_Not_Found -> raise (Missing_trust (r#get_page_id, r#get_id))
+	  end
+	end done
+      end (* if read_for_vote, and method *)
 
     (** High-m%-Median of an array *)
     method private compute_hi_median (a: float array) (m: float) =
@@ -631,13 +647,8 @@ class page
       let rev0_seps = rev0#get_seps in 
       let rev0_timestamp = rev0#get_timestamp in
 
-      (* Gets the author reputation from the db. 
-         As we are not holding the reputation lock at this point, we do not use
-         the internal method to get the reputation. *)
-      let rep_user = begin 
- 	try db#get_rep rev0_uid
-	with Online_db.DB_Not_Found -> 0.
-      end in 
+      (* Gets the author reputation *)
+      let rep_user = self#get_rep rev0_uid in 
       let weight_user = self#weight (rep_user) in 
 
       (* Now we proceed by cases, depending on whether this is the first revision of the 
@@ -804,6 +815,58 @@ class page
 	let t = self#compute_overall_trust new_trust_10_a.(0) in 
 	rev0#set_overall_trust t
       end (* method compute_trust *)
+
+
+    (** [vote_for_trust voter_uid] increases the trust of a piece of text 
+	due to voting by [voter_uid] *)
+    method private vote_for_trust (voter_uid: int) : unit = 
+      let rev0 = Vec.get 0 revs in 
+      let rev0_id = rev0#get_id in
+      let rev0_t = rev0#get_words in 
+      let rev0_l = Array.length rev0_t in 
+      let rev0_seps = rev0#get_seps in 
+      let rev0_timestamp = rev0#get_timestamp in
+      (* Gets the voter reputation *)
+      let voter_rep = self#get_rep voter_uid in 
+      let voter_weight = self#weight (voter_rep) in 
+
+      (* Prepares the arguments for a call to compute_robust_trust *)
+      (* Prepares the arrays trust_a, sig_a as if they were for the previous
+	 revision. *)
+      let trust_a =  [| rev0#get_trust |] in 
+      let sig_a   =  [| rev0#get_sigs  |] in 
+      (* New chunks array *)
+      let new_chunks_a = [| rev0_t     |] in 
+      (* Builds the edit list *)
+      let medit_l = [ Editlist.Mmov (0, 0, 0, 0, rev0_l) ] in 
+
+      (* Computes the new trust and signatures *)
+      let (new_trust_a, new_sigs_a) = Compute_robust_trust.compute_robust_trust 
+        trust_a 
+	sig_a
+        new_chunks_a 
+        rev0_seps 
+        medit_l
+        voter_weight
+	voter_uid
+        trust_coeff.lends_rep 
+        trust_coeff.kill_decrease 
+        trust_coeff.cut_rep_radius 
+        trust_coeff.read_all
+        0. (* trust_coeff.read_part *)
+        trust_coeff.local_decay
+      in 
+
+      (* Writes the new colored markup *)
+      let buf = Revision.produce_annotated_markup rev0_seps new_trust_a.(0) rev0#get_origin false true in 
+      db#write_colored_markup rev0_id (Buffer.contents buf) rev0_timestamp;
+
+      (* Writes the trust information to the revision *)
+      rev0#set_trust new_trust_a.(0); 
+      rev0#set_sigs  new_sigs_a.(0);
+      let t = self#compute_overall_trust new_trust_a.(0) in 
+      rev0#set_overall_trust t
+      (* end of vote_for_trust *)
 
 
     (** [compute_edit_inc]  computes the edit increments to reputation due to 
@@ -1039,7 +1102,7 @@ class page
 	    if !needs_coloring then begin
 	      
 	      (* Reads the previous revisions *)
-	      self#read_page_revisions; 
+	      self#read_page_revisions false; 
 	      
 	      (* Computes the edit distances *)
 	      if debug then print_string "   Computing edit lists...\n"; flush stdout;
@@ -1118,6 +1181,66 @@ class page
 
       (* Returns whether we have done something *)
       !done_something
+    (* End of eval method *)
+
+    (** [vote voter_uid] is called to process the fact that user [voter_uid] 
+	has pushed on the "I agree with this revision" button. 
+        The method only does somethign if the revision is the last 
+        for the page, and returns, in a flag, whether it has done 
+        something or not. *)
+    method vote (voter_uid: int) : bool = 
+
+      (* Keeps track of whether we have done any work *)
+      let done_something = ref false in 
+
+      (* Start of transaction, retrying many times if needed *)
+      let n_attempts = ref 0 in 
+      while !n_attempts < n_retries do 
+	begin 
+	  try begin 
+	    db#start_transaction Online_db.Both;
+	    if debug then print_string "Start vote for revision...\n"; flush stdout;
+	    
+	    (* First, checks that rev_id is the latest one for the page. 
+	       We do not implement voting for older revisions. *)
+	    let latest_rev_id = db#get_latest_rev_id page_id in 
+	    if revision_id = latest_rev_id then begin 
+	      (* Reads the page information and the revision *)
+	      self#read_page_revisions true; 
+	      (* Increases the trust of the revision, and writes the 
+		 results back to disk *)
+	      self#vote_for_trust voter_uid; 
+	      (* Inserts the revision in the list of high rep or high trust revisions, 
+		 and deletes old signatures *)
+	      self#insert_revision_in_lists;
+	      (* We write to disk the page information *)
+	      db#write_page_info page_id del_chunks_list page_info;
+	      
+	      (* We write back to disk the information of all revisions *)
+	      if debug then print_string "   Voted; writing the quality information...\n"; flush stdout;
+	      let rev0 = Vec.get 0 revs in 
+	      rev0#write_quality_to_db;
+	      
+	      db#commit Online_db.Both;
+	      n_attempts := n_retries;
+	      done_something := true;
+	      logger#log (Printf.sprintf "\n\nUser %d voted for revision %d of page %d" voter_uid revision_id page_id);
+	      logger#flush; 
+	    end else begin 
+	      (* This is not the latest revision of the page *)
+	      db#commit Online_db.Both;
+	      n_attempts := n_retries;
+	    end	      
+	  end (* try portion *)
+	  with Online_db.DB_TXN_Bad | Online_db.DB_Not_Found -> begin 
+	    db#rollback_transaction Online_db.Both;
+	    n_attempts := !n_attempts + 1
+	  end (* with case *)
+	end (* begin...end enclosing try...with *)
+      done; (* End of the multiple attempts at the transaction *)
+      (* Returns whether we have done something *)
+      !done_something
+    (* End of vote method *)
 
   end (* class *)
 

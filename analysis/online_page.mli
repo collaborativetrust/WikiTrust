@@ -45,8 +45,8 @@ POSSIBILITY OF SUCH DAMAGE.
                   should have already been processed. 
     [coeff] contains the coefficients to be used for the evaluation. 
 
-    IMPORTANT: The caller should have a lock on page_id before creating and 
-    calling eval on this class, otherwise, serious corruption may ensue. 
+    The methods of this class, such as [vote] and [eval], should be 
+    called NO MORE THAN ONCE. 
  *)
 
 exception Missing_trust of int * int
@@ -66,6 +66,16 @@ class page :
   (** Number of retries in the use of transactions *)
   (* n_retries *) int -> 
   object
-    (** Call this method exactly once!  It returns whether it did something or not. *)
+    (** [eval] is used to evaluate the trust of the given [page_id], [revision_id],
+	and update all reputations, etc etc.  This is the main method of the 
+	online code.  If the page has already been evaluated, it does nothing. 
+	It returns a flag indicating whether it did something. *)
     method eval : bool
+
+    (** [vote voter_uid] is called to process the fact that user [voter_uid] 
+	has pushed on the "I agree with this revision" button.  
+        The method does something only if the revision is the latest for the page. 
+	It returns a flag indicating whether it did something. *)
+    method vote : int -> bool
+
   end

@@ -184,7 +184,8 @@ class revision
 	   otherwise, if we fail, we keep trying to read it. *)
 	quality_info_valid <- true;
 	try 
-          quality_info <- db#read_revision_info rev_id
+          quality_info <- db#read_revision_info rev_id;
+	  modified_quality_info <- false; 
 	with Online_db.DB_Not_Found -> ()
       end
 
@@ -221,10 +222,11 @@ class revision
     (** [write_quality_to_db n_attempts] writes all revision quality information to the db. *)
     method write_quality_to_db : unit = 
       self#read_quality_info; 
-      db#write_revision_info rev_id quality_info
+      if modified_quality_info then db#write_revision_info rev_id quality_info
 
   end (* revision class *)
 
+(** Makes a revision from a revision_t record *)
 let make_revision (rev : Online_db.revision_t) db: revision = 
   new revision db 
     rev.rev_id
@@ -236,6 +238,7 @@ let make_revision (rev : Online_db.revision_t) db: revision =
     rev.rev_is_minor
     rev.rev_comment
 
+(** Makes a revision from a database row *)
 let make_revision_from_cursor row db: revision = 
   let set_is_minor ism = match ism with
     | 0 -> false
@@ -251,6 +254,7 @@ let make_revision_from_cursor row db: revision =
     (set_is_minor (not_null int2ml row.(6))) (* is_minor *)
     (not_null str2ml row.(7)) (* comment *)
 
+(** Reads a revision given its revision id *)
 let read_revision (db: Online_db.db) (id: int) : revision option = 
   let set_is_minor ism = match ism with
     | 0 -> false
