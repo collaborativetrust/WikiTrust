@@ -125,8 +125,29 @@ function iLikeThisCallback(http_request){
   }
 }
 
+function getQueryVariable(variable) {
+  var query = window.location.search.substring(1);
+  var vars = query.split("&");
+  for (var i=0;i<vars.length;i++) {
+    var pair = vars[i].split("=");
+    if (pair[0] == variable) {
+      return pair[1];
+    }
+  } 
+  return "";
+}
+
 function startILikeThis(){
-  return sajax_do_call( "TextTrust::handleILikeThis", [wgUserName, wgPageName] , iLikeThisCallback ); 
+
+  var revID = getQueryVariable("oldid");
+  if (revID == ""){
+    revID = getQueryVariable("diff");
+    if (revID == ""){
+      revID = wgCurRevisionId;
+    }
+  }
+
+  return sajax_do_call( "TextTrust::handleILikeThis", [wgUserName, wgArticleId, revID] , iLikeThisCallback ); 
 }
 
 /*]]>*/</script>';
@@ -257,11 +278,40 @@ colors text according to trust.'
     $this->update_median();
   }
   
-  static function handleILikeThis($userName, $pageName){
+  /**
+   
+   */
+  static function handleILikeThis($userName, $page_id = 0, $rev_id = 0){
+    
+    global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgVoteRev;
+   
+    $response = new AjaxResponse("0");
+    $command = "";
+    $pid = -1;
+
     if($userName != "null"){
+      // First, look up the id numbers from the page and user strings
+      $dbr =& wfGetDB( DB_SLAVE );
+      $res = $dbr->select('user', array('user_id'), array('user_name' => $userName), array());
+      if ($res){
+	$row = $dbr->fetchRow($res);
+	$user_id = $row['user_id'];
+	if (!$user_id) {
+	  return $response;
+	}
+      }
+      $dbr->freeResult( $res );      
+
+      // Then stick the stuff in.
+      $command = "nohup $wgVoteRev -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname -voter_id $user_id -page_id $page_id -rev_id $rev_id >> $wgTrustDebugLog 2>&1 & echo $!";
+    
       // Do something here to update the trust of this revision.
+      $pid = shell_exec($command);
     }
-    $response = new AjaxResponse("Testing");
+    
+    if($pid)
+      $response = new AjaxResponse("$command");
+
     return $response;
   }
 
