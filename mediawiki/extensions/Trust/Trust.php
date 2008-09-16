@@ -94,23 +94,7 @@ class TextTrust extends ExtensionClass
 <script type="text/javascript">/*<![CDATA[*/
 var ctrlState = false;
 function showOrigin(revnum) {
-  //if (ctrlState) {
-    document.location.href = wgScriptPath + "/index.php?title=" + wgPageName + "&diff=" + revnum;
- // }
-}
-
-function checkForCtrlDown(event) {
-  if (event.ctrlKey) { ctrlState = true; }
-  //alert (event.keyCode + " " + event.ctrlKey + " " + ctrlState);
-}
-
-function clearCtrlState(event) {
-  //alert(event.keyCode + " " + ctrlState);
-  ctrlState = false;
-}
-
-function checkCtrlState(event) {
-  //alert(ctrlState);
+  document.location.href = wgScriptPath + "/index.php?title=" + encodeURIComponent(wgPageName) + "&diff=" + encodeURIComponent(revnum);
 }
 
 // The ILikeThis functionality
