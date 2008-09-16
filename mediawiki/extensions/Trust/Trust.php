@@ -118,7 +118,7 @@ function iLikeThisCallback(http_request){
   if ((http_request.readyState == 4) && (http_request.status == 200)) {
     document.getElementById("agree-button-done").style.visibility = "visible";
     document.getElementById("agree-button").style.visibility = "hidden";
-    alert(http_request.responseText);
+   // alert(http_request.responseText);
     return true;
   } else {
     alert(http_request.responseText);
