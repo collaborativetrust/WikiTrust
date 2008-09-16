@@ -280,11 +280,13 @@ colors text according to trust.'
   }
   
   /**
-   
-   */
+   Run the vote executable.
+
+   Called via ajax, so this must be static.
+  */
   static function handleILikeThis($userName, $page_id = 0, $rev_id = 0){
     
-    global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgVoteRev;
+    global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgVoteRev, $wgDBprefix;
    
     $response = new AjaxResponse("0");
     $command = "";
@@ -304,7 +306,7 @@ colors text according to trust.'
       $dbr->freeResult( $res );      
 
       // Then stick the stuff in.
-      $command = "nohup $wgVoteRev -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname -voter_id $user_id -page_id $page_id -rev_id $rev_id >> $wgTrustDebugLog 2>&1 & echo $!";
+      $command = "nohup $wgVoteRev -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname -voter_id $user_id -page_id $page_id -rev_id $rev_id -db_prefix $wgDBprefix >> $wgTrustDebugLog 2>&1 & echo $!";
     
       // Do something here to update the trust of this revision.
       $pid = shell_exec($command);
@@ -353,12 +355,12 @@ colors text according to trust.'
  Called after any edits are made.
 */
  function ucscRunColoring(&$article, &$user, &$text, &$summary, $minor, $watch, $sectionanchor, &$flags, $revision) { 
-   global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgRepSpeed;
+   global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgRepSpeed, $wgDBprefix;
    
    $pid = -1;
    
    // Start the coloring.
-   $command = "nohup $wgTrustCmd -rep_speed $wgRepSpeed -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname >> $wgTrustDebugLog 2>&1 & echo $!";
+   $command = "nohup $wgTrustCmd -rep_speed $wgRepSpeed -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname -db_prefix $wgDBprefix >> $wgTrustDebugLog 2>&1 & echo $!";
    // $pid = shell_exec("/bin/echo '$command' >> $wgTrustDebugLog");
    $pid = shell_exec($command);
   
@@ -409,7 +411,7 @@ colors text according to trust.'
   TODO: Make this function work with caching turned on.
  */
  function ucscSeeIfColored(&$parser, &$text, &$strip_state) { 
-   global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgRepSpeed, $wgRequest, $wgTrustExplanation, $wgUseAjax, $wgShowILike;
+   global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgRepSpeed, $wgRequest, $wgTrustExplanation, $wgUseAjax, $wgShowILike, $wgDBprefix;
 
    // Turn off caching for this instanching for this instance.
    $parser->disableCache();
@@ -475,7 +477,7 @@ colors text according to trust.'
        // If colored text does not exist, we start a coloring that explicitly requests
        // the uncolored revision to be colored.  This is useful in case there are holes
        // in the chronological order of the revisions that have been colored. 
-       $command = "nohup $wgTrustCmd -rev_id " . $this->current_rev . " -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname >> $wgTrustDebugLog 2>&1 & echo $!";
+       $command = "nohup $wgTrustCmd -rev_id " . $this->current_rev . " -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname -db_prefix $wgDBprefix >> $wgTrustDebugLog 2>&1 & echo $!";
        $pid = shell_exec($command);
      }
    } else {
