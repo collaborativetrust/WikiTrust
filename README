@@ -101,6 +101,7 @@ $wgTrustExplanation = '{| border="1" cellpadding="5" cellspacing="0" style="back
 |-
 | The text color and origin are computed by [http://trust.cse.ucsc.edu/WikiTrust WikiTrust]; if you notice problems, you can submit a bug report [http://code.google.com/p/wikitrust/issues here].
 |}';
+$wgNoTrustExplanation = "There is no trust-text for this revision currently."
 
 require_once( $IP . "/extensions/Trust/ExtensionClass.php");
 require_once( $IP . "/extensions/Trust/Trust.php" );

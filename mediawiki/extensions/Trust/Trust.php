@@ -395,7 +395,7 @@ colors text according to trust.'
   TODO: Make this function work with caching turned on.
  */
  function ucscSeeIfColored(&$parser, &$text, &$strip_state) { 
-   global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgRepSpeed, $wgRequest, $wgTrustExplanation, $wgUseAjax, $wgShowILike, $wgDBprefix;
+   global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgRepSpeed, $wgRequest, $wgTrustExplanation, $wgUseAjax, $wgShowILike, $wgDBprefix, $wgNoTrustExplanation;
 
    // Turn off caching for this instanching for this instance.
    $parser->disableCache();
@@ -456,6 +456,11 @@ colors text according to trust.'
      $row = $dbr->fetchRow($res);
      $colored_text = $row[0];
      if ($colored_text){
+       // First, make sure that there are not any instances of our tokens in the colored_text
+       $colored_text = str_replace(self::TRUST_OPEN_TOKEN, "", $colored_text);
+       $colored_text = str_replace(self::TRUST_CLOSE_TOKEN, "", $colored_text);
+       
+       // Now update the text.
        $text = $iLikeItText . $colored_text . "\n" . $wgTrustExplanation;
      } else { 
        // If colored text does not exist, we start a coloring that explicitly requests
@@ -463,6 +468,7 @@ colors text according to trust.'
        // in the chronological order of the revisions that have been colored. 
        $command = "nohup $wgTrustCmd -rev_id " . $this->current_rev . " -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname -db_prefix $wgDBprefix >> $wgTrustDebugLog 2>&1 & echo $!";
        $pid = shell_exec($command);
+       $text = $wgNoTrustExplanation . "\n" . $text;
      }
    } else {
      return false;
