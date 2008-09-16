@@ -118,6 +118,7 @@ function iLikeThisCallback(http_request){
   if ((http_request.readyState == 4) && (http_request.status == 200)) {
     document.getElementById("agree-button-done").style.visibility = "visible";
     document.getElementById("agree-button").style.visibility = "hidden";
+    alert(http_request.responseText);
     return true;
   } else {
     alert(http_request.responseText);
@@ -289,7 +290,7 @@ colors text according to trust.'
     $command = "";
     $pid = -1;
 
-    if($userName != "null"){
+    if($page_id){
       // First, look up the id numbers from the page and user strings
       $dbr =& wfGetDB( DB_SLAVE );
       $res = $dbr->select('user', array('user_id'), array('user_name' => $userName), array());
@@ -297,7 +298,7 @@ colors text according to trust.'
 	$row = $dbr->fetchRow($res);
 	$user_id = $row['user_id'];
 	if (!$user_id) {
-	  return $response;
+	  $user_id = 0;
 	}
       }
       $dbr->freeResult( $res );      
