@@ -274,6 +274,9 @@ colors text according to trust.'
       $wgAjaxExportList[] = "TextTrust::handleVote";
     }
     
+# Updater fiered when updating to a new version of MW.
+    $wgHooks['LoadExtensionSchemaUpdates'][] = array( &$this, 'updateDB');
+
 # And add and extra tab.
     $wgHooks['SkinTemplateTabs'][] = array( &$this, 'ucscTrustTemplate');
 
@@ -304,6 +307,33 @@ colors text according to trust.'
     
 # Pull the median value
     $this->update_median();
+  }
+
+  /**
+   * Update the DB when MW is updated.
+   * This assums that the db has permissions to create tables.
+   */
+  function updateDB(){
+    // Create only those tables missing.
+    // Create the needed tables, if neccesary.
+    // Pull in the create scripts.
+    require_once("TrustUpdateScripts.inc");
+
+    $db =& wfGetDB( DB_MASTER );
+    
+    // First check to see what tables have already been created.
+    $res = $db->query("show tables");
+    while ($row = $db->fetchRow($res)){
+      $db_tables[$row[0]] = True;
+    }
+
+    foreach ($create_scripts as $table => $scripts) {
+      if (!$db_tables[$table]){
+	foreach ($scripts as $script){
+	  $db->query($script);
+	}
+      }
+    }
   }
   
   /**
