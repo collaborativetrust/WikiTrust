@@ -97,11 +97,11 @@ function showOrigin(revnum) {
   document.location.href = wgScriptPath + "/index.php?title=" + encodeURIComponent(wgPageName) + "&diff=" + encodeURIComponent(revnum);
 }
 
-// The ILikeThis functionality
-function iLikeThisCallback(http_request){
+// The Vote functionality
+function voteCallback(http_request){
   if ((http_request.readyState == 4) && (http_request.status == 200)) {
-    document.getElementById("agree-button-done").style.visibility = "visible";
-    document.getElementById("agree-button").style.visibility = "hidden";
+    document.getElementById("vote-button-done").style.visibility = "visible";
+    document.getElementById("vote-button").style.visibility = "hidden";
    // alert(http_request.responseText);
     return true;
   } else {
@@ -122,7 +122,7 @@ function getQueryVariable(variable) {
   return "";
 }
 
-function startILikeThis(){
+function startVote(){
 
   var revID = getQueryVariable("oldid");
   if (revID == ""){
@@ -132,7 +132,7 @@ function startILikeThis(){
     }
   }
 
-  return sajax_do_call( "TextTrust::handleILikeThis", [wgUserName, wgArticleId, revID] , iLikeThisCallback ); 
+  return sajax_do_call( "TextTrust::handleVote", [wgUserName, wgArticleId, revID] , voteCallback ); 
 }
 
 /*]]>*/</script>';
@@ -183,14 +183,14 @@ function startILikeThis(){
   background-color: #FFFFFF;
 }
 
-#agree-button-done {
+#vote-button-done {
   visibility: hidden;
   position: absolute;
   top: 10px;
   left: 500px;
 }
 
-#agree-button {
+#vote-button {
   position: absolute;
   top: 10px;
   left: 500px;
@@ -223,12 +223,12 @@ colors text according to trust.'
   public function setup()
   {
     parent::setup();
-    global $wgHooks, $wgParser, $wgRequest, $wgUseAjax, $wgShowILike, $wgAjaxExportList;
+    global $wgHooks, $wgParser, $wgRequest, $wgUseAjax, $wgShowVoteButton, $wgAjaxExportList;
    
-# Code which takes the "I agree with this action".
+# Code which takes the "I vote" action. 
 # This has to be statically called.
-    if($wgUseAjax && $wgShowILike){
-      $wgAjaxExportList[] = "TextTrust::handleILikeThis";
+    if($wgUseAjax && $wgShowVoteButton){
+      $wgAjaxExportList[] = "TextTrust::handleVote";
     }
     
 # And add and extra tab.
@@ -268,7 +268,7 @@ colors text according to trust.'
 
    Called via ajax, so this must be static.
   */
-  static function handleILikeThis($userName, $page_id = 0, $rev_id = 0){
+  static function handleVote($userName, $page_id = 0, $rev_id = 0){
     
     global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgVoteRev, $wgDBprefix;
    
@@ -395,17 +395,17 @@ colors text according to trust.'
   TODO: Make this function work with caching turned on.
  */
  function ucscSeeIfColored(&$parser, &$text, &$strip_state) { 
-   global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgRepSpeed, $wgRequest, $wgTrustExplanation, $wgUseAjax, $wgShowILike, $wgDBprefix, $wgNoTrustExplanation;
+   global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgRepSpeed, $wgRequest, $wgTrustExplanation, $wgUseAjax, $wgShowVoteButton, $wgDBprefix, $wgNoTrustExplanation, $wgVoteText;
 
    // Turn off caching for this instanching for this instance.
    $parser->disableCache();
    
    // Text for showing the "I like it" button
-   $iLikeItText = "";
-   if ($wgUseAjax && $wgShowILike){
-     $iLikeItText = "
-".self::TRUST_OPEN_TOKEN."div id='agree-button'".self::TRUST_CLOSE_TOKEN."".self::TRUST_OPEN_TOKEN."input type='button' name='agree' value='I agree with this text' onclick='startILikeThis()' /".self::TRUST_CLOSE_TOKEN."".self::TRUST_OPEN_TOKEN."/div".self::TRUST_CLOSE_TOKEN."
-".self::TRUST_OPEN_TOKEN."div id='agree-button-done'".self::TRUST_CLOSE_TOKEN."Thank you for contributing.".self::TRUST_OPEN_TOKEN."/div".self::TRUST_CLOSE_TOKEN."
+   $voteitText = "";
+   if ($wgUseAjax && $wgShowVoteButton){
+     $voteitText = "
+".self::TRUST_OPEN_TOKEN."div id='vote-button'".self::TRUST_CLOSE_TOKEN."".self::TRUST_OPEN_TOKEN."input type='button' name='vote' value='" . $wgVoteText . "' onclick='startVote()' /".self::TRUST_CLOSE_TOKEN."".self::TRUST_OPEN_TOKEN."/div".self::TRUST_CLOSE_TOKEN."
+".self::TRUST_OPEN_TOKEN."div id='vote-button-done'".self::TRUST_CLOSE_TOKEN."Thank you for contributing.".self::TRUST_OPEN_TOKEN."/div".self::TRUST_CLOSE_TOKEN."
 ";
    }
 
@@ -461,7 +461,7 @@ colors text according to trust.'
        $colored_text = str_replace(self::TRUST_CLOSE_TOKEN, "", $colored_text);
        
        // Now update the text.
-       $text = $iLikeItText . $colored_text . "\n" . $wgTrustExplanation;
+       $text = $voteitText . $colored_text . "\n" . $wgTrustExplanation;
      } else { 
        // If colored text does not exist, we start a coloring that explicitly requests
        // the uncolored revision to be colored.  This is useful in case there are holes

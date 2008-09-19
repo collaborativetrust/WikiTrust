@@ -85,12 +85,13 @@ eval_online_wiki from source.
    following lines: 
 
 ----start of configuration lines----
-# Trust extension	
+# Trust extension
 $wgUseTidy = true;
 $wgUseAjax = true;
-$wgShowILike = false; // If true, the I like this button is shown.
-$wgTrustCmd = "/home/username/wikitrust/analysis/eval_online_wiki"; 
-$wgVoteRev = "/home/username/wikitrust/analysis/vote_revision";
+$wgShowVoteButton = true; // If true, the vote button is shown.
+$wgVoteText = "I vote for the correctness of this revision";
+$wgTrustCmd = "/home/username/wikitrust/eval_online_wiki"; 
+$wgVoteRev = "/home/username/wikitrust/vote_revision";
 $wgTrustLog = "/somedir/{$wgDBname}-trust.log";
 $wgTrustDebugLog = "/somedir/{$wgDBname}-trust-debug.log";
 $wgRepSpeed = 1.0;
