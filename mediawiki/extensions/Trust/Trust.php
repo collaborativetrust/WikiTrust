@@ -46,6 +46,23 @@ class TextTrust extends ExtensionClass
   ## Token to be replaed with >
   const TRUST_CLOSE_TOKEN = ":ampc:";
 
+  ## default values for variables found from LocalSettings.php
+  var $DEFAULTS = array(
+			'wgShowVoteButton' => false,
+			'wgVoteText' => "I believe this information is correct",
+			'wgThankYouForVoting' => "Thank you for your vote.",
+			'wgNoTrustExplanation' => 
+			"<p><center><b>There is no trust information available for this text yet.</b></center></p>",
+			'wgTrustCmd' => "eval_online_wiki",
+			'wgVoteRev' => "vote_revision",
+			'wgTrustLog' => "/dev/null",
+			'wgTrustDebugLog' => "/dev/null",
+			'wgRepSpeed' => 1.0,
+			'wgTrustTabText' => "Show Trust",
+			'wgTrustExplanation' => 
+			"<p><center><b>This is a product of the text trust algoruthm.</b></center></p>",
+			);
+
   ## Median Value of Trust
   var $median = 0.0;
 
@@ -204,8 +221,34 @@ function startVote(){
   public function TextTrust() 
   {
    parent::__construct( );
-   global $wgExtensionCredits;
-   
+   global $wgExtensionCredits, $wgShowVoteButton, $wgVoteText, $wgThankYouForVoting;
+   global $wgNoTrustExplanation, $wgTrustCmd, $wgVoteRev, $wgTrustLog, $wgTrustDebugLog, $wgRepSpeed;
+   global $wgTrustTabText, $wgTrustExplanation;
+
+   //Add default values if globals not set.
+   if(!$wgShowVoteButton)	
+     $wgShowVoteButton = $this->DEFAULTS['wgShowVoteButton'];
+   if(!$wgVoteText)
+     $wgVoteText = $this->DEFAULTS['wgVoteText' ];
+   if(!$wgThankYouForVoting)
+     $wgThankYouForVoting = $this->DEFAULTS['wgThankYouForVoting'];
+   if(!$wgNoTrustExplanation)
+     $wgNoTrustExplanation = $this->DEFAULTS['wgNoTrustExplanation'];
+   if(!$wgTrustCmd)
+     $wgTrustCmd = $this->DEFAULTS['wgTrustCmd' ];
+   if(!$wgVoteRev)
+     $wgVoteRev = $this->DEFAULTS['wgVoteRev'];
+   if(!$wgTrustLog)
+     $wgTrustLog = $this->DEFAULTS['wgTrustLog'];
+   if(!$wgTrustDebugLog)
+     $wgTrustDebugLog = $this->DEFAULTS['wgTrustDebugLog'];
+   if(!$wgRepSpeed)
+     $wgRepSpeed = $this->DEFAULTS['wgRepSpeed'];
+   if(!$wgTrustTabText)
+     $wgTrustTabText = $this->DEFAULTS['wgTrustTabText'];
+   if(!$wgTrustExplanation)
+     $wgTrustExplanation = $this->DEFAULTS['wgTrustExplanation'];
+
 # Define a setup function
    $wgExtensionFunctions[] = 'ucscColorTrust_Setup';
 
@@ -275,6 +318,7 @@ colors text according to trust.'
     $response = new AjaxResponse("0");
     $command = "";
     $pid = -1;
+    $prefix = ($wgDBprefix)? "-db_prefix $wgDBprefix": "";
 
     if($page_id){
       // First, look up the id numbers from the page and user strings
@@ -290,7 +334,7 @@ colors text according to trust.'
       $dbr->freeResult( $res );      
 
       // Then stick the stuff in.
-      $command = "nohup $wgVoteRev -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname -voter_id $user_id -page_id $page_id -rev_id $rev_id -db_prefix $wgDBprefix >> $wgTrustDebugLog 2>&1 & echo $!";
+      $command = "nohup $wgVoteRev -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname -voter_id $user_id -page_id $page_id -rev_id $rev_id $prefix >> $wgTrustDebugLog 2>&1 & echo $!";
     
       // Do something here to update the trust of this revision.
       $pid = shell_exec($command);
@@ -342,9 +386,10 @@ colors text according to trust.'
    global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgRepSpeed, $wgDBprefix;
    
    $pid = -1;
+   $prefix = ($wgDBprefix)? "-db_prefix $wgDBprefix": "";
    
    // Start the coloring.
-   $command = "nohup $wgTrustCmd -rep_speed $wgRepSpeed -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname -db_prefix $wgDBprefix >> $wgTrustDebugLog 2>&1 & echo $!";
+   $command = "nohup $wgTrustCmd -rep_speed $wgRepSpeed -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix >> $wgTrustDebugLog 2>&1 & echo $!";
    // $pid = shell_exec("/bin/echo '$command' >> $wgTrustDebugLog");
    $pid = shell_exec($command);
   
@@ -400,6 +445,9 @@ colors text according to trust.'
    // Turn off caching for this instanching for this instance.
    $parser->disableCache();
    
+   // Do we use a DB prefix?
+   $prefix = ($wgDBprefix)? "-db_prefix $wgDBprefix": "";
+
    // Text for showing the "I like it" button
    $voteitText = "";
    if ($wgUseAjax && $wgShowVoteButton){
@@ -466,7 +514,7 @@ colors text according to trust.'
        // If colored text does not exist, we start a coloring that explicitly requests
        // the uncolored revision to be colored.  This is useful in case there are holes
        // in the chronological order of the revisions that have been colored. 
-       $command = "nohup $wgTrustCmd -rev_id " . $this->current_rev . " -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname -db_prefix $wgDBprefix >> $wgTrustDebugLog 2>&1 & echo $!";
+       $command = "nohup $wgTrustCmd -rev_id " . $this->current_rev . " -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix >> $wgTrustDebugLog 2>&1 & echo $!";
        $pid = shell_exec($command);
        $text = $wgNoTrustExplanation . "\n" . $text;
      }
@@ -492,7 +540,6 @@ colors text according to trust.'
    $text = preg_replace('/<\/p>/', "</span></p>", $text, -1, $count);
    $text = preg_replace('/<p><\/span>/', "<p>", $text, -1, $count);
    $text = preg_replace('/<li><\/span>/', "<li>", $text, -1, $count);
-
   
    return true;
  }
