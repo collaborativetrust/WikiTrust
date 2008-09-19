@@ -73,6 +73,8 @@ let wt_db_port = ref 3306
 let set_wt_db_port d = wt_db_port := d; use_separate_dbs := true
 
 (* Other paramiters *)
+let db_prefix = ref ""
+let set_db_prefix d = db_prefix := d
 let log_name = ref "/dev/null"
 let set_log_name d = log_name := d
 let synch_log = ref false
@@ -93,6 +95,7 @@ let dump_db_calls = ref false
 (* Figure out what to do and how we are going to do it. *)
 let command_line_format = 
   [
+    ("-db_prefix", Arg.String set_db_prefix, "<string>: Database table prefix (default: none)");
    ("-db_user", Arg.String set_mw_db_user, "<string>: Mediawiki DB username (default: wikiuser)");
    ("-db_name", Arg.String set_mw_db_name, "<string>: Mediawiki DB name (default: wikidb)");
    ("-db_pass", Arg.String set_mw_db_pass, "<string>: Mediawiki DB password");
@@ -211,7 +214,7 @@ let wikitrust_db_opt =
  
 (* If requested, we erase all coloring, and we recompute it from scratch. *)
 if !delete_all then begin 
-  let db = new Online_db.db mediawiki_db wikitrust_db_opt !dump_db_calls in 
+  let db = new Online_db.db !db_prefix mediawiki_db wikitrust_db_opt !dump_db_calls in 
   db#delete_all true; 
   db#close;
   Printf.printf "Cleared the db.\n"
@@ -228,7 +231,7 @@ end
    to analyze, so that one more call to [analyze_a_bunch] is unnecessary. *)
 let analyze_a_bunch (n_revs_to_color: int) : bool = 
 
-  let db = new Online_db.db mediawiki_db wikitrust_db_opt !dump_db_calls in 
+  let db = new Online_db.db !db_prefix mediawiki_db wikitrust_db_opt !dump_db_calls in 
   (* Generates the list of revisions, in chronological order, since the last colored one. *)
   (* The obvious way would be to do a join, of the revisions which do NOT appear in the 
      colored table, sorted chronologically.  However, this can be quite inefficient for 

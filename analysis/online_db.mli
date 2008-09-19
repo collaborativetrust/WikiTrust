@@ -55,6 +55,7 @@ type revision_t = {rev_id:int; rev_page:int;
 		   rev_is_minor:bool; rev_comment:string} 
 
 class db : 
+  string ->
   Mysql.db ->
   Mysql.db option ->
   bool ->

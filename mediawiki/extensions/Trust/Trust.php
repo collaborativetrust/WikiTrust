@@ -94,30 +94,15 @@ class TextTrust extends ExtensionClass
 <script type="text/javascript">/*<![CDATA[*/
 var ctrlState = false;
 function showOrigin(revnum) {
-  //if (ctrlState) {
-    document.location.href = wgScriptPath + "/index.php?title=" + wgPageName + "&diff=" + revnum;
- // }
+  document.location.href = wgScriptPath + "/index.php?title=" + encodeURIComponent(wgPageName) + "&diff=" + encodeURIComponent(revnum);
 }
 
-function checkForCtrlDown(event) {
-  if (event.ctrlKey) { ctrlState = true; }
-  //alert (event.keyCode + " " + event.ctrlKey + " " + ctrlState);
-}
-
-function clearCtrlState(event) {
-  //alert(event.keyCode + " " + ctrlState);
-  ctrlState = false;
-}
-
-function checkCtrlState(event) {
-  //alert(ctrlState);
-}
-
-// The ILikeThis functionality
-function iLikeThisCallback(http_request){
+// The Vote functionality
+function voteCallback(http_request){
   if ((http_request.readyState == 4) && (http_request.status == 200)) {
-    document.getElementById("agree-button-done").style.visibility = "visible";
-    document.getElementById("agree-button").style.visibility = "hidden";
+    document.getElementById("vote-button-done").style.visibility = "visible";
+    document.getElementById("vote-button").style.visibility = "hidden";
+   // alert(http_request.responseText);
     return true;
   } else {
     alert(http_request.responseText);
@@ -125,8 +110,29 @@ function iLikeThisCallback(http_request){
   }
 }
 
-function startILikeThis(){
-  return sajax_do_call( "TextTrust::handleILikeThis", [wgUserName, wgPageName] , iLikeThisCallback ); 
+function getQueryVariable(variable) {
+  var query = window.location.search.substring(1);
+  var vars = query.split("&");
+  for (var i=0;i<vars.length;i++) {
+    var pair = vars[i].split("=");
+    if (pair[0] == variable) {
+      return pair[1];
+    }
+  } 
+  return "";
+}
+
+function startVote(){
+
+  var revID = getQueryVariable("oldid");
+  if (revID == ""){
+    revID = getQueryVariable("diff");
+    if (revID == ""){
+      revID = wgCurRevisionId;
+    }
+  }
+
+  return sajax_do_call( "TextTrust::handleVote", [wgUserName, wgArticleId, revID] , voteCallback ); 
 }
 
 /*]]>*/</script>';
@@ -177,14 +183,14 @@ function startILikeThis(){
   background-color: #FFFFFF;
 }
 
-#agree-button-done {
+#vote-button-done {
   visibility: hidden;
   position: absolute;
   top: 10px;
   left: 500px;
 }
 
-#agree-button {
+#vote-button {
   position: absolute;
   top: 10px;
   left: 500px;
@@ -217,12 +223,12 @@ colors text according to trust.'
   public function setup()
   {
     parent::setup();
-    global $wgHooks, $wgParser, $wgRequest, $wgUseAjax, $wgShowILike, $wgAjaxExportList;
+    global $wgHooks, $wgParser, $wgRequest, $wgUseAjax, $wgShowVoteButton, $wgAjaxExportList;
    
-# Code which takes the "I agree with this action".
+# Code which takes the "I vote" action. 
 # This has to be statically called.
-    if($wgUseAjax && $wgShowILike){
-      $wgAjaxExportList[] = "TextTrust::handleILikeThis";
+    if($wgUseAjax && $wgShowVoteButton){
+      $wgAjaxExportList[] = "TextTrust::handleVote";
     }
     
 # And add and extra tab.
@@ -257,11 +263,42 @@ colors text according to trust.'
     $this->update_median();
   }
   
-  static function handleILikeThis($userName, $pageName){
-    if($userName != "null"){
+  /**
+   Run the vote executable.
+
+   Called via ajax, so this must be static.
+  */
+  static function handleVote($userName, $page_id = 0, $rev_id = 0){
+    
+    global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgVoteRev, $wgDBprefix;
+   
+    $response = new AjaxResponse("0");
+    $command = "";
+    $pid = -1;
+
+    if($page_id){
+      // First, look up the id numbers from the page and user strings
+      $dbr =& wfGetDB( DB_SLAVE );
+      $res = $dbr->select('user', array('user_id'), array('user_name' => $userName), array());
+      if ($res){
+	$row = $dbr->fetchRow($res);
+	$user_id = $row['user_id'];
+	if (!$user_id) {
+	  $user_id = 0;
+	}
+      }
+      $dbr->freeResult( $res );      
+
+      // Then stick the stuff in.
+      $command = "nohup $wgVoteRev -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname -voter_id $user_id -page_id $page_id -rev_id $rev_id -db_prefix $wgDBprefix >> $wgTrustDebugLog 2>&1 & echo $!";
+    
       // Do something here to update the trust of this revision.
+      $pid = shell_exec($command);
     }
-    $response = new AjaxResponse("Testing");
+    
+    if($pid)
+      $response = new AjaxResponse("$command");
+
     return $response;
   }
 
@@ -302,12 +339,12 @@ colors text according to trust.'
  Called after any edits are made.
 */
  function ucscRunColoring(&$article, &$user, &$text, &$summary, $minor, $watch, $sectionanchor, &$flags, $revision) { 
-   global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgRepSpeed;
+   global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgRepSpeed, $wgDBprefix;
    
    $pid = -1;
    
    // Start the coloring.
-   $command = "nohup $wgTrustCmd -rep_speed $wgRepSpeed -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname >> $wgTrustDebugLog 2>&1 & echo $!";
+   $command = "nohup $wgTrustCmd -rep_speed $wgRepSpeed -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname -db_prefix $wgDBprefix >> $wgTrustDebugLog 2>&1 & echo $!";
    // $pid = shell_exec("/bin/echo '$command' >> $wgTrustDebugLog");
    $pid = shell_exec($command);
   
@@ -358,17 +395,17 @@ colors text according to trust.'
   TODO: Make this function work with caching turned on.
  */
  function ucscSeeIfColored(&$parser, &$text, &$strip_state) { 
-   global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgRepSpeed, $wgRequest, $wgTrustExplanation, $wgUseAjax, $wgShowILike;
+   global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgRepSpeed, $wgRequest, $wgTrustExplanation, $wgUseAjax, $wgShowVoteButton, $wgDBprefix, $wgNoTrustExplanation, $wgVoteText;
 
    // Turn off caching for this instanching for this instance.
    $parser->disableCache();
    
    // Text for showing the "I like it" button
-   $iLikeItText = "";
-   if ($wgUseAjax && $wgShowILike){
-     $iLikeItText = "
-".self::TRUST_OPEN_TOKEN."div id='agree-button'".self::TRUST_CLOSE_TOKEN."".self::TRUST_OPEN_TOKEN."input type='button' name='agree' value='I agree with this text' onclick='startILikeThis()' /".self::TRUST_CLOSE_TOKEN."".self::TRUST_OPEN_TOKEN."/div".self::TRUST_CLOSE_TOKEN."
-".self::TRUST_OPEN_TOKEN."div id='agree-button-done'".self::TRUST_CLOSE_TOKEN."Thank you for contributing.".self::TRUST_OPEN_TOKEN."/div".self::TRUST_CLOSE_TOKEN."
+   $voteitText = "";
+   if ($wgUseAjax && $wgShowVoteButton){
+     $voteitText = "
+".self::TRUST_OPEN_TOKEN."div id='vote-button'".self::TRUST_CLOSE_TOKEN."".self::TRUST_OPEN_TOKEN."input type='button' name='vote' value='" . $wgVoteText . "' onclick='startVote()' /".self::TRUST_CLOSE_TOKEN."".self::TRUST_OPEN_TOKEN."/div".self::TRUST_CLOSE_TOKEN."
+".self::TRUST_OPEN_TOKEN."div id='vote-button-done'".self::TRUST_CLOSE_TOKEN."Thank you for contributing.".self::TRUST_OPEN_TOKEN."/div".self::TRUST_CLOSE_TOKEN."
 ";
    }
 
@@ -419,13 +456,19 @@ colors text according to trust.'
      $row = $dbr->fetchRow($res);
      $colored_text = $row[0];
      if ($colored_text){
-       $text = $iLikeItText . $colored_text . "\n" . $wgTrustExplanation;
+       // First, make sure that there are not any instances of our tokens in the colored_text
+       $colored_text = str_replace(self::TRUST_OPEN_TOKEN, "", $colored_text);
+       $colored_text = str_replace(self::TRUST_CLOSE_TOKEN, "", $colored_text);
+       
+       // Now update the text.
+       $text = $voteitText . $colored_text . "\n" . $wgTrustExplanation;
      } else { 
        // If colored text does not exist, we start a coloring that explicitly requests
        // the uncolored revision to be colored.  This is useful in case there are holes
        // in the chronological order of the revisions that have been colored. 
-       $command = "nohup $wgTrustCmd -rev_id " . $this->current_rev . " -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname >> $wgTrustDebugLog 2>&1 & echo $!";
+       $command = "nohup $wgTrustCmd -rev_id " . $this->current_rev . " -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname -db_prefix $wgDBprefix >> $wgTrustDebugLog 2>&1 & echo $!";
        $pid = shell_exec($command);
+       $text = $wgNoTrustExplanation . "\n" . $text;
      }
    } else {
      return false;

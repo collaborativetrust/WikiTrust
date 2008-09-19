@@ -66,7 +66,7 @@ echo $PASS
 // Load all of the MW files.
 include($mw_root."/maintenance/commandLine.inc");
 
-global $wgDBserver, $wgDBname, $wgDBuser;
+global $wgDBserver, $wgDBname, $wgDBuser, $wgDBprefix;
 
 // Create the needed tables, if neccesary.
 $dbr =& wfGetDB( DB_SLAVE );
@@ -81,9 +81,9 @@ while ($row = $dbr->fetchRow($res)){
 $db_root = Database::newFromParams($wgDBserver, $dba, $dba_pass, $wgDBname);
 
 // These scripts hold the SQL to create and remove tables.
-$create_scripts['wikitrust_global'] = 
+$create_scripts[$wgDBprefix.'wikitrust_global'] = 
   array("
-CREATE TABLE wikitrust_global (
+CREATE TABLE ".$wgDBprefix."wikitrust_global (
        median		          float,
        rep_0			  float,
        rep_1			  float,
@@ -96,64 +96,64 @@ CREATE TABLE wikitrust_global (
        rep_8			  float,
        rep_9			  float
 ) ENGINE=InnoDB",
-	"GRANT ALL ON wikitrust_global TO $wgDBuser",
-	"INSERT INTO wikitrust_global VALUES (0,0,0,0,0,0,0,0,0,0,0)");
+	"GRANT ALL ON ".$wgDBprefix."wikitrust_global TO $wgDBuser",
+	"INSERT INTO ".$wgDBprefix."wikitrust_global VALUES (0,0,0,0,0,0,0,0,0,0,0)");
 
-$create_scripts['wikitrust_page'] = array("
-CREATE TABLE wikitrust_page (
+$create_scripts[$wgDBprefix.'wikitrust_page'] = array("
+CREATE TABLE ".$wgDBprefix."wikitrust_page (
        page_id             int PRIMARY KEY,
        deleted_chunks      longtext,
        page_info	   text NOT NULL
 ) ENGINE=InnoDB","
-GRANT ALL ON wikitrust_page TO $wgDBuser
+GRANT ALL ON ".$wgDBprefix."wikitrust_page TO $wgDBuser
 ");
 
-$create_scripts['wikitrust_revision'] = array("
-CREATE TABLE wikitrust_revision (
+$create_scripts[$wgDBprefix.'wikitrust_revision'] = array("
+CREATE TABLE ".$wgDBprefix."wikitrust_revision (
         revision_id             int PRIMARY KEY,
         quality_info		text NOT NULL, 
 	reputation_delta        float DEFAULT 0.0,
 	overall_trust           float DEFAULT 0.0
 ) ENGINE=InnoDB","
-GRANT ALL ON wikitrust_revision TO $wgDBuser;
+GRANT ALL ON ".$wgDBprefix."wikitrust_revision TO $wgDBuser;
 ");
 
-$create_scripts['wikitrust_colored_markup'] = array("
-CREATE TABLE wikitrust_colored_markup (
+$create_scripts[$wgDBprefix.'wikitrust_colored_markup'] = array("
+CREATE TABLE ".$wgDBprefix."wikitrust_colored_markup (
         revision_id     int PRIMARY KEY,
         revision_text   longtext NOT NULL,
 	revision_createdon varchar(32) NOT NULL
 ) ENGINE=InnoDB","
-GRANT ALL ON wikitrust_colored_markup TO $wgDBuser","
-CREATE INDEX wikitrust_colored_markup_createdon_idx ON wikitrust_colored_markup (revision_createdon)
+GRANT ALL ON ".$wgDBprefix."wikitrust_colored_markup TO $wgDBuser","
+CREATE INDEX ".$wgDBprefix."wikitrust_colored_markup_createdon_idx ON ".$wgDBprefix."wikitrust_colored_markup (revision_createdon)
 ");
 
-$create_scripts['wikitrust_sigs'] = array("
-CREATE TABLE wikitrust_sigs (
+$create_scripts[$wgDBprefix.'wikitrust_sigs'] = array("
+CREATE TABLE ".$wgDBprefix."wikitrust_sigs (
        revision_id      int PRIMARY KEY,
        words		longtext NOT NULL,
        trust            longtext NOT NULL,
        origin           longtext NOT NULL,
        sigs     	longtext NOT NULL
 ) ENGINE=InnoDB","
-GRANT ALL ON wikitrust_sigs TO $wgDBuser;
+GRANT ALL ON ".$wgDBprefix."wikitrust_sigs TO $wgDBuser;
 ");
 
-$create_scripts['wikitrust_user'] = array("
-CREATE TABLE wikitrust_user (
+$create_scripts[$wgDBprefix.'wikitrust_user'] = array("
+CREATE TABLE ".$wgDBprefix."wikitrust_user (
        user_id     int PRIMARY KEY   ,
        user_rep    float DEFAULT 0.0
 ) ENGINE=InnoDB","
-GRANT ALL ON wikitrust_user TO $wgDBuser;
+GRANT ALL ON ".$wgDBprefix."wikitrust_user TO $wgDBuser;
 ");
 
 
-$remove_scripts['wikitrust_global'] = array("DROP TABLE wikitrust_global");
-$remove_scripts['wikitrust_page'] = array("DROP TABLE wikitrust_page");
-$remove_scripts['wikitrust_revision'] = array("DROP TABLE wikitrust_revision");
-$remove_scripts['wikitrust_colored_markup'] = array("DROP TABLE wikitrust_colored_markup");
-$remove_scripts['wikitrust_sigs'] = array("DROP TABLE wikitrust_sigs");
-$remove_scripts['wikitrust_user'] = array("DROP TABLE wikitrust_user");
+$remove_scripts[$wgDBprefix.'wikitrust_global'] = array("DROP TABLE ".$wgDBprefix."wikitrust_global");
+$remove_scripts[$wgDBprefix.'wikitrust_page'] = array("DROP TABLE ".$wgDBprefix."wikitrust_page");
+$remove_scripts[$wgDBprefix.'wikitrust_revision'] = array("DROP TABLE ".$wgDBprefix."wikitrust_revision");
+$remove_scripts[$wgDBprefix.'wikitrust_colored_markup'] = array("DROP TABLE ".$wgDBprefix."wikitrust_colored_markup");
+$remove_scripts[$wgDBprefix.'wikitrust_sigs'] = array("DROP TABLE ".$wgDBprefix."wikitrust_sigs");
+$remove_scripts[$wgDBprefix.'wikitrust_user'] = array("DROP TABLE ".$wgDBprefix."wikitrust_user");
 
 if (!$do_remove){
   // Now do the actual creating.
