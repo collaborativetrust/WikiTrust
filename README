@@ -89,7 +89,8 @@ eval_online_wiki from source.
 $wgUseTidy = true;
 $wgUseAjax = true;
 $wgShowVoteButton = true; // If true, the vote button is shown.
-$wgVoteText = "I vote for the correctness of this revision";
+$wgVoteText = "I believe this information is correct";
+$wgThankYouForVoting = "Thank you for your vote."; 
 $wgTrustCmd = "/home/username/wikitrust/eval_online_wiki"; 
 $wgVoteRev = "/home/username/wikitrust/vote_revision";
 $wgTrustLog = "/somedir/{$wgDBname}-trust.log";
@@ -102,7 +103,10 @@ $wgTrustExplanation = '{| border="1" cellpadding="5" cellspacing="0" style="back
 |-
 | The text color and origin are computed by [http://trust.cse.ucsc.edu/WikiTrust WikiTrust]; if you notice problems, you can submit a bug report [http://code.google.com/p/wikitrust/issues here].
 |}';
-$wgNoTrustExplanation = "There is no trust-text for this revision currently."
+$wgNoTrustExplanation = '{| border="1" cellpadding="5" cellspacing="0" style="background:lightgreen; color:black"
+|-
+| There is no trust information available for this text yet.
+|}';
 
 require_once( $IP . "/extensions/Trust/ExtensionClass.php");
 require_once( $IP . "/extensions/Trust/Trust.php" );
