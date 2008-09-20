@@ -267,7 +267,7 @@ colors text according to trust.'
   {
     parent::setup();
     global $wgHooks, $wgParser, $wgRequest, $wgUseAjax, $wgShowVoteButton, $wgAjaxExportList;
-   
+
 # Code which takes the "I vote" action. 
 # This has to be statically called.
     if($wgUseAjax && $wgShowVoteButton){
@@ -336,23 +336,40 @@ colors text according to trust.'
     }
   }
   
+  /** 
+   * Turns an ASCII string into an octal encoded one.
+   * Call like this: TextTrust::prepareOutput("This is a test");
+   */
+  static function prepareOutput($command){
+    $escaped = "";
+    foreach (str_split($command) as $c ){
+      $escaped .= sprintf("\\0o%03o", ord($c));
+    }
+    return $escaped;
+  }
+
   /**
    Run the vote executable.
 
    Called via ajax, so this must be static.
   */
-  static function handleVote($userName, $page_id = 0, $rev_id = 0){
+  static function handleVote($user_name_raw, $page_id_raw = 0, $rev_id_raw = 0){
     
     global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgVoteRev, $wgDBprefix;
    
     $response = new AjaxResponse("0");
     $command = "";
     $pid = -1;
-    $prefix = ($wgDBprefix)? "-db_prefix $wgDBprefix": "";
+    $prefix = ($wgDBprefix)? "-db_prefix " . TextTrust::prepareOutput($wgDBprefix): "";
 
+    $dbr =& wfGetDB( DB_SLAVE );
+      
+    $userName = $dbr->strencode($user_name_raw, $dbr);
+    $page_id = $dbr->strencode($page_id_raw, $dbr);
+    $rev_id = $dbr->strencode($rev_id_raw, $dbr);
+    
     if($page_id){
       // First, look up the id numbers from the page and user strings
-      $dbr =& wfGetDB( DB_SLAVE );
       $res = $dbr->select('user', array('user_id'), array('user_name' => $userName), array());
       if ($res){
 	$row = $dbr->fetchRow($res);
@@ -364,14 +381,16 @@ colors text according to trust.'
       $dbr->freeResult( $res );      
 
       // Then stick the stuff in.
-      $command = "nohup $wgVoteRev -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname -voter_id $user_id -page_id $page_id -rev_id $rev_id $prefix >> $wgTrustDebugLog 2>&1 & echo $!";
-    
+      $log_cmd = " >> " . escapeshellcmd($wgTrustDebugLog) . " 2>&1 & echo $!";
+      $command = escapeshellcmd("nohup $wgVoteRev -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser  -db_pass $wgDBpassword -db_name $wgDBname -voter_id $user_id -page_id $page_id -rev_id $rev_id $prefix");
+      $whole_cmd = $command . $log_cmd;
+      
       // Do something here to update the trust of this revision.
-      $pid = shell_exec($command);
+      $pid = shell_exec($whole_cmd);
     }
     
     if($pid)
-      $response = new AjaxResponse("$command");
+      $response = new AjaxResponse("$whole_cmd");
 
     return $response;
   }
@@ -419,9 +438,13 @@ colors text according to trust.'
    $prefix = ($wgDBprefix)? "-db_prefix $wgDBprefix": "";
    
    // Start the coloring.
-   $command = "nohup $wgTrustCmd -rep_speed $wgRepSpeed -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix >> $wgTrustDebugLog 2>&1 & echo $!";
-   // $pid = shell_exec("/bin/echo '$command' >> $wgTrustDebugLog");
-   $pid = shell_exec($command);
+   //$command = "nohup $wgTrustCmd -rep_speed $wgRepSpeed -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix >> $wgTrustDebugLog 2>&1 & echo $!";
+   // Then stick the stuff in.
+   $log_cmd = " >> " . escapeshellcmd($wgTrustDebugLog) . " 2>&1 & echo $!";
+   $command = escapeshellcmd("nohup $wgTrustCmd -rep_speed $wgRepSpeed -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix");
+   $whole_cmd = $command . $log_cmd;
+
+   $pid = shell_exec($whole_cmd);
   
    if($pid)
      return true;
@@ -470,7 +493,7 @@ colors text according to trust.'
   TODO: Make this function work with caching turned on.
  */
  function ucscSeeIfColored(&$parser, &$text, &$strip_state) { 
-   global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgRepSpeed, $wgRequest, $wgTrustExplanation, $wgUseAjax, $wgShowVoteButton, $wgDBprefix, $wgNoTrustExplanation, $wgVoteText, $wgThankYouForVoting;
+   global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgRepSpeed, $wgRequest, $wgTrustExplanation, $wgUseAjax, $wgShowVoteButton, $wgDBprefix, $wgNoTrustExplanation, $wgVoteText, $wgThankYouForVoting; 
 
    // Turn off caching for this instanching for this instance.
    $parser->disableCache();
@@ -544,8 +567,12 @@ colors text according to trust.'
        // If colored text does not exist, we start a coloring that explicitly requests
        // the uncolored revision to be colored.  This is useful in case there are holes
        // in the chronological order of the revisions that have been colored. 
-       $command = "nohup $wgTrustCmd -rev_id " . $this->current_rev . " -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix >> $wgTrustDebugLog 2>&1 & echo $!";
-       $pid = shell_exec($command);
+       //$command = "nohup $wgTrustCmd -rev_id " . $this->current_rev . " -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix >> $wgTrustDebugLog 2>&1 & echo $!";
+       $log_cmd = " >> " . escapeshellcmd($wgTrustDebugLog) . " 2>&1 & echo $!";
+       $command = escapeshellcmd("nohup $wgTrustCmd -rev_id " . $dbr->strencode( $this->current_rev) . " -rep_speed $wgRepSpeed -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix");
+       $whole_cmd = $command . $log_cmd;
+
+       $pid = shell_exec($whole_cmd);
        $text = $wgNoTrustExplanation . "\n" . $text;
      }
    } else {
