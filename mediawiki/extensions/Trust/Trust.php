@@ -359,7 +359,7 @@ colors text according to trust.'
    
     $response = new AjaxResponse("0");
     $command = "";
-    $pid = -1;
+    $process = -1;
     $prefix = ($wgDBprefix)? "-db_prefix " . TextTrust::prepareOutput($wgDBprefix): "";
 
     $dbr =& wfGetDB( DB_SLAVE );
@@ -381,16 +381,20 @@ colors text according to trust.'
       $dbr->freeResult( $res );      
 
       // Then stick the stuff in.
-      $log_cmd = " >> " . escapeshellcmd($wgTrustDebugLog) . " 2>&1 & echo $!";
-      $command = escapeshellcmd("nohup $wgVoteRev -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser  -db_pass $wgDBpassword -db_name $wgDBname -voter_id $user_id -page_id $page_id -rev_id $rev_id $prefix");
-      $whole_cmd = $command . $log_cmd;
+      $command = escapeshellcmd("$wgVoteRev -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser  -db_pass $wgDBpassword -db_name $wgDBname -voter_id $user_id -page_id $page_id -rev_id $rev_id $prefix");
       
-      // Do something here to update the trust of this revision.
-      $pid = shell_exec($whole_cmd);
+      $descriptorspec = array(
+			      0 => array("pipe", "r"),  // stdin is a pipe that the child will read from
+			      1 => array("file", escapeshellcmd($wgTrustDebugLog), "a"),  // stdout is a pipe that the child will write to
+			      2 => array("file", escapeshellcmd($wgTrustDebugLog), "a") // stderr is a file to write to
+			      );
+      $cwd = '/tmp';
+      $env = array();
+      $process = proc_open($command, $descriptorspec, $pipes, $cwd, $env);
     }
     
-    if($pid)
-      $response = new AjaxResponse("$whole_cmd");
+    if($process)
+      $response = new AjaxResponse("$command");
 
     return $response;
   }
@@ -434,7 +438,7 @@ colors text according to trust.'
  function ucscRunColoring(&$article, &$user, &$text, &$summary, $minor, $watch, $sectionanchor, &$flags, $revision) { 
    global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgRepSpeed, $wgDBprefix;
    
-   $pid = -1;
+   $process = -1;
 
    // Get the db.
    $dbr =& wfGetDB( DB_SLAVE );
@@ -445,13 +449,18 @@ colors text according to trust.'
    // Start the coloring.
    //$command = "nohup $wgTrustCmd -rep_speed $wgRepSpeed -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix >> $wgTrustDebugLog 2>&1 & echo $!";
    // Then stick the stuff in.
-   $log_cmd = " >> " . escapeshellcmd($wgTrustDebugLog) . " 2>&1 & echo $!";
-   $command = escapeshellcmd("nohup $wgTrustCmd -rep_speed $wgRepSpeed -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix");
-   $whole_cmd = $command . $log_cmd;
-
-   $pid = shell_exec($whole_cmd);
+   $command = escapeshellcmd("$wgTrustCmd -rep_speed $wgRepSpeed -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix");
   
-   if($pid)
+   $descriptorspec = array(
+			   0 => array("pipe", "r"),  // stdin is a pipe that the child will read from
+			   1 => array("file", escapeshellcmd($wgTrustDebugLog), "a"),  // stdout is a pipe that the child will write to
+			   2 => array("file", escapeshellcmd($wgTrustDebugLog), "a") // stderr is a file to write to
+			   );
+   $cwd = '/tmp';
+   $env = array();
+   $process = proc_open($command, $descriptorspec, $pipes, $cwd, $env);
+   
+   if($process)
      return true;
    return false;
  }
@@ -574,10 +583,17 @@ colors text according to trust.'
        // in the chronological order of the revisions that have been colored. 
        //$command = "nohup $wgTrustCmd -rev_id " . $this->current_rev . " -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix >> $wgTrustDebugLog 2>&1 & echo $!";
        $log_cmd = " >> " . escapeshellcmd($wgTrustDebugLog) . " 2>&1 & echo $!";
-       $command = escapeshellcmd("nohup $wgTrustCmd -rev_id " . $dbr->strencode($this->current_rev) . " -rep_speed $wgRepSpeed -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix");
-       $whole_cmd = $command . $log_cmd;
-
-       $pid = shell_exec($whole_cmd);
+       $command = escapeshellcmd("$wgTrustCmd -rev_id " . $dbr->strencode($this->current_rev) . " -rep_speed $wgRepSpeed -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix");
+       
+       $descriptorspec = array(
+			       0 => array("pipe", "r"),  // stdin is a pipe that the child will read from
+			       1 => array("file", escapeshellcmd($wgTrustDebugLog), "a"),  // stdout is a pipe that the child will write to
+			       2 => array("file", escapeshellcmd($wgTrustDebugLog), "a") // stderr is a file to write to
+			       );
+       $cwd = '/tmp';
+       $env = array();
+       $process = proc_open($command, $descriptorspec, $pipes, $cwd, $env);
+       
        $text = $wgNoTrustExplanation . "\n" . $text;
      }
    } else {
