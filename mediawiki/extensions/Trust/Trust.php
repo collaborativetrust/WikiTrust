@@ -22,7 +22,7 @@
 ## MW extension
 # This defines a custom MW function to map trust values to HTML markup
 
-class TextTrust extends ExtensionClass
+class TextTrust extends TrustBase
 {
 
   ## the css tag to use
