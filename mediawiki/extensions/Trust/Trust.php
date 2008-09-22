@@ -435,7 +435,12 @@ colors text according to trust.'
    global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgRepSpeed, $wgDBprefix;
    
    $pid = -1;
-   $prefix = ($wgDBprefix)? "-db_prefix $wgDBprefix": "";
+
+   // Get the db.
+   $dbr =& wfGetDB( DB_SLAVE );
+
+   // Do we use a DB prefix?
+   $prefix = ($wgDBprefix)? "-db_prefix " . $dbr->strencode($wgDBprefix): "";
    
    // Start the coloring.
    //$command = "nohup $wgTrustCmd -rep_speed $wgRepSpeed -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix >> $wgTrustDebugLog 2>&1 & echo $!";
@@ -498,8 +503,11 @@ colors text according to trust.'
    // Turn off caching for this instanching for this instance.
    $parser->disableCache();
    
+   // Get the db.
+   $dbr =& wfGetDB( DB_SLAVE );
+
    // Do we use a DB prefix?
-   $prefix = ($wgDBprefix)? "-db_prefix $wgDBprefix": "";
+   $prefix = ($wgDBprefix)? "-db_prefix " . $dbr->strencode($wgDBprefix): "";
 
    // Text for showing the "I like it" button
    $voteitText = "";
@@ -548,9 +556,6 @@ colors text according to trust.'
    // if we made it here, we are going to color some text
    $this->colored = true;
    
-   // Otherwise, see if there is colored text in the db.
-   $dbr =& wfGetDB( DB_SLAVE );
-   
    $res = $dbr->select('wikitrust_colored_markup', 'revision_text',
 		       array( 'revision_id' => $this->current_rev ), array());
    if ($res){
@@ -569,7 +574,7 @@ colors text according to trust.'
        // in the chronological order of the revisions that have been colored. 
        //$command = "nohup $wgTrustCmd -rev_id " . $this->current_rev . " -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix >> $wgTrustDebugLog 2>&1 & echo $!";
        $log_cmd = " >> " . escapeshellcmd($wgTrustDebugLog) . " 2>&1 & echo $!";
-       $command = escapeshellcmd("nohup $wgTrustCmd -rev_id " . $dbr->strencode( $this->current_rev) . " -rep_speed $wgRepSpeed -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix");
+       $command = escapeshellcmd("nohup $wgTrustCmd -rev_id " . $dbr->strencode($this->current_rev) . " -rep_speed $wgRepSpeed -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix");
        $whole_cmd = $command . $log_cmd;
 
        $pid = shell_exec($whole_cmd);
