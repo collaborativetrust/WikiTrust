@@ -87,6 +87,14 @@ let rev_row2revision_t row =
     rev_comment = (not_null str2ml row.(7)); (* comment *)
   } 
   
+(* This is the type of a vote data *)
+let vote_t = {
+  vote_time: float; 
+  vote_page_id: int; 
+  vote_revision_id: int;
+  vote_voter_id: int;
+}
+
 
 (** This class provides a handle for accessing the database in the on-line 
     implementation. *)
@@ -282,6 +290,23 @@ class db
       let s= Printf.sprintf  "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM %srevision ORDER BY rev_timestamp ASC, rev_id ASC LIMIT %s" db_prefix (ml2int max_revs_to_return) in
 	Mysql.map (self#db_exec mediawiki_dbh s) rev_row2revision_t
 	    
+    (** [fetch_unprocessed_votes n_events] returns at most [n_events] unprocessed votes, 
+	starting from the oldest unprocessed vote. *)
+    (* Ian implement *)
+    (* Ian, I suggest that you store votes in a table with the following fields: 
+
+       timestamp (Wikipedia format I guess as in the revisions table?  something easy to have from php) 
+       page_id
+       revision_id
+       voter_id
+       processed (boolean)
+
+       The following is the only query I need to do on this table. *)
+
+    method fetch_unprocessed_votes (n_events: int) : vote_t list = 
+
+
+
     (* ================================================================ *)
     (* Page methods. *)
 

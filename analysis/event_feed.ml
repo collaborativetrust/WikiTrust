@@ -45,11 +45,13 @@ let n_events_to_read = 100
 
 (** This is the type of an event that needs to be processed. *)
 type event_t = 
-    Revision_event of int * int (* page_id, revision_id *)
-  | Vote_event of int * int * int (* page_id, revision_id, voter_id *)
+    Revision_event of int (* revision_id *)
+  | Vote_event of int * int (* revision_id, voter_id *)
 
-(** This is a time, and an event *)
-type event_occurrence_t = float * event_t 
+(** This is a time, a page_id, and an event.  The reason the page_id is 
+    factored apart is that we need the page id for all types of events, 
+    in order to grab the right locks. *)
+type event_occurrence_t = float * int * event_t 
 
 (** This class is used to build a feed of events that need to be processed
     in chronological order. 
@@ -93,7 +95,9 @@ class event_feed
 	      end
 	    in 
 	    (* Ok, we succeeded. *)
-	    revs <- Vec.concat revs (Vec.of_list rev_list); 
+	    (* The function f makes event_occurrence_t out of the revision list *)
+	    let f r = (Timeconv.time_string_to_float r.rev_timestamp, r.rev_page, Revision_event r.rev_id) in 
+	    revs <- Vec.concat revs (Vec.of_list (List.map f rev_list)); 
 	    db#commit Online_db.Both;
 	    times_tried := n_retries; 
 	  with Online_db.DB_TXN_Bad -> begin 
@@ -113,7 +117,9 @@ class event_feed
 	begin (* try ... with ... *)
 	  try
 	    let votes_list = db#fetch_unprocessed_votes n_events_to_read in 
-	    votes <- Vec.concat votes (Vec.of_list votes_list);
+	    (* f makes a vote into an event_occurrence_t *)
+	    let f v = (Timeconv.time_string_to_float v.vote_time, v.vote_page_id, Vote_event (v.vote_revision_id, v.vote_voter_id) in 
+	    votes <- Vec.concat votes (Vec.of_list (List.map f votes_list));
 	    db#commit Online_db.WikiTrust;
 	    times_tried := n_retries
 	  with Online_db.DB_TXN_Bad -> begin 
@@ -123,12 +129,11 @@ class event_feed
 	end (* try ... with ... *)
       done
 
-
       
     (** [next_event] is the main method of the class: it gives the next 
 	event to process in chronological order.  It returns None 
         when there is nothing more to be done. *)
-    method next_event : event_t option = 
+    method next_event : event_occurrence_t option = 
       (* First, ensures that we have some revisions and votes to fetch *)
       if revs  = Vec.empty then self#read_revs; 
       if votes = Vec.empty then self#read_votes; 
@@ -138,7 +143,7 @@ class event_feed
 	then None
 	else begin 
 	  (* There is a vote, but not a revision *)
-	  let ((event_time, event), more_events) = Vec.pop 0 votes in 
+	  let (event, more_events) = Vec.pop 0 votes in 
 	  votes <- more_events; 
 	  event
 	end
@@ -146,13 +151,15 @@ class event_feed
 	(* revs not empty *)
 	if votes = Vec.empty then begin 
 	  (* revs not empty, votes empty *)
-	  let ((event_time, event), more_events) = Vec.pop 0 revs in 
+	  let (event, more_events) = Vec.pop 0 revs in 
 	  revs <- more_events; 
 	  event
 	end else begin 
 	  (* There are both votes and revs; selects the first in chron order *)
-	  let (vote_time, vote) = Vec.get 0 votes in 
-	  let (rev_time,  rev ) = Vec.get 0 revs  in 
+	  let vote = Vec.get 0 votes in 
+	  let rev  = Vec.get 0 revs  in 
+	  let (vote_time, _, _) = vote in 
+	  let (rev_time,  _, _) = rev  in 
 	  if vote_time < rev_time then begin 
 	    (* Gives the vote *)
 	    votes <- Vec.remove 0 votes; 

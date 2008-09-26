@@ -55,15 +55,14 @@ class revision
   (is_minor: bool) 
   (comment: string)
   =
-  let time_init = Timeconv.time_string_to_float time_string in 
+  let time      = Timeconv.time_string_to_float time_string in 
   let timestamp = Timeconv.time_string_to_timestamp time_string in 
+  let is_anon : bool = (user_id = 0) in 
 
   object (self : 'a)
-    val is_anon : bool = (user_id = 0)
       (* These have to do with the revision text.  There is nothing in this, 
          since we do not necessarily read the text of all the revisions we 
          may want to keep track: reading the text is expensive. *)
-    val time = time_init
     val mutable words : word array = [| |]
     val mutable seps  : Text.sep_t array = [| |] 
     val mutable sep_word_idx : int array = [| |] 
