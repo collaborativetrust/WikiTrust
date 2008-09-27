@@ -119,7 +119,7 @@ function voteCallback(http_request){
   if ((http_request.readyState == 4) && (http_request.status == 200)) {
     document.getElementById("vote-button-done").style.visibility = "visible";
     document.getElementById("vote-button").style.visibility = "hidden";
-   // alert(http_request.responseText);
+    //alert(http_request.responseText);
     return true;
   } else {
     alert(http_request.responseText);
@@ -355,13 +355,8 @@ colors text according to trust.'
   */
   static function handleVote($user_name_raw, $page_id_raw = 0, $rev_id_raw = 0){
     
-    global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgVoteRev, $wgDBprefix;
-   
     $response = new AjaxResponse("0");
-    $command = "";
-    $process = -1;
-    $prefix = ($wgDBprefix)? "-db_prefix " . TextTrust::prepareOutput($wgDBprefix): "";
-
+   
     $dbr =& wfGetDB( DB_SLAVE );
       
     $userName = $dbr->strencode($user_name_raw, $dbr);
@@ -378,24 +373,29 @@ colors text according to trust.'
 	  $user_id = 0;
 	}
       }
-      $dbr->freeResult( $res );      
+      $dbr->freeResult( $res );  
 
-      // Then stick the stuff in.
-      $command = escapeshellcmd("$wgVoteRev -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser  -db_pass $wgDBpassword -db_name $wgDBname -voter_id $user_id -page_id $page_id -rev_id $rev_id $prefix");
-      
-      $descriptorspec = array(
-			      0 => array("pipe", "r"),  // stdin is a pipe that the child will read from
-			      1 => array("file", escapeshellcmd($wgTrustDebugLog), "a"),  // stdout is a pipe that the child will write to
-			      2 => array("file", escapeshellcmd($wgTrustDebugLog), "a") // stderr is a file to write to
-			      );
-      $cwd = '/tmp';
-      $env = array();
-      $process = proc_open($command, $descriptorspec, $pipes, $cwd, $env);
+      // Now see if this user has not already voted, and count the vote if its the first time though.
+      $res = $dbr->select('wikitrust_vote', array('rev_id'), array('rev_id' => $rev_id, 'voter_id' => $user_id), array());
+      if ($res){
+	$row = $dbr->fetchRow($res);
+	if(!$row['rev_id']){
+	
+	  $insert_vals = array("rev_id" => $rev_id,
+			       "page_id" => $page_id ,
+			       "voter_id" => $user_id,
+			       "voted_on" => wfTimestampNow()
+			       );
+	  $dbw =& wfGetDB( DB_MASTER );
+	  if ($dbw->insert( 'wikitrust_vote', $insert_vals))
+	    $response = new AjaxResponse(implode  ( ",", $insert_vals));
+	} else {
+	  $response = new AjaxResponse("Already Voted");
+	}
+	$dbr->freeResult( $res ); 
+      }
     }
     
-    if($process)
-      $response = new AjaxResponse("$command");
-
     return $response;
   }
 
