@@ -133,6 +133,9 @@ class db :
     (** [fetch_unprocessed_votes n_events] returns at most [n_events] unprocessed votes, starting from the oldest unprocessed vote. *)
     method fetch_unprocessed_votes : int -> vote_t list
 
+    (** [mark_vote_as_processed (votes : vote_t list)] marks all of the votes in the given list as processed. *)
+    method mark_vote_as_processed : vote_t list -> unit
+
     (* ================================================================ *)
     (* Page methods.  We assume we have a lock on the page when calling
        these methods. *)
@@ -237,5 +240,8 @@ class db :
     (** Totally clear out the db structure -- THIS IS INTENDED ONLY FOR UNIT
     TESTING *)
     method delete_all : bool -> unit
+
+    (** Add the vote to the db *)
+    method vote : vote_t -> unit
 
   end

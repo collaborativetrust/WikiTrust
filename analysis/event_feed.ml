@@ -35,6 +35,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
 open Eval_defs;;
 open Online_types;;
+open Online_db;;
 
 (* This flag causes debugging info to be printed *)
 let debug = true
@@ -96,7 +97,7 @@ class event_feed
 	    in 
 	    (* Ok, we succeeded. *)
 	    (* The function f makes event_occurrence_t out of the revision list *)
-	    let f r = (Timeconv.time_string_to_float r.rev_timestamp, r.rev_page, Revision_event r.rev_id) in 
+	    let f r = ((Timeconv.time_string_to_float r.rev_timestamp), r.rev_page, Revision_event r.rev_id) in 
 	    revs <- Vec.concat revs (Vec.of_list (List.map f rev_list)); 
 	    db#commit Online_db.Both;
 	    times_tried := n_retries; 
@@ -118,7 +119,7 @@ class event_feed
 	  try
 	    let votes_list = db#fetch_unprocessed_votes n_events_to_read in 
 	    (* f makes a vote into an event_occurrence_t *)
-	    let f v = (Timeconv.time_string_to_float v.vote_time, v.vote_page_id, Vote_event (v.vote_revision_id, v.vote_voter_id) in 
+	    let f v = (Timeconv.time_string_to_float v.vote_time), v.vote_page_id, Vote_event (v.vote_revision_id, v.vote_voter_id) in 
 	    votes <- Vec.concat votes (Vec.of_list (List.map f votes_list));
 	    db#commit Online_db.WikiTrust;
 	    times_tried := n_retries
@@ -145,11 +146,11 @@ class event_feed
 	  (* There is a vote, but not a revision *)
 	  let (event, more_events) = Vec.pop 0 votes in 
 	  votes <- more_events; 
-	  event
+	  Some event
 	end
       end else begin 
 	(* revs not empty *)
-	if votes = Vec.empty then begin 
+	if Vec.length (votes) == 0 then begin 
 	  (* revs not empty, votes empty *)
 	  let (event, more_events) = Vec.pop 0 revs in 
 	  revs <- more_events; 
@@ -169,7 +170,8 @@ class event_feed
 	    revs <- Vec.remove 0 revs; 
 	    rev
 	  end
-	end (* both votes and revs nonempty *)
+	end  (* both votes and revs nonempty *)
       end (* revs not empty *)
+      
 
   end (* class *)

@@ -303,6 +303,15 @@ class db
       let s= Printf.sprintf  "SELECT voted_on, page_id, rev_id, voter_id FROM %swikitrust_vote WHERE NOT processed ORDER BY voted_on ASC LIMIT %s" db_prefix (ml2int n_events) in
 	Mysql.map (self#db_exec wikitrust_dbh s) vote_row2vote_t
 
+    (** [mark_vote_as_processed (votes : vote_t list)] marks all of the votes in the given 
+	list as processed. *)
+    method mark_vote_as_processed (votes : vote_t list) =
+      let f vote = (
+	let s = Printf.sprintf "UPDATE %swikitrust_vote SET processed = TRUE WHERE rev_id = %s AND voter_id = %s" db_prefix (ml2int vote.vote_revision_id) (ml2int vote.vote_voter_id) in
+	  ignore (self#db_exec wikitrust_dbh s)
+      ) in
+	List.iter f votes
+
     (* ================================================================ *)
     (* Page methods. *)
 
@@ -494,6 +503,11 @@ class db
       
 
     (* ================================================================ *)
+
+    (** Add the vote to the db *)
+    method vote (vote : vote_t) =
+      let s = Printf.sprintf "INSERT INTO %swikitrust_vote (rev_id, page_id, voter_id, voted_on) VALUES (%s, %s, %s, %s)" db_prefix (ml2int vote.vote_revision_id) (ml2int vote.vote_page_id) (ml2int vote.vote_voter_id) (ml2str vote.vote_time) in
+	ignore (self#db_exec wikitrust_dbh s)
 
     (** Clear everything out *)
     method delete_all (really : bool) =

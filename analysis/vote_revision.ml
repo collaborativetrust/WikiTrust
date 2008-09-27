@@ -156,8 +156,7 @@ let logger = new Online_log.logger !log_name !synch_log;;
 (* Opens the db connections. *)
 let db = new Online_db.db !db_prefix mediawiki_db wikitrust_db_opt !dump_db_calls;;
 
-(* Prepares the page object... *)
-let p = new Online_page.page db logger page_id revision_id trust_coeff !times_to_retry_trans in 
-(* ... and processes the vote *)
-p#vote voter_id;;
+(* Add the vote to the db *)
+db#vote voter_id page_id revision_id;;
+
 

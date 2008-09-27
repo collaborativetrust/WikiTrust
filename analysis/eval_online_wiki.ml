@@ -183,7 +183,7 @@ end
    that falls within the analysis horizon is not yet evaluated and colored
    for trust, it evaluates and colors it first. 
  *)
-let rec evaluate_revision (page_id: int) (rev_id: int) : unit = 
+let rec evaluate_revision (db: Online_db.db) (page_id: int) (rev_id: int): unit = 
   if !n_processed_events < !max_events_to_process then 
     begin 
       begin (* try ... with ... *)
@@ -222,14 +222,14 @@ let rec evaluate_revision (page_id: int) (rev_id: int) : unit =
 
 
 (* This is the code that evaluates a vote *)
-let evaluate_vote (page_id: int) (revision_id: int) (voter_id: int) = 
+let evaluate_vote (db: Online_db.db) (page_id: int) (revision_id: int) (voter_id: int) = 
   if !n_processed_events < !max_events_to_process then 
     begin 
       Printf.printf "Evaluating vote by %d on revision %d of page %d\n" voter_id revision_id page_id; 
       let page = new Online_page.page db logger page_id revision_id trust_coeff !times_to_retry_trans in 
-      if p#vote voter_id then begin 
+      if page#vote voter_id then begin 
 	n_processed_events := !n_processed_events + 1;
-	Printf.printf "Done revision %d of page %d\n" rev_id page_id;
+	Printf.printf "Done revision %d of page %d\n" revision_id page_id;
       end;
       (* Waits, if so requested to throttle the computation. *)
       if each_event_delay > 0 then Unix.sleep (each_event_delay); 

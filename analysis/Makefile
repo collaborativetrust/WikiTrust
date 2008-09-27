@@ -71,10 +71,10 @@ OCAMLOPT_FLAGS=$(INCLUDES)
 # We need two lines of these, one for the debugging compilation,
 # one for the optimizing compilation. 
 OUR_ONLINE_OBJS = online_types.cmo online_db.cmo online_revision.cmo \
-	db_page.cmo online_page.cmo online_log.cmo  \
+	db_page.cmo online_page.cmo online_log.cmo event_feed.cmo  \
 
 OUR_OPT_ONLINE_OBJS = online_types.cmx online_db.cmx online_revision.cmx \
-	db_page.cmx online_page.cmx online_log.cmx \
+	db_page.cmx online_page.cmx online_log.cmx event_feed.cmx \
 
 
 online_eval: $(OUR_ONLINE_OBJS) 
