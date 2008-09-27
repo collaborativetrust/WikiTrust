@@ -30,6 +30,17 @@ CREATE TABLE ".$wgDBprefix."wikitrust_page (
 GRANT ALL ON ".$wgDBprefix."wikitrust_page TO $wgDBuser
 ");
 
+$create_scripts[$wgDBprefix.'wikitrust_vote'] = array("
+CREATE TABLE ".$wgDBprefix."wikitrust_vote (
+       rev_id              int PRIMARY KEY,
+       page_id             int NOT NULL,   
+       voter_id            int NOT NULL,
+       voted_on            varchar(32) NOT NULL
+) ENGINE=InnoDB","
+GRANT ALL ON ".$wgDBprefix."wikitrust_vote TO $wgDBuser","
+CREATE INDEX ".$wgDBprefix."wikitrust_voter_idx ON ".$wgDBprefix."wikitrust_vote (voter_id)
+");
+
 $create_scripts[$wgDBprefix.'wikitrust_revision'] = array("
 CREATE TABLE ".$wgDBprefix."wikitrust_revision (
         revision_id             int PRIMARY KEY,
@@ -70,6 +81,7 @@ GRANT ALL ON ".$wgDBprefix."wikitrust_user TO $wgDBuser;
 ");
 
 
+$remove_scripts[$wgDBprefix.'wikitrust_vote'] = array("DROP TABLE ".$wgDBprefix."wikitrust_vote");
 $remove_scripts[$wgDBprefix.'wikitrust_global'] = array("DROP TABLE ".$wgDBprefix."wikitrust_global");
 $remove_scripts[$wgDBprefix.'wikitrust_page'] = array("DROP TABLE ".$wgDBprefix."wikitrust_page");
 $remove_scripts[$wgDBprefix.'wikitrust_revision'] = array("DROP TABLE ".$wgDBprefix."wikitrust_revision");
