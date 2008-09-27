@@ -80,6 +80,8 @@ let page_id_opt = ref None
 let set_page_id d = page_id_opt := Some d
 let voter_id_opt = ref None
 let set_voter_id d = voter_id_opt := Some d
+let vote_time_opt = ref None
+let set_vote_time d = vote_time_opt := Some d
 let times_to_retry_trans = ref 3
 let set_times_to_retry_trans n = times_to_retry_trans := n
 let dump_db_calls = ref false
@@ -103,6 +105,7 @@ let command_line_format =
    ("-rev_id",  Arg.Int set_rev_id, "<int>: revision ID that is voted");
    ("-page_id", Arg.Int set_page_id, "<int>: page ID that is voted");
    ("-voter_id", Arg.Int set_voter_id, "<int>: user ID that votes");
+   ("-vote_time", Arg.String set_vote_time, "<string>: timestamp for the vote in form YYYYMMDDHHMMSS. Ex: 20080927231134");
 
    ("-log_file", Arg.String set_log_name, "<filename>: Logger output file (default: /dev/null)");
    ("-times_to_retry_trans", Arg.Int set_times_to_retry_trans, "<int>: Max number of times to retry a transation if it fails (default: 3)."); 
@@ -150,6 +153,9 @@ let revision_id = match !rev_id_opt with
 let voter_id = match !voter_id_opt with 
     None -> raise MissingInformation
   | Some d -> d;;
+let vote_time = match !vote_time_opt with 
+    None -> raise MissingInformation
+  | Some d -> d;;
 
 (* Opens the log file *)
 let logger = new Online_log.logger !log_name !synch_log;;
@@ -157,6 +163,11 @@ let logger = new Online_log.logger !log_name !synch_log;;
 let db = new Online_db.db !db_prefix mediawiki_db wikitrust_db_opt !dump_db_calls;;
 
 (* Add the vote to the db *)
-db#vote voter_id page_id revision_id;;
+db#vote {
+  vote_time = vote_time;
+  vote_page_id = page_id;
+  vote_revision_id = revision_id;
+  vote_voter_id = voter_id;
+};;
 
 
