@@ -86,8 +86,8 @@ let requested_rev_id = ref None
 let set_requested_rev_id d = requested_rev_id := Some d
 let color_delay = ref 0.
 let set_color_delay f = color_delay := f 
-let max_rev_to_color = ref 100
-let set_max_rev_to_color n = max_rev_to_color := n
+let max_events_to_process = ref 100
+let set_max_events_to_process n = max_events_to_process := n
 let times_to_retry_trans = ref 3
 let set_times_to_retry_trans n = times_to_retry_trans := n
 let dump_db_calls = ref false
@@ -95,7 +95,7 @@ let dump_db_calls = ref false
 (* Figure out what to do and how we are going to do it. *)
 let command_line_format = 
   [
-    ("-db_prefix", Arg.String set_db_prefix, "<string>: Database table prefix (default: none)");
+   ("-db_prefix", Arg.String set_db_prefix, "<string>: Database table prefix (default: none)");
    ("-db_user", Arg.String set_mw_db_user, "<string>: Mediawiki DB username (default: wikiuser)");
    ("-db_name", Arg.String set_mw_db_name, "<string>: Mediawiki DB name (default: wikidb)");
    ("-db_pass", Arg.String set_mw_db_pass, "<string>: Mediawiki DB password");
@@ -111,8 +111,8 @@ let command_line_format =
    ("-rev_id",  Arg.Int set_requested_rev_id, "<int>: (optional) revision ID that we want to ensure it is colored");
    ("-log_file", Arg.String set_log_name, "<filename>: Logger output file (default: /dev/null)");
    ("-rep_speed", Arg.Float set_reputation_speed, "<float>: Speed at which users gain reputation; 1.0 for large wikis");
-   ("-throttle_delay", Arg.Float set_color_delay, "<float>: Amount of time (on average) to wait between analysis of revisions.  This can be used to throttle the computation, not to use too many resources.");
-   ("-n_revs", Arg.Int set_max_rev_to_color, "<int>: Max number of revisions to process (default: 100) "); 
+   ("-throttle_delay", Arg.Float set_color_delay, "<float>: Amount of time (on average) to wait between analysis of events.  This can be used to throttle the computation, not to use too many resources.");
+   ("-n_events", Arg.Int set_max_events_to_process, "<int>: Max number of events to process (default: 100) "); 
    ("-times_to_retry_trans", Arg.Int set_times_to_retry_trans, "<int>: Max number of times to retry a transation if it fails (default: 3)."); 
    ("-dump_db_calls", Arg.Set dump_db_calls, ": Writes to the db log all database calls.  This is very verbose; use only for debugging.");
    ("-delete_all", Arg.Set delete_all, ": Recomputes all reputations and trust from scratch.  BE CAREFUL!! This may take a LONG time for large wikis.");
@@ -133,7 +133,7 @@ according to trust, and it will update user reputations accordingly.
 
 Usage: eval_online_wiki";;
 
-let n_colored_revs = ref 0;;
+let n_processed_events = ref 0;;
 let logger = new Online_log.logger !log_name !synch_log;;
 let trust_coeff = Online_types.get_default_coeff;;
 let f m n = !reputation_speed *. (Online_types.default_dynamic_rep_scaling n m) in 
@@ -141,56 +141,13 @@ trust_coeff.Online_types.dynamic_rep_scaling <- f;;
 
 (* There are two types of throttle delay: a second each time we are multiples of an int, 
    or a number of seconds before each revision. *)
-let each_revision_delay = int_of_float !color_delay;;
-let every_n_revisions_delay = 
+let each_event_delay = int_of_float !color_delay;;
+let every_n_events_delay = 
   let frac = !color_delay -. (floor !color_delay) in 
   if frac > 0.001
   then Some (max 1 (int_of_float (1. /. frac)))
   else None;;
   
-
-(* This is the function that evaluates a revision. 
-   The function is recursive, because if some past revision of the same page 
-   that falls within the analysis horizon is not yet evaluated and colored
-   for trust, it evaluates and colors it first. 
- *)
-let rec evaluate_revision (db: Online_db.db) (page_id: int) (rev_id: int) : unit = 
-  if !n_colored_revs < !max_rev_to_color then 
-    begin 
-      begin (* try ... with ... *)
-	try 
-	  Printf.printf "Evaluating revision %d of page %d\n" rev_id page_id;
-	  let page = new Online_page.page db logger page_id rev_id trust_coeff !times_to_retry_trans in
-	  if page#eval then begin 
-	    n_colored_revs := !n_colored_revs + 1;
-	    Printf.printf "Done revision %d of page %d\n" rev_id page_id;
-	  end else begin 
-	    Printf.printf "Revision %d of page %d was already done\n" rev_id page_id;
-	  end;
-	  (* Waits, if so requested to throttle the computation. *)
-	  if each_revision_delay > 0 then Unix.sleep (each_revision_delay); 
-	  begin 
-	    match every_n_revisions_delay with 
-	      Some d -> begin 
-		if (!n_colored_revs mod d) = 0 then Unix.sleep (1);
-	      end
-	    | None -> ()
-	  end; 
-
-	with Online_page.Missing_trust (page_id', rev_id') -> 
-	  begin
-	    (* We need to evaluate page_id', rev_id' first *)
-	    (* This if is a basic sanity check only. It should always be true *)
-	    if rev_id' != rev_id then 
-	      begin 
-		Printf.printf "Missing trust info: we need first to evaluate revision %d of page %d\n" rev_id' page_id';
-		evaluate_revision db page_id' rev_id';
-		evaluate_revision db page_id rev_id
-	      end (* rev_id' != rev_id *)
-	  end (* with: Was missing trust of a previous revision *)
-      end (* End of try ... with ... *)
-    end;;
-
 
 (* Prepares the database connection information *)
 let mediawiki_db = {
@@ -220,153 +177,143 @@ if !delete_all then begin
   Printf.printf "Cleared the db.\n"
 end
 
-(* [analyze_a_bunch n_revs_to_color] gets from the database at most 
-   [n_revs_to_color] revisions, and analyzes them. 
-   Why do we call this function many times, rather than just setting
-   [n_revs_to_color] to the total we have to do? 
-   Because mysql seems to like much better smaller queries, in terms 
-   of speed. 
-   The function returns [true] if it analyzed them all, and [false] if 
-   the db says that there are fewer than the requested number of revisions
-   to analyze, so that one more call to [analyze_a_bunch] is unnecessary. *)
-let analyze_a_bunch (n_revs_to_color: int) : bool = 
 
-  let db = new Online_db.db !db_prefix mediawiki_db wikitrust_db_opt !dump_db_calls in 
-  (* Generates the list of revisions, in chronological order, since the last colored one. *)
-  (* The obvious way would be to do a join, of the revisions which do NOT appear in the 
-     colored table, sorted chronologically.  However, this can be quite inefficient for 
-     large numbers of revisions.  So what we do is we retrieve the time t of the most recently
-     colored revision, and then we pull from the db all revisions with time greater or 
-     equal to t (equal, to handle revisions with the same timestamp). *)
-  
-  let revs = ref [] in
-  let times_tried = ref 0 in
-  while !times_tried < !times_to_retry_trans do 
-    db#start_transaction Online_db.Both;
-    begin (* try ... with ... *)
-      try
-	let r =
+(* This is the function that evaluates a revision. 
+   The function is recursive, because if some past revision of the same page 
+   that falls within the analysis horizon is not yet evaluated and colored
+   for trust, it evaluates and colors it first. 
+ *)
+let rec evaluate_revision (page_id: int) (rev_id: int) : unit = 
+  if !n_processed_events < !max_events_to_process then 
+    begin 
+      begin (* try ... with ... *)
+	try 
+	  Printf.printf "Evaluating revision %d of page %d\n" rev_id page_id;
+	  let page = new Online_page.page db logger page_id rev_id trust_coeff !times_to_retry_trans in
+	  if page#eval then begin 
+	    n_processed_events := !n_processed_events + 1;
+	    Printf.printf "Done revision %d of page %d\n" rev_id page_id;
+	  end else begin 
+	    Printf.printf "Revision %d of page %d was already done\n" rev_id page_id;
+	  end;
+	  (* Waits, if so requested to throttle the computation. *)
+	  if each_event_delay > 0 then Unix.sleep (each_event_delay); 
 	  begin 
-	    let last_colored = 
-	      begin 
-		try Some db#fetch_last_colored_rev_time
-		with Online_db.DB_Not_Found -> None 
+	    match every_n_events_delay with 
+	      Some d -> begin 
+		if (!n_processed_events mod d) = 0 then Unix.sleep (1);
 	      end
-	    in
-	    begin 
-	      match last_colored with 
-		Some (last_timestamp, last_id) -> begin 
-		  match !requested_rev_id with 
-		    None -> db#fetch_all_revs_after last_timestamp last_id n_revs_to_color
-		  | Some r_id -> db#fetch_all_revs_including_after r_id last_timestamp last_id n_revs_to_color
-		end
-	      | None -> db#fetch_all_revs n_revs_to_color
-	    end
-	  end
-	in 
-	revs := r;
-	db#commit Online_db.Both;
-	times_tried := !times_to_retry_trans;
-      with Online_db.DB_TXN_Bad -> begin 
-	times_tried := !times_tried + 1; 
-	db#rollback_transaction Online_db.Both;
-	revs := []
-      end
-    end (* try ... with ... *)
-  done;
+	    | None -> ()
+	  end; 
 
-  (* If we got fewer revisions than we asked, this means that there are 
-     none more to analyze.  It is useful to remember this. *)
-  let there_are_more_revs = (List.length !revs) >= n_revs_to_color in 
+	with Online_page.Missing_trust (page_id', rev_id') -> 
+	  begin
+	    (* We need to evaluate page_id', rev_id' first *)
+	    (* This if is a basic sanity check only. It should always be true *)
+	    if rev_id' != rev_id then 
+	      begin 
+		Printf.printf "Missing trust info: we need first to evaluate revision %d of page %d\n" rev_id' page_id';
+		evaluate_revision db page_id' rev_id';
+		evaluate_revision db page_id rev_id
+	      end (* rev_id' != rev_id *)
+	  end (* with: Was missing trust of a previous revision *)
+      end (* End of try ... with ... *)
+    end;;
 
-  (* Here begins the analysis algo, now that we know which revisions we must analyze *)
-  (* This hashtable is used to implement the load-sharing algorithm. *)
-  let tried : (int, unit) Hashtbl.t = Hashtbl.create 10 in 
-  (* color_more_revisions is used to decide when to stop the loop. *)
-  let color_more_revisions = ref true in 
-  
-  (* This function is iterated on the list of revisions to be colored.  
-     r is a row describing a revision read from the database; it will be made into
-     a revision inside color_revs. *)
-  let color_revs r =
-    if !color_more_revisions then 
+
+(* This is the code that evaluates a vote *)
+let evaluate_vote (page_id: int) (revision_id: int) (voter_id: int) = 
+  if !n_processed_events < !max_events_to_process then 
+    begin 
+      Printf.printf "Evaluating vote by %d on revision %d of page %d\n" voter_id revision_id page_id; 
+      let page = new Online_page.page db logger page_id revision_id trust_coeff !times_to_retry_trans in 
+      if p#vote voter_id then begin 
+	n_processed_events := !n_processed_events + 1;
+	Printf.printf "Done revision %d of page %d\n" rev_id page_id;
+      end;
+      (* Waits, if so requested to throttle the computation. *)
+      if each_event_delay > 0 then Unix.sleep (each_event_delay); 
       begin 
-	let rev = Online_revision.make_revision r db in 
-	let page_id = rev#get_page_id in 
-	let rev_id  = rev#get_id in 
-	
-	(* Tracks execution time *)
-	let t_start = Unix.gettimeofday () in 
-	
-	(* Tries to acquire the page lock. 
-	   If it succeeds, colors the page. 
-	   
-	   The page lock is not used for correctness: rather, it is used to limit 
-	   transaction parallelism, and to allow revisions to be analyzed in parallel: 
-	   otherwise, all processes would be trying to analyze them in the same order, 
-	   and they would just queue one behind the next. 
-	   The use of these locks, along with the [tried] hashtable, enforces bounded 
-	   overtaking, allowing some degree of out-of-order parallelism, while ensuring
-	   that the revisions of the same page are tried in the correct order. 
-
-	   We set the timeout for waiting as follows. 
-	   - If the page has already been tried, we need to wait on it, so we choose a long timeout. 
-	   If we don't get the page by the long timeout, this means that there is too much db 
-	   lock contention (too many simultaneously active coloring processes), and we terminate. 
-	   - If the page has not been tried yet, we set a short timeout, and if we don't get the lock,
-	   we move on to the next revision. 
-	   This algorithm ensures an "overtake by at most 1" property: if there are many coloring
-	   processes active simultaneously, and r_k, r_{k+1} are two revisions of a page p, it is 
-	   possible that a process is coloring r_k while another is coloring a revision r' after r_k 
-	   belonging to a different page p', but this revision r' cannot be past r_{k+1}. 
-	 *)
-	let already_tried = Hashtbl.mem tried page_id in 
-	let got_it = 
-	  if already_tried 
-	  then db#get_page_lock page_id lock_timeout 
-	  else db#get_page_lock page_id 0 in 
-	(* If we got it, we can color the page *)
-	if got_it then begin 
-	  (* Processes page *)
-	  if already_tried then Hashtbl.remove tried page_id; 
-	  evaluate_revision db page_id rev_id;
-	  db#release_page_lock page_id;
-	  if !n_colored_revs >= !max_rev_to_color then begin 
-	    color_more_revisions := false;
-	    Printf.printf "Colored as many pages as requested; terminating.\n";
-	    flush stdout;
+	match every_n_events_delay with 
+	  Some d -> begin 
+	    if (!n_processed_events mod d) = 0 then Unix.sleep (1);
 	  end
-	end else begin 
-	  (* We could not get the lock.  
-	     If we have already tried the page, this means we waited LONG time; 
-	     we quit everything, as it means there is some problem. *)
-	  if already_tried 
-	  then begin
-	    color_more_revisions := false;
-	    Printf.printf "Waited too long for lock of page %d; terminating.\n" page_id;
-	    flush stdout;
-	  end
-	  else Hashtbl.add tried page_id ();
-	end; (* not got it *)
-	let t_end = Unix.gettimeofday () in 
-	Printf.printf "Analysis took %f seconds.\n" (t_end -. t_start);
-	flush stdout
-      end (* for a revision r that needs to be colored *)
-  in
+	| None -> ()
+      end; 
+    end;;
 
-  List.iter color_revs !revs;
 
-  (* Closes the db connection *)
-  db#close;
-  (* Returns whether we should do more work, and whether there are more revisions to analyze in the db *)
-  there_are_more_revs && !color_more_revisions
-in (* end of analyze_a_bunch *)
+(* Creates the event feed for the work we wish to do *)
+let feed  = new Event_feed.event_feed db !times_to_retry_trans in 
+(* This hashtable is used to implement the load-sharing algorithm. *)
+let tried : (int, unit) Hashtbl.t = Hashtbl.create 10 in 
+let n_processed_events = ref 0 in 
+while !n_processed_events < !max_events_to_process do begin 
+  (* This is the main loop *)
+  match feed#next_event with 
+    None -> 
+      (* We are done *)
+      n_processed_events := !max_events_to_process
+  | Some (event_timestamp, page_id, event) -> begin 
+      (* We have an event to process *)
+      (* Tracks execution time *)
+      let t_start = Unix.gettimeofday () in 
+	
+      (* Tries to acquire the page lock. 
+	 If it succeeds, colors the page. 
+	 
+	 The page lock is not used for correctness: rather, it is used to limit 
+	 transaction parallelism, and to allow revisions to be analyzed in parallel: 
+	 otherwise, all processes would be trying to analyze them in the same order, 
+	 and they would just queue one behind the next. 
+	 The use of these locks, along with the [tried] hashtable, enforces bounded 
+	 overtaking, allowing some degree of out-of-order parallelism, while ensuring
+	 that the revisions of the same page are tried in the correct order. 
+	 
+	 We set the timeout for waiting as follows. 
+	 - If the page has already been tried, we need to wait on it, so we choose a long timeout. 
+	 If we don't get the page by the long timeout, this means that there is too much db 
+	 lock contention (too many simultaneously active coloring processes), and we terminate. 
+	 - If the page has not been tried yet, we set a short timeout, and if we don't get the lock,
+	 we move on to the next revision. 
+	 This algorithm ensures an "overtake by at most 1" property: if there are many coloring
+	 processes active simultaneously, and r_k, r_{k+1} are two revisions of a page p, it is 
+	 possible that a process is coloring r_k while another is coloring a revision r' after r_k 
+	 belonging to a different page p', but this revision r' cannot be past r_{k+1}. 
+       *)
+      let already_tried = Hashtbl.mem tried page_id in 
+      let got_it = 
+	if already_tried 
+	then db#get_page_lock page_id lock_timeout 
+	else db#get_page_lock page_id 0 in 
+      (* If we got it, we can process the event *)
+      if got_it then begin 
+	(* Processes page *)
+	if already_tried then Hashtbl.remove tried page_id; 
+	begin 
+	  match event with 
+	    Revision_event revision_id -> evaluate_revision page_id revision_id
+	  | Vote_event (revision_id, voter_id) -> evaluate_vote page_id revision_id voter_id
+	end;
+	db#release_page_lock page_id;
+      end else begin 
+	(* We could not get the lock.  
+	   If we have already tried the page, this means we waited LONG time; 
+	   we quit everything, as it means there is some problem. *)
+	if already_tried 
+	then begin
+	  color_more_revisions := false;
+	  Printf.printf "Waited too long for lock of page %d; terminating.\n" page_id;
+	  flush stdout;
+	end
+	else Hashtbl.add tried page_id ();
+      end; (* not got it *)
+      let t_end = Unix.gettimeofday () in 
+      Printf.printf "Analysis took %f seconds.\n" (t_end -. t_start);
+      flush stdout
+    end (* event that needs processing *)
+end done; (* Loop as long as we need to do events *)
 
-(* This, finally, is the main loop *)
-let do_more = ref true in 
-while !do_more do begin 
-  (* We do a bunch *)
-  Printf.printf "Start the analysis of a bunch of size %d.\n" n_revs_color_in_one_connection;
-  let there_are_more = analyze_a_bunch n_revs_color_in_one_connection in 
-  do_more := (!n_colored_revs < !max_rev_to_color) && there_are_more
-end done
+(* Closes the db connection *)
+db#close
+
