@@ -35,10 +35,11 @@ CREATE TABLE ".$wgDBprefix."wikitrust_vote (
        rev_id              int PRIMARY KEY,
        page_id             int NOT NULL,   
        voter_id            int NOT NULL,
-       voted_on            varchar(32) NOT NULL
+       voted_on            varchar(32) NOT NULL,
+       processed	   bool DEFAULT false
 ) ENGINE=InnoDB","
 GRANT ALL ON ".$wgDBprefix."wikitrust_vote TO $wgDBuser","
-CREATE INDEX ".$wgDBprefix."wikitrust_voter_idx ON ".$wgDBprefix."wikitrust_vote (voter_id)
+CREATE INDEX ".$wgDBprefix."wikitrust_processed_idx ON ".$wgDBprefix."wikitrust_vote (processed)
 ");
 
 $create_scripts[$wgDBprefix.'wikitrust_revision'] = array("

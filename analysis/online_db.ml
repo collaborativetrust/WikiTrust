@@ -86,16 +86,23 @@ let rev_row2revision_t row =
     rev_is_minor = (set_is_minor (not_null int2ml row.(6))); (* is_minor *)
     rev_comment = (not_null str2ml row.(7)); (* comment *)
   } 
-  
+
 (* This is the type of a vote data *)
-let vote_t = {
-  vote_time: float; 
+type vote_t = {
+  vote_time: string;
   vote_page_id: int; 
   vote_revision_id: int;
   vote_voter_id: int;
 }
 
-
+let vote_row2vote_t row =
+  {
+    vote_time = (not_null str2ml row.(0));
+    vote_page_id = (not_null int2ml row.(1));
+    vote_revision_id = (not_null int2ml row.(2));
+    vote_voter_id = (not_null int2ml row.(3));
+  }
+    
 (** This class provides a handle for accessing the database in the on-line 
     implementation. *)
 
@@ -292,20 +299,9 @@ class db
 	    
     (** [fetch_unprocessed_votes n_events] returns at most [n_events] unprocessed votes, 
 	starting from the oldest unprocessed vote. *)
-    (* Ian implement *)
-    (* Ian, I suggest that you store votes in a table with the following fields: 
-
-       timestamp (Wikipedia format I guess as in the revisions table?  something easy to have from php) 
-       page_id
-       revision_id
-       voter_id
-       processed (boolean)
-
-       The following is the only query I need to do on this table. *)
-
     method fetch_unprocessed_votes (n_events: int) : vote_t list = 
-
-
+      let s= Printf.sprintf  "SELECT voted_on, page_id, rev_id, voter_id FROM %swikitrust_vote WHERE NOT processed ORDER BY voted_on ASC LIMIT %s" db_prefix (ml2int n_events) in
+	Mysql.map (self#db_exec wikitrust_dbh s) vote_row2vote_t
 
     (* ================================================================ *)
     (* Page methods. *)

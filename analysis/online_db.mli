@@ -54,6 +54,14 @@ type revision_t = {rev_id:int; rev_page:int;
 		   rev_user:int; rev_user_text:string;
 		   rev_is_minor:bool; rev_comment:string} 
 
+(* This is the type of a vote data *)
+type vote_t = {
+  vote_time: string;
+  vote_page_id: int; 
+  vote_revision_id: int;
+  vote_voter_id: int;
+}
+
 class db : 
   string ->
   Mysql.db ->
@@ -121,6 +129,9 @@ class db :
     (** [fetch_all_revs lim] Returns a pointer to a result set consisting in all the 
 	revisions of the database, in ascending temporal order,  with a limit of [lim] revisions. *)
     method fetch_all_revs : int -> revision_t list
+
+    (** [fetch_unprocessed_votes n_events] returns at most [n_events] unprocessed votes, starting from the oldest unprocessed vote. *)
+    method fetch_unprocessed_votes : int -> vote_t list
 
     (* ================================================================ *)
     (* Page methods.  We assume we have a lock on the page when calling
