@@ -56,10 +56,13 @@ type event_occurrence_t = float * int * event_t
 
 (** This class is used to build a feed of events that need to be processed
     in chronological order. 
-    In [event_feed db n_retries], [db] is the db handle used for access, 
-    and [n_retries] is the number of times one should retry a database transaction. *)
+    In [event_feed db requested_rev_id n_retries], [db] is the db handle used for access, 
+    and [n_retries] is the number of times one should retry a database transaction.
+    The optional parameter requested_rev_id mentions a revision that should be included 
+    in the feed; this is used to close holes in the processing. *)
 class event_feed
   (db: Online_db.db) 
+  (requested_rev_id: int option) 
   (n_retries: int) 
 =
   object (self) 
@@ -90,7 +93,11 @@ class event_feed
 		in
 		begin 
 		  match last_colored with 
-		    Some (last_timestamp, last_id) -> db#fetch_all_revs_after last_timestamp last_id n_events_to_read
+		    Some (last_timestamp, last_id) -> begin
+		      match requested_rev_id with 
+			None -> db#fetch_all_revs_after last_timestamp last_id n_events_to_read
+		      | Some rid -> db#fetch_all_revs_including_after rid last_timestamp last_id n_events_to_read
+		    end
 		  | None -> db#fetch_all_revs n_events_to_read
 		end
 	      end

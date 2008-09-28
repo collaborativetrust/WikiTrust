@@ -248,7 +248,7 @@ in
 
 
 (* Creates the event feed for the work we wish to do *)
-let feed  = new Event_feed.event_feed db !times_to_retry_trans in 
+let feed  = new Event_feed.event_feed db !requested_rev_id !times_to_retry_trans in 
 (* This hashtable is used to implement the load-sharing algorithm. *)
 let tried : (int, unit) Hashtbl.t = Hashtbl.create 10 in 
 let n_processed_events = ref 0 in 
