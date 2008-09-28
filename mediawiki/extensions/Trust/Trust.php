@@ -376,12 +376,12 @@ colors text according to trust.'
       $dbr->freeResult( $res );  
 
       // Now see if this user has not already voted, and count the vote if its the first time though.
-      $res = $dbr->select('wikitrust_vote', array('rev_id'), array('rev_id' => $rev_id, 'voter_id' => $user_id), array());
+      $res = $dbr->select('wikitrust_vote', array('revision_id'), array('revision_id' => $rev_id, 'voter_id' => $user_id), array());
       if ($res){
 	$row = $dbr->fetchRow($res);
-	if(!$row['rev_id']){
+	if(!$row['revision_id']){
 	
-	  $insert_vals = array("rev_id" => $rev_id,
+	  $insert_vals = array("revision_id" => $rev_id,
 			       "page_id" => $page_id ,
 			       "voter_id" => $user_id,
 			       "voted_on" => wfTimestampNow()

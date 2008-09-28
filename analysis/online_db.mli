@@ -133,8 +133,8 @@ class db :
     (** [fetch_unprocessed_votes n_events] returns at most [n_events] unprocessed votes, starting from the oldest unprocessed vote. *)
     method fetch_unprocessed_votes : int -> vote_t list
 
-    (** [mark_vote_as_processed (votes : vote_t list)] marks all of the votes in the given list as processed. *)
-    method mark_vote_as_processed : vote_t list -> unit
+    (** [mark_vote_as_processed (revision_id: int) (voter_id : int)] marks a vote as processed. *)
+    method mark_vote_as_processed : int -> int -> unit
 
     (* ================================================================ *)
     (* Page methods.  We assume we have a lock on the page when calling

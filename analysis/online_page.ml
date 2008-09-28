@@ -1213,7 +1213,7 @@ class page
         The method only does somethign if the revision is the last 
         for the page, and returns, in a flag, whether it has done 
         something or not. *)
-    method vote (voter_uid: int) : bool = 
+    method vote (voter_id: int) : bool = 
 
       (* Keeps track of whether we have done any work *)
       let done_something = ref false in 
@@ -1234,15 +1234,15 @@ class page
 	      self#read_page_revisions true; 
 	      (* Increases the trust of the revision, and writes the 
 		 results back to disk *)
-	      self#vote_for_trust voter_uid; 
+	      self#vote_for_trust voter_id; 
 	      (* Inserts the revision in the list of high rep or high trust revisions, 
 		 and deletes old signatures *)
 	      self#insert_revision_in_lists;
 	      (* We write to disk the page information *)
 	      db#write_page_info page_id del_chunks_list page_info;
 	      (* We mark the vote as processed. *)
-	      db#mark_vote_as_processed page_id revision_id vo
-	      
+	      db#mark_vote_as_processed revision_id voter_id;
+
 	      (* We write back to disk the information of all revisions *)
 	      if debug then print_string "   Voted; writing the quality information...\n"; flush stdout;
 	      let rev0 = Vec.get 0 revs in 
@@ -1251,7 +1251,7 @@ class page
 	      db#commit Online_db.Both;
 	      n_attempts := n_retries;
 	      done_something := true;
-	      logger#log (Printf.sprintf "\n\nUser %d voted for revision %d of page %d" voter_uid revision_id page_id);
+	      logger#log (Printf.sprintf "\n\nUser %d voted for revision %d of page %d" voter_id revision_id page_id);
 	      logger#flush; 
 	    end else begin 
 	      (* This is not the latest revision of the page *)

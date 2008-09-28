@@ -300,12 +300,13 @@ class db
     (** [fetch_unprocessed_votes n_events] returns at most [n_events] unprocessed votes, 
 	starting from the oldest unprocessed vote. *)
     method fetch_unprocessed_votes (n_events: int) : vote_t list = 
-      let s= Printf.sprintf  "SELECT voted_on, page_id, rev_id, voter_id FROM %swikitrust_vote WHERE NOT processed ORDER BY voted_on ASC LIMIT %s" db_prefix (ml2int n_events) in
+      let s= Printf.sprintf  "SELECT voted_on, page_id, revision_id, voter_id FROM %swikitrust_vote WHERE NOT processed ORDER BY voted_on ASC LIMIT %s" db_prefix (ml2int n_events) in
 	Mysql.map (self#db_exec wikitrust_dbh s) vote_row2vote_t
 
-    (** [mark_vote_as_processed (vote_id : int)] marks a vote as processed. *)
-    method mark_vote_as_processed (vote_id : int) : unit = 
-      let s = Printf.sprintf "UPDATE %swikitrust_vote SET processed = TRUE WHERE vote_id = %s" db_prefix (ml2int vote_id) in
+    (** [mark_vote_as_processed (revision_id: int) (voter_id : int)] marks a vote as processed. *)
+    method mark_vote_as_processed (revision_id: int) (voter_id : int) : unit = 
+      let s = Printf.sprintf "UPDATE %swikitrust_vote SET processed = TRUE WHERE revision_id = %s AND vote_id = %s" 
+	db_prefix (ml2int revision_id) (ml2int voter_id) in
       ignore (self#db_exec wikitrust_dbh s)
 
 
