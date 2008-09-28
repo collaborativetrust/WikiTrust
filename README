@@ -91,7 +91,7 @@ $wgNoTrustExplanation = '{| border="1" cellpadding="5" cellspacing="0" style="ba
 | There is no trust information available for this text yet.
 |}';
 
-require_once( $IP . "/extensions/Trust/ExtensionClass.php");
+require_once( $IP . "/extensions/Trust/TrustBase.php");
 require_once( $IP . "/extensions/Trust/Trust.php" );
 ----end of configuration lines----
 
