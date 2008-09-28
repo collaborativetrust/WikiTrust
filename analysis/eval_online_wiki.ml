@@ -168,14 +168,16 @@ let wikitrust_db_opt =
   }
   else None
 
+(* Here begins the sequential code *)
+
+let db = new Online_db.db !db_prefix mediawiki_db wikitrust_db_opt !dump_db_calls in 
+
  
 (* If requested, we erase all coloring, and we recompute it from scratch. *)
 if !delete_all then begin 
-  let db = new Online_db.db !db_prefix mediawiki_db wikitrust_db_opt !dump_db_calls in 
   db#delete_all true; 
-  db#close;
   Printf.printf "Cleared the db.\n"
-end
+end;
 
 
 (* This is the function that evaluates a revision. 
@@ -183,7 +185,7 @@ end
    that falls within the analysis horizon is not yet evaluated and colored
    for trust, it evaluates and colors it first. 
  *)
-let rec evaluate_revision (db: Online_db.db) (page_id: int) (rev_id: int): unit = 
+let rec evaluate_revision (page_id: int) (rev_id: int): unit = 
   if !n_processed_events < !max_events_to_process then 
     begin 
       begin (* try ... with ... *)
@@ -213,16 +215,17 @@ let rec evaluate_revision (db: Online_db.db) (page_id: int) (rev_id: int): unit 
 	    if rev_id' != rev_id then 
 	      begin 
 		Printf.printf "Missing trust info: we need first to evaluate revision %d of page %d\n" rev_id' page_id';
-		evaluate_revision db page_id' rev_id';
-		evaluate_revision db page_id rev_id
+		evaluate_revision page_id' rev_id';
+		evaluate_revision page_id rev_id
 	      end (* rev_id' != rev_id *)
 	  end (* with: Was missing trust of a previous revision *)
       end (* End of try ... with ... *)
-    end;;
+    end
+in
 
 
 (* This is the code that evaluates a vote *)
-let evaluate_vote (db: Online_db.db) (page_id: int) (revision_id: int) (voter_id: int) = 
+let evaluate_vote (page_id: int) (revision_id: int) (voter_id: int) = 
   if !n_processed_events < !max_events_to_process then 
     begin 
       Printf.printf "Evaluating vote by %d on revision %d of page %d\n" voter_id revision_id page_id; 
@@ -240,7 +243,8 @@ let evaluate_vote (db: Online_db.db) (page_id: int) (revision_id: int) (voter_id
 	  end
 	| None -> ()
       end; 
-    end;;
+    end 
+in 
 
 
 (* Creates the event feed for the work we wish to do *)
@@ -292,8 +296,8 @@ while !n_processed_events < !max_events_to_process do begin
 	if already_tried then Hashtbl.remove tried page_id; 
 	begin 
 	  match event with 
-	    Revision_event revision_id -> evaluate_revision page_id revision_id
-	  | Vote_event (revision_id, voter_id) -> evaluate_vote page_id revision_id voter_id
+	    Event_feed.Revision_event revision_id -> evaluate_revision page_id revision_id
+	  | Event_feed.Vote_event (revision_id, voter_id) -> evaluate_vote page_id revision_id voter_id
 	end;
 	db#release_page_lock page_id;
       end else begin 
@@ -302,7 +306,7 @@ while !n_processed_events < !max_events_to_process do begin
 	   we quit everything, as it means there is some problem. *)
 	if already_tried 
 	then begin
-	  color_more_revisions := false;
+	  n_processed_events := !max_events_to_process;
 	  Printf.printf "Waited too long for lock of page %d; terminating.\n" page_id;
 	  flush stdout;
 	end

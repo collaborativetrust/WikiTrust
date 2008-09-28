@@ -164,10 +164,10 @@ let db = new Online_db.db !db_prefix mediawiki_db wikitrust_db_opt !dump_db_call
 
 (* Add the vote to the db *)
 db#vote {
-  vote_time = vote_time;
-  vote_page_id = page_id;
-  vote_revision_id = revision_id;
-  vote_voter_id = voter_id;
+  Online_db.vote_time = vote_time;
+  Online_db.vote_page_id = page_id;
+  Online_db.vote_revision_id = revision_id;
+  Online_db.vote_voter_id = voter_id;
 };;
 
 

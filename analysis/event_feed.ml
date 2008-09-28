@@ -154,7 +154,7 @@ class event_feed
 	  (* revs not empty, votes empty *)
 	  let (event, more_events) = Vec.pop 0 revs in 
 	  revs <- more_events; 
-	  event
+	  Some event
 	end else begin 
 	  (* There are both votes and revs; selects the first in chron order *)
 	  let vote = Vec.get 0 votes in 
@@ -164,11 +164,11 @@ class event_feed
 	  if vote_time < rev_time then begin 
 	    (* Gives the vote *)
 	    votes <- Vec.remove 0 votes; 
-	    vote
+	    Some vote
 	  end else begin 
 	    (* Gives the rev *)
 	    revs <- Vec.remove 0 revs; 
-	    rev
+	    Some rev
 	  end
 	end  (* both votes and revs nonempty *)
       end (* revs not empty *)

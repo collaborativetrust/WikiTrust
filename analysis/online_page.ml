@@ -1240,6 +1240,8 @@ class page
 	      self#insert_revision_in_lists;
 	      (* We write to disk the page information *)
 	      db#write_page_info page_id del_chunks_list page_info;
+	      (* We mark the vote as processed. *)
+	      db#mark_vote_as_processed page_id revision_id vo
 	      
 	      (* We write back to disk the information of all revisions *)
 	      if debug then print_string "   Voted; writing the quality information...\n"; flush stdout;
