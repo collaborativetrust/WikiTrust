@@ -194,9 +194,9 @@ class page
       end;
       
       (* Sets the current time *)
-      let n_revs = Vec.length recent_revs in 
+      let n_revs = Vec.length revs in 
       if n_revs > 0 then begin 
-	let r = Vec.get 0 recent_revs in 
+	let r = Vec.get 0 revs in 
 	curr_time <- r#get_time
       end;
       
