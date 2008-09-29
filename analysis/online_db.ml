@@ -507,7 +507,7 @@ class db
       let s = Printf.sprintf "INSERT INTO %swikitrust_vote (rev_id, page_id, voter_id, voted_on) VALUES (%s, %s, %s, %s)" db_prefix (ml2int vote.vote_revision_id) (ml2int vote.vote_page_id) (ml2int vote.vote_voter_id) (ml2str vote.vote_time) in
 	ignore (self#db_exec wikitrust_dbh s)
 
-    (** Clear everything out *)
+    (** Clear everything out (except for the votes) *)
     method delete_all (really : bool) =
       match really with
         true -> (
@@ -518,6 +518,7 @@ class db
           ignore (self#db_exec wikitrust_dbh "TRUNCATE TABLE wikitrust_colored_markup" );
           ignore (self#db_exec wikitrust_dbh "TRUNCATE TABLE wikitrust_sigs" );
           ignore (self#db_exec wikitrust_dbh "TRUNCATE TABLE wikitrust_user" ); 
+	  (* Note that we do NOT delete the votes!! *)
           ignore (self#db_exec wikitrust_dbh "COMMIT"))
       | false -> ignore (self#db_exec wikitrust_dbh "COMMIT")
 
