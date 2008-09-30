@@ -373,7 +373,7 @@ class db
     (** [read_wikitrust_revision rev_id] reads a revision from the 
 	wikitrust_revision table. *)
     method read_wikitrust_revision (revision_id: int) : (revision_t * qual_info_t) = 
-      let s = Printf.sprintf "SELECT page_id, text_id, time_string, user_id, username, is_minor, comment, quality_info FROM %swikitrust_revision WHERE revision_id = %s" db_prefix (ml2int revision_id) in 
+      let s = Printf.sprintf "SELECT revision_id, page_id, text_id, time_string, user_id, username, is_minor, comment, quality_info FROM %swikitrust_revision WHERE revision_id = %s" db_prefix (ml2int revision_id) in 
       let result = self#db_exec wikitrust_dbh s in 
       match fetch result with 
 	None -> raise DB_Not_Found
@@ -550,10 +550,10 @@ class db
           ignore (self#db_exec wikitrust_dbh "TRUNCATE TABLE wikitrust_colored_markup" );
           ignore (self#db_exec wikitrust_dbh "TRUNCATE TABLE wikitrust_sigs" );
           ignore (self#db_exec wikitrust_dbh "TRUNCATE TABLE wikitrust_user" ); 
-	  (* Note that we do NOT delete the votes!! *)
+	  ignore (self#db_exec wikitrust_dbh "UPDATE wikitrust_vote SET processed = FALSE" ); 
+          (* Note that we do NOT delete the votes!! *)
           ignore (self#db_exec wikitrust_dbh "COMMIT"))
-      | false -> ignore (self#db_exec wikitrust_dbh "COMMIT")
-
+	| false -> ignore (self#db_exec wikitrust_dbh "COMMIT")
+	    
   end;; (* online_db *)
-
 
