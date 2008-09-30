@@ -24,6 +24,11 @@
 
 class TextTrust extends TrustBase
 {
+  
+  ## Types of analysis to perform.
+  const TRUST_EVAL_VOTE = 0;
+  const TRUST_EVAL_EDIT = 10;
+  const TRUST_EVAL_MISSING = 15;
 
   ## the css tag to use
   const TRUST_CSS_TAG = "background-color"; ## color the background
@@ -387,8 +392,10 @@ colors text according to trust.'
 			       "voted_on" => wfTimestampNow()
 			       );
 	  $dbw =& wfGetDB( DB_MASTER );
-	  if ($dbw->insert( 'wikitrust_vote', $insert_vals))
+	  if ($dbw->insert( 'wikitrust_vote', $insert_vals)){
 	    $response = new AjaxResponse(implode  ( ",", $insert_vals));
+	    self::runEvalEdit(self::TRUST_EVAL_VOTE, $rev_id, $page_id, $user_id); // Launch the evaluation of the vote.
+	  }
 	} else {
 	  $response = new AjaxResponse("Already Voted");
 	}
@@ -430,27 +437,38 @@ colors text according to trust.'
    
    return $this->median;
  }
- 
-/* 
- Code to fork and exec a new process to color any new revisions.
- Called after any edits are made.
-*/
- function ucscRunColoring(&$article, &$user, &$text, &$summary, $minor, $watch, $sectionanchor, &$flags, $revision) { 
+
+ /** 
+  * Actually run the eval edit program.
+  * Returns -1 on error, the process id of the launched eval process otherwise.
+  */
+ private static function runEvalEdit($eval_type = self::TRUST_EVAL_EDIT, $rev_id = -1, $page_id = -1, $voter_id = -1){
+   
    global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgRepSpeed, $wgDBprefix;
    
    $process = -1;
+   $command = "";
 
    // Get the db.
    $dbr =& wfGetDB( DB_SLAVE );
-
+   
    // Do we use a DB prefix?
    $prefix = ($wgDBprefix)? "-db_prefix " . $dbr->strencode($wgDBprefix): "";
    
-   // Start the coloring.
-   //$command = "nohup $wgTrustCmd -rep_speed $wgRepSpeed -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix >> $wgTrustDebugLog 2>&1 & echo $!";
-   // Then stick the stuff in.
-   $command = escapeshellcmd("$wgTrustCmd -rep_speed $wgRepSpeed -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix");
-  
+   switch ($eval_type) {
+   case self::TRUST_EVAL_EDIT:
+     $command = escapeshellcmd("$wgTrustCmd -rep_speed $wgRepSpeed -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix") . " &";
+     break;
+   case self::TRUST_EVAL_VOTE:
+     if ($rev_id == -1 || $page_id == -1 || $voter_id == -1)
+       return -1;
+     $command = escapeshellcmd("$wgTrustCmd -eval_vote -rev_id " . $dbr->strencode($rev_id) . " -voter_id " . $dbr->strencode($voter_id) . " -page_id " . $dbr->strencode($page_id) . " -rep_speed $wgRepSpeed -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix") . " &";
+     break;
+   case self::TRUST_EVAL_MISSING:
+     $command = escapeshellcmd("$wgTrustCmd -rev_id " . $dbr->strencode($rev_id) . " -rep_speed $wgRepSpeed -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix") . " &";
+     break;  
+   }
+
    $descriptorspec = array(
 			   0 => array("pipe", "r"),  // stdin is a pipe that the child will read from
 			   1 => array("file", escapeshellcmd($wgTrustDebugLog), "a"),  // stdout is a pipe that the child will write to
@@ -460,7 +478,15 @@ colors text according to trust.'
    $env = array();
    $process = proc_open($command, $descriptorspec, $pipes, $cwd, $env);
    
-   if($process)
+   return $process; 
+ }
+ 
+/* 
+ Code to fork and exec a new process to color any new revisions.
+ Called after any edits are made.
+*/
+ function ucscRunColoring(&$article, &$user, &$text, &$summary, $minor, $watch, $sectionanchor, &$flags, $revision) { 
+   if (self::runEvalEdit(self::TRUST_EVAL_EDIT) >= 0)
      return true;
    return false;
  }
@@ -507,7 +533,7 @@ colors text according to trust.'
   TODO: Make this function work with caching turned on.
  */
  function ucscSeeIfColored(&$parser, &$text, &$strip_state) { 
-   global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgRepSpeed, $wgRequest, $wgTrustExplanation, $wgUseAjax, $wgShowVoteButton, $wgDBprefix, $wgNoTrustExplanation, $wgVoteText, $wgThankYouForVoting; 
+   global $wgRequest, $wgTrustExplanation, $wgUseAjax, $wgShowVoteButton, $wgDBprefix, $wgNoTrustExplanation, $wgVoteText, $wgThankYouForVoting; 
 
    // Turn off caching for this instanching for this instance.
    $parser->disableCache();
@@ -578,22 +604,9 @@ colors text according to trust.'
        // Now update the text.
        $text = $voteitText . $colored_text . "\n" . $wgTrustExplanation;
      } else { 
-       // If colored text does not exist, we start a coloring that explicitly requests
-       // the uncolored revision to be colored.  This is useful in case there are holes
-       // in the chronological order of the revisions that have been colored. 
-       //$command = "nohup $wgTrustCmd -rev_id " . $this->current_rev . " -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix >> $wgTrustDebugLog 2>&1 & echo $!";
-       $log_cmd = " >> " . escapeshellcmd($wgTrustDebugLog) . " 2>&1 & echo $!";
-       $command = escapeshellcmd("$wgTrustCmd -rev_id " . $dbr->strencode($this->current_rev) . " -rep_speed $wgRepSpeed -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix");
-       
-       $descriptorspec = array(
-			       0 => array("pipe", "r"),  // stdin is a pipe that the child will read from
-			       1 => array("file", escapeshellcmd($wgTrustDebugLog), "a"),  // stdout is a pipe that the child will write to
-			       2 => array("file", escapeshellcmd($wgTrustDebugLog), "a") // stderr is a file to write to
-			       );
-       $cwd = '/tmp';
-       $env = array();
-       $process = proc_open($command, $descriptorspec, $pipes, $cwd, $env);
-       
+       // If the colored text is missing, generate it in the background.
+       // For now, return a message about the missing text.
+       self::runEvalEdit(self::TRUST_EVAL_MISSING);
        $text = $wgNoTrustExplanation . "\n" . $text;
      }
    } else {

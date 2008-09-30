@@ -45,6 +45,13 @@ let lock_timeout = 20
 (** This is the max number of revisions to color in a single db connection. *)
 let n_revs_color_in_one_connection = 200
 
+(** Type on analysis to perform *)
+type eval_type_t = EVENT | VOTE
+
+(** MissingInformation is raised if any of 
+    page_id, revision_id, or voter_uid is not specified. *)
+exception MissingInformation
+
 (** This is the top-level code of the wiki online xml evaluation. *)
 
 (* Mediawiki DB *)
@@ -91,6 +98,12 @@ let set_max_events_to_process n = max_events_to_process := n
 let times_to_retry_trans = ref 3
 let set_times_to_retry_trans n = times_to_retry_trans := n
 let dump_db_calls = ref false
+let eval_type = ref EVENT
+let set_vote () = eval_type := VOTE
+let requested_voter_id = ref None.
+let set_requested_voter_id f = requested_voter_id := Some f
+let requested_page_id = ref None.
+let set_requested_page_id f = requested_page_id := Some f
 
 (* Figure out what to do and how we are going to do it. *)
 let command_line_format = 
@@ -110,6 +123,9 @@ let command_line_format =
 
    ("-rev_id",  Arg.Int set_requested_rev_id, "<int>: (optional) revision ID that we want to ensure it is colored");
    ("-log_file", Arg.String set_log_name, "<filename>: Logger output file (default: /dev/null)");
+   ("-eval_vote", Arg.Unit set_vote, ": Just evaluate the given vote");
+ ("-voter_id",  Arg.Int set_requested_voter_id, "<int>: (optional) voter ID that we want to evaluate the vote of");
+ ("-page_id",  Arg.Int set_requested_page_id, "<int>: (optional) page ID that we want to evaluate the vote on");
    ("-rep_speed", Arg.Float set_reputation_speed, "<float>: Speed at which users gain reputation; 1.0 for large wikis");
    ("-throttle_delay", Arg.Float set_color_delay, "<float>: Amount of time (on average) to wait between analysis of events.  This can be used to throttle the computation, not to use too many resources.");
    ("-n_events", Arg.Int set_max_events_to_process, "<int>: Max number of events to process (default: 100) "); 
@@ -192,8 +208,8 @@ let rec evaluate_revision (page_id: int) (rev_id: int): unit =
 	try 
 	  Printf.printf "Evaluating revision %d of page %d\n" rev_id page_id;
 	  let page = new Online_page.page db logger page_id rev_id trust_coeff !times_to_retry_trans in
+	  n_processed_events := !n_processed_events + 1;
 	  if page#eval then begin 
-	    n_processed_events := !n_processed_events + 1;
 	    Printf.printf "Done revision %d of page %d\n" rev_id page_id;
 	  end else begin 
 	    Printf.printf "Revision %d of page %d was already done\n" rev_id page_id;
@@ -246,6 +262,23 @@ let evaluate_vote (page_id: int) (revision_id: int) (voter_id: int) =
     end 
 in 
 
+match !eval_type with
+  | VOTE -> (
+      let page_id = match !requested_page_id with 
+	  None -> raise MissingInformation
+	| Some d -> d
+      in
+      let revision_id = match !requested_rev_id with 
+	  None -> raise MissingInformation
+	| Some d -> d
+      in
+      let voter_id = match !requested_voter_id with 
+	  None -> raise MissingInformation
+	| Some d -> d
+      in
+	evaluate_vote page_id revision_id voter_id
+    )
+  | EVENT -> (
 
 (* Creates the event feed for the work we wish to do *)
 let feed  = new Event_feed.event_feed db !requested_rev_id !times_to_retry_trans in 
@@ -318,6 +351,7 @@ while !n_processed_events < !max_events_to_process do
       end (* event that needs processing *)
   end done; (* Loop as long as we need to do events *)
 
+    );
 (* Closes the db connection *)
 db#close
 

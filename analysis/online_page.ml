@@ -1255,6 +1255,8 @@ class page
 	      logger#flush; 
 	    end else begin 
 	      (* This is not the latest revision of the page *)
+	      (* Still mark the vote as processed. *)
+	      db#mark_vote_as_processed revision_id voter_id;
 	      db#commit Online_db.Both;
 	      n_attempts := n_retries;
 	    end	      

@@ -305,7 +305,7 @@ class db
 
     (** [mark_vote_as_processed (revision_id: int) (voter_id : int)] marks a vote as processed. *)
     method mark_vote_as_processed (revision_id: int) (voter_id : int) : unit = 
-      let s = Printf.sprintf "UPDATE %swikitrust_vote SET processed = TRUE WHERE revision_id = %s AND vote_id = %s" 
+      let s = Printf.sprintf "UPDATE %swikitrust_vote SET processed = TRUE WHERE revision_id = %s AND voter_id = %s" 
 	db_prefix (ml2int revision_id) (ml2int voter_id) in
       ignore (self#db_exec wikitrust_dbh s)
 
