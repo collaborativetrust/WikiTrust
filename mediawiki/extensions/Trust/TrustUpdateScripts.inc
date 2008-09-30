@@ -46,6 +46,13 @@ CREATE INDEX ".$wgDBprefix."wikitrust_processed_idx ON ".$wgDBprefix."wikitrust_
 $create_scripts[$wgDBprefix.'wikitrust_revision'] = array("
 CREATE TABLE ".$wgDBprefix."wikitrust_revision (
         revision_id             int PRIMARY KEY,
+	page_id                 int,
+	text_id			int,
+	time_string		binary(14),
+	user_id			int, 
+	username		varchar(255), 
+	is_minor		tinyint(3) unsigned, 
+	comment			tinyblob, 	
         quality_info		text NOT NULL, 
 	reputation_delta        float DEFAULT 0.0,
 	overall_trust           float DEFAULT 0.0

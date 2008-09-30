@@ -49,10 +49,16 @@ exception DB_TXN_Bad;;
 type current_db_t = MediaWiki | WikiTrust | Both;;
 
 (* Represents the revision table in memory *)
-type revision_t = {rev_id:int; rev_page:int; 
-		   rev_text_id:int; rev_timestamp:string; 
-		   rev_user:int; rev_user_text:string;
-		   rev_is_minor:bool; rev_comment:string} 
+type revision_t = {
+  rev_id: int; 
+  rev_page: int; 
+  rev_text_id: int; 
+  rev_timestamp: string; 
+  rev_user: int; 
+  rev_user_text: string;
+  rev_is_minor: bool; 
+  rev_comment: string
+} 
 
 (* This is the type of a vote data *)
 type vote_t = {
@@ -172,12 +178,16 @@ class db :
     (** [read_revision rev_id] reads a revision by id, returning the row *)
     method read_revision : int -> string option array option 
 
+    (** [read_wikitrust_revision rev_id] reads a revision from the 
+	wikitrust_revision table. *)
+    method read_wikitrust_revision : int -> (revision_t * qual_info_t)
+
     (** [write_revision_info rev_id quality_info elist] writes the wikitrust data 
 	associated with revision with id [rev_id] *)
-    method write_revision_info : int -> qual_info_t -> unit
+    method write_wikitrust_revision : revision_t -> qual_info_t -> unit
 
-    (** [read_revision_info rev_id] reads the wikitrust information of revision_id *)
-    method read_revision_info : int -> qual_info_t
+    (** [read_revision_quality rev_id] reads the wikitrust quality information of revision_id *)
+    method read_revision_quality : int -> qual_info_t
 
     (** [fetch_rev_timestamp rev_id] returns the timestamp of revision [rev_id] *)
     method fetch_rev_timestamp : int -> timestamp_t

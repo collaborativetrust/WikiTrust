@@ -370,19 +370,51 @@ class db
       let s = Printf.sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM %srevision WHERE rev_id = %s" db_prefix (ml2int rev_id) in
       fetch (self#db_exec mediawiki_dbh s)
 
+    (** [read_wikitrust_revision rev_id] reads a revision from the 
+	wikitrust_revision table. *)
+    method read_wikitrust_revision (revision_id: int) : (revision_t * qual_info_t) = 
+      let s = Printf.sprintf "SELECT page_id, text_id, time_string, user_id, username, is_minor, comment, quality_info FROM %swikitrust_revision WHERE revision_id = %s" db_prefix (ml2int revision_id) in 
+      let result = self#db_exec wikitrust_dbh s in 
+      match fetch result with 
+	None -> raise DB_Not_Found
+      | Some x -> begin 
+	  let r = {
+	    rev_id = not_null int2ml x.(0); 
+	    rev_page = not_null int2ml x.(1); 
+	    rev_text_id = not_null int2ml x.(2); 
+	    rev_timestamp = not_null str2ml x.(3); 
+	    rev_user = not_null int2ml x.(4); 
+	    rev_user_text = not_null str2ml x.(5); 
+	    rev_is_minor = set_is_minor (not_null int2ml x.(6)); 
+	    rev_comment = not_null str2ml x.(7); 
+	  } in 
+	  let q = of_string__of__of_sexp qual_info_t_of_sexp (not_null str2ml x.(8)) in 
+	  (r, q)
+	end
+
     (** [write_revision_info rev_id quality_info elist] writes the wikitrust data 
-	associated with revision with id [rev_id] *)
-    method write_revision_info (rev_id: int) (quality_info: qual_info_t) : unit = 
-      let t1 = ml2str (string_of__of__sexp_of sexp_of_qual_info_t quality_info) in 
-      let t2 = ml2float quality_info.reputation_gain in 
-      let t3 = ml2float quality_info.overall_trust in
-      let s2 =  Printf.sprintf "INSERT INTO %swikitrust_revision (revision_id, quality_info, reputation_delta, overall_trust) VALUES (%s, %s, %s, %s) ON DUPLICATE KEY UPDATE quality_info = %s, reputation_delta = %s, overall_trust = %s"
-	db_prefix
- 	(ml2int rev_id) t1 t2 t3 t1 t2 t3 in 
+	associated with a revision *)
+    method write_wikitrust_revision (revision_info: revision_t) (quality_info: qual_info_t) : unit = 
+      (* Revision parameters *)
+      let rev_id = ml2int revision_info.rev_id in
+      let page_id = ml2int revision_info.rev_page in 
+      let text_id = ml2int revision_info.rev_text_id in 
+      let time_string = ml2str revision_info.rev_timestamp in 
+      let user_id = ml2int revision_info.rev_user in 
+      let username = ml2str revision_info.rev_user_text in 
+      let is_minor = ml2int (if revision_info.rev_is_minor then 1 else 0) in 
+      let comment = ml2str revision_info.rev_comment in 
+      (* Quality parameters *)
+      let q1 = ml2str (string_of__of__sexp_of sexp_of_qual_info_t quality_info) in 
+      let q2 = ml2float quality_info.reputation_gain in 
+      let q3 = ml2float quality_info.overall_trust in
+      (* Db write access *)
+      let s2 =  Printf.sprintf "INSERT INTO %swikitrust_revision (revision_id, page_id, text_id, time_string, user_id, username, is_minor, comment, quality_info, reputation_delta, overall_trust) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE quality_info = %s, reputation_delta = %s, overall_trust = %s"
+	db_prefix rev_id page_id text_id time_string user_id username is_minor comment q1 q2 q3 q1 q2 q3 in 
       ignore (self#db_exec wikitrust_dbh s2)
 
     (** [read_revision_info rev_id] reads the wikitrust information of revision_id *)
-    method read_revision_info (rev_id: int) : qual_info_t = 
+    method read_revision_quality (rev_id: int) : qual_info_t = 
       let s = Printf.sprintf "SELECT quality_info FROM %swikitrust_revision WHERE revision_id = %s" db_prefix (ml2int rev_id) in 
       let result = self#db_exec wikitrust_dbh s in
       match fetch result with

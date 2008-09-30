@@ -141,13 +141,21 @@ class page
 	if Hashtbl.mem revid_to_rev id 
 	then Some (Hashtbl.find revid_to_rev id)
 	else begin 
-	  match Online_revision.read_revision db id with 
-	    Some r -> begin 
-	      Hashtbl.add revid_to_rev id r;
-	      Some r
-	    end
-	  | None -> None
-	end
+	  (* We need to read it.  Tries first our own table *)
+	  try 
+	    let r = Online_revision.read_wikitrust_revision db id in 
+	    Hashtbl.add revid_to_rev id r; 
+	    Some r
+	  with Online_db.DB_Not_Found -> begin 
+	    (* Not found: we try the mediawiki table *)
+	    match Online_revision.read_revision db id with 
+	      Some r -> begin 
+		Hashtbl.add revid_to_rev id r;
+		Some r
+	      end
+	    | None -> None
+	  end (* try... that reads from mediawiki table *)
+	end (* else we must read it *)
       in 
 
       (* The function f is folded on a list of revision ids, and produces a Vec of rev_t *)
