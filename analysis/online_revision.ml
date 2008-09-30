@@ -288,12 +288,8 @@ let read_revision (db: Online_db.db) (id: int) : revision option =
 (** Reads a revision from the wikitrust_revision table given its 
     revision id.  This reads also the quality data. *)
 let read_wikitrust_revision (db: Online_db.db) (id: int) : revision = 
-  let set_is_minor ism = match ism with
-    | 0 -> false
-    | 1 -> true
-    | _ -> assert false in
   begin 
-    let (r_data, q_data) = Online_db.read_wikitrust_revision id in 
+    let (r_data, q_data) = db#read_wikitrust_revision id in 
     let rev = new revision db 
       id
       r_data.rev_page
@@ -301,7 +297,7 @@ let read_wikitrust_revision (db: Online_db.db) (id: int) : revision =
       r_data.rev_timestamp
       r_data.rev_user
       r_data.rev_user_text
-      (set_is_minor r_data.rev_is_minor)
+      r_data.rev_is_minor
       r_data.rev_comment
     in 
     rev#set_quality_info q_data; 
