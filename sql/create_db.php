@@ -31,9 +31,12 @@ $dba_pass = "";
 // If true, we remove tables. If false, we create them.
 $do_remove = ($argc > 2 && $argv[3] == "remove")? true: false; 
 
+$db_indexes = array(); // Current indexes of interest.
 $db_tables = array(); // Store all of the tables currently present.
 $create_scripts = array(); // The actual SQL to create tables. Defined below.
 $remove_scripts = array(); // The actual SQL to remove tables. Defined below.
+$create_index_scripts = array();
+$remove_index_scripts = array();
 
 if(!$mw_root || !is_dir($mw_root) || !isset($dba)
    || !is_file($mw_root."/LocalSettings.php")){
@@ -66,10 +69,17 @@ echo $PASS
 // Load all of the MW files.
 include($mw_root."/maintenance/commandLine.inc");
 
-global $wgDBserver, $wgDBname, $wgDBuser, $wgDBprefix;
+global $wgDBserver, $wgDBname, $wgDBuser, $wgDBprefix, $wgCreateRevisionIndex;
 
 // Source the update scripts
 require($mw_root."/extensions/Trust/TrustUpdateScripts.inc");
+
+// If this is set, create an index on the revision table.
+if ($wgCreateRevisionIndex){
+  $db_indexes[$wgDBprefix . 'revision'] = array(); 
+ } else {
+  $db_indexes[$wgDBprefix . 'revision']['revision_id_timestamp_idx'] = True; 
+ }
 
 // Create the needed tables, if neccesary.
 $dbr =& wfGetDB( DB_SLAVE );
@@ -80,11 +90,19 @@ while ($row = $dbr->fetchRow($res)){
   $db_tables[$row[0]] = True;
  }
 
+// And check to see what indexes have already been created.
+foreach ($db_indexes as $table => $idx){
+  $res = $dbr->query("show index from " . $table);
+  while ($row = $dbr->fetchRow($res)){
+    $db_indexes[$table][$row[2]] = True;
+  }
+}
+
 // We need root priveledges to do this.
 $db_root = Database::newFromParams($wgDBserver, $dba, $dba_pass, $wgDBname);
 
 if (!$do_remove){
-  // Now do the actual creating.
+  // Now do the actual creating of tables.
   foreach ($create_scripts as $table => $scripts) {
     if (!$db_tables[$table]){
       foreach ($scripts as $script){
@@ -92,7 +110,15 @@ if (!$do_remove){
       }
     }
   }
- } else {
+  // Now do the actual creating of indexes.
+  foreach ($create_index_scripts as $table => $idxs){
+    foreach ($idxs as $name => $idx){
+      if(!$db_indexes[$table][$name]){
+	$db_root->query($idx);
+      }
+    }
+  }
+} else {
   // Or removing.
   foreach ($remove_scripts as $table => $scripts) {
     if ($db_tables[$table]){
@@ -101,7 +127,15 @@ if (!$do_remove){
       }
     }
   }
- }
+  // ...Of indexes.
+  foreach ($remove_index_scripts as $table => $idxs){
+    foreach ($idxs as $name => $idx){
+      if($db_indexes[$table][$name]){
+	$db_root->query($idx);
+      }
+    }
+  }
+}
 
 // Finally, we commit any leftovers.
 $db_root->query("COMMIT");

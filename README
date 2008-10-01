@@ -72,6 +72,8 @@ eval_online_wiki from source.
 # Trust extension
 $wgUseTidy = true;
 $wgUseAjax = true;
+ // If true, create an index on revision(rev_id, rev_timestamp)
+$wgCreateRevisionIndex = true;
 $wgShowVoteButton = true; // If true, the vote button is shown.
 $wgVoteText = "I believe this information is correct";
 $wgThankYouForVoting = "Thank you for your vote."; 

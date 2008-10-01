@@ -3,13 +3,6 @@
 global $wgDBprefix, $wgDBuser;
 
 // These scripts hold the SQL to create and remove tables.
-
-// This creates the indices
-$create_scripts[$wgDBprefix.'revision'] = 
-  array("
-CREATE INDEX ".$wgDBprefix."revision_time_id_idx ON ".$wgDBprefix."revision (rev_timestamp, rev_id)
-");
-
 $create_scripts[$wgDBprefix.'wikitrust_global'] = 
   array("
 CREATE TABLE ".$wgDBprefix."wikitrust_global (
@@ -96,6 +89,7 @@ CREATE TABLE ".$wgDBprefix."wikitrust_user (
 GRANT ALL ON ".$wgDBprefix."wikitrust_user TO $wgDBuser;
 ");
 
+$create_index_scripts[$wgDBprefix . "revision"]['revision_id_timestamp_idx'] = "CREATE INDEX revision_id_timestamp_idx ON " . $wgDBprefix . "revision (rev_id, rev_timestamp)";
 
 $remove_scripts[$wgDBprefix.'wikitrust_vote'] = array("DROP TABLE ".$wgDBprefix."wikitrust_vote");
 $remove_scripts[$wgDBprefix.'wikitrust_global'] = array("DROP TABLE ".$wgDBprefix."wikitrust_global");
@@ -105,5 +99,7 @@ $remove_scripts[$wgDBprefix.'wikitrust_colored_markup'] = array("DROP TABLE ".$w
 $remove_scripts[$wgDBprefix.'wikitrust_sigs'] = array("DROP TABLE ".$wgDBprefix."wikitrust_sigs");
 $remove_scripts[$wgDBprefix.'wikitrust_user'] = array("DROP TABLE
 ".$wgDBprefix."wikitrust_user");
+
+$remove_index_scripts[$wgDBprefix . "revision"]['revision_id_timestamp_idx'] = "DROP INDEX revision_id_timestamp_idx ON revision";
 
 ?>
