@@ -73,69 +73,80 @@ class event_feed
     (** This is a Vec of votes to analyze.  When this is or gets empty,
 	we need to get some more from the db. *)
     val mutable votes : event_occurrence_t Vec.t = Vec.empty 
+    (** These two variables are true if there may be more votes / revisions
+	to analyze in the db, and they are false otherwise. *)
+    val mutable there_are_more_revs  = true 
+    val mutable there_are_more_votes = true
 
     (** Reads more revisions from the db, in chronological order, appending them 
 	to the revs Vec. *)
     method private read_revs : unit = 
-      (* times_tried keeps track of how many times we have tried this transaction *)
-      let times_tried = ref 0 in
-      while !times_tried < n_retries do 
-	db#start_transaction Online_db.Both;
-	begin (* try ... with ... *)
-	  try
-	    let rev_list =
-	      begin 
-		let last_colored = 
-		  begin 
-		    try Some db#fetch_last_colored_rev_time
-		    with Online_db.DB_Not_Found -> None 
-		  end
-		in
+      if there_are_more_revs then begin 
+	(* times_tried keeps track of how many times we have tried this transaction *)
+	let times_tried = ref 0 in
+	while !times_tried < n_retries do 
+	  db#start_transaction Online_db.Both;
+	  begin (* try ... with ... *)
+	    try
+	      let rev_list =
 		begin 
-		  match last_colored with 
-		    Some (last_timestamp, last_id) -> begin
-		      match requested_rev_id with 
-			None -> db#fetch_all_revs_after last_timestamp last_id n_events_to_read
-		      | Some rid -> db#fetch_all_revs_including_after rid last_timestamp last_id n_events_to_read
+		  let last_colored = 
+		    begin 
+		      try Some db#fetch_last_colored_rev_time
+		      with Online_db.DB_Not_Found -> None 
 		    end
-		  | None -> db#fetch_all_revs n_events_to_read
+		  in
+		  begin 
+		    match last_colored with 
+		      Some (last_timestamp, last_id) -> begin
+			match requested_rev_id with 
+			  None -> db#fetch_all_revs_after last_timestamp last_id n_events_to_read
+			| Some rid -> db#fetch_all_revs_including_after rid last_timestamp last_id n_events_to_read
+		      end
+		    | None -> db#fetch_all_revs n_events_to_read
+		  end
 		end
-	      end
-	    in 
-	    (* Ok, we succeeded. *)
-	    (* The function f makes event_occurrence_t out of the revision list *)
-	    let f r = ((Timeconv.time_string_to_float r.rev_timestamp), r.rev_page, Revision_event r.rev_id) in 
-	    revs <- Vec.concat revs (Vec.of_list (List.map f rev_list)); 
-	    db#commit Online_db.Both;
-	    times_tried := n_retries; 
-	  with Online_db.DB_TXN_Bad -> begin 
-	    times_tried := !times_tried + 1; 
-	    db#rollback_transaction Online_db.Both
-	  end
-	end (* try ... with ... *)
-      done
+	      in 
+	      (* Ok, we succeeded. *)
+	      (* Sets the flag that indicates whether there may be more revisions *)
+	      there_are_more_revs <- (List.length rev_list) >= n_events_to_read; 
+	      (* The function f makes event_occurrence_t out of the revision list *)
+	      let f r = ((Timeconv.time_string_to_float r.rev_timestamp), r.rev_page, Revision_event r.rev_id) in 
+	      revs <- Vec.concat revs (Vec.of_list (List.map f rev_list)); 
+	      db#commit Online_db.Both;
+	      times_tried := n_retries; 
+	    with Online_db.DB_TXN_Bad -> begin 
+	      times_tried := !times_tried + 1; 
+	      db#rollback_transaction Online_db.Both
+	    end
+	  end (* try ... with ... *)
+	done
+      end (* there are more revs *)
       
     (** Reads more votes from the db, in chronological order, appending them 
 	to the votes Vec. *)
     method private read_votes : unit = 
-      (* times_tried keeps track of how many times we have tried this transaction *)
-      let times_tried = ref 0 in
-      while !times_tried < n_retries do 
-	db#start_transaction Online_db.WikiTrust;
-	begin (* try ... with ... *)
-	  try
-	    let votes_list = db#fetch_unprocessed_votes n_events_to_read in 
-	    (* f makes a vote into an event_occurrence_t *)
-	    let f v = (Timeconv.time_string_to_float v.vote_time), v.vote_page_id, Vote_event (v.vote_revision_id, v.vote_voter_id) in 
-	    votes <- Vec.concat votes (Vec.of_list (List.map f votes_list));
-	    db#commit Online_db.WikiTrust;
-	    times_tried := n_retries
-	  with Online_db.DB_TXN_Bad -> begin 
-	    times_tried := !times_tried + 1; 
-	    db#rollback_transaction Online_db.WikiTrust
-	  end
-	end (* try ... with ... *)
-      done
+      if there_are_more_votes then begin 
+	(* times_tried keeps track of how many times we have tried this transaction *)
+	let times_tried = ref 0 in
+	while !times_tried < n_retries do 
+	  db#start_transaction Online_db.WikiTrust;
+	  begin (* try ... with ... *)
+	    try
+	      let votes_list = db#fetch_unprocessed_votes n_events_to_read in 
+	      there_are_more_votes <- (List.length votes_list) >= n_events_to_read; 
+	      (* f makes a vote into an event_occurrence_t *)
+	      let f v = (Timeconv.time_string_to_float v.vote_time), v.vote_page_id, Vote_event (v.vote_revision_id, v.vote_voter_id) in 
+	      votes <- Vec.concat votes (Vec.of_list (List.map f votes_list));
+	      db#commit Online_db.WikiTrust;
+	      times_tried := n_retries
+	    with Online_db.DB_TXN_Bad -> begin 
+	      times_tried := !times_tried + 1; 
+	      db#rollback_transaction Online_db.WikiTrust
+	    end
+	  end (* try ... with ... *)
+	done
+      end (* there are more votes *)
 
       
     (** [next_event] is the main method of the class: it gives the next 
