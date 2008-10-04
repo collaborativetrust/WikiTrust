@@ -183,7 +183,6 @@ class db
 
     (** Start a transaction. *)
     method start_transaction (cdb : current_db_t) : unit =
-      Printf.printf "START TRANSACTION\n";
       match cdb with
 	| MediaWiki -> ignore (self#db_exec mediawiki_dbh "START TRANSACTION")
 	| WikiTrust -> ignore (self#db_exec wikitrust_dbh "START TRANSACTION")
@@ -210,27 +209,21 @@ class db
       let commit_mw () = begin
 	ignore (self#db_exec mediawiki_dbh "COMMIT");
 	match Mysql.status mediawiki_dbh with 
-	| StatusError err -> begin 
-	    Printf.printf "COMMIT ERROR on mediawiki db\n";
-	    raise DB_TXN_Bad
-	  end
-	| _ -> Printf.printf "COMMIT on mediawiki db\n"
+	| StatusError err -> raise DB_TXN_Bad
+	| _ -> ()
       end in 
       let commit_wt () = begin
 	ignore (self#db_exec wikitrust_dbh "COMMIT");
 	match Mysql.status wikitrust_dbh with 
-	| StatusError err -> begin 
-	    Printf.printf "COMMIT ERROR on wikitrust db\n";
-	    raise DB_TXN_Bad
-	  end
-	| _ -> Printf.printf "COMMIT on wikitrust db\n"
+	| StatusError err -> raise DB_TXN_Bad
+	| _ -> ()
       end in 
       match cdb with
       | MediaWiki -> commit_mw ()
       | WikiTrust -> commit_wt ()
       | Both -> begin
 	  commit_mw ();
-	  commit_wt ()
+	  if separate_dbs then commit_wt ()
 	end
 
 	    
