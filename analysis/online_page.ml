@@ -1152,7 +1152,7 @@ class page
 		 and deletes old signatures *)
 	      self#insert_revision_in_lists;
 	      (* We write to disk the page information *)
-	      db#write_page_info page_id del_chunks_list page_info;
+	      db#write_page_chunks_info page_id del_chunks_list page_info;
 
 	      (* We write back to disk the information of all revisions *)
 	      if debug then print_string "   Writing the quality information...\n"; flush stdout;
@@ -1247,7 +1247,7 @@ class page
 		 and deletes old signatures *)
 	      self#insert_revision_in_lists;
 	      (* We write to disk the page information *)
-	      db#write_page_info page_id del_chunks_list page_info;
+	      db#write_page_info page_id page_info;
 	      (* We mark the vote as processed. *)
 	      db#mark_vote_as_processed revision_id voter_id;
 

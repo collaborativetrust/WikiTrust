@@ -312,7 +312,7 @@ class db
 	[chunk_list = [chunk1, chunk2, ...] ]. 
 	The chunk_list contains text that used to be present in the article, but has 
 	been deleted; the database records its existence. *)
-    method write_page_info (page_id : int) (c_list : chunk_t list) (p_info: page_info_t) : unit = 
+    method write_page_chunks_info (page_id : int) (c_list : chunk_t list) (p_info: page_info_t) : unit = 
       let chunks_string = ml2str (string_of__of__sexp_of (sexp_of_list sexp_of_chunk_t) c_list) in 
       let info_string = ml2str (string_of__of__sexp_of sexp_of_page_info_t p_info) in 
       let s = Printf.sprintf "INSERT INTO %swikitrust_page (page_id, deleted_chunks, page_info) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE deleted_chunks = %s, page_info = %s" 
@@ -320,6 +320,11 @@ class db
 	(ml2int page_id) chunks_string info_string chunks_string info_string in  
       ignore (self#db_exec wikitrust_dbh s)
 
+    method write_page_info (page_id : int) (p_info: page_info_t) : unit = 
+      let info_string = ml2str (string_of__of__sexp_of sexp_of_page_info_t p_info) in 
+      let s = Printf.sprintf "UPDATE %swikitrust_page SET page_info = %s WHERE page_id = %s"
+	db_prefix info_string (ml2int page_id) in 
+      ignore (self#db_exec wikitrust_dbh s)
 
     (** [read_page_info page_id] returns the list of dead chunks associated
 	with the page [page_id]. *)

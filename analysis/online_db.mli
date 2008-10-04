@@ -146,13 +146,18 @@ class db :
     (* Page methods.  We assume we have a lock on the page when calling
        these methods. *)
 
-    (** [write_page_info page_id chunk_list p_info] writes, in a table indexed by 
-	(page id, string list) that the page with id [page_id] is associated 
+    (** [write_page_chunks_info page_id chunk_list p_info] writes in the wikitrust_page
+	table that the page with id [page_id] is associated 
 	with the "dead" strings of text [chunk1], [chunk2], ..., where
 	[chunk_list = [chunk1, chunk2, ...] ], and with the page info [p_info]. 
 	The chunk_list contains text that used to be present in the article, but has 
 	been deleted; the database records its existence. *)
-    method write_page_info : int -> Online_types.chunk_t list -> Online_types.page_info_t -> unit
+    method write_page_chunks_info : int -> Online_types.chunk_t list -> Online_types.page_info_t -> unit
+
+    (** [write_page_info page_id chunk_list p_info] updates the wikitrust_page table
+	to record that the page with id [page_id] is associated 
+	with the page info [p_info]. *) 
+    method write_page_info : int -> Online_types.page_info_t -> unit
 
     (** [read_page_info page_id] returns the list of dead chunks associated
 	with the page [page_id], along with the page info. *)
