@@ -3,6 +3,13 @@
 global $wgDBprefix, $wgDBuser;
 
 // These scripts hold the SQL to create and remove tables.
+
+// This creates the indices
+$create_scripts[$wgDBprefix.'revision'] = 
+  array("
+CREATE INDEX ".$wgDBprefix."revision_time_id_idx ON ".$wgDBprefix."revision (rev_timestamp, rev_id)
+");
+
 $create_scripts[$wgDBprefix.'wikitrust_global'] = 
   array("
 CREATE TABLE ".$wgDBprefix."wikitrust_global (
