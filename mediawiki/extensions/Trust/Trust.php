@@ -663,7 +663,7 @@ colors text according to trust.'
  */
  function computeColorFromFloat($trust){
    $normalized_value = min(self::MAX_TRUST_VALUE, max(self::MIN_TRUST_VALUE, 
-						      ($trust * self::TRUST_MULTIPLIER) 
+						      (($trust + .5) * self::TRUST_MULTIPLIER) 
 						      / $this->median));
    return $this->computeColor3($normalized_value);
  }
