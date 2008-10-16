@@ -897,13 +897,22 @@ class page
       (* The "triangle" of revisions is formed as follows: 
 	 rev2 (newest, and judge); 
 	 rev1 (judged);
-	 r_c1 (the closest in distance to rev1 but prior to rev1);
 	 r_c2 (the closest in distance to rev2 but prior to rev1).
        *)
 
-      (* We don't consider all revisions in recent_revisinons as candidate for being judged. 
-	 We only consider them if they can have enough past *)
-      let oldest_judged_idx = min (n_recent_revs - 2) (trust_coeff.n_revs_to_consider / 2) in 
+      (* What is the oldest revision to be judged? 
+	 There are two cases: 
+	 - If n_recent_revs < trust_coeff.n_revs_to_consider, then the oldest of the
+	   recent revisions is the oldest revision of the page.  In this case, 
+	   also that revision needs to be analyzed. 
+	 - Otherwise, we stop at n_recent_revs - 2.
+       *)
+      let (analyze_first_rev, oldest_judged_idx) = 
+	(* The test n_revs = n_recent_revs is there just for safety *)
+	if n_recent_revs = trust_coeff.n_revs_to_consider && n_recent_revs = n_revs
+	then (false, n_recent_revs - 2)
+	else (true, n_recent_revs - 1)
+      in
       if oldest_judged_idx > 0 then begin 
 
         let rev2 = Vec.get 0 revs in 
@@ -957,7 +966,7 @@ class page
 	end;
 
 	  (* We compute the reputation scaling dynamically taking care of the size of the recent_revision list and 
-	     the union of the recent revision list, hig reputation list and high trust list *)
+	     the union of the recent revision list, high reputation list and high trust list. *)
 	let dynamic_rep_scaling_factor = trust_coeff.dynamic_rep_scaling n_recent_revs trust_coeff.n_revs_to_consider in
 
 	for rev1_idx = 1 to oldest_judged_idx do begin 
@@ -973,36 +982,60 @@ class page
 	    let rev1_rep   = self#get_rep rev1_uid in 
 	    let d12        = Hashtbl.find edit_dist (rev2_id, rev1_id) in 
 
-	    (* Searches for r_c1 and r_c2 *)
-	    let revp = Vec.get (rev1_idx + 1) revs in 
-	    let revp_id = revp#get_id in 
-	    let min_dist_to_1 = ref (Hashtbl.find edit_dist (revp_id, rev1_id)) in 
-	    let min_dist_to_2 = ref (Hashtbl.find edit_dist (revp_id, rev2_id)) in 
-	    let r_c1  = ref revp in 
-	    let r_c2  = ref revp in 
-	    for i = rev1_idx + 2 to n_revs - 1 do begin 
-	      let r = Vec.get i revs in 
-	      let r_id = r#get_id in 
-	      let dist_to_1 = Hashtbl.find edit_dist (r_id, rev1_id) in 
-	      let dist_to_2 = Hashtbl.find edit_dist (r_id, rev2_id) in 
-	      if dist_to_1 < !min_dist_to_1 then begin 
-		min_dist_to_1 := dist_to_1;
-		r_c1  := r
-	      end;
-	      if dist_to_2 < !min_dist_to_2 then begin 
-		min_dist_to_2 := dist_to_2;
-		r_c2  := r
-	      end
-	    end done;
-	    let r_c1_id = (!r_c1)#get_id in 
-	    let r_c2_id = (!r_c2)#get_id in 
-	    let r_c2_uid = (!r_c2)#get_user_id in 
-	    let r_c2_rep = self#get_rep r_c2_uid in 
-
+	    (* The revision r_c2 is the revision prior to rev1, and closest to rev2.
+	       We compute some quantities for it. *)
+	    let (r_c2_id, r_c2_uid, r_c2_rep, d_c2_1, d_c2_2, delta) = 
+	      if analyze_first_rev then begin 
+		(* If we are analyzing the first revision, r_c2 is the empty revision that 
+		   implicitly precedes rev1. *)
+		let len1 = Array.length (rev1#get_words) in 
+		(0,  (* The id is 0, so we track it in the log output *)
+		0,   (* The uid is 0 (what else?) *)
+		(* The empty revision is empty with very high reputation!  This means that, for the 
+		   reputation cap formulas, the only reputations that matter are those for the revisions
+		   that follow it. *)
+		Eval_defs.max_rep_val,
+		(* The distance between the empty revision, and rev1, is the length of rev1... *)
+		len1, 
+		(* and similarly for the distance to rev2. *)
+		Array.length (rev2#get_words),
+		(* delta is obviously len1 *)
+		len1
+		)
+	      end else begin 
+		(* If we are not analyzing the first revision, searches for r_c2 *)
+		let revp = Vec.get (rev1_idx + 1) revs in 
+		let revp_id = revp#get_id in 
+		let min_dist_to_1 = ref (Hashtbl.find edit_dist (revp_id, rev1_id)) in 
+		let min_dist_to_2 = ref (Hashtbl.find edit_dist (revp_id, rev2_id)) in 
+		let r_c1  = ref revp in 
+		let r_c2  = ref revp in 
+		for i = rev1_idx + 2 to n_revs - 1 do begin 
+		  let r = Vec.get i revs in 
+		  let r_id = r#get_id in 
+		  let dist_to_1 = Hashtbl.find edit_dist (r_id, rev1_id) in 
+		  let dist_to_2 = Hashtbl.find edit_dist (r_id, rev2_id) in 
+		  if dist_to_1 < !min_dist_to_1 then begin 
+		    min_dist_to_1 := dist_to_1;
+		    r_c1  := r
+		  end;
+		  if dist_to_2 < !min_dist_to_2 then begin 
+		    min_dist_to_2 := dist_to_2;
+		    r_c2  := r
+		  end
+		end done;
+		(* outputs the results *)
+		((!r_c2)#get_id, 
+		(!r_c2)#get_user_id, 
+		self#get_rep r_c2_uid, 
+		Hashtbl.find edit_dist (r_c2_id, rev1_id), 
+		!min_dist_to_2,
+		!min_dist_to_1
+		)
+	      end 
+	    in 
 	    (* Computes the quality due to r_c2, rev1, rev2 *)
-	    let d_c2_1 = Hashtbl.find edit_dist (r_c2_id, rev1_id) in 
-	    let q = qual d_c2_1 d12 !min_dist_to_2 in 
-	    let delta = !min_dist_to_1 in 
+	    let q = qual d_c2_1 d12 d_c2_2 in 
 
 	    (* computes the nixing bit *)
 	    let last_of_recent_revs = Vec.get (n_recent_revs - 1) revs in 
@@ -1034,23 +1067,24 @@ class page
               the local feedback and the reputation computation by improve-the-past algorithm. Since 
               both are robust, the robust of the algorithm is ensured *)
              (* Computes reputation after local feedback*) 
-            let rev1_prev        = Vec.get (rev1_idx + 1) revs in 
-	    let rev1_prev_id     = rev1_prev#get_id in 
-	    let rev1_prev_uid    = rev1_prev#get_user_id in 
-	    let rev1_prev_rep    = self#get_rep rev1_prev_uid in 
-            let dist_prev1       = Hashtbl.find edit_dist (rev1_prev_id, rev1_id) in 
-            let dist_prev2       = Hashtbl.find edit_dist (rev1_prev_id, rev2_id) in 
-            let q_local          = qual dist_prev1 d12 dist_prev2 in 
-	    let delta_local      = dist_prev1 in
-            let rep_inc_local    = dynamic_rep_scaling_factor *. delta_local *. q_local *. renorm_w in
-            let cap_rep_local    = min rev2_rep rev1_prev_rep in
-	    let capped_rep_local = min cap_rep_local (rev1_rep +. rep_inc_local) in 
-            let rev1_local       = max rev1_rep capped_rep_local in
-
-
-
-
-
+	    let rev1_local = 
+	      if analyze_first_rev then begin
+		(* This is basically a no-op *)
+		rev1_rep 
+	      end else begin  
+		let rev1_prev        = Vec.get (rev1_idx + 1) revs in 
+		let rev1_prev_id     = rev1_prev#get_id in 
+		let rev1_prev_uid    = rev1_prev#get_user_id in 
+		let rev1_prev_rep    = self#get_rep rev1_prev_uid in 
+		let dist_prev1       = Hashtbl.find edit_dist (rev1_prev_id, rev1_id) in 
+		let dist_prev2       = Hashtbl.find edit_dist (rev1_prev_id, rev2_id) in 
+		let q_local          = qual dist_prev1 d12 dist_prev2 in 
+		let delta_local      = dist_prev1 in
+		let rep_inc_local    = dynamic_rep_scaling_factor *. delta_local *. q_local *. renorm_w in
+		let cap_rep_local    = min rev2_rep rev1_prev_rep in
+		let capped_rep_local = min cap_rep_local (rev1_rep +. rep_inc_local) in 
+		max rev1_rep capped_rep_local
+	      end
 	    (* Computes the uncapped reputation increment *)
 	    let rep_inc = dynamic_rep_scaling_factor *. delta *. q *. renorm_w in
 	       
@@ -1092,8 +1126,6 @@ class page
 	    logger#log (Printf.sprintf "\n  Hi-trust revisions: "); Vec.iter f hi_trust_revs;
 	    logger#log (Printf.sprintf "\n  Hi-rep   revisions: "); Vec.iter f hi_rep_revs;
 	    logger#log (Printf.sprintf "\n  Total    revisions: "); Vec.iter f revs;
-	    logger#log (Printf.sprintf "\n  rev_c1: %d uid_c1: %d uname_c1: %S" 
-	      r_c1_id (!r_c1)#get_user_id (!r_c1)#get_user_name); 
 	    logger#log (Printf.sprintf "\n  rev_c2: %d uid_c2: %d uname_c2: %S rev_c2_rep: %.3f" 
 	      r_c2_id (!r_c2)#get_user_id (!r_c2)#get_user_name r_c2_rep); 
 	    logger#log (Printf.sprintf "\n  rev1: %d uid1: %d uname1: %S r1_rep: %.3f Nixed: %B" 
@@ -1101,7 +1133,7 @@ class page
 	    logger#log (Printf.sprintf "\n  rev2: %d uid2: %d uname2: %S r2_rep: %.3f w2_renorm: %.3f" 
 	      rev2_id rev2_uid rev2_uname rev2_rep renorm_w); 
 	    logger#log (Printf.sprintf "\n  d_c1_1: %.2f d_c2_1: %.2f d_c2_2: %.2f d12: %.2f"
-	      !min_dist_to_1 d_c2_1 !min_dist_to_2 d12); 
+	      delta d_c2_1 d_c2_2 d12); 
 
 	  end (* rev1 is by non_anonymous *)
 	end done (* for rev1_idx *)
