@@ -900,14 +900,18 @@ class page
 	 r_c2 (the closest in distance to rev2 but prior to rev1).
        *)
 
-      (* What is the oldest revision to be judged? 
+      (* In the array of recent revisions, which one is the oldest to be judged? 
 	 There are two cases: 
-	 - If n_recent_revs < trust_coeff.n_revs_to_consider, then the oldest of the
-	   recent revisions is the oldest revision of the page.  In this case, 
-	   also that revision needs to be analyzed. 
-	 - Otherwise, we stop at n_recent_revs - 2.
+	 - If n_recent_revs < trust_coeff.n_revs_to_consider, this means that 
+	   among the recent revisions is also the initial revision of the page.
+	   In this case, we have to analize it, so the index of the oldest one
+	   we analize is n_recent_revs - 1.
+	   To analize this old revision, we compare with a virtual, empty initial
+	   revision. 
+	 - Otherwise, the oldest to be judged is n_recent_revs - 2, and we compare
+	   it to the one of index n_recent_revs - 1 and perhaps others as well.
        *)
-      let (analyze_first_rev, oldest_judged_idx) = 
+      let (include_initial_empty_rev, oldest_judged_idx) = 
 	(* The test n_revs = n_recent_revs is there just for safety *)
 	if n_recent_revs = trust_coeff.n_revs_to_consider && n_recent_revs = n_revs
 	then (false, n_recent_revs - 2)
@@ -970,6 +974,8 @@ class page
 	let dynamic_rep_scaling_factor = trust_coeff.dynamic_rep_scaling n_recent_revs trust_coeff.n_revs_to_consider in
 
 	for rev1_idx = 1 to oldest_judged_idx do begin 
+	  (* Remembers if rev1 is the first one of the page *)
+	  let rev1_is_first_page_revision = (rev1_idx = oldest_judged_idx) && include_initial_empty_rev in 
           let rev1 = Vec.get rev1_idx revs in 
           let rev1_uid   = rev1#get_user_id in 
 	  (* We work only on non-anonymous rev1; otherwise, there is nothing to be updated. 
@@ -985,7 +991,7 @@ class page
 	    (* The revision r_c2 is the revision prior to rev1, and closest to rev2.
 	       We compute some quantities for it. *)
 	    let (r_c2_id, r_c2_uid, r_c2_username, r_c2_rep, d_c2_1, d_c2_2, delta) = 
-	      if analyze_first_rev then begin 
+	      if rev1_is_first_page_revision then begin 
 		(* If we are analyzing the first revision, r_c2 is the empty revision that 
 		   implicitly precedes rev1. *)
 		let len1 = Array.length (rev1#get_words) in 
@@ -1072,7 +1078,7 @@ class page
               both are robust, the robust of the algorithm is ensured *)
              (* Computes reputation after local feedback*) 
 	    let rev1_local = 
-	      if analyze_first_rev then begin
+	      if rev1_is_first_page_revision then begin
 		(* This is basically a no-op *)
 		rev1_rep 
 	      end else begin  
@@ -1137,9 +1143,8 @@ class page
 	      rev1_id rev1_uid rev1_uname rev1_rep rev1#get_nix); 
 	    logger#log (Printf.sprintf "\n  rev2: %d uid2: %d uname2: %S r2_rep: %.3f w2_renorm: %.3f" 
 	      rev2_id rev2_uid rev2_uname rev2_rep renorm_w); 
-	    logger#log (Printf.sprintf "\n  d_c1_1: %.2f d_c2_1: %.2f d_c2_2: %.2f d12: %.2f"
-	      delta d_c2_1 d_c2_2 d12); 
-
+	    logger#log (Printf.sprintf "\n  d_c1_1: %.2f d_c2_1: %.2f d_c2_2: %.2f d12: %.2f rev_1_to_2_time: %.3f"
+	      delta d_c2_1 d_c2_2 d12 ((rev2_time -. rev1_time) /. (3600. *. 24.))); 
 	  end (* rev1 is by non_anonymous *)
 	end done (* for rev1_idx *)
       end (* if oldest_judged_idx > 0 , and method compute_edit_inc *)

@@ -123,10 +123,10 @@ let default_dynamic_rep_scaling n_recent_revs max_n_recent_revs =
 
 let default_trust_coeff = {
   n_revs_to_consider = n_past_revs;
-  len_hi_trust_revs = 3;
-  len_hi_rep_revs = 3;
+  len_hi_trust_revs = 2;
+  len_hi_rep_revs = 2;
   hi_rep_list_threshold = 6.0;
-  max_del_time_chunk = 30. *. 24. *. 3600.; (* 2 months *)
+  max_del_time_chunk = 90. *. 24. *. 3600.; (* 3 months *)
   max_del_revs_chunk = 100;
   lends_rep = 0.4;
   read_all = 0.2;
