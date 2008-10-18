@@ -984,23 +984,24 @@ class page
 
 	    (* The revision r_c2 is the revision prior to rev1, and closest to rev2.
 	       We compute some quantities for it. *)
-	    let (r_c2_id, r_c2_uid, r_c2_rep, d_c2_1, d_c2_2, delta) = 
+	    let (r_c2_id, r_c2_uid, r_c2_username, r_c2_rep, d_c2_1, d_c2_2, delta) = 
 	      if analyze_first_rev then begin 
 		(* If we are analyzing the first revision, r_c2 is the empty revision that 
 		   implicitly precedes rev1. *)
 		let len1 = Array.length (rev1#get_words) in 
 		(0,  (* The id is 0, so we track it in the log output *)
 		0,   (* The uid is 0 (what else?) *)
+		"Virtual_empty_initial_revision",  (* username *)
 		(* The empty revision is empty with very high reputation!  This means that, for the 
 		   reputation cap formulas, the only reputations that matter are those for the revisions
 		   that follow it. *)
-		Eval_defs.max_rep_val,
+		trust_coeff.max_rep,
 		(* The distance between the empty revision, and rev1, is the length of rev1... *)
-		len1, 
+		float_of_int len1, 
 		(* and similarly for the distance to rev2. *)
-		Array.length (rev2#get_words),
+		float_of_int (Array.length (rev2#get_words)),
 		(* delta is obviously len1 *)
-		len1
+		float_of_int len1
 		)
 	      end else begin 
 		(* If we are not analyzing the first revision, searches for r_c2 *)
@@ -1024,9 +1025,12 @@ class page
 		    r_c2  := r
 		  end
 		end done;
+		let r_c2_id = (!r_c2)#get_id in
+		let r_c2_uid = (!r_c2)#get_user_id in 
 		(* outputs the results *)
-		((!r_c2)#get_id, 
-		(!r_c2)#get_user_id, 
+		(r_c2_id,
+		r_c2_uid,
+		(!r_c2)#get_user_name,
 		self#get_rep r_c2_uid, 
 		Hashtbl.find edit_dist (r_c2_id, rev1_id), 
 		!min_dist_to_2,
@@ -1085,6 +1089,7 @@ class page
 		let capped_rep_local = min cap_rep_local (rev1_rep +. rep_inc_local) in 
 		max rev1_rep capped_rep_local
 	      end
+	    in
 	    (* Computes the uncapped reputation increment *)
 	    let rep_inc = dynamic_rep_scaling_factor *. delta *. q *. renorm_w in
 	       
@@ -1127,7 +1132,7 @@ class page
 	    logger#log (Printf.sprintf "\n  Hi-rep   revisions: "); Vec.iter f hi_rep_revs;
 	    logger#log (Printf.sprintf "\n  Total    revisions: "); Vec.iter f revs;
 	    logger#log (Printf.sprintf "\n  rev_c2: %d uid_c2: %d uname_c2: %S rev_c2_rep: %.3f" 
-	      r_c2_id (!r_c2)#get_user_id (!r_c2)#get_user_name r_c2_rep); 
+	      r_c2_id r_c2_uid r_c2_username r_c2_rep); 
 	    logger#log (Printf.sprintf "\n  rev1: %d uid1: %d uname1: %S r1_rep: %.3f Nixed: %B" 
 	      rev1_id rev1_uid rev1_uname rev1_rep rev1#get_nix); 
 	    logger#log (Printf.sprintf "\n  rev2: %d uid2: %d uname2: %S r2_rep: %.3f w2_renorm: %.3f" 
