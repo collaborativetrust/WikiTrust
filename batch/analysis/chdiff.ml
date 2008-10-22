@@ -54,8 +54,9 @@ let max_matches = 40
     rescued, but simply, freshly rewritten. *)
 let min_dead_chunk_len = 6
 (** This is the minimum length of a match between existing and old text for considering 
-    copying to have happened.  It must be 2 <= min_copy_amount <= min_dead_chunk_len *)
-let min_copy_amount = 2
+    copying to have happened.  It must be 3 <= min_copy_amount <= min_dead_chunk_len *)
+(** TODO: here it would be better to rely on word frequencies.  A project for a student? *)
+let min_copy_amount = 4
 (** Minimum amount that can be considered copied from dead chunks.  It must satisfy 
     min_copy_amount <= min_dead_copy_amount <= min_dead_chunk_len, and it is sensible
     to take min_dead_copy_amount = min_dead_chunk_len *)
@@ -296,7 +297,7 @@ let edit_diff
 (* Text survival and tracking *)
 
 (* We index by pairs *)
-let make_survival_index (chunks: word array array) : ((word * word), (int * int)) Hashtbl_bounded.t = 
+let make_survival_index (chunks: word array array) : ((word * word * word), (int * int)) Hashtbl_bounded.t = 
   (* makes a hashtable of the right size *)
   let f t a = t + (Array.length a) in 
   let tot_els = Array.fold_left f 0 chunks in 
@@ -308,9 +309,9 @@ let make_survival_index (chunks: word array array) : ((word * word), (int * int)
     begin
       let c = chunks.(c_idx) in 
       let chunk_len = Array.length (c) in 
-      for i = 0 to chunk_len - 2 do 
-	let word_pair = (c.(i), c.(i+1)) in 
-	Hashtbl_bounded.add idx word_pair (c_idx, i)
+      for i = 0 to chunk_len - 3 do 
+	let word_triple = (c.(i), c.(i+1), c.(i+2)) in 
+	Hashtbl_bounded.add idx word_triple (c_idx, i)
       done
     end
   done;
@@ -371,8 +372,8 @@ let text_survival
      one in the same location has already been found *)
   let prev_matches = ref [] in 
   (* the - 2 is because we use word pairs to index the hash table *)
-  for i2 = 0 to len2 - 2 do 
-    let word_tuple = (words2.(i2), words2.(i2 + 1)) in 
+  for i2 = 0 to len2 - 3 do 
+    let word_tuple = (words2.(i2), words2.(i2 + 1), words2.(i2 + 2)) in 
     if Hashtbl_bounded.mem idx1 word_tuple then
       begin
 	let matches = Hashtbl_bounded.find_all idx1 word_tuple in 
@@ -592,8 +593,8 @@ let text_tracking
      one in the same location has already been found *)
   let prev_matches = ref [] in 
   (* the - 2 is because we use word pairs to index the hash table *)
-  for i2 = 0 to len2 - 2 do 
-    let word_tuple = (words2.(i2), words2.(i2 + 1)) in 
+  for i2 = 0 to len2 - 3 do 
+    let word_tuple = (words2.(i2), words2.(i2 + 1), words2.(i2 + 2)) in 
     if Hashtbl_bounded.mem idx1 word_tuple then
       begin
 	let matches = Hashtbl_bounded.find_all idx1 word_tuple in 

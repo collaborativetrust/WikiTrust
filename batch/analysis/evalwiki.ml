@@ -34,10 +34,18 @@ POSSIBILITY OF SUCH DAMAGE.
  *)
 
 (* First, I want to figure out which version I am. *)
-let p = Unix.open_process_in "git show --pretty=format:\"%H\" @{0}";;
-let version_str = input_line p;;
-ignore (Unix.close_process_in p);;
-(* Then passes this information to fileinfo *)
+
+let get_version_str () : string =
+  let p = Unix.open_process_in "git show --pretty=format:\"%H\" @{0}" in
+  let version_str = input_line p in
+  ignore (Unix.close_process_in p);
+  version_str
+
+let version_str = 
+  try get_version_str ()
+  with End_of_file -> "Version not availible"
+;;
+
 Fileinfo.make_info_obj version_str "";;
 
 (* This is the top-level code of the wiki xml evaluation.  *)

@@ -20,6 +20,7 @@ PREREQUISITES:
    the packages: 
 
      mediawiki
+     php5-cli
      mysql-server
      mysql-client
      tidy
@@ -41,27 +42,10 @@ eval_online_wiki from source.
 
 2) Take a deep breath. 
 
-3) You need to create the database tables that the trust coloring
-   extension will use.  Assuming that the mediawiki database is called
-   "wikidb" (this is the default name: you give a name to the database
-   when you create the wiki instance during the MediaWiki installation
-   process), proceed as follows: 
-
-   $ cd sql
-   $ ./create_db.php "path_to_mediawiki" "mysql_root_user_name"
-
-   where path_to_mediawiki is the path to the mediawiki installation
-   (such as /usr/share/mediawiki). 
-   If you need to remove the tables, before recreating them, the
-   command is: 
-
-   $ ./create_db.php "path_to_mediawiki" "mysql_root_user_name" remove
-
-
-4) Next, you need to install the trust coloring extension in
+3) Next, you need to install the trust coloring extension in
    mediawiki.  There are two ways to do this:
 
-  4a) Leaving the files in place, and using symbolic links.  This is
+  3a) Leaving the files in place, and using symbolic links.  This is
       the preferred course of action: in this way, when we release bug
       fixes via git, you can simply update your version of WikiTrust,
       recompile the code if needed (most likely), and be done with it.
@@ -75,19 +59,25 @@ eval_online_wiki from source.
         $ cd /var/lib/mediawiki/extensions 
         $ sudo ln -s /home/username/wikitrust/mediawiki/extensions/Trust .
 
-  4b) Alternatively, use 'cp' statements rather than symbolic links: 
+  3b) Alternatively, use 'cp' statements rather than symbolic links: 
 
         $ cd /var/lib/mediawiki/extensions 
         $ sudo cp -r /home/username/wikitrust/mediawiki/extensions/Trust .
 
-5) You should activate the extension by editing
+4) You should activate the extension by editing
    LocalSettings.php (part of the MediaWiki installation), adding the
    following lines: 
 
 ----start of configuration lines----
-# Trust extension	
+# Trust extension
 $wgUseTidy = true;
-$wgTrustCmd = "/home/username/wikitrust/analysis/eval_online_wiki"; 
+$wgUseAjax = true;
+ // If true, create an index on revision(rev_id, rev_timestamp)
+$wgCreateRevisionIndex = true;
+$wgShowVoteButton = true; // If true, the vote button is shown.
+$wgVoteText = "I believe this information is correct";
+$wgThankYouForVoting = "Thank you for your vote."; 
+$wgTrustCmd = "/home/username/wikitrust/eval_online_wiki"; 
 $wgTrustLog = "/somedir/{$wgDBname}-trust.log";
 $wgTrustDebugLog = "/somedir/{$wgDBname}-trust-debug.log";
 $wgRepSpeed = 1.0;
@@ -98,8 +88,12 @@ $wgTrustExplanation = '{| border="1" cellpadding="5" cellspacing="0" style="back
 |-
 | The text color and origin are computed by [http://trust.cse.ucsc.edu/WikiTrust WikiTrust]; if you notice problems, you can submit a bug report [http://code.google.com/p/wikitrust/issues here].
 |}';
+$wgNoTrustExplanation = '{| border="1" cellpadding="5" cellspacing="0" style="background:lightgreen; color:black"
+|-
+| There is no trust information available for this text yet.
+|}';
 
-require_once( $IP . "/extensions/Trust/ExtensionClass.php");
+require_once( $IP . "/extensions/Trust/TrustBase.php");
 require_once( $IP . "/extensions/Trust/Trust.php" );
 ----end of configuration lines----
 
@@ -125,18 +119,34 @@ require_once( $IP . "/extensions/Trust/Trust.php" );
      $wgTrustLog = "/dev/null";
      $wgTrustDebugLog = "/dev/null";
 
-6) You need to make the installation readable from the web server. 
+5) You need to make the installation readable from the web server. 
 
-  6a) If you used method 4a), you can do: 
+  5a) If you used method 3a), you can do: 
 
         $ chmod -R a+rX /home/username/wikitrust
 
-  6b) If you used method 4b), you can do:
+  5b) If you used method 3b), you can do:
 
       	$ cd /var/lib/mediawiki/extensions 
         $ sudo chown -R www-data:www-data Trust
 	$ cp /home/user/wikitrust/eval_online_wiki /usr/local/bin/
 	$ sudo chmod a+rx /usr/local/bin/eval_online_wiki
+
+6) You need to create the database tables that the trust coloring
+   extension will use.  Assuming that the mediawiki database is called
+   "wikidb" (this is the default name: you give a name to the database
+   when you create the wiki instance during the MediaWiki installation
+   process), proceed as follows: 
+
+   $ cd sql
+   $ ./create_db.php "path_to_mediawiki" "mysql_root_user_name"
+
+   where path_to_mediawiki is the path to the mediawiki installation
+   (such as /usr/share/mediawiki). 
+   If you need to remove the tables, before recreating them, the
+   command is: 
+
+   $ ./create_db.php "path_to_mediawiki" "mysql_root_user_name" remove
 
 7) If there are already revisions in the wiki, you should first
    analyze their trust, via: 

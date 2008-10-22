@@ -49,12 +49,27 @@ exception DB_TXN_Bad;;
 type current_db_t = MediaWiki | WikiTrust | Both;;
 
 (* Represents the revision table in memory *)
-type revision_t = {rev_id:int; rev_page:int; 
-		   rev_text_id:int; rev_timestamp:string; 
-		   rev_user:int; rev_user_text:string;
-		   rev_is_minor:bool; rev_comment:string} 
+type revision_t = {
+  rev_id: int; 
+  rev_page: int; 
+  rev_text_id: int; 
+  rev_timestamp: string; 
+  rev_user: int; 
+  rev_user_text: string;
+  rev_is_minor: bool; 
+  rev_comment: string
+} 
+
+(* This is the type of a vote data *)
+type vote_t = {
+  vote_time: string;
+  vote_page_id: int; 
+  vote_revision_id: int;
+  vote_voter_id: int;
+}
 
 class db : 
+  string ->
   Mysql.db ->
   Mysql.db option ->
   bool ->
@@ -121,17 +136,28 @@ class db :
 	revisions of the database, in ascending temporal order,  with a limit of [lim] revisions. *)
     method fetch_all_revs : int -> revision_t list
 
+    (** [fetch_unprocessed_votes n_events] returns at most [n_events] unprocessed votes, starting from the oldest unprocessed vote. *)
+    method fetch_unprocessed_votes : int -> vote_t list
+
+    (** [mark_vote_as_processed (revision_id: int) (voter_id : int)] marks a vote as processed. *)
+    method mark_vote_as_processed : int -> int -> unit
+
     (* ================================================================ *)
     (* Page methods.  We assume we have a lock on the page when calling
        these methods. *)
 
-    (** [write_page_info page_id chunk_list p_info] writes, in a table indexed by 
-	(page id, string list) that the page with id [page_id] is associated 
+    (** [write_page_chunks_info page_id chunk_list p_info] writes in the wikitrust_page
+	table that the page with id [page_id] is associated 
 	with the "dead" strings of text [chunk1], [chunk2], ..., where
 	[chunk_list = [chunk1, chunk2, ...] ], and with the page info [p_info]. 
 	The chunk_list contains text that used to be present in the article, but has 
 	been deleted; the database records its existence. *)
-    method write_page_info : int -> Online_types.chunk_t list -> Online_types.page_info_t -> unit
+    method write_page_chunks_info : int -> Online_types.chunk_t list -> Online_types.page_info_t -> unit
+
+    (** [write_page_info page_id chunk_list p_info] updates the wikitrust_page table
+	to record that the page with id [page_id] is associated 
+	with the page info [p_info]. *) 
+    method write_page_info : int -> Online_types.page_info_t -> unit
 
     (** [read_page_info page_id] returns the list of dead chunks associated
 	with the page [page_id], along with the page info. *)
@@ -141,6 +167,11 @@ class db :
 	revisions of page [page_id] with time prior or equal to [timestamp], and revision id at most [rev_id]. *)
     method fetch_revs : int -> timestamp_t -> int -> int -> Mysql.result
  
+    (** [get_latest_rev_id page_id] returns the revision id of the most 
+	recent revision of page [page_id]. *)
+    method get_latest_rev_id : int -> int
+
+
     (* ================================================================ *)
     (* Revision methods.  We assume we have a lock on the page to which 
        the revision belongs when calling these methods. *)
@@ -152,12 +183,16 @@ class db :
     (** [read_revision rev_id] reads a revision by id, returning the row *)
     method read_revision : int -> string option array option 
 
+    (** [read_wikitrust_revision rev_id] reads a revision from the 
+	wikitrust_revision table. *)
+    method read_wikitrust_revision : int -> (revision_t * qual_info_t)
+
     (** [write_revision_info rev_id quality_info elist] writes the wikitrust data 
 	associated with revision with id [rev_id] *)
-    method write_revision_info : int -> qual_info_t -> unit
+    method write_wikitrust_revision : revision_t -> qual_info_t -> unit
 
-    (** [read_revision_info rev_id] reads the wikitrust information of revision_id *)
-    method read_revision_info : int -> qual_info_t
+    (** [read_revision_quality rev_id] reads the wikitrust quality information of revision_id *)
+    method read_revision_quality : int -> qual_info_t
 
     (** [fetch_rev_timestamp rev_id] returns the timestamp of revision [rev_id] *)
     method fetch_rev_timestamp : int -> timestamp_t
@@ -220,5 +255,8 @@ class db :
     (** Totally clear out the db structure -- THIS IS INTENDED ONLY FOR UNIT
     TESTING *)
     method delete_all : bool -> unit
+
+    (** Add the vote to the db *)
+    method vote : vote_t -> unit
 
   end

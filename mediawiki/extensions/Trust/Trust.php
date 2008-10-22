@@ -62,10 +62,6 @@ class TextTrust extends TrustBase
 			'wgTrustCmd' => "eval_online_wiki",
 			'wgVoteRev' => "vote_revision",
 			'wgTrustLog' => "/dev/null",
-			'wgThrift_host' => "localhost",
-			'wgThrift_port' => "80",
-			'wgThrift_uri' => "index_thrift.php",
-			'wgThrift_protocol' => "http",
 			'wgTrustDebugLog' => "/dev/null",
 			'wgRepSpeed' => 1.0,
 			'wgTrustTabText' => "Show Trust",
@@ -234,7 +230,6 @@ function startVote(){
    global $wgExtensionCredits, $wgShowVoteButton, $wgVoteText, $wgThankYouForVoting;
    global $wgNoTrustExplanation, $wgTrustCmd, $wgVoteRev, $wgTrustLog, $wgTrustDebugLog, $wgRepSpeed;
    global $wgTrustTabText, $wgTrustExplanation;
-   global $wgThrift_host, $wgThrift_port, $wgThrift_uri, $wgThrift_protocol;
 
    //Add default values if globals not set.
    if(!$wgShowVoteButton)	
@@ -259,15 +254,7 @@ function startVote(){
      $wgTrustTabText = $this->DEFAULTS['wgTrustTabText'];
    if(!$wgTrustExplanation)
      $wgTrustExplanation = $this->DEFAULTS['wgTrustExplanation'];
-   if(!$wgThrift_host)
-     $wgThrift_host = $this->DEFAULTS['wgThrift_host']; 
-   if(!$wgThrift_port) 
-     $wgThrift_port = $this->DEFAULTS['wgThrift_port'];
-   if(!$wgThrift_uri) 
-     $wgThrift_uri = $this->DEFAULTS['wgThrift_uri'];
-   if(!$wgThrift_protocol)
-     $wgThrift_protocol = $this->DEFAULTS['wgThrift_protocol'];
-   
+
 # Define a setup function
    $wgExtensionFunctions[] = 'ucscColorTrust_Setup';
 
@@ -458,11 +445,10 @@ colors text according to trust.'
   */
  private static function runEvalEdit($eval_type = self::TRUST_EVAL_EDIT, $rev_id = -1, $page_id = -1, $voter_id = -1){
    
-   global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgRepSpeed, $wgDBprefix, $wgThrift_host, $wgThrift_port, $wgThrift_uri, $wgThrift_protocol;
+   global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgRepSpeed, $wgDBprefix;
    
    $process = -1;
    $command = "";
-        
    // Get the db.
    $dbr =& wfGetDB( DB_SLAVE );
    
@@ -471,19 +457,17 @@ colors text according to trust.'
    
    switch ($eval_type) {
    case self::TRUST_EVAL_EDIT:
-     $command = escapeshellcmd("$wgTrustCmd -rep_speed $wgRepSpeed -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname -thrift_host $wgThrift_host -thrift_port $wgThrift_port -thrift_uri $wgThrift_uri -thrift_protocol $wgThrift_protocol $prefix") . " &";
+     $command = escapeshellcmd("$wgTrustCmd -rep_speed $wgRepSpeed -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix") . " &";
      break;
    case self::TRUST_EVAL_VOTE:
      if ($rev_id == -1 || $page_id == -1 || $voter_id == -1)
        return -1;
-     $command = escapeshellcmd("$wgTrustCmd -eval_vote -rev_id " . $dbr->strencode($rev_id) . " -voter_id " . $dbr->strencode($voter_id) . " -page_id " . $dbr->strencode($page_id) . " -rep_speed $wgRepSpeed -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname -thrift_host $wgThrift_host -thrift_port $wgThrift_port -thrift_uri $wgThrift_uri -thrift_protocol $wgThrift_protocol $prefix") . " &";
+     $command = escapeshellcmd("$wgTrustCmd -eval_vote -rev_id " . $dbr->strencode($rev_id) . " -voter_id " . $dbr->strencode($voter_id) . " -page_id " . $dbr->strencode($page_id) . " -rep_speed $wgRepSpeed -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix") . " &";
      break;
    case self::TRUST_EVAL_MISSING:
-     $command = escapeshellcmd("$wgTrustCmd -rev_id " . $dbr->strencode($rev_id) . " -rep_speed $wgRepSpeed -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname -thrift_host $wgThrift_host -thrift_port $wgThrift_port -thrift_uri $wgThrift_uri -thrift_protocol $wgThrift_protocol $prefix") . " &";
+     $command = escapeshellcmd("$wgTrustCmd -rev_id " . $dbr->strencode($rev_id) . " -rep_speed $wgRepSpeed -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix") . " &";
      break;  
    }
-
-   file_put_contents("/tmp/foo", $command);
 
    $descriptorspec = array(
 			   0 => array("pipe", "r"),  // stdin is a pipe that the child will read from

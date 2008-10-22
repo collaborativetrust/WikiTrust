@@ -55,27 +55,20 @@ class revision
   (is_minor: bool) 
   (comment: string)
   =
-  let time_init = Timeconv.time_string_to_float time_string in 
+  let time      = Timeconv.time_string_to_float time_string in 
   let timestamp = Timeconv.time_string_to_timestamp time_string in 
+  let is_anon : bool = (user_id = 0) in 
 
   object (self : 'a)
-    val is_anon : bool = (user_id = 0)
       (* These have to do with the revision text.  There is nothing in this, 
          since we do not necessarily read the text of all the revisions we 
          may want to keep track: reading the text is expensive. *)
-    val time = time_init
     val mutable words : word array = [| |]
     val mutable seps  : Text.sep_t array = [| |] 
     val mutable sep_word_idx : int array = [| |] 
     val mutable sigs : Author_sig.packed_author_signature_t array = [| |]
     val mutable trust : float array = [| |]
     val mutable origin : int array = [| |]
-
-    (* debug
-    initializer begin 
-      Printf.printf "Make revision r_id %d p_id %d text_id %d user_id %d user_name %S\n" rev_id page_id text_id user_id username
-    end
-       *)
 
     (* These quantities keep track of the quality of a revision *)
     (* First, I have a flag that says whether I have read the quantities 
@@ -96,6 +89,12 @@ class revision
     val mutable quality_info_valid = false
     (* Dirty bit to avoid writing back unchanged stuff *)
     val mutable modified_quality_info : bool = false
+
+    (* Sets the quality info *)
+    method set_quality_info (q: qual_info_t) = 
+      quality_info <- q;
+      quality_info_valid <- true;
+      modified_quality_info <- false
 
     (* Basic access methods *)
     method get_id : int = rev_id
@@ -184,7 +183,8 @@ class revision
 	   otherwise, if we fail, we keep trying to read it. *)
 	quality_info_valid <- true;
 	try 
-          quality_info <- db#read_revision_info rev_id
+          quality_info <- db#read_revision_quality rev_id;
+	  modified_quality_info <- false; 
 	with Online_db.DB_Not_Found -> ()
       end
 
@@ -221,10 +221,21 @@ class revision
     (** [write_quality_to_db n_attempts] writes all revision quality information to the db. *)
     method write_quality_to_db : unit = 
       self#read_quality_info; 
-      db#write_revision_info rev_id quality_info
-
+      if modified_quality_info then 
+	db#write_wikitrust_revision {
+	  rev_id = rev_id; 
+	  rev_page = page_id; 
+	  rev_text_id = text_id; 
+	  rev_timestamp = time_string; 
+	  rev_user = user_id; 
+	  rev_user_text = username;
+	  rev_is_minor = is_minor;
+	  rev_comment = comment
+	} quality_info
+	  
   end (* revision class *)
 
+(** Makes a revision from a revision_t record *)
 let make_revision (rev : Online_db.revision_t) db: revision = 
   new revision db 
     rev.rev_id
@@ -236,6 +247,7 @@ let make_revision (rev : Online_db.revision_t) db: revision =
     rev.rev_is_minor
     rev.rev_comment
 
+(** Makes a revision from a database row *)
 let make_revision_from_cursor row db: revision = 
   let set_is_minor ism = match ism with
     | 0 -> false
@@ -251,6 +263,7 @@ let make_revision_from_cursor row db: revision =
     (set_is_minor (not_null int2ml row.(6))) (* is_minor *)
     (not_null str2ml row.(7)) (* comment *)
 
+(** Reads a revision from the main database given its revision id *)
 let read_revision (db: Online_db.db) (id: int) : revision option = 
   let set_is_minor ism = match ism with
     | 0 -> false
@@ -272,3 +285,21 @@ let read_revision (db: Online_db.db) (id: int) : revision option =
 	)
   end
 
+(** Reads a revision from the wikitrust_revision table given its 
+    revision id.  This reads also the quality data. *)
+let read_wikitrust_revision (db: Online_db.db) (id: int) : revision = 
+  begin 
+    let (r_data, q_data) = db#read_wikitrust_revision id in 
+    let rev = new revision db 
+      id
+      r_data.rev_page
+      r_data.rev_text_id
+      r_data.rev_timestamp
+      r_data.rev_user
+      r_data.rev_user_text
+      r_data.rev_is_minor
+      r_data.rev_comment
+    in 
+    rev#set_quality_info q_data; 
+    rev
+  end

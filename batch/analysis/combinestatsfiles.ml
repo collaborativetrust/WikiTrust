@@ -49,6 +49,7 @@ let dirname = ref ""
 let outfile = ref ""
 let outdir  = ref "SORTEDSTATS/"
 let numbuckets = ref 1750
+let max_lines_in_mem = ref 5000
 
 let tempbuckets = Hashtbl.create 1750
 let sortedfilelist = ref ""
@@ -57,13 +58,17 @@ let set_dirname (s: string) = dirname := s
 let set_outfile (s: string) = outfile := s
 let set_outdir  (s: string) = outdir  := s
 let set_numbuckets (s: string) = numbuckets := (int_of_string s)
+let set_max_lines_in_mem (n) = max_lines_in_mem := n
 
 let command_line_format = [("-outfile", Arg.String (set_outfile),
 			    "write entire sorted output to this file (if empty, large output not produced)");
 			   ("-outdir",  Arg.String (set_outdir),
 			    "write split sorted files to this directory (defaults to ./SORTEDSTATS/)");
 			   ("-n", Arg.String (set_numbuckets),
-			    "number of buckets (default: 1750, limit: 9999)")]
+			    "number of buckets (default: 1750, limit: 9999)");
+			   ("-flush", Arg.Int (set_max_lines_in_mem),
+			    "number of lines to read into memory before flushing to disk (default: 5000)")
+			  ]
 
 
 let _ = Arg.parse command_line_format set_dirname usage_message;;
@@ -82,10 +87,24 @@ done;;
 (* Open the stat file directory *)
 let statfile_dir = Unix.opendir !dirname;;
 
+let flush_tmp () =
+ (* Now writes the hashtable *)
+    for i = 1 to !numbuckets do begin 
+      let filename = !outdir ^ (Printf.sprintf "/stats%04d.tstats" i) in 
+      let file = open_out_gen [Open_append] 0o640 filename in
+      (* Gets all lines *)
+      let lines_list = Hashtbl.find_all tempbuckets i in 
+      let p (l: string) = begin output_string file l; output_string file "\n"; end in 
+      List.iter p lines_list;
+      close_out file
+    end done;
+  Hashtbl.clear tempbuckets
+in
  
 (* This function processes one .stat file *)
 let bucketize_file () = 
   (* raises End_of_file when we are done *)
+  let lines_read = ref 0 in
   let filename = Unix.readdir statfile_dir in
   (*If it's one of filetype -- NOTE: should replace this with regexp*)
   if (filename <> ".") && (filename <> "..")
@@ -111,20 +130,13 @@ let bucketize_file () =
 	  let timestamp = float_of_string (List.nth l 1) in 
 	  let bound num = max 1 (min !numbuckets num) in 
 	  let bucketnum = bound ((int_of_float (timestamp/.100000.)) - 10000) in
-	  Hashtbl.add tempbuckets bucketnum line
+	  Hashtbl.add tempbuckets bucketnum line;
+	  lines_read := !lines_read + 1;
+	  if !lines_read >= !max_lines_in_mem then flush_tmp ()
 	end
-      end
+      end 
     end done; (* while loop over lines of file *)
-    (* Now writes the hashtable *)
-    for i = 1 to !numbuckets do begin 
-      let filename = !outdir ^ (Printf.sprintf "/stats%04d.tstats" i) in 
-      let file = open_out_gen [Open_append] 0o640 filename in
-      (* Gets all lines *)
-      let lines_list = Hashtbl.find_all tempbuckets i in 
-      let p (l: string) = begin output_string file l; output_string file "\n"; end in 
-      List.iter p lines_list;
-      close_out file
-    end done;
+  flush_tmp ();
   end (* bucketize_file *)
 in 
 (* Bucketizes all files *)

@@ -31,9 +31,12 @@ $dba_pass = "";
 // If true, we remove tables. If false, we create them.
 $do_remove = ($argc > 2 && $argv[3] == "remove")? true: false; 
 
+$db_indexes = array(); // Current indexes of interest.
 $db_tables = array(); // Store all of the tables currently present.
 $create_scripts = array(); // The actual SQL to create tables. Defined below.
 $remove_scripts = array(); // The actual SQL to remove tables. Defined below.
+$create_index_scripts = array();
+$remove_index_scripts = array();
 
 if(!$mw_root || !is_dir($mw_root) || !isset($dba)
    || !is_file($mw_root."/LocalSettings.php")){
@@ -66,7 +69,17 @@ echo $PASS
 // Load all of the MW files.
 include($mw_root."/maintenance/commandLine.inc");
 
-global $wgDBserver, $wgDBname, $wgDBuser;
+global $wgDBserver, $wgDBname, $wgDBuser, $wgDBprefix, $wgCreateRevisionIndex;
+
+// Source the update scripts
+require($mw_root."/extensions/Trust/TrustUpdateScripts.inc");
+
+// If this is set, create an index on the revision table.
+if ($wgCreateRevisionIndex){
+  $db_indexes[$wgDBprefix . 'revision'] = array(); 
+ } else {
+  $db_indexes[$wgDBprefix . 'revision']['revision_id_timestamp_idx'] = True; 
+ }
 
 // Create the needed tables, if neccesary.
 $dbr =& wfGetDB( DB_SLAVE );
@@ -77,86 +90,19 @@ while ($row = $dbr->fetchRow($res)){
   $db_tables[$row[0]] = True;
  }
 
+// And check to see what indexes have already been created.
+foreach ($db_indexes as $table => $idx){
+  $res = $dbr->query("show index from " . $table);
+  while ($row = $dbr->fetchRow($res)){
+    $db_indexes[$table][$row[2]] = True;
+  }
+}
+
 // We need root priveledges to do this.
 $db_root = Database::newFromParams($wgDBserver, $dba, $dba_pass, $wgDBname);
 
-// These scripts hold the SQL to create and remove tables.
-$create_scripts['wikitrust_global'] = 
-  array("
-CREATE TABLE wikitrust_global (
-       median		          float,
-       rep_0			  float,
-       rep_1			  float,
-       rep_2			  float,
-       rep_3			  float,
-       rep_4			  float,
-       rep_5			  float,
-       rep_6			  float,
-       rep_7			  float,
-       rep_8			  float,
-       rep_9			  float
-) ENGINE=InnoDB",
-	"GRANT ALL ON wikitrust_global TO $wgDBuser",
-	"INSERT INTO wikitrust_global VALUES (0,0,0,0,0,0,0,0,0,0,0)");
-
-$create_scripts['wikitrust_page'] = array("
-CREATE TABLE wikitrust_page (
-       page_id             int PRIMARY KEY,
-       deleted_chunks      longtext,
-       page_info	   text NOT NULL
-) ENGINE=InnoDB","
-GRANT ALL ON wikitrust_page TO $wgDBuser
-");
-
-$create_scripts['wikitrust_revision'] = array("
-CREATE TABLE wikitrust_revision (
-        revision_id             int PRIMARY KEY,
-        quality_info		text NOT NULL, 
-	reputation_delta        float DEFAULT 0.0,
-	overall_trust           float DEFAULT 0.0
-) ENGINE=InnoDB","
-GRANT ALL ON wikitrust_revision TO $wgDBuser;
-");
-
-$create_scripts['wikitrust_colored_markup'] = array("
-CREATE TABLE wikitrust_colored_markup (
-        revision_id     int PRIMARY KEY,
-        revision_text   longtext NOT NULL,
-	revision_createdon varchar(32) NOT NULL
-) ENGINE=InnoDB","
-GRANT ALL ON wikitrust_colored_markup TO $wgDBuser","
-CREATE INDEX wikitrust_colored_markup_createdon_idx ON wikitrust_colored_markup (revision_createdon)
-");
-
-$create_scripts['wikitrust_sigs'] = array("
-CREATE TABLE wikitrust_sigs (
-       revision_id      int PRIMARY KEY,
-       words		longtext NOT NULL,
-       trust            longtext NOT NULL,
-       origin           longtext NOT NULL,
-       sigs     	longtext NOT NULL
-) ENGINE=InnoDB","
-GRANT ALL ON wikitrust_sigs TO $wgDBuser;
-");
-
-$create_scripts['wikitrust_user'] = array("
-CREATE TABLE wikitrust_user (
-       user_id     int PRIMARY KEY   ,
-       user_rep    float DEFAULT 0.0
-) ENGINE=InnoDB","
-GRANT ALL ON wikitrust_user TO $wgDBuser;
-");
-
-
-$remove_scripts['wikitrust_global'] = array("DROP TABLE wikitrust_global");
-$remove_scripts['wikitrust_page'] = array("DROP TABLE wikitrust_page");
-$remove_scripts['wikitrust_revision'] = array("DROP TABLE wikitrust_revision");
-$remove_scripts['wikitrust_colored_markup'] = array("DROP TABLE wikitrust_colored_markup");
-$remove_scripts['wikitrust_sigs'] = array("DROP TABLE wikitrust_sigs");
-$remove_scripts['wikitrust_user'] = array("DROP TABLE wikitrust_user");
-
 if (!$do_remove){
-  // Now do the actual creating.
+  // Now do the actual creating of tables.
   foreach ($create_scripts as $table => $scripts) {
     if (!$db_tables[$table]){
       foreach ($scripts as $script){
@@ -164,7 +110,15 @@ if (!$do_remove){
       }
     }
   }
- } else {
+  // Now do the actual creating of indexes.
+  foreach ($create_index_scripts as $table => $idxs){
+    foreach ($idxs as $name => $idx){
+      if(!$db_indexes[$table][$name]){
+	$db_root->query($idx);
+      }
+    }
+  }
+} else {
   // Or removing.
   foreach ($remove_scripts as $table => $scripts) {
     if ($db_tables[$table]){
@@ -173,7 +127,15 @@ if (!$do_remove){
       }
     }
   }
- }
+  // ...Of indexes.
+  foreach ($remove_index_scripts as $table => $idxs){
+    foreach ($idxs as $name => $idx){
+      if($db_indexes[$table][$name]){
+	$db_root->query($idx);
+      }
+    }
+  }
+}
 
 // Finally, we commit any leftovers.
 $db_root->query("COMMIT");
