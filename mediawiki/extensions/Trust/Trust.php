@@ -21,9 +21,15 @@
 
 ## MW extension
 # This defines a custom MW function to map trust values to HTML markup
+# TEST 1
 
-class TextTrust extends ExtensionClass
+class TextTrust extends TrustBase
 {
+  
+  ## Types of analysis to perform.
+  const TRUST_EVAL_VOTE = 0;
+  const TRUST_EVAL_EDIT = 10;
+  const TRUST_EVAL_MISSING = 15;
 
   ## the css tag to use
   const TRUST_CSS_TAG = "background-color"; ## color the background
@@ -45,6 +51,27 @@ class TextTrust extends ExtensionClass
   
   ## Token to be replaed with >
   const TRUST_CLOSE_TOKEN = ":ampc:";
+
+  ## default values for variables found from LocalSettings.php
+  var $DEFAULTS = array(
+			'wgShowVoteButton' => false,
+			'wgVoteText' => "I believe this information is correct",
+			'wgThankYouForVoting' => "Thank you for your vote.",
+			'wgNoTrustExplanation' => 
+			"<p><center><b>There is no trust information available for this text yet.</b></center></p>",
+			'wgTrustCmd' => "eval_online_wiki",
+			'wgVoteRev' => "vote_revision",
+			'wgTrustLog' => "/dev/null",
+			'wgThrift_host' => "localhost",
+			'wgThrift_port' => "80",
+			'wgThrift_uri' => "index_thrift.php",
+			'wgThrift_protocol' => "http",
+			'wgTrustDebugLog' => "/dev/null",
+			'wgRepSpeed' => 1.0,
+			'wgTrustTabText' => "Show Trust",
+			'wgTrustExplanation' => 
+			"<p><center><b>This is a product of the text trust algoruthm.</b></center></p>",
+			);
 
   ## Median Value of Trust
   var $median = 0.0;
@@ -94,24 +121,47 @@ class TextTrust extends ExtensionClass
 <script type="text/javascript">/*<![CDATA[*/
 var ctrlState = false;
 function showOrigin(revnum) {
-  //if (ctrlState) {
-    document.location.href = wgScriptPath + "/index.php?title=" + wgPageName + "&diff=" + revnum;
- // }
+  document.location.href = wgScriptPath + "/index.php?title=" + encodeURIComponent(wgPageName) + "&diff=" + encodeURIComponent(revnum);
 }
 
-function checkForCtrlDown(event) {
-  if (event.ctrlKey) { ctrlState = true; }
-  //alert (event.keyCode + " " + event.ctrlKey + " " + ctrlState);
+// The Vote functionality
+function voteCallback(http_request){
+  if ((http_request.readyState == 4) && (http_request.status == 200)) {
+    document.getElementById("vote-button-done").style.visibility = "visible";
+    document.getElementById("vote-button").style.visibility = "hidden";
+    //alert(http_request.responseText);
+    return true;
+  } else {
+    alert(http_request.responseText);
+    return false;
+  }
 }
 
-function clearCtrlState(event) {
-  //alert(event.keyCode + " " + ctrlState);
-  ctrlState = false;
+function getQueryVariable(variable) {
+  var query = window.location.search.substring(1);
+  var vars = query.split("&");
+  for (var i=0;i<vars.length;i++) {
+    var pair = vars[i].split("=");
+    if (pair[0] == variable) {
+      return pair[1];
+    }
+  } 
+  return "";
 }
 
-function checkCtrlState(event) {
-  //alert(ctrlState);
+function startVote(){
+
+  var revID = getQueryVariable("oldid");
+  if (revID == ""){
+    revID = getQueryVariable("diff");
+    if (revID == ""){
+      revID = wgCurRevisionId;
+    }
+  }
+
+  return sajax_do_call( "TextTrust::handleVote", [wgUserName, wgArticleId, revID] , voteCallback ); 
 }
+
 /*]]>*/</script>';
 
   var $trustCSS = '
@@ -159,6 +209,20 @@ function checkCtrlState(event) {
 .trust10 {
   background-color: #FFFFFF;
 }
+
+#vote-button-done {
+  visibility: hidden;
+  position: absolute;
+  top: 10px;
+  left: 500px;
+}
+
+#vote-button {
+  position: absolute;
+  top: 10px;
+  left: 500px;
+}
+
 /*]]>*/</style>';
 
   public static function &singleton( )
@@ -167,7 +231,42 @@ function checkCtrlState(event) {
   public function TextTrust() 
   {
    parent::__construct( );
-   global $wgExtensionCredits;
+   global $wgExtensionCredits, $wgShowVoteButton, $wgVoteText, $wgThankYouForVoting;
+   global $wgNoTrustExplanation, $wgTrustCmd, $wgVoteRev, $wgTrustLog, $wgTrustDebugLog, $wgRepSpeed;
+   global $wgTrustTabText, $wgTrustExplanation;
+   global $wgThrift_host, $wgThrift_port, $wgThrift_uri, $wgThrift_protocol;
+
+   //Add default values if globals not set.
+   if(!$wgShowVoteButton)	
+     $wgShowVoteButton = $this->DEFAULTS['wgShowVoteButton'];
+   if(!$wgVoteText)
+     $wgVoteText = $this->DEFAULTS['wgVoteText' ];
+   if(!$wgThankYouForVoting)
+     $wgThankYouForVoting = $this->DEFAULTS['wgThankYouForVoting'];
+   if(!$wgNoTrustExplanation)
+     $wgNoTrustExplanation = $this->DEFAULTS['wgNoTrustExplanation'];
+   if(!$wgTrustCmd)
+     $wgTrustCmd = $this->DEFAULTS['wgTrustCmd' ];
+   if(!$wgVoteRev)
+     $wgVoteRev = $this->DEFAULTS['wgVoteRev'];
+   if(!$wgTrustLog)
+     $wgTrustLog = $this->DEFAULTS['wgTrustLog'];
+   if(!$wgTrustDebugLog)
+     $wgTrustDebugLog = $this->DEFAULTS['wgTrustDebugLog'];
+   if(!$wgRepSpeed)
+     $wgRepSpeed = $this->DEFAULTS['wgRepSpeed'];
+   if(!$wgTrustTabText)
+     $wgTrustTabText = $this->DEFAULTS['wgTrustTabText'];
+   if(!$wgTrustExplanation)
+     $wgTrustExplanation = $this->DEFAULTS['wgTrustExplanation'];
+   if(!$wgThrift_host)
+     $wgThrift_host = $this->DEFAULTS['wgThrift_host']; 
+   if(!$wgThrift_port) 
+     $wgThrift_port = $this->DEFAULTS['wgThrift_port'];
+   if(!$wgThrift_uri) 
+     $wgThrift_uri = $this->DEFAULTS['wgThrift_uri'];
+   if(!$wgThrift_protocol)
+     $wgThrift_protocol = $this->DEFAULTS['wgThrift_protocol'];
    
 # Define a setup function
    $wgExtensionFunctions[] = 'ucscColorTrust_Setup';
@@ -186,8 +285,17 @@ colors text according to trust.'
   public function setup()
   {
     parent::setup();
-    global $wgHooks, $wgParser, $wgRequest;
-   
+    global $wgHooks, $wgParser, $wgRequest, $wgUseAjax, $wgShowVoteButton, $wgAjaxExportList;
+
+# Code which takes the "I vote" action. 
+# This has to be statically called.
+    if($wgUseAjax && $wgShowVoteButton){
+      $wgAjaxExportList[] = "TextTrust::handleVote";
+    }
+    
+# Updater fiered when updating to a new version of MW.
+    $wgHooks['LoadExtensionSchemaUpdates'][] = array( &$this, 'updateDB');
+
 # And add and extra tab.
     $wgHooks['SkinTemplateTabs'][] = array( &$this, 'ucscTrustTemplate');
 
@@ -219,7 +327,99 @@ colors text according to trust.'
 # Pull the median value
     $this->update_median();
   }
+
+  /**
+   * Update the DB when MW is updated.
+   * This assums that the db has permissions to create tables.
+   */
+  function updateDB(){
+    // Create only those tables missing.
+    // Create the needed tables, if neccesary.
+    // Pull in the create scripts.
+    require_once("TrustUpdateScripts.inc");
+
+    $db =& wfGetDB( DB_MASTER );
+    
+    // First check to see what tables have already been created.
+    $res = $db->query("show tables");
+    while ($row = $db->fetchRow($res)){
+      $db_tables[$row[0]] = True;
+    }
+
+    foreach ($create_scripts as $table => $scripts) {
+      if (!$db_tables[$table]){
+	foreach ($scripts as $script){
+	  $db->query($script);
+	}
+      }
+    }
+  }
   
+  /** 
+   * Turns an ASCII string into an octal encoded one.
+   * Call like this: TextTrust::prepareOutput("This is a test");
+   */
+  static function prepareOutput($command){
+    $escaped = "";
+    foreach (str_split($command) as $c ){
+      $escaped .= sprintf("\\0o%03o", ord($c));
+    }
+    return $escaped;
+  }
+
+  /**
+   Run the vote executable.
+
+   Called via ajax, so this must be static.
+  */
+  static function handleVote($user_name_raw, $page_id_raw = 0, $rev_id_raw = 0){
+    
+    $response = new AjaxResponse("0");
+   
+    $dbr =& wfGetDB( DB_SLAVE );
+      
+    $userName = $dbr->strencode($user_name_raw, $dbr);
+    $page_id = $dbr->strencode($page_id_raw, $dbr);
+    $rev_id = $dbr->strencode($rev_id_raw, $dbr);
+    
+    if($page_id){
+      // First, look up the id numbers from the page and user strings
+      $res = $dbr->select('user', array('user_id'), array('user_name' => $userName), array());
+      if ($res){
+	$row = $dbr->fetchRow($res);
+	$user_id = $row['user_id'];
+	if (!$user_id) {
+	  $user_id = 0;
+	}
+      }
+      $dbr->freeResult( $res );  
+
+      // Now see if this user has not already voted, and count the vote if its the first time though.
+      $res = $dbr->select('wikitrust_vote', array('revision_id'), array('revision_id' => $rev_id, 'voter_id' => $user_id), array());
+      if ($res){
+	$row = $dbr->fetchRow($res);
+	if(!$row['revision_id']){
+	
+	  $insert_vals = array("revision_id" => $rev_id,
+			       "page_id" => $page_id ,
+			       "voter_id" => $user_id,
+			       "voted_on" => wfTimestampNow()
+			       );
+	  $dbw =& wfGetDB( DB_MASTER );
+	  if ($dbw->insert( 'wikitrust_vote', $insert_vals)){
+	    $response = new AjaxResponse(implode  ( ",", $insert_vals));
+	    self::runEvalEdit(self::TRUST_EVAL_VOTE, $rev_id, $page_id, $user_id); // Launch the evaluation of the vote.
+	  }
+	} else {
+	  $response = new AjaxResponse("Already Voted");
+	}
+	$dbr->freeResult( $res ); 
+      }
+    }
+    
+    return $response;
+  }
+
   /**
    Called just before rendering HTML.
    We add the coloring scripts here.
@@ -251,22 +451,58 @@ colors text according to trust.'
    
    return $this->median;
  }
+
+ /** 
+  * Actually run the eval edit program.
+  * Returns -1 on error, the process id of the launched eval process otherwise.
+  */
+ private static function runEvalEdit($eval_type = self::TRUST_EVAL_EDIT, $rev_id = -1, $page_id = -1, $voter_id = -1){
+   
+   global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgRepSpeed, $wgDBprefix, $wgThrift_host, $wgThrift_port, $wgThrift_uri, $wgThrift_protocol;
+   
+   $process = -1;
+   $command = "";
+        
+   // Get the db.
+   $dbr =& wfGetDB( DB_SLAVE );
+   
+   // Do we use a DB prefix?
+   $prefix = ($wgDBprefix)? "-db_prefix " . $dbr->strencode($wgDBprefix): "";
+   
+   switch ($eval_type) {
+   case self::TRUST_EVAL_EDIT:
+     $command = escapeshellcmd("$wgTrustCmd -rep_speed $wgRepSpeed -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname -thrift_host $wgThrift_host -thrift_port $wgThrift_port -thrift_uri $wgThrift_uri -thrift_protocol $wgThrift_protocol $prefix") . " &";
+     break;
+   case self::TRUST_EVAL_VOTE:
+     if ($rev_id == -1 || $page_id == -1 || $voter_id == -1)
+       return -1;
+     $command = escapeshellcmd("$wgTrustCmd -eval_vote -rev_id " . $dbr->strencode($rev_id) . " -voter_id " . $dbr->strencode($voter_id) . " -page_id " . $dbr->strencode($page_id) . " -rep_speed $wgRepSpeed -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname -thrift_host $wgThrift_host -thrift_port $wgThrift_port -thrift_uri $wgThrift_uri -thrift_protocol $wgThrift_protocol $prefix") . " &";
+     break;
+   case self::TRUST_EVAL_MISSING:
+     $command = escapeshellcmd("$wgTrustCmd -rev_id " . $dbr->strencode($rev_id) . " -rep_speed $wgRepSpeed -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname -thrift_host $wgThrift_host -thrift_port $wgThrift_port -thrift_uri $wgThrift_uri -thrift_protocol $wgThrift_protocol $prefix") . " &";
+     break;  
+   }
+
+   file_put_contents("/tmp/foo", $command);
+
+   $descriptorspec = array(
+			   0 => array("pipe", "r"),  // stdin is a pipe that the child will read from
+			   1 => array("file", escapeshellcmd($wgTrustDebugLog), "a"),  // stdout is a pipe that the child will write to
+			   2 => array("file", escapeshellcmd($wgTrustDebugLog), "a") // stderr is a file to write to
+			   );
+   $cwd = '/tmp';
+   $env = array();
+   $process = proc_open($command, $descriptorspec, $pipes, $cwd, $env);
+   
+   return $process; 
+ }
  
 /* 
  Code to fork and exec a new process to color any new revisions.
  Called after any edits are made.
 */
  function ucscRunColoring(&$article, &$user, &$text, &$summary, $minor, $watch, $sectionanchor, &$flags, $revision) { 
-   global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgRepSpeed;
-   
-   $pid = -1;
-   
-   // Start the coloring.
-   $command = "nohup $wgTrustCmd -rep_speed $wgRepSpeed -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname >> $wgTrustDebugLog 2>&1 & echo $!";
-   // $pid = shell_exec("/bin/echo '$command' >> $wgTrustDebugLog");
-   $pid = shell_exec($command);
-  
-   if($pid)
+   if (self::runEvalEdit(self::TRUST_EVAL_EDIT) >= 0)
      return true;
    return false;
  }
@@ -313,11 +549,26 @@ colors text according to trust.'
   TODO: Make this function work with caching turned on.
  */
  function ucscSeeIfColored(&$parser, &$text, &$strip_state) { 
-   global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgRepSpeed, $wgRequest, $wgTrustExplanation;
+   global $wgRequest, $wgTrustExplanation, $wgUseAjax, $wgShowVoteButton, $wgDBprefix, $wgNoTrustExplanation, $wgVoteText, $wgThankYouForVoting; 
 
    // Turn off caching for this instanching for this instance.
    $parser->disableCache();
    
+   // Get the db.
+   $dbr =& wfGetDB( DB_SLAVE );
+
+   // Do we use a DB prefix?
+   $prefix = ($wgDBprefix)? "-db_prefix " . $dbr->strencode($wgDBprefix): "";
+
+   // Text for showing the "I like it" button
+   $voteitText = "";
+   if ($wgUseAjax && $wgShowVoteButton){
+     $voteitText = "
+".self::TRUST_OPEN_TOKEN."div id='vote-button'".self::TRUST_CLOSE_TOKEN."".self::TRUST_OPEN_TOKEN."input type='button' name='vote' value='" . $wgVoteText . "' onclick='startVote()' /".self::TRUST_CLOSE_TOKEN."".self::TRUST_OPEN_TOKEN."/div".self::TRUST_CLOSE_TOKEN."
+".self::TRUST_OPEN_TOKEN."div id='vote-button-done'".self::TRUST_CLOSE_TOKEN.$wgThankYouForVoting.self::TRUST_OPEN_TOKEN."/div".self::TRUST_CLOSE_TOKEN."
+";
+   }
+
    // Return if trust is not selected.
    if (!$this->trust_engaged)
      return true;
@@ -356,22 +607,23 @@ colors text according to trust.'
    // if we made it here, we are going to color some text
    $this->colored = true;
    
-   // Otherwise, see if there is colored text in the db.
-   $dbr =& wfGetDB( DB_SLAVE );
-   
    $res = $dbr->select('wikitrust_colored_markup', 'revision_text',
 		       array( 'revision_id' => $this->current_rev ), array());
    if ($res){
      $row = $dbr->fetchRow($res);
      $colored_text = $row[0];
      if ($colored_text){
-       $text = $colored_text . "\n" . $wgTrustExplanation;
+       // First, make sure that there are not any instances of our tokens in the colored_text
+       $colored_text = str_replace(self::TRUST_OPEN_TOKEN, "", $colored_text);
+       $colored_text = str_replace(self::TRUST_CLOSE_TOKEN, "", $colored_text);
+       
+       // Now update the text.
+       $text = $voteitText . $colored_text . "\n" . $wgTrustExplanation;
      } else { 
-       // If colored text does not exist, we start a coloring that explicitly requests
-       // the uncolored revision to be colored.  This is useful in case there are holes
-       // in the chronological order of the revisions that have been colored. 
-       $command = "nohup $wgTrustCmd -rev_id " . $this->current_rev . " -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname >> $wgTrustDebugLog 2>&1 & echo $!";
-       $pid = shell_exec($command);
+       // If the colored text is missing, generate it in the background.
+       // For now, return a message about the missing text.
+       self::runEvalEdit(self::TRUST_EVAL_MISSING);
+       $text = $wgNoTrustExplanation . "\n" . $text;
      }
    } else {
      return false;
@@ -395,6 +647,7 @@ colors text according to trust.'
    $text = preg_replace('/<\/p>/', "</span></p>", $text, -1, $count);
    $text = preg_replace('/<p><\/span>/', "<p>", $text, -1, $count);
    $text = preg_replace('/<li><\/span>/', "<li>", $text, -1, $count);
+  
    return true;
  }
 
@@ -426,7 +679,7 @@ colors text according to trust.'
  */
  function computeColorFromFloat($trust){
    $normalized_value = min(self::MAX_TRUST_VALUE, max(self::MIN_TRUST_VALUE, 
-						      ($trust * self::TRUST_MULTIPLIER) 
+						      (($trust + .5) * self::TRUST_MULTIPLIER) 
 						      / $this->median));
    return $this->computeColor3($normalized_value);
  }
