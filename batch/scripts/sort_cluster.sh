@@ -29,7 +29,7 @@ for file in `ls $WORKING_DIR`; do
   current_proc=`ps -A -f | grep sort | wc -l`
   until [ "$current_proc" -le "$PROC_LIM" ]; do
     sleep 1
-    let current_proc=`ps -A -f | grep evalwiki | wc -l`
+    let current_proc=`ps -A -f | grep sort | wc -l`
   done
 done
 
