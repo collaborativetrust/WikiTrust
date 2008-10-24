@@ -51,6 +51,34 @@ too slow).
 Obviously, use the appropriate decompress program above; the intent is
 to decompress to standard output. 
 
+EXTRACTING A SUBSET OF PAGES FROM THE WIKI DUMP:
+=======================
+
+We can also extract a subset of pages based on page id from a
+Wikipedia dump before processing.  
+
+gunzip -c ~/work/wiki-data/wikis/enwiki-20070206.xml.gz | extract_wiki_subset -t good-ids -o enwiki-20070206-subset
+
+or (for a 7za style archive)
+
+7za e -so ../../wiki-dumps-ian/kuwiki-20080801-pages-meta-history.xml.7z | extract_wiki_subset -t good-ids -o kuwiki-20080801-subset
+
+These both extract the pages who's page id is found in the file
+good-ids, compressing with gzip the results (compression with other
+programs, such as 7z, turned out to be too slow). 
+
+Obviously, use the appropriate decompress program above; the intent is
+to decompress to standard output. 
+
+The page id's file expects 1 page id per line.
+
+For example, to extract the page numbers 444 and 888 from a dump, the
+file would look like
+
+444
+888
+
+The ordering of page ids does not matter.
 
 COMPUTING THE REDUCED STATISTCS:
 ===============================
