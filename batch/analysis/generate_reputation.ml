@@ -160,7 +160,7 @@ let stream = if !stream_name = ""
   else Fileinfo.open_info_in !stream_name 
 in 
 ignore (Wikidata.read_data stream r#add_data None);
-if !stream_name != "" then Fileinfo.close_info_in stream;;
+if !stream_name <> "" then Fileinfo.close_info_in stream;;
 
 (* And prints the results *)
 r#compute_stats !user_contrib_file stdout;;

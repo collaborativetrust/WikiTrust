@@ -82,7 +82,8 @@ type piece_t =   WS_title_start of string
 	       | TXT_splittable of string 
 	       | TXT_armored_char of string 
 	       | TXT_word of string
-	       | INFO_trust of float * int (* all subsequent text has this trust and origin *)
+	       | INFO_trust of float * int * string (* all subsequent text has this 
+						       trust, origin, and author *)
 
 (* Regular expressions to separate words for reputation analysis *)
 (* This is the regexp used to split for reputation analysis *)
@@ -394,23 +395,27 @@ let separate_string_tags (pv: piece_t Vec.t) : piece_t Vec.t =
 			    let tag_atomic = match tag_kind with 
 				LeftTok -> begin
 				  if !is_trust then begin 
-				    let piece_atomic = String.sub text !trust_num_start (beg_closing - !trust_num_start) in 
+				    let piece_atomic = String.sub text !trust_num_start 
+				      (beg_closing - !trust_num_start) in 
 				    let l = Str.split_delim (Str.regexp ",") piece_atomic in 
-				    let (t, o) =  match l with 
-					t' :: o' :: _ -> (t', o') 
-				      | t' :: [] -> (t', "")
-				      | [] -> ("", "")
+				    let (t, o, a) =  match l with 
+					t' :: o' :: a' :: _ -> (t', o', a')
+				      | t' :: o' :: [] -> (t', o', "") 
+				      | t' :: [] -> (t', "", "")
+				      | [] -> ("", "", "")
 				    in 
 				    let t'' = try float_of_string t with Failure "float_of_string" -> 0. in 
 				    let o'' = try int_of_string   o with Failure "int_of_string"   -> 0  in
-				    INFO_trust (t'', o'')
+				    INFO_trust (t'', o'', a)
 				  end else begin
-				    let piece_atomic = String.sub text match_start_pos (end_closing - match_start_pos) in 
+				    let piece_atomic = String.sub text match_start_pos 
+				      (end_closing - match_start_pos) in 
 				    TXT_tag piece_atomic
 				  end
 				end
 			      | RedirTok -> begin
-				  let piece_atomic = String.sub text match_start_pos (end_closing - match_start_pos) in 
+				  let piece_atomic = String.sub text match_start_pos 
+				    (end_closing - match_start_pos) in 
 				  TXT_redirect piece_atomic
 				end
 			      | OpenTag -> raise Text_error (* we should not be here *)
@@ -783,27 +788,34 @@ let normalize_ws (s: string) : string =
      annotated. 
 *)
 let split_into_words_seps_and_info (arm: bool) (text_v: string Vec.t) 
-    : (word array) * (float array) * (int array) * (int array) * (sep_t array) = 
+    : (word array)   (* words *)
+    * (float array)  (* trust *)
+    * (int array)    (* origin *)
+    * (string array) (* author *)
+    * (int array)    (* sep index *)
+    * (sep_t array)  (* seps *) = 
   (* First, uses a visitor to construct a piece_t Vec.t called piece_v *)
   let vn l d r = Vec.concat (Vec.concat l (split_string_preserving_markup arm d)) r in 
   let piece_v = Vec.visit_post Vec.empty vn text_v in 
-
 
   (* From piece_v, makes: 
      word_v : vector of words
      word_trust_v : vector of word trusts 
      word_origin_v : vector of word origins
+     word_author_v : vector of word authors
      word_index_v : vector of word indices in the sep array 
      sep_v : vector of sep_t 
      These vectors will subsequently be converted to arrays, and returned, but it is easier
      to create them as vectors, as we don't have a bound for their size. *)
   let origin = ref 0 in 
+  let author = ref "" in
   let trust = ref 0.0 in 
   let word_idx = ref 0 in 
   let sep_idx = ref 0 in 
   let word_v = ref Vec.empty in 
   let word_trust_v = ref Vec.empty in 
   let word_origin_v = ref Vec.empty in 
+  let word_author_v = ref Vec.empty in
   let word_index_v = ref Vec.empty in 
   let sep_v = ref Vec.empty in 
   (* This function is iterated on the vector of piece_t *)
@@ -823,6 +835,7 @@ let split_into_words_seps_and_info (arm: bool) (text_v: string Vec.t)
 	word_v := Vec.append s !word_v; 
 	word_trust_v := Vec.append !trust !word_trust_v; 
 	word_origin_v := Vec.append !origin !word_origin_v; 
+	word_author_v := Vec.append !author !word_author_v;
 	word_index_v := Vec.append !sep_idx !word_index_v; 
 	word_idx := !word_idx + 1;
 	sep_idx  := !sep_idx  + 1
@@ -834,6 +847,7 @@ let split_into_words_seps_and_info (arm: bool) (text_v: string Vec.t)
 	word_v := Vec.append ((strip_ws_end s) ^ "\n") !word_v; 
 	word_trust_v := Vec.append !trust !word_trust_v; 
 	word_origin_v := Vec.append !origin !word_origin_v; 
+	word_author_v := Vec.append !author !word_author_v;
 	word_index_v := Vec.append !sep_idx !word_index_v; 
 	word_idx := !word_idx + 1;
 	sep_idx  := !sep_idx  + 1
@@ -844,6 +858,7 @@ let split_into_words_seps_and_info (arm: bool) (text_v: string Vec.t)
 	word_v := Vec.append (strip_ws_end s) !word_v; 
 	word_trust_v := Vec.append !trust !word_trust_v; 
 	word_origin_v := Vec.append !origin !word_origin_v; 
+	word_author_v := Vec.append !author !word_author_v;
 	word_index_v := Vec.append !sep_idx !word_index_v; 
 	word_idx := !word_idx + 1;
 	sep_idx  := !sep_idx  + 1
@@ -859,6 +874,7 @@ let split_into_words_seps_and_info (arm: bool) (text_v: string Vec.t)
 	word_v := Vec.append s !word_v; 
 	word_trust_v := Vec.append !trust !word_trust_v; 
 	word_origin_v := Vec.append !origin !word_origin_v; 
+	word_author_v := Vec.append !author !word_author_v;
 	word_index_v := Vec.append !sep_idx !word_index_v; 
 	word_idx := !word_idx + 1;
 	sep_idx  := !sep_idx  + 1
@@ -879,6 +895,7 @@ let split_into_words_seps_and_info (arm: bool) (text_v: string Vec.t)
 	word_v := Vec.append (normalize_ws s) !word_v; 
 	word_trust_v := Vec.append !trust !word_trust_v; 
 	word_origin_v := Vec.append !origin !word_origin_v; 
+	word_author_v := Vec.append !author !word_author_v;
 	word_index_v := Vec.append !sep_idx !word_index_v; 
 	word_idx := !word_idx + 1;
 	sep_idx  := !sep_idx  + 1
@@ -889,6 +906,7 @@ let split_into_words_seps_and_info (arm: bool) (text_v: string Vec.t)
 	word_v := Vec.append "\n|+" !word_v; 
 	word_trust_v := Vec.append !trust !word_trust_v; 
 	word_origin_v := Vec.append !origin !word_origin_v; 
+	word_author_v := Vec.append !author !word_author_v;
 	word_index_v := Vec.append !sep_idx !word_index_v; 
 	word_idx := !word_idx + 1;
 	sep_idx  := !sep_idx  + 1
@@ -899,6 +917,7 @@ let split_into_words_seps_and_info (arm: bool) (text_v: string Vec.t)
 	word_v := Vec.append (normalize_ws s) !word_v; 
 	word_trust_v := Vec.append !trust !word_trust_v; 
 	word_origin_v := Vec.append !origin !word_origin_v; 
+	word_author_v := Vec.append !author !word_author_v;
 	word_index_v := Vec.append !sep_idx !word_index_v; 
 	word_idx := !word_idx + 1;
 	sep_idx  := !sep_idx  + 1
@@ -909,6 +928,7 @@ let split_into_words_seps_and_info (arm: bool) (text_v: string Vec.t)
 	word_v := Vec.append (normalize_ws s) !word_v; 
 	word_trust_v := Vec.append !trust !word_trust_v; 
 	word_origin_v := Vec.append !origin !word_origin_v; 
+	word_author_v := Vec.append !author !word_author_v;
 	word_index_v := Vec.append !sep_idx !word_index_v; 
 	word_idx := !word_idx + 1;
 	sep_idx  := !sep_idx  + 1
@@ -919,6 +939,7 @@ let split_into_words_seps_and_info (arm: bool) (text_v: string Vec.t)
 	word_v := Vec.append (normalize_ws s) !word_v; 
 	word_trust_v := Vec.append !trust !word_trust_v; 
 	word_origin_v := Vec.append !origin !word_origin_v; 
+	word_author_v := Vec.append !author !word_author_v;
 	word_index_v := Vec.append !sep_idx !word_index_v; 
 	word_idx := !word_idx + 1;
 	sep_idx  := !sep_idx  + 1
@@ -929,6 +950,7 @@ let split_into_words_seps_and_info (arm: bool) (text_v: string Vec.t)
 	word_v := Vec.append s !word_v; 
 	word_trust_v := Vec.append !trust !word_trust_v; 
 	word_origin_v := Vec.append !origin !word_origin_v; 
+	word_author_v := Vec.append !author !word_author_v;
 	word_index_v := Vec.append !sep_idx !word_index_v; 
 	word_idx := !word_idx + 1;
 	sep_idx  := !sep_idx  + 1
@@ -939,14 +961,16 @@ let split_into_words_seps_and_info (arm: bool) (text_v: string Vec.t)
 	word_v := Vec.append s !word_v; 
 	word_trust_v := Vec.append !trust !word_trust_v; 
 	word_origin_v := Vec.append !origin !word_origin_v; 
+	word_author_v := Vec.append !author !word_author_v;
 	word_index_v := Vec.append !sep_idx !word_index_v; 
 	word_idx := !word_idx + 1;
 	sep_idx  := !sep_idx  + 1
       end
-	(* I store the new word trust and origin *)
-    | INFO_trust (x, k) -> begin 
+	(* I store the new word trust, origin, and author *)
+    | INFO_trust (x, k, a) -> begin 
 	trust := x;
-	origin := k
+	origin := k;
+	author := a
       end
     | TXT_splittable _ -> ()
   in 
@@ -955,10 +979,11 @@ let split_into_words_seps_and_info (arm: bool) (text_v: string Vec.t)
   let word_a = Vec.to_array !word_v in 
   let trust_a = Vec.to_array !word_trust_v in 
   let origin_a = Vec.to_array !word_origin_v in 
+  let author_a = Vec.to_array !word_author_v in
   let word_index_a = Vec.to_array !word_index_v in 
   let sep_a = Vec.to_array !sep_v in 
   (* And returns the whole *)
-  (word_a, trust_a, origin_a, word_index_a, sep_a);;
+  (word_a, trust_a, origin_a, author_a, word_index_a, sep_a);;
 
 
 (* **************************************************************** *)
@@ -969,7 +994,7 @@ let split_into_words_seps_and_info (arm: bool) (text_v: string Vec.t)
 
 let split_into_words (arm: bool) (text_v: string Vec.t) : word array = 
   (* First, we generate a word Vec.t *)
-  let (word_a, _, _, _, _) = split_into_words_seps_and_info arm text_v in 
+  let (word_a, _, _, _, _, _) = split_into_words_seps_and_info arm text_v in 
   word_a;;
 
 
@@ -979,15 +1004,15 @@ let split_into_words (arm: bool) (text_v: string Vec.t) : word array =
 if false then begin
   let s0 = "\n[[image:Charles Lyell.jpg|thumb|Charles Lyell]]\n[[Image:Lyell Principles frontispiece.jpg|thumb|The frontispiece from ''Principles of Geology'']]\n'''Sir Charles Lyell, 1st Baronet''', [[Order of the Thistle|KT]], ([[November 14]], [[1797]] &ndash; [[February 22]], [[1875]]), [[Scotland|Scottish]] [[lawyer]], [[geologist]], and populariser of [[Uniformitarianism (science)|uniformitarianism]].\n\nHe won the [[Copley Medal]] in 1858 and the [[Wollaston Medal]] in 1866.  After the [[Great Chicago Fire]], Lyell was one of the first to donate books to help found the [[Chicago Public Library]].\n\nUpon his death in 1875, he was buried in [[Westminster Abbey]].\n" in
   let s1 = "\n#REDIRECT [[Pollo con piselli]]\n== Titolo == \n<pre> Codice con [[markup[[ bla ]] boh]] e \n == titolo ==\n</pre>\n ==titolo2.\n=========== \n========\n == title ==" in
-  let s2 = "\n{| class=\"toccolours\"  border=1 cellpadding=2 cellspacing=2 style=\"width: 700px; margin: 0 0 1em 1em; border-collapse: collapse; border: 1px solid #E2E2E2;\"\n\n|-\n! bgcolor=\"#E7EBEE\" | 1972 Debut Tour<br><br>Roy Wood's only live ELO tour.<br>After the tour, Wood, Hunt&auml;d and <br>McDowell leave ELO and form Wizzard.\n| \n* [[Roy Wood]] - [[vocals]], [[cello]], [[bass guitar]], [[guitar]], [[woodwind]]\n* [[Jeff Lynne]] - [[vocals]], [[lead guitar]], [[piano]]\n|-\n! bgcolor=\"#E7EBEE\" | 1972 - 1973 ELO 2 Tour<br><br>Bassist Mike de Albuquerque and cellist Colin Walker join ELO after the departure of Wood, Hunt, McDowell, Craig and Smith.\n| \n* [[Jeff Lynne]] - [[Vocals]], [[lead guitar]]\n* [[Bev Bevan]] - [[drums]], [[percussion]]\n|}\n" in 
+  let s2 = "\n{{to:,,\"Luca\"}}\n{| class=\"toccolours\"  border=1 cellpadding=2 cellspacing=2 style=\"width: 700px; margin: 0 0 1em 1em; border-collapse: collapse; border: 1px solid #E2E2E2;\"\n\n|-\n! bgcolor=\"#E7EBEE\" | 1972 Debut Tour<br><br>Roy Wood's only live ELO tour.<br>After the tour, Wood, Hunt&auml;d and <br>McDowell leave ELO and form Wizzard.\n| \n* [[Roy Wood]] - [[vocals]], [[cello]], [[bass guitar]], [[guitar]], [[woodwind]]\n* [[Jeff Lynne]] - [[vocals]], [[lead guitar]], [[piano]]\n|-\n! bgcolor=\"#E7EBEE\" | 1972 - 1973 ELO 2 Tour<br><br>Bassist Mike de Albuquerque and cellist Colin Walker join ELO after the departure of Wood, Hunt, McDowell, Craig and Smith.\n| \n* [[Jeff Lynne]] - [[Vocals]], [[lead guitar]]\n* [[Bev Bevan]] - [[drums]], [[percussion]]\n|}\n" in 
   let s3 = "\n[[Adapa]] U-an ([[Berossus' ''[[Oannes]]''), " in 
   let s4 = "\n==Title of a page== \n# bullet 1\n# ''bullet2\n indent''\n{| table\n | able\n |able\n|}\n Con altra roba dopo [http://gatto.matto gatto bello] mi piace" in
   let s5 = "\n &lt;pre polla&gt; bla bla &lt;/pre &gt; &lt;blah /&gt;\n<a href=\"pollo.html\">con il pollo <pre> non</a> si fa molto </pre> di <boh /> nuovo." in
   let s6 = "\nBello ''[[link]]'' '''con''' {{stub}} e [[link]] e {{stub}} <a href=8>Mangio</a>" in 
   let s7 = "\n=== Titolo ===\nBello [[link||{{stub}} as a [[name]] long]] {{stub}} &lt;div bah=\"gog\" &gt; [[link]] </div> borom &lt;/div&gt;" in 
-  let s8 = "==== [http://www.w3.org/TR/REC-CSS1 Cascading Style Sheets, level 1 (CSS1)], December 1996 ====\n" in 
+  let s8 = "==== {{#t:4,54,belluolo}}[http://www.w3.org/TR/REC-CSS1 Cascading Style Sheets, level 1 (CSS1)], December 1996 ====\nI do not like {{#t:4,,helga}} complications." in 
   let s9 = "<pre>Sto usando tags </blah> uah <beep> con </pre> altra </beep> roba <boing> bla" in 
-  let s10 = "{{#t:5.66}}\nInizio [[babana [[gatto ]] pollo]] [http:// [[banna]] ] testo \n<a href=\"link con </a>\">link body</a> e resto &lt;br /&gt; {{#t:1.43}}#redirect [[Pollo {{#t:6.6}}con mandorle]] del testo" in 
+  let s10 = "{{#t:5.66,,giammacollo}}\nInizio [[babana [[gatto ]] pollo]] [http:// [[banna]] ] testo \n<a href=\"link con </a>\">link body</a> e resto &lt;br /&gt; {{#t:1.43,4,}}#redirect [[Pollo {{#t:6.6,,}}con mandorle]] del testo" in 
   let s11 = "\n==&quot;Socialism with Chinese characteristics&quot;==\n\nok\n" in
   let s12 = "\n{| style=\"background:yellow; color:green\"\n|- \n| abc || def || ghi\n|- style=\"background:red; color:white\"\n| jkl || mno || pqr\n|-\n| stu || style=\"background:silver\" | vwx || yz\n|}" in 
   let s13 = "\n{| \n| style=\"background:red; color:white\" | abc\n| def\n| bgcolor=\"red\" | &lt;font color=\"white\"&gt; ghi &lt;/font&gt;\n| jkl\n|}" in 
@@ -996,7 +1021,7 @@ if false then begin
   let s16 = "\nThe kelvin (symbol:&nbsp;K) is the [[SI]] unit of temperature" in 
   let s17 = "\n&amp;nbsp; &lt;br&gt;gatto <br> pollo&lt;br&gt;gatto &lt;br&gt; gotto &lt;br/&gt;pollo &lt;br/&gt;pollo &lt;br&gt; pollo &lt;br/&gt;" in 
   let s18 = "* Bullet \n*: cont \n::: ecco \n \n \n**:: non so \n##: fatto" in
-  let s19 = "{{to:32}} Gatto {{#t:0.12}} posso {{to:94854}} {{#t:0.12}} cane {{to:343}}" in 
+  let s19 = "{{#t:3,2,milappo}} Gatto {{#t:0.12,4,canicola}} posso {{#t:5,94854,\"ganzoide\"}} {{#t:0.12,34,\"pappafico\"}} cane {{#t:3,43,hellicola}} gatto {{#t:3,,hoi}} uccello {{#t:3,4,}} zecca" in 
   let s20 = "Quando vado a\n[[storia]]\ndi amore\nnon so cosa fare.\n" in 
 
   let l = [s0; s1; s2; s3; s4; s5; s6; s7; s8; s9; s10; s11; s12; s13; s14; s15; s16; s17; s18; s19; s20] in
@@ -1004,7 +1029,7 @@ if false then begin
   let f x = 
     Printf.printf "Original:\n%S\n" x;
     let x_v = Vec.singleton x in 
-    let (word_v, trust_v, orig_v, _, sep_v) = split_into_words_seps_and_info true x_v in 
+    let (word_v, trust_v, orig_v, auth_v, _, sep_v) = split_into_words_seps_and_info true x_v in 
     print_string "Words:\n";
     let g0 s = Printf.printf "%S " s in 
     Array.iter g0 word_v; 
@@ -1014,6 +1039,9 @@ if false then begin
     print_string "\nOrigin:\n";
     let g2 s = Printf.printf "%d " s in 
     Array.iter g2 orig_v; 
+    print_string "\nAuthor:\n";
+    let g3 s = Printf.printf "%S " s in 
+    Array.iter g3 auth_v; 
 
     print_string "\n\n"; 
     print_seps sep_v; 

@@ -69,7 +69,9 @@ val compute_robust_trust :
     [medit_l] is the edit list explaining the change from previous to current revision. *)
 val compute_origin :
   (* chunks_origin_a *) int array array ->
+  (* chunks_author_a *) string array array ->
   (* new_chunks_a *) word array array ->
   (* medit_l *) Editlist.medit list ->
   (* revid *) int ->
-  int array array
+  (* author_name *) string -> 
+  (* chunks_origin_a * chunks_author_a *) (int array array) * (string array array)

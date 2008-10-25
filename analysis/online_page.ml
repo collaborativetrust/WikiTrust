@@ -385,7 +385,7 @@ class page
 	(* Checks if minimum must be replaced *)
 	let cur_trust = cur_rev#get_overall_trust in 
 	let min_rev = Vec.get !min_trust_idx hi_trust_revs in
-	if (cur_trust >= !min_trust) && (cur_rev#get_id != min_rev#get_id) then begin 
+	if (cur_trust >= !min_trust) && (cur_rev#get_id <> min_rev#get_id) then begin 
 	  (* We insert the current revision *)
 	  if (Vec.length hi_trust_revs) = trust_coeff.len_hi_trust_revs then begin 
 	    (* We throw out the minimum revision if needed to keep list bounded *)
@@ -546,14 +546,20 @@ class page
     (** Gets a list of dead chunks coming from the disk, and translates them into 
         arrays, leaving position 0 free for the current revision. *)
     method private chunks_to_array (chunk_l: chunk_t list) :
-      (word array array * float array array * 
-	Author_sig.packed_author_signature_t array array * 
-	int array array * int array * float array) = 
+      (word array array *  (* chunks *)
+	float array array *  (* trust *)
+	Author_sig.packed_author_signature_t array array *  (* sigs *)
+	int array array *  (* origin *)
+	string array array *  (* author *)
+	int array *  (* age *)
+	float array  (* timestamp *)
+      ) = 
       let n_els = 1 + List.length chunk_l in 
       let chunks_a = Array.make n_els [| |] in 
       let trust_a  = Array.make n_els [| |] in 
       let sigs_a   = Array.make n_els [| |] in 
       let origin_a = Array.make n_els [| |] in
+      let author_a = Array.make n_els [| |] in
       let age_a    = Array.make n_els 0 in 
       let time_a   = Array.make n_els 0. in 
       (* Fills the arrays one by one *)
@@ -565,17 +571,18 @@ class page
         trust_a.(!i)  <- c.trust;
 	sigs_a.(!i)   <- c.sigs;
         origin_a.(!i) <- c.origin; 
+	author_a.(!i) <- c.author;
         age_a.(!i)    <- c.n_del_revisions; 
         time_a.(!i)   <- c.timestamp
       end in 
       List.iter f chunk_l; 
-      (chunks_a, trust_a, sigs_a, origin_a, age_a, time_a)
+      (chunks_a, trust_a, sigs_a, origin_a, author_a, age_a, time_a)
 
 
     (** This method computes the list of dead chunks, updating appropriately their age and 
         count, and selects the ones that are not too old. 
         [compute_dead_chunk_list new_chunks_a new_trust_a new_sigs_a 
-	new_origin_a original_chunk_l 
+	new_origin_a new_author_a original_chunk_l 
         medit_l previous_time current_time] computes
         [(live_chunk, live_trust, live_origin, chunk_l)]. 
         [previous_time] is the time of the revision preceding the one whose list of 
@@ -586,6 +593,7 @@ class page
       (new_trust_a: float array array) 
       (new_sigs_a: Author_sig.packed_author_signature_t array array) 
       (new_origin_a: int array array)
+      (new_author_a: author_t array array)
       (original_chunk_l: chunk_t list)
       (medit_l: Editlist.medit list) 
       (previous_time: float)
@@ -601,6 +609,7 @@ class page
           trust = new_trust_a.(i); 
 	  sigs = new_sigs_a.(i); 
           origin = new_origin_a.(i); 
+	  author = new_author_a.(i);
         } in 
         chunk_v := Vec.append c !chunk_v
       end done; 
@@ -649,6 +658,7 @@ class page
       let rev0 = Vec.get 0 revs in 
       let rev0_id = rev0#get_id in
       let rev0_uid = rev0#get_user_id in 
+      let rev0_uname = rev0#get_user_name in 
       let rev0_t = rev0#get_words in 
       let rev0_time = rev0#get_time in 
       let rev0_l = Array.length rev0_t in 
@@ -669,6 +679,7 @@ class page
         let new_text_trust = weight_user *. trust_coeff.lends_rep in 
         let chunk_0_trust = Array.make rev0_l new_text_trust in 
         let chunk_0_origin = Array.make rev0_l rev0_id in 
+        let chunk_0_author = Array.make rev0_l rev0_uname in 
 	(* Produces the correct author signature; the function f is mapped on the 
 	   array of words rev0_t *)
 	let chunk_0_sigs = 
@@ -678,11 +689,13 @@ class page
 	in 
         (* Produces the live chunk, consisting of the text of the revision, annotated
            with trust and origin information *)
-        let chunk_0 = Revision.produce_annotated_markup rev0_seps chunk_0_trust chunk_0_origin false true in 
+        let buf = Revision.produce_annotated_markup rev0_seps chunk_0_trust chunk_0_origin chunk_0_author
+	  false true true in 
         (* And writes it out to the db *)
-        db#write_colored_markup rev0_id (Buffer.contents chunk_0) rev0_timestamp; 
+        db#write_colored_markup rev0_id (Buffer.contents buf) rev0_timestamp; 
 	rev0#set_trust  chunk_0_trust;
 	rev0#set_origin chunk_0_origin;
+	rev0#set_author chunk_0_author;
 	rev0#set_sigs   chunk_0_sigs;
 	rev0#write_words_trust_origin_sigs;
 	(* Computes the overall trust of the revision *)
@@ -698,10 +711,8 @@ class page
 	let rev1_time = rev1#get_time in 
         (* Makes the arrays of deleted chunks of words, trust, and origin, 
            leaving position 0 free, for the live page. *)
-        let (chunks_a, trust_a, sig_a, origin_a, age_a, timestamp_a) = self#chunks_to_array del_chunks_list in 
-	(* For the origin, we always consider the immediately preceding revision. *)
-        origin_a.(0) <- rev1#get_origin;
-
+        let (chunks_a, trust_a, sig_a, origin_a, author_a, age_a, timestamp_a) = 
+	  self#chunks_to_array del_chunks_list in 
         (* I check whether the closest revision to the latest one is 
            (a) the previous revision, or
            (b) one of the revisions even before (indicating a reversion, 
@@ -728,11 +739,16 @@ class page
         chunks_a.(0) <- rev1#get_words; 
         trust_a.(0)  <- rev1#get_trust;
 	sig_a.(0)    <- rev1#get_sigs;
+        origin_a.(0) <- rev1#get_origin;
+	author_a.(0) <- rev1#get_author;
         (* Calls the function that analyzes the difference 
            between revisions rev1_id --> rev0_id. Data relative to the previous revision
            is stored in the instance fields chunks_a *)
         let (new_chunks_10_a, medit_10_l) = Chdiff.text_tracking chunks_a rev0_t in 
-        (* Calls the function that computes the trust of the newest revision. *)
+	(* Computes origin *)
+	let (new_origin_10_a, new_author_10_a) = 
+	  Compute_robust_trust.compute_origin origin_a author_a new_chunks_10_a medit_10_l rev0_id rev0_uname in 
+	(* Computes trust *)
         (* If the author is the same, we do not increase the reputation 
 	   of exisiting text, to thwart a trivial attack. *)
         let (c_read_all, c_read_part) = 
@@ -741,36 +757,60 @@ class page
           else (trust_coeff.read_all, trust_coeff.read_part)
         in 
         let (new_trust_10_a, new_sigs_10_a) = Compute_robust_trust.compute_robust_trust 
-          trust_a 
-	  sig_a
-          new_chunks_10_a 
-          rev0_seps 
-          medit_10_l
-          weight_user 
-	  rev0_uid
-          trust_coeff.lends_rep 
-          trust_coeff.kill_decrease 
-          trust_coeff.cut_rep_radius 
-          c_read_all
-          c_read_part
-          trust_coeff.local_decay
+          trust_a sig_a new_chunks_10_a rev0_seps medit_10_l
+          weight_user rev0_uid trust_coeff.lends_rep trust_coeff.kill_decrease 
+          trust_coeff.cut_rep_radius c_read_all c_read_part trust_coeff.local_decay
         in 
-
+	(* Now we have an estimate of trust, sigs, origin, author from the latest revision, 
+	   and the chunk lists already computed.  If the most similar revision to the current
+	   one is not the immediately preceding revision, we try to improve the estimate
+	   for the "live" chunk (chunk 0) by considering the following chunks: 
+	     closest revision -> live chunk
+	     preceding revision -> dead chunk 1
+	     dead chunks        -> dead chunks 2 ... n 
+	   The origin will be due to this directly. 
+	   For the trust, it computes the trust that would result from that edit, 
+           and assigns to each word the maximum trust that either this edit, or the edit 1 --> 0, 
+           would have computed. *)
         if !close_idx > 1 then begin 
-          (* The most recent revision was most likely obtained by editing a revision k that 
-             precedes the immediately preceding one. 
-             Computes the trust that would result from that edit, 
-             and assigns to each word the maximum trust that either this edit, or the edit 1 --> 0, 
-             would have computed. *)
           let rev2 = Vec.get !close_idx revs in 
-          chunks_a.(0) <- rev2#get_words; 
-          trust_a.(0)  <- rev2#get_trust;
-	  sig_a.(0)    <- rev2#get_sigs;
-          (* Calls the function that analyzes the difference 
-             between revisions rev2_id --> rev0_id. Data relative to the previous revision
-             is stored in the instance fields chunks_a *)
-          let (new_chunks_20_a, medit_20_l) = Chdiff.text_tracking chunks_a rev0_t in 
-          (* Calls the function that computes the trust of the newest revision. *)
+	  (* Prepares the chunks of the previous revisions *)
+	  let n_chunks_dual = (Array.length chunks_a) + 1 in 
+	  let chunks_dual_a = Array.make n_chunks_dual [| |] in 
+	  let trust_dual_a  = Array.make n_chunks_dual [| |] in 
+	  let sig_dual_a   = Array.make n_chunks_dual [| |] in 
+	  let origin_dual_a = Array.make n_chunks_dual [| |] in 
+	  let author_dual_a = Array.make n_chunks_dual [| |] in 
+	  for i = 1 to n_chunks_dual - 2 do begin 
+	    chunks_dual_a.(i + 1) <- chunks_a.(i);
+	    trust_dual_a.(i + 1)  <- trust_a.(i);
+	    sig_dual_a.(i + 1)   <- sig_a.(i);
+	    origin_dual_a.(i + 1) <- origin_a.(i);
+	    author_dual_a.(i + 1) <- author_a.(i);
+	  end done;
+	  (* rev1, the preceding one, is considered deleted, ... *)
+	  chunks_dual_a.(1) <- rev1#get_words;
+	  trust_dual_a.(1)  <- rev1#get_trust;
+	  sig_dual_a.(1)   <- rev1#get_sigs;
+	  origin_dual_a.(1) <- rev1#get_origin;
+	  author_dual_a.(1) <- rev1#get_author;
+	  (* ... while rev2, the most similar one, is considered to be the live one *)
+	  chunks_dual_a.(0) <- rev2#get_words;
+	  trust_dual_a.(0)  <- rev2#get_trust;
+	  sig_dual_a.(0)   <- rev2#get_sigs;
+	  origin_dual_a.(0) <- rev2#get_origin;
+	  author_dual_a.(0) <- rev2#get_author;
+
+          (* Analyzes this different chunk setup *)
+          let (new_chunks_20_a, medit_20_l) = Chdiff.text_tracking chunks_dual_a rev0_t in 
+	  (* Computes origin *)
+	  let (new_origin_20_a, new_author_20_a) = Compute_robust_trust.compute_origin 
+	    origin_dual_a author_dual_a new_chunks_20_a medit_20_l rev0_id rev0_uname in 
+	  (* Keeps this origin information as the most reliable one. *)
+	  new_origin_10_a.(0) <- new_origin_20_a.(0);
+	  new_author_10_a.(0) <- new_author_20_a.(0);
+
+          (* Computes the trust *)
           (* If the author is the same, we do not increase the reputation of exisiting text, 
              to thwart a trivial attack. *)
           let (c_read_all, c_read_part) = 
@@ -779,19 +819,9 @@ class page
             else (trust_coeff.read_all, trust_coeff.read_part)
           in 
           let (new_trust_20_a, new_sigs_20_a) = Compute_robust_trust.compute_robust_trust
-            trust_a
-	    sig_a
-            new_chunks_20_a 
-            rev0_seps 
-            medit_20_l
-            weight_user 
-	    rev0_uid
-            trust_coeff.lends_rep 
-            trust_coeff.kill_decrease 
-            trust_coeff.cut_rep_radius 
-            c_read_all
-            c_read_part
-            trust_coeff.local_decay
+            trust_dual_a sig_dual_a new_chunks_20_a rev0_seps medit_20_l
+            weight_user rev0_uid trust_coeff.lends_rep trust_coeff.kill_decrease 
+            trust_coeff.cut_rep_radius c_read_all c_read_part trust_coeff.local_decay
           in
           (* The trust of each word is the max of the trust under both edits;
 	     the signature is the signature of the max. *)
@@ -800,23 +830,24 @@ class page
 	      new_trust_10_a.(0).(i) <- new_trust_20_a.(0).(i); 
 	      new_sigs_10_a.(0).(i) <- new_sigs_20_a.(0).(i)
 	    end
-	  done
+	  done;
+
         end; (* The closest version was not the immediately preceding one. *)
 	(* After the case split of which version was the closest one, it is the
 	   _10 variables that contain the correct values of trust and author 
 	   signatures. *)
 
-        (* Computes the origin of the new text; for this, we use the immediately preceding revision. *)
-        let new_origin_10_a = Compute_trust.compute_origin origin_a new_chunks_10_a medit_10_l rev0_id in 
         (* Computes the list of deleted chunks with extended information (also age, timestamp), 
            and the information for the live text *)
         del_chunks_list <- self#compute_dead_chunk_list new_chunks_10_a new_trust_10_a 
-	  new_sigs_10_a new_origin_10_a del_chunks_list medit_10_l rev1_time rev0_time;
+	  new_sigs_10_a new_origin_10_a new_author_10_a del_chunks_list medit_10_l rev1_time rev0_time;
         (* Writes the annotated markup, trust, origin, sigs to disk *)
-        let buf = Revision.produce_annotated_markup rev0_seps new_trust_10_a.(0) new_origin_10_a.(0) false true in 
+        let buf = Revision.produce_annotated_markup rev0_seps new_trust_10_a.(0) 
+	  new_origin_10_a.(0) new_author_10_a.(0) false true true in 
         db#write_colored_markup rev0_id (Buffer.contents buf) rev0_timestamp;
 	rev0#set_trust  new_trust_10_a.(0);
 	rev0#set_origin new_origin_10_a.(0);
+	rev0#set_author new_author_10_a.(0);
 	rev0#set_sigs   new_sigs_10_a.(0);
 	rev0#write_words_trust_origin_sigs;
 	(* Computes the overall trust of the revision *)
@@ -837,7 +868,6 @@ class page
       (* Gets the voter reputation *)
       let voter_rep = self#get_rep voter_uid in 
       let voter_weight = self#weight (voter_rep) in 
-
       (* Prepares the arguments for a call to compute_robust_trust *)
       (* Prepares the arrays trust_a, sig_a as if they were for the previous
 	 revision. *)
@@ -847,7 +877,6 @@ class page
       let new_chunks_a = [| rev0_t     |] in 
       (* Builds the edit list *)
       let medit_l = [ Editlist.Mmov (0, 0, 0, 0, rev0_l) ] in 
-
       (* Computes the new trust and signatures *)
       let (new_trust_a, new_sigs_a) = Compute_robust_trust.compute_robust_trust 
         trust_a 
@@ -864,14 +893,14 @@ class page
         0. (* trust_coeff.read_part *)
         trust_coeff.local_decay
       in 
-
       (* Writes the new colored markup *)
-      let buf = Revision.produce_annotated_markup rev0_seps new_trust_a.(0) rev0#get_origin false true in 
+      let buf = Revision.produce_annotated_markup rev0_seps new_trust_a.(0) 
+	rev0#get_origin rev0#get_author false true true in 
       db#write_colored_markup rev0_id (Buffer.contents buf) rev0_timestamp;
-
       (* Writes the trust information to the revision *)
       rev0#set_trust new_trust_a.(0); 
       rev0#set_sigs  new_sigs_a.(0);
+      rev0#write_words_trust_origin_sigs;
       let t = self#compute_overall_trust new_trust_a.(0) in 
       rev0#set_overall_trust t
       (* end of vote_for_trust *)
@@ -969,9 +998,11 @@ class page
 	  histogram_updated <- true;
 	end;
 
-	  (* We compute the reputation scaling dynamically taking care of the size of the recent_revision list and 
-	     the union of the recent revision list, high reputation list and high trust list. *)
-	let dynamic_rep_scaling_factor = trust_coeff.dynamic_rep_scaling n_recent_revs trust_coeff.n_revs_to_consider in
+	  (* We compute the reputation scaling dynamically taking care of the size of the 
+	     recent_revision list and the union of the recent revision list, high reputation 
+	     list and high trust list. *)
+	let dynamic_rep_scaling_factor = trust_coeff.dynamic_rep_scaling n_recent_revs 
+	  trust_coeff.n_revs_to_consider in
 
 	for rev1_idx = 1 to oldest_judged_idx do begin 
 	  (* Remembers if rev1 is the first one of the page *)
@@ -980,7 +1011,7 @@ class page
           let rev1_uid   = rev1#get_user_id in 
 	  (* We work only on non-anonymous rev1; otherwise, there is nothing to be updated. 
 	     Moreover, rev1 and rev2 need to be by different authors. *)
-	  if (not_anonymous rev1_uid) && (rev1_uid != rev2_uid) then begin 
+	  if (not_anonymous rev1_uid) && (rev1_uid <> rev2_uid) then begin 
             let rev1_id    = rev1#get_id in 
             let rev1_uname = rev1#get_user_name in 
             let rev1_time  = rev1#get_time in 

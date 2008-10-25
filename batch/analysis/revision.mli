@@ -252,8 +252,10 @@ class trust_revision :
     [seps] : the seps array
     [word_trust] : the word trust array
     [word_origin] : the word origin array
+    [word_author] : the word author array
     [trust_is_float] : do we need to write out trust as a float?
     [include_origin] : do we need to include origin information? 
+    [include_author] : do we need to include author information?
  *)
 val produce_annotated_markup : 
-  (Text.sep_t array) -> (float array) -> (int array) -> bool -> bool -> Buffer.t
+  (Text.sep_t array) -> (float array) -> (int array) -> (string array) -> bool -> bool -> bool -> Buffer.t

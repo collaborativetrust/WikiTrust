@@ -33,18 +33,19 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
-module type Elqt = sig type t = float val compare : float -> float -> int end
-module OrderedFloat : Elqt
+type match_quality_t = int * int * float
+module type Elqt = sig type t = int * int * float val compare : t -> t -> int end
+module OrderedMatch : Elqt
 module PriorityQueue :
   sig
     exception Empty
     type 'a elt =
-      'a Prioq.Make(OrderedFloat).elt = {
-      mutable priority : OrderedFloat.t;
+      'a Prioq.Make(OrderedMatch).elt = {
+      mutable priority : OrderedMatch.t;
       mutable contents : 'a;
     }
     type 'a t =
-      'a Prioq.Make(OrderedFloat).t = {
+      'a Prioq.Make(OrderedMatch).t = {
       mutable n : int;
       mutable a : 'a elt option array;
     }
@@ -52,7 +53,7 @@ module PriorityQueue :
     val clear : 'a t -> unit
     val is_empty : 'a t -> bool
     val length : 'a t -> int
-    val iter : (int -> OrderedFloat.t -> 'a -> unit) -> 'a t -> unit
-    val add : 'a t -> 'a -> OrderedFloat.t -> 'a elt
+    val iter : (int -> OrderedMatch.t -> 'a -> unit) -> 'a t -> unit
+    val add : 'a t -> 'a -> OrderedMatch.t -> 'a elt
     val take : 'a t -> 'a elt
   end

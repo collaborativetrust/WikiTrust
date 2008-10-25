@@ -33,11 +33,9 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
-open Vec;;
 open Online_types;;
 open Mysql;;
 open Eval_defs;;
-open Online_db;;
 
 type word = string;;
 exception ReadTextError
@@ -69,7 +67,7 @@ class revision
     val mutable sigs : Author_sig.packed_author_signature_t array = [| |]
     val mutable trust : float array = [| |]
     val mutable origin : int array = [| |]
-
+    val mutable author : string array = [| |]
     (* These quantities keep track of the quality of a revision *)
     (* First, I have a flag that says whether I have read the quantities 
        or not.  They are not read by default; they reside in a 
@@ -111,7 +109,7 @@ class revision
     method read_text : unit = 
       try 
         let text_vec = Vec.singleton (db#read_rev_text text_id) in 
-        let (w, t, o, s_idx, s) = Text.split_into_words_seps_and_info false text_vec in 
+        let (w, t, o, a, s_idx, s) = Text.split_into_words_seps_and_info false text_vec in 
         words <- w; 
         seps <- s; 
         sep_word_idx <- s_idx;
@@ -125,20 +123,22 @@ class revision
 	 Second, the information is consistent. 
 	 If this is not found, then we parse the colored text. *)
       try begin 
-	let (w, t, o, s) = db#read_words_trust_origin_sigs rev_id in 
+	let (w, t, o, a, s) = db#read_words_trust_origin_sigs rev_id in 
 	words <- w; 
 	trust <- t; 
 	origin <- o; 
+	author <- a;
 	sigs <- s
       end with Online_db.DB_Not_Found -> begin 
 	(* Not found: we parse the colored text.  If this is also not found, 
 	   we let the error pop up, so that the caller knows that the revision 
 	   needs to be colored. *)
 	let text_vec = Vec.singleton (db#read_colored_markup rev_id) in 
-	let (w, t, o, s_idx, s) = Text.split_into_words_seps_and_info false text_vec in 
+	let (w, t, o, a, s_idx, s) = Text.split_into_words_seps_and_info false text_vec in 
 	words <- w; 
 	trust <- t; 
 	origin <- o; 
+	author <- a;
 	sigs <- [| |];
 	seps <- s; 
 	sep_word_idx <- s_idx;
@@ -148,23 +148,29 @@ class revision
       let sigs_len = Array.length sigs in 
       let trust_len = Array.length trust in 
       let origin_len = Array.length origin in 
+      let author_len = Array.length author in 
       let text_len = Array.length words in 
-      if sigs_len != text_len then begin
+      if sigs_len <> text_len then begin
 	sigs <- Array.create text_len Author_sig.empty_sigs;
 	Printf.printf "Warning: reconstructed sigs for revision %d\n" rev_id;
       end;
-      if trust_len != text_len then begin
+      if trust_len <> text_len then begin
 	trust <- Array.create text_len 0.;
 	Printf.printf "Warning: reconstructed trust for revision %d\n" rev_id;
       end;
-      if origin_len != text_len then begin
+      if origin_len <> text_len then begin
 	origin <- Array.create text_len 0;
 	Printf.printf "Warning: reconstructed origin for revision %d\n" rev_id;
+      end;
+      if author_len <> text_len then begin
+	author <- Array.create text_len "";
+	Printf.printf "Warning: reconstructed authors for revision %d\n" rev_id;
       end
+
 
     (** Writes the trust, origin, and sigs to the db *)
     method write_words_trust_origin_sigs : unit = 
-      db#write_words_trust_origin_sigs rev_id words trust origin sigs
+      db#write_words_trust_origin_sigs rev_id words trust origin author sigs
 
     method get_words : word array = words
     method get_seps : Text.sep_t array = seps
@@ -173,6 +179,8 @@ class revision
     method set_trust (t: float array) = trust <- t
     method get_origin : int array = origin
     method set_origin (o: int array) = origin <- o 
+    method get_author : string array = author
+    method set_author (a: string array) = author <- a 
     method get_sigs : Author_sig.packed_author_signature_t array = sigs
     method set_sigs (s: Author_sig.packed_author_signature_t array) = sigs <- s
 
@@ -223,14 +231,14 @@ class revision
       self#read_quality_info; 
       if modified_quality_info then 
 	db#write_wikitrust_revision {
-	  rev_id = rev_id; 
-	  rev_page = page_id; 
-	  rev_text_id = text_id; 
-	  rev_timestamp = time_string; 
-	  rev_user = user_id; 
-	  rev_user_text = username;
-	  rev_is_minor = is_minor;
-	  rev_comment = comment
+	  Online_db.rev_id = rev_id; 
+	  Online_db.rev_page = page_id; 
+	  Online_db.rev_text_id = text_id; 
+	  Online_db.rev_timestamp = time_string; 
+	  Online_db.rev_user = user_id; 
+	  Online_db.rev_user_text = username;
+	  Online_db.rev_is_minor = is_minor;
+	  Online_db.rev_comment = comment
 	} quality_info
 	  
   end (* revision class *)
@@ -238,14 +246,14 @@ class revision
 (** Makes a revision from a revision_t record *)
 let make_revision (rev : Online_db.revision_t) db: revision = 
   new revision db 
-    rev.rev_id
-    rev.rev_page
-    rev.rev_text_id
-    rev.rev_timestamp
-    rev.rev_user
-    rev.rev_user_text
-    rev.rev_is_minor
-    rev.rev_comment
+    rev.Online_db.rev_id
+    rev.Online_db.rev_page
+    rev.Online_db.rev_text_id
+    rev.Online_db.rev_timestamp
+    rev.Online_db.rev_user
+    rev.Online_db.rev_user_text
+    rev.Online_db.rev_is_minor
+    rev.Online_db.rev_comment
 
 (** Makes a revision from a database row *)
 let make_revision_from_cursor row db: revision = 
@@ -292,13 +300,13 @@ let read_wikitrust_revision (db: Online_db.db) (id: int) : revision =
     let (r_data, q_data) = db#read_wikitrust_revision id in 
     let rev = new revision db 
       id
-      r_data.rev_page
-      r_data.rev_text_id
-      r_data.rev_timestamp
-      r_data.rev_user
-      r_data.rev_user_text
-      r_data.rev_is_minor
-      r_data.rev_comment
+      r_data.Online_db.rev_page
+      r_data.Online_db.rev_text_id
+      r_data.Online_db.rev_timestamp
+      r_data.Online_db.rev_user
+      r_data.Online_db.rev_user_text
+      r_data.Online_db.rev_is_minor
+      r_data.Online_db.rev_comment
     in 
     rev#set_quality_info q_data; 
     rev

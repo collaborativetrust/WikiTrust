@@ -103,7 +103,7 @@ OUR_OPT_SPLITWIKI_OBJS = splitwiki.cmx
 OUR_EXTRACTWIKI_OBJS = extract_wiki_subset.cmo
 OUR_OPT_EXTRACTWIKI_OBJS = extract_wiki_subset.cmx
 
-CHDIFF_OBJS = text.cmo prioq.cmo coda.cmo chdiff.cmo
+CHDIFF_OBJS = text.cmo prioq.cmo coda.cmo editlist.cmo chdiff.cmo
 
 TEXT_OBJS = text.cmo
 
