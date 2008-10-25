@@ -21,7 +21,9 @@
 
 ## MW extension
 # This defines a custom MW function to map trust values to HTML markup
-# TEST 1
+# 
+# Uses Tool Tip JS library under the LGPL.
+# http://www.walterzorn.com/tooltip/tooltip_e.htm
 
 class TextTrust extends TrustBase
 {
@@ -394,6 +396,7 @@ colors text according to trust.'
 			       );
 	  $dbw =& wfGetDB( DB_MASTER );
 	  if ($dbw->insert( 'wikitrust_vote', $insert_vals)){
+	    $dbw->commit();
 	    $response = new AjaxResponse(implode  ( ",", $insert_vals));
 	    self::runEvalEdit(self::TRUST_EVAL_VOTE, $rev_id, $page_id, $user_id); // Launch the evaluation of the vote.
 	  }
