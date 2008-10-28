@@ -953,7 +953,7 @@ class page
 	(* Renormalizes the reputation *)
 	let (histogram, hi_median) = db#get_histogram in 
 	let hi_median_boost = self#compute_hi_median histogram trust_coeff.hi_median_perc_boost in
-	let renorm_w' = rev2_weight *. ((float_of_int max_rep_val) /. hi_median_boost) ** 2. in 
+	let renorm_w' = rev2_weight *. ((float_of_int max_rep_val) /. hi_median_boost) ** 1.0 in 
 	let renorm_w = max rev2_weight (min renorm_w' (float_of_int max_rep_val)) in 
 
 	(* If the author is not anonymous, updates the histogram *)
@@ -1048,15 +1048,16 @@ class page
 	    let q = qual d_c2_1 d12 d_c2_2 in 
 
 	    (* computes the nixing bit *)
-	    let last_of_recent_revs = Vec.get (n_recent_revs - 1) revs in 
-	    let last_of_recent_revs_time = last_of_recent_revs#get_time in 
+	    let oldest_of_recent_revs = Vec.get (n_recent_revs - 1) revs in 
+	    let oldest_of_recent_revs_time = oldest_of_recent_revs#get_time in 
 	    if (not !rev1_nix) && (rev2_time -. rev1_time < trust_coeff.nix_interval) then begin 
 	      (* You can be nixed in two ways. *)
 	      if 
 		(* First reason: if the quality is below the threshold *)
 		(q <= trust_coeff.nix_threshold) ||
 		  (* Second reason: too many revisions in too short a time *)
-		  (rev1_time -. last_of_recent_revs_time < trust_coeff.nix_interval)
+		  ((not include_initial_empty_rev) && 
+		  (rev1_time -. oldest_of_recent_revs_time < trust_coeff.nix_interval))
 	      then begin 
 		(* Nix it *)
 		rev1_nix := true;
@@ -1104,13 +1105,9 @@ class page
 	      if (!rev1_nix || rev2_time -. rev1_time < trust_coeff.nix_interval) && rep_inc > 0. then begin 
 		(* Short term or nixed: caps the reputation increment. 
 		   The reputation of rev2 is always used as a cap. 
-		   The reputation of r_c2 is used as a cap only if the oldest of the recent revisions is older
-		   than nix_interval.  The idea is that if a stuffing attack does not occur (indicated by the 
-		   fact that recent_revs is not stuffed with revisions in a short time), the author of rev1
-		   does not have control on what r_c2 is, since this depends on rev2.  And if the author of rev1
-		   can contol what r_c2 is, why would she not enter r_c2 herself? *)
+		   The reputation of r_c2 is used as a cap only if it is more recent than the nixing interval. *)
 		let r_c2_cap_rep = 
-		  if rev2_time -. last_of_recent_revs_time < trust_coeff.nix_interval
+		  if rev2_time -. oldest_of_recent_revs_time < trust_coeff.nix_interval
 		  then r_c2_rep
 		  else rev2_rep
 		in
