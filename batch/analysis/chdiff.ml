@@ -64,28 +64,34 @@ let min_dead_copy_amount = 6
 
 
 module Heap = Coda.PriorityQueue
+type match_quality_t = Coda.match_quality_t
 
 (* Quality functions for matches *)
 
-let quality (l: int) (i1: int) (len1: int) (i2: int) (len2: int) : float = 
+let quality (l: int) (i1: int) (len1: int) (i2: int) (len2: int) : match_quality_t = 
   let l' = float_of_int l in 
   let i1' = float_of_int i1 in 
   let len1' = float_of_int len1 in 
   let i2' = float_of_int i2 in 
   let len2' = float_of_int len2 in 
-  l' *. (1.0 -. (0.3 *. abs_float ((i1' /. len1') -. (i2' /. len2'))))
+  let q = l' *. (1.0 -. (0.3 *. abs_float ((i1' /. len1') -. (i2' /. len2')))) in 
+  (l, 0, q)
 
-let quality_survival (l: int) (i1: int) (len1: int) (i2: int) (len2: int) (is_dead: bool)
-    : float = 
+let quality_survival (l: int) (i1: int) (len1: int) (i2: int) (len2: int) (ch1_idx: int) 
+    : match_quality_t = 
   let l' = float_of_int l in 
   let i1' = float_of_int i1 in 
   let len1' = float_of_int len1 in 
   let i2' = float_of_int i2 in 
   let len2' = float_of_int len2 in 
-  if is_dead then 
+  let q = if ch1_idx > 0 then 
+    (* dead chunk *)
     l' *. 0.6 
   else
+    (* live chunk *)
     l' *. (1.0 -. (0.3 *. abs_float ((i1' /. len1') -. (i2' /. len2'))))
+  in 
+  (l, ch1_idx, q)
 
 let print_chunks (waa: word array array) = Array.iter Text.print_words waa;;
 
@@ -398,7 +404,7 @@ let text_survival
 		  if big_enough !l c1_idx then 
 		    (* we add it only if it is long enough *)
 		    begin
-		      let q = quality_survival !l i1 len1.(c1_idx) i2 len2 (c1_idx > 0) in 
+		      let q = quality_survival !l i1 len1.(c1_idx) i2 len2 c1_idx in 
 		      (* Adds it to the heap *)
 		      ignore (Heap.add heap (!l, c1_idx, i1, i2) q)
 		    end
@@ -454,7 +460,7 @@ let text_survival
 	    while matched2.(i2 + !k) <> 0 do k := !k - 1 done; 
 	    let res_l = !k + 1 in (* res_l is the len of the residual match *)
 	    if big_enough res_l c1_idx then begin
-	      let q = quality_survival res_l i1 len1.(c1_idx) i2 len2 (c1_idx > 0) in 
+	      let q = quality_survival res_l i1 len1.(c1_idx) i2 len2 c1_idx in 
 	      ignore (Heap.add heap (res_l, c1_idx, i1, i2) q)
 	    end
 	  end
@@ -469,7 +475,7 @@ let text_survival
 	    let res_l = l - !j in (* res_l is the len of the residual match *)
 	    if big_enough res_l c1_idx then begin
 	      let q = quality_survival 
-		res_l (i1 + !j) len1.(c1_idx) (i2 + !j) len2 (c1_idx > 0) in 
+		res_l (i1 + !j) len1.(c1_idx) (i2 + !j) len2 c1_idx in 
 	      ignore (Heap.add heap (res_l, c1_idx, i1 + !j, i2 + !j) q)
 	    end
 	  end
@@ -490,7 +496,7 @@ let text_survival
 	      let res_l = !k - !j in 
 	      if big_enough res_l c1_idx then begin
 		let q = quality_survival 
-		  res_l (i1 + !j) len1.(c1_idx) (i2 + !j) len2 (c1_idx > 0) in 
+		  res_l (i1 + !j) len1.(c1_idx) (i2 + !j) len2 c1_idx in 
 		ignore (Heap.add heap (res_l, c1_idx, i1 + !j, i2 + !j) q)
 	      end
 	    end
@@ -619,7 +625,7 @@ let text_tracking
 		  if big_enough !l c1_idx then 
 		    (* we add it only if it is long enough *)
 		    begin
-		      let q = quality_survival !l i1 len1.(c1_idx) i2 len2 (c1_idx > 0) in 
+		      let q = quality_survival !l i1 len1.(c1_idx) i2 len2 c1_idx in 
 		      (* Adds it to the heap *)
 		      ignore (Heap.add heap (!l, c1_idx, i1, i2) q)
 		    end
@@ -674,7 +680,7 @@ let text_tracking
 	  while matched2.(i2 + !k) <> 0 do k := !k - 1 done; 
 	  let res_l = !k + 1 in (* res_l is the len of the residual match *)
 	  if big_enough res_l c1_idx then begin
-	    let q = quality_survival res_l i1 len1.(c1_idx) i2 len2 (c1_idx > 0) in 
+	    let q = quality_survival res_l i1 len1.(c1_idx) i2 len2 c1_idx in 
 	    ignore (Heap.add heap (res_l, c1_idx, i1, i2) q)
 	  end
 	end
@@ -689,7 +695,7 @@ let text_tracking
 	    let res_l = l - !j in (* res_l is the len of the residual match *)
 	    if big_enough res_l c1_idx then begin
 	      let q = quality_survival 
-		res_l (i1 + !j) len1.(c1_idx) (i2 + !j) len2 (c1_idx > 0) in 
+		res_l (i1 + !j) len1.(c1_idx) (i2 + !j) len2 c1_idx in 
 	      ignore (Heap.add heap (res_l, c1_idx, i1 + !j, i2 + !j) q)
 	    end
 	  end
@@ -710,7 +716,7 @@ let text_tracking
 	      let res_l = !k - !j in 
 	      if big_enough res_l c1_idx then begin
 		let q = quality_survival 
-		  res_l (i1 + !j) len1.(c1_idx) (i2 + !j) len2 (c1_idx > 0) in 
+		  res_l (i1 + !j) len1.(c1_idx) (i2 + !j) len2 c1_idx in 
 		ignore (Heap.add heap (res_l, c1_idx, i1 + !j, i2 + !j) q)
 	      end
 	    end

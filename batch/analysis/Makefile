@@ -100,7 +100,7 @@ OUR_OPT_GENERATE_REPUTATION_OBJS = timeconv.cmx text.cmx \
 OUR_SPLITWIKI_OBJS = splitwiki.cmo
 OUR_OPT_SPLITWIKI_OBJS = splitwiki.cmx
 
-CHDIFF_OBJS = text.cmo prioq.cmo coda.cmo chdiff.cmo
+CHDIFF_OBJS = text.cmo prioq.cmo coda.cmo editlist.cmo chdiff.cmo
 
 TEXT_OBJS = text.cmo
 
