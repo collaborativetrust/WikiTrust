@@ -38,6 +38,11 @@ POSSIBILITY OF SUCH DAMAGE.
 
 TYPE_CONV_PATH "UCSC_WIKI_RESEARCH"    
 
+(** Type of an author in the annotated text.  Choose int if you wish to 
+    annotate text with author ids, and string if you wish to annotate 
+    with author names. *)
+type author_t = string with sexp
+
 (** A chunk is a portion of text that used to be part of an article, but that 
     has since been deleted.  We associate a chunk list with each page. *)
 type chunk_t = {
@@ -59,6 +64,8 @@ type chunk_t = {
   (** This is the revision_id where each word of the text of these 
       deleted chunks was first introduced. *)
   origin: int array;
+  (** This is the author of each word *)
+  author: author_t array;
 } with sexp
 
 (** These are the coefficients used for the evaluation. *)
