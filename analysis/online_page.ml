@@ -778,35 +778,34 @@ class page
 	  let n_chunks_dual = (Array.length chunks_a) + 1 in 
 	  let chunks_dual_a = Array.make n_chunks_dual [| |] in 
 	  let trust_dual_a  = Array.make n_chunks_dual [| |] in 
-	  let sigs_dual_a   = Array.make n_chunks_dual [| |] in 
+	  let sig_dual_a   = Array.make n_chunks_dual [| |] in 
 	  let origin_dual_a = Array.make n_chunks_dual [| |] in 
 	  let author_dual_a = Array.make n_chunks_dual [| |] in 
 	  for i = 1 to n_chunks_dual - 2 do begin 
 	    chunks_dual_a.(i + 1) <- chunks_a.(i);
 	    trust_dual_a.(i + 1)  <- trust_a.(i);
-	    sigs_dual_a.(i + 1)   <- sig_a.(i);
+	    sig_dual_a.(i + 1)   <- sig_a.(i);
 	    origin_dual_a.(i + 1) <- origin_a.(i);
 	    author_dual_a.(i + 1) <- author_a.(i);
 	  end done;
 	  (* rev1, the preceding one, is considered deleted, ... *)
 	  chunks_dual_a.(1) <- rev1#get_words;
 	  trust_dual_a.(1)  <- rev1#get_trust;
-	  sigs_dual_a.(1)   <- rev1#get_sigs;
+	  sig_dual_a.(1)   <- rev1#get_sigs;
 	  origin_dual_a.(1) <- rev1#get_origin;
 	  author_dual_a.(1) <- rev1#get_author;
 	  (* ... while rev2, the most similar one, is considered to be the live one *)
 	  chunks_dual_a.(0) <- rev2#get_words;
 	  trust_dual_a.(0)  <- rev2#get_trust;
-	  sigs_dual_a.(0)   <- rev2#get_sigs;
+	  sig_dual_a.(0)   <- rev2#get_sigs;
 	  origin_dual_a.(0) <- rev2#get_origin;
 	  author_dual_a.(0) <- rev2#get_author;
 
           (* Analyzes this different chunk setup *)
           let (new_chunks_20_a, medit_20_l) = Chdiff.text_tracking chunks_dual_a rev0_t in 
-
 	  (* Computes origin *)
-	  let (new_origin_20_a, new_author_20_a) = 
-	    Compute_robust_trust.compute_origin origin_a author_a new_chunks_20_a medit_20_l rev0_id rev0_uname in 
+	  let (new_origin_20_a, new_author_20_a) = Compute_robust_trust.compute_origin 
+	    origin_dual_a author_dual_a new_chunks_20_a medit_20_l rev0_id rev0_uname in 
 	  (* Keeps this origin information as the most reliable one. *)
 	  new_origin_10_a.(0) <- new_origin_20_a.(0);
 	  new_author_10_a.(0) <- new_author_20_a.(0);
@@ -820,7 +819,7 @@ class page
             else (trust_coeff.read_all, trust_coeff.read_part)
           in 
           let (new_trust_20_a, new_sigs_20_a) = Compute_robust_trust.compute_robust_trust
-            trust_a sig_a new_chunks_20_a rev0_seps medit_20_l
+            trust_dual_a sig_dual_a new_chunks_20_a rev0_seps medit_20_l
             weight_user rev0_uid trust_coeff.lends_rep trust_coeff.kill_decrease 
             trust_coeff.cut_rep_radius c_read_all c_read_part trust_coeff.local_decay
           in

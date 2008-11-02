@@ -86,7 +86,7 @@ CREATE TABLE ".$wgDBprefix."wikitrust_user (
 GRANT ALL ON ".$wgDBprefix."wikitrust_user TO $wgDBuser;
 ");
 
-$create_index_scripts[$wgDBprefix . "revision"]['revision_id_timestamp_idx'] = "CREATE INDEX revision_id_timestamp_idx ON " . $wgDBprefix . "revision (rev_id, rev_timestamp)";
+$create_index_scripts[$wgDBprefix . "revision"]['wikitrust_revision_id_timestamp_idx'] = "CREATE INDEX wikitrust_revision_id_timestamp_idx ON " . $wgDBprefix . "revision (rev_id, rev_timestamp)";
 
 $remove_scripts[$wgDBprefix.'wikitrust_vote'] = array("DROP TABLE ".$wgDBprefix."wikitrust_vote");
 $remove_scripts[$wgDBprefix.'wikitrust_global'] = array("DROP TABLE ".$wgDBprefix."wikitrust_global");
@@ -97,6 +97,6 @@ $remove_scripts[$wgDBprefix.'wikitrust_sigs'] = array("DROP TABLE ".$wgDBprefix.
 $remove_scripts[$wgDBprefix.'wikitrust_user'] = array("DROP TABLE
 ".$wgDBprefix."wikitrust_user");
 
-$remove_index_scripts[$wgDBprefix . "revision"]['revision_id_timestamp_idx'] = "DROP INDEX revision_id_timestamp_idx ON revision";
+$remove_index_scripts[$wgDBprefix . "revision"]['wikitrust_revision_id_timestamp_idx'] = "DROP INDEX wikitrust_revision_id_timestamp_idx ON revision";
 
 ?>
