@@ -360,7 +360,7 @@ let produce_annotated_markup
 	begin 
 	  (* writes author *)
 	  if include_author
-	  then Printf.bprintf out_buf ",%S}}" new_author
+	  then Printf.bprintf out_buf ",%s}}" new_author
 	  else Printf.bprintf out_buf ",}}"
 	end
       end;
