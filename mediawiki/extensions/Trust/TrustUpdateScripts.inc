@@ -73,10 +73,7 @@ CREATE INDEX ".$wgDBprefix."wikitrust_colored_markup_createdon_idx ON ".$wgDBpre
 $create_scripts[$wgDBprefix.'wikitrust_sigs'] = array("
 CREATE TABLE ".$wgDBprefix."wikitrust_sigs (
        revision_id      int PRIMARY KEY,
-       words		longtext NOT NULL,
-       trust            longtext NOT NULL,
-       origin           longtext NOT NULL,
-       sigs     	longtext NOT NULL
+       revision_data    longtext NOT NULL
 ) ENGINE=InnoDB","
 GRANT ALL ON ".$wgDBprefix."wikitrust_sigs TO $wgDBuser
 ");

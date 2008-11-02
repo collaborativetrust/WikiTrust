@@ -60,6 +60,15 @@ type revision_t = {
   rev_comment: string
 } 
 
+(* Represents a signature *)
+type sig_t = {
+  words_a: string array;
+  trust_a: float array;
+  origin_a: int array;
+  author_a: string array;
+  sig_a: Author_sig.packed_author_signature_t array;
+} with sexp
+
 (* This is the type of a vote data *)
 type vote_t = {
   vote_time: string;
@@ -227,13 +236,14 @@ class db :
       string array -> 
       float array -> 
       int array -> 
+      string_array ->
       Author_sig.packed_author_signature_t array -> unit 
 
       (** [read_words_trust_origin_sigs rev_id] reads the words, trust, 
 	  origin, and author sigs for the revision [rev_id] from the [wikitrust_sigs] table. *)
     method read_words_trust_origin_sigs : 
       int -> 
-      (string array * float array * int array * Author_sig.packed_author_signature_t array)
+      (string array * float array * int array * string_array * Author_sig.packed_author_signature_t array)
 
     (** [delete_author_sigs rev_id] removes from the db the author signatures for [rev_id]. *)
     method delete_author_sigs : int -> unit

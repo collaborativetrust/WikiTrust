@@ -69,6 +69,15 @@ type revision_t = {
   rev_comment: string
 } 
 
+(* Represents a signature *)
+type sig_t = {
+  words_a: string array;
+  trust_a: float array;
+  origin_a: int array;
+  author_a: string array;
+  sig_a: Author_sig.packed_author_signature_t array;
+} with sexp
+
 let set_is_minor ism = match ism with
   | 0 -> false
   | 1 -> true
@@ -470,36 +479,30 @@ class db
       (words: string array)
       (trust: float array)
       (origin: int array)
-      (sigs: Author_sig.packed_author_signature_t array) : unit = 
-      let g_words = sexp_of_array sexp_of_string in 
-      let s_words = ml2str (string_of__of__sexp_of g_words words) in
-      let g_trust = sexp_of_array sexp_of_float in 
-      let s_trust = ml2str (string_of__of__sexp_of g_trust trust) in
-      let g_origin = sexp_of_array sexp_of_int in 
-      let s_origin = ml2str (string_of__of__sexp_of g_origin origin) in 
-      let g_sigs = sexp_of_array Author_sig.sexp_of_sigs in 
-      let s_sigs = ml2str (string_of__of__sexp_of g_sigs sigs) in 
-      let sdb = Printf.sprintf "INSERT INTO %swikitrust_sigs (revision_id, words, trust, origin, sigs) VALUES (%s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE words = %s, trust = %s, origin = %s, sigs = %s" db_prefix (ml2int rev_id) s_words s_trust s_origin s_sigs s_words s_trust s_origin s_sigs in 
+      (author: string array)
+      (sigs: Author_sig.packed_author_signature_t array) : unit =
+      let signature = {
+	words_a = words;
+	trust_a = trust;
+	origin_a = origin;
+	author_a = author;
+	sig_a = sigs;
+      } in 
+      let signature_string = ml2str (strinf_of__of__sexp_of sexp_of_sig_t signature) in 
+      let sdb = Printf.sprintf "INSERT INTO %swikitrust_sigs (revision_id, revision_data) VALUES (%s, %s) ON DUPLICATE KEY UPDATE revision_data  = %s" db_prefix (ml2int rev_id) signature_string in 
       ignore (self#db_exec wikitrust_dbh sdb )
 
       (** [read_words_trust_origin_sigs rev_id] reads the words, trust, 
 	  origin, and author sigs for the revision [rev_id] from the [wikitrust_sigs] table. *)
     method read_words_trust_origin_sigs (rev_id: int) 
-      : (string array * float array * int array * Author_sig.packed_author_signature_t array) = 
-      let s = Printf.sprintf  "SELECT words, trust, origin, sigs FROM %swikitrust_sigs WHERE revision_id = %s" db_prefix (ml2int rev_id) in 
+      : (string array * float array * int array * string array * Author_sig.packed_author_signature_t array) = 
+      let s = Printf.sprintf  "SELECT revision_data FROM %swikitrust_sigs WHERE revision_id = %s" db_prefix (ml2int rev_id) in 
       let result = self#db_exec wikitrust_dbh s in 
       match Mysql.fetch result with 
 	None -> raise DB_Not_Found
       | Some x -> begin
-	  let g_words sx = array_of_sexp string_of_sexp sx in 
-	  let words = of_string__of__of_sexp g_words (not_null str2ml x.(0)) in 
-	  let g_trust sx = array_of_sexp float_of_sexp sx in 
-	  let trust = of_string__of__of_sexp g_trust (not_null str2ml x.(1)) in 
-	  let g_origin sx = array_of_sexp int_of_sexp sx in 
-	  let origin = of_string__of__of_sexp g_origin (not_null str2ml x.(2)) in 
-	  let g_sigs sx = array_of_sexp Author_sig.sigs_of_sexp sx in 
-	  let sigs = of_string__of__of_sexp g_sigs (not_null str2ml x.(3)) in 
-	  (words, trust, origin, sigs)
+	  let signature = of_string__of__of_sexp sig_t_of_sexp (not_null str2ml x.(0)) in 
+	  (signature.words_a, signature.trust_a, signature.origin_a, signature.author_a, signature.sig_a)
 	end
 
    (** [delete_author_sigs rev_id] removes from the db the author signatures for [rev_id]. *)
