@@ -68,29 +68,14 @@ type match_quality_t = Coda.match_quality_t
 
 (* Quality functions for matches *)
 
-let quality (l: int) (i1: int) (len1: int) (i2: int) (len2: int) : match_quality_t = 
-  let l' = float_of_int l in 
-  let i1' = float_of_int i1 in 
-  let len1' = float_of_int len1 in 
-  let i2' = float_of_int i2 in 
-  let len2' = float_of_int len2 in 
-  let q = l' *. (1.0 -. (0.3 *. abs_float ((i1' /. len1') -. (i2' /. len2')))) in 
-  (l, 0, q)
-
-let quality_survival (l: int) (i1: int) (len1: int) (i2: int) (len2: int) (ch1_idx: int) 
+let quality (l: int) (i1: int) (len1: int) (i2: int) (len2: int) (ch1_idx: int) 
     : match_quality_t = 
   let i1' = (float_of_int (i1 + l)) /. 2. in 
   let len1' = float_of_int len1 in 
   let i2' = (float_of_int (i2 + l)) /. 2. in 
   let len2' = float_of_int len2 in 
-  let q = if ch1_idx > 0 then 
-    (* dead chunk *)
-    0.
-  else
-    (* live chunk *)
-    abs_float ((i1' /. len1') -. (i2' /. len2'))
+  let q = abs_float ((i1' /. len1') -. (i2' /. len2'))
   in 
-  Printf.printf "\ni1: %d len1: %d i2: %d len2: %d q: %f" i1 len1 i2 len2 q;
   (l, ch1_idx, q)
 
 let print_chunks (waa: word array array) = 
@@ -157,7 +142,7 @@ let edit_diff
 		  while (i1 + !l < len1) && (i2 + !l < len2) && 
 		    (words1.(i1 + !l) = words2.(i2 + !l)) do l := !l + 1 done; 
 		  (* Ok, the match starts in i1, i2, and has length !l *)
-		  let q = quality !l i1 len1 i2 len2 in 
+		  let q = quality !l i1 len1 i2 len2 0 in 
 		  (* Adds it to the heap *)
 		  ignore (Heap.add heap (!l, i1, i2) q)
 		end
@@ -212,7 +197,7 @@ let edit_diff
 	    while (matched1.(i1 + !k) <> 0 || matched2.(i2 + !k) <> 0) do k := !k - 1 done; 
 	    let res_l = !k + 1 in (* res_l is the len of the residual match *)
 	    if res_l > 1 then begin
-	      let q = quality res_l i1 len1 i2 len2 in 
+	      let q = quality res_l i1 len1 i2 len2 0 in 
 	      ignore (Heap.add heap (res_l, i1, i2) q)
 	    end
 	  end
@@ -226,7 +211,7 @@ let edit_diff
 	    while (matched1.(i1 + !j) <> 0 || matched2.(i2 + !j) <> 0) do j := !j + 1 done; 
 	    let res_l = l - !j in (* res_l is the len of the residual match *)
 	    if res_l > 1 then begin
-	      let q = quality res_l (i1 + !j) len1 (i2 + !j) len2 in 
+	      let q = quality res_l (i1 + !j) len1 (i2 + !j) len2 0 in 
 	      ignore (Heap.add heap (res_l, i1 + !j, i2 + !j) q)
 	    end
 	  end
@@ -248,7 +233,7 @@ let edit_diff
 		   k := !k + 1 done;
 		 let res_l = !k - !j in 
 		 if res_l > 1 then begin
-		   let q = quality res_l (i1 + !j) len1 (i2 + !j) len2 in 
+		   let q = quality res_l (i1 + !j) len1 (i2 + !j) len2 0 in 
 		   ignore (Heap.add heap (res_l, i1 + !j, i2 + !j) q)
 		 end
 	       end
@@ -409,7 +394,7 @@ let text_survival
 		  if big_enough !l c1_idx then 
 		    (* we add it only if it is long enough *)
 		    begin
-		      let q = quality_survival !l i1 len1.(c1_idx) i2 len2 c1_idx in 
+		      let q = quality !l i1 len1.(c1_idx) i2 len2 c1_idx in 
 		      (* Adds it to the heap *)
 		      ignore (Heap.add heap (!l, c1_idx, i1, i2) q)
 		    end
@@ -465,7 +450,7 @@ let text_survival
 	    while matched2.(i2 + !k) <> 0 do k := !k - 1 done; 
 	    let res_l = !k + 1 in (* res_l is the len of the residual match *)
 	    if big_enough res_l c1_idx then begin
-	      let q = quality_survival res_l i1 len1.(c1_idx) i2 len2 c1_idx in 
+	      let q = quality res_l i1 len1.(c1_idx) i2 len2 c1_idx in 
 	      ignore (Heap.add heap (res_l, c1_idx, i1, i2) q)
 	    end
 	  end
@@ -479,7 +464,7 @@ let text_survival
 	    while matched2.(i2 + !j) <> 0 do j := !j + 1 done; 
 	    let res_l = l - !j in (* res_l is the len of the residual match *)
 	    if big_enough res_l c1_idx then begin
-	      let q = quality_survival 
+	      let q = quality 
 		res_l (i1 + !j) len1.(c1_idx) (i2 + !j) len2 c1_idx in 
 	      ignore (Heap.add heap (res_l, c1_idx, i1 + !j, i2 + !j) q)
 	    end
@@ -500,7 +485,7 @@ let text_survival
 		k := !k + 1 done;
 	      let res_l = !k - !j in 
 	      if big_enough res_l c1_idx then begin
-		let q = quality_survival 
+		let q = quality 
 		  res_l (i1 + !j) len1.(c1_idx) (i2 + !j) len2 c1_idx in 
 		ignore (Heap.add heap (res_l, c1_idx, i1 + !j, i2 + !j) q)
 	      end
@@ -630,7 +615,7 @@ let text_tracking
 		  if big_enough !l c1_idx then 
 		    (* we add it only if it is long enough *)
 		    begin
-		      let q = quality_survival !l i1 len1.(c1_idx) i2 len2 c1_idx in 
+		      let q = quality !l i1 len1.(c1_idx) i2 len2 c1_idx in 
 		      (* Adds it to the heap *)
 		      ignore (Heap.add heap (!l, c1_idx, i1, i2) q)
 		    end
@@ -685,7 +670,7 @@ let text_tracking
 	  while matched2.(i2 + !k) <> 0 do k := !k - 1 done; 
 	  let res_l = !k + 1 in (* res_l is the len of the residual match *)
 	  if big_enough res_l c1_idx then begin
-	    let q = quality_survival res_l i1 len1.(c1_idx) i2 len2 c1_idx in 
+	    let q = quality res_l i1 len1.(c1_idx) i2 len2 c1_idx in 
 	    ignore (Heap.add heap (res_l, c1_idx, i1, i2) q)
 	  end
 	end
@@ -699,7 +684,7 @@ let text_tracking
 	    while matched2.(i2 + !j) <> 0 do j := !j + 1 done; 
 	    let res_l = l - !j in (* res_l is the len of the residual match *)
 	    if big_enough res_l c1_idx then begin
-	      let q = quality_survival 
+	      let q = quality 
 		res_l (i1 + !j) len1.(c1_idx) (i2 + !j) len2 c1_idx in 
 	      ignore (Heap.add heap (res_l, c1_idx, i1 + !j, i2 + !j) q)
 	    end
@@ -720,7 +705,7 @@ let text_tracking
 		k := !k + 1 done;
 	      let res_l = !k - !j in 
 	      if big_enough res_l c1_idx then begin
-		let q = quality_survival 
+		let q = quality 
 		  res_l (i1 + !j) len1.(c1_idx) (i2 + !j) len2 c1_idx in 
 		ignore (Heap.add heap (res_l, c1_idx, i1 + !j, i2 + !j) q)
 	      end
@@ -1013,7 +998,7 @@ end;;
 
 (** One more unit test for text tracking *)
 
-if true then begin
+if false then begin
   let ts1 = "a b c d e o o o o o a b c d e" in 
   let ts2 = "a b c d e q q a b c d e q q q q a b c d e" in 
   let ts3 = "o o a b c d o o b c d e o o b c d e" in 
@@ -1037,6 +1022,48 @@ if true then begin
     cr := c
   end done
 
+end;;
+
+
+(** Yet more unit test for text tracking *)
+
+if false then begin
+  let ch0 = "a b c d e o o o o o a b c d e" in 
+  let ch1 = "a b c d e q q q q q q a b c d e q q q q q q a b c d e" in 
+  let ts3 = "a b c d o o a b c d e z q q q q q q z a b c d e" in 
+  let chunks = [| 
+    (Text.split_into_words false (Vec.singleton ch0));
+    (Text.split_into_words false (Vec.singleton ch1)) 
+  |] in
+  let tsa3 = Text.split_into_words false (Vec.singleton ts3) in
+  let (c, l) = text_tracking chunks tsa3 in
+  print_chunks chunks;
+  print_string "Words:\n";
+  Text.print_words tsa3;
+  print_string "\n";
+  print_chunks c;
+  print_mdiff l
+end;;
+
+
+(** Yet more unit test for text tracking *)
+
+if false then begin
+  let ch0 = "a b c d e o o o o o a b c d e" in 
+  let ch1 = "a b c d e o o o o o a b c d e" in 
+  let ts3 = "a b c d o o a b c d e z q q q q q q z a b c d e" in 
+  let chunks = [| 
+    (Text.split_into_words false (Vec.singleton ch0));
+    (Text.split_into_words false (Vec.singleton ch1)) 
+  |] in
+  let tsa3 = Text.split_into_words false (Vec.singleton ts3) in
+  let (c, l) = text_tracking chunks tsa3 in
+  print_chunks chunks;
+  print_string "Words:\n";
+  Text.print_words tsa3;
+  print_string "\n";
+  print_chunks c;
+  print_mdiff l
 end;;
 
 
@@ -1065,6 +1092,25 @@ if false then
     test_edit_diff text1a text1b;
     test_edit_diff text2a text2b;
     test_edit_diff text3a text3b
+  end;;
+
+(** Another unit test for edit diff *)
+if false then 
+  begin 
+    let ts1 = "a b c d e o o o o o a b c d e" in 
+    let ts2 = "a b c d e q q a b c d e q q q q a b c d e" in 
+    let test_edit_diff t1 t2 = 
+      let w1 = Text.split_into_words false (Vec.singleton t1) in 
+      let w2 = Text.split_into_words false (Vec.singleton t2) in 
+      let i2 = make_index_diff w2 in 
+      let e = edit_diff w1 w2 i2 in 
+      Text.print_words w1; 
+      print_string "\n";
+      Text.print_words w2;  
+      print_diff e
+    in
+    
+    test_edit_diff ts1 ts2
   end;;
 
 (** Unit test for text distance *)
