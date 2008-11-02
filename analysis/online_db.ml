@@ -488,9 +488,9 @@ class db
 	author_a = author;
 	sig_a = sigs;
       } in 
-      let signature_string = ml2str (strinf_of__of__sexp_of sexp_of_sig_t signature) in 
-      let sdb = Printf.sprintf "INSERT INTO %swikitrust_sigs (revision_id, revision_data) VALUES (%s, %s) ON DUPLICATE KEY UPDATE revision_data  = %s" db_prefix (ml2int rev_id) signature_string in 
-      ignore (self#db_exec wikitrust_dbh sdb )
+      let signature_string = ml2str (string_of__of__sexp_of sexp_of_sig_t signature) in 
+      let sdb = Printf.sprintf "INSERT INTO %swikitrust_sigs (revision_id, revision_data) VALUES (%s, %s) ON DUPLICATE KEY UPDATE revision_data  = %s" db_prefix (ml2int rev_id) signature_string signature_string in 
+      ignore (self#db_exec wikitrust_dbh sdb)
 
       (** [read_words_trust_origin_sigs rev_id] reads the words, trust, 
 	  origin, and author sigs for the revision [rev_id] from the [wikitrust_sigs] table. *)

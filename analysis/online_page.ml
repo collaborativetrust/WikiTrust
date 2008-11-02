@@ -546,9 +546,14 @@ class page
     (** Gets a list of dead chunks coming from the disk, and translates them into 
         arrays, leaving position 0 free for the current revision. *)
     method private chunks_to_array (chunk_l: chunk_t list) :
-      (word array array * float array array * 
-	Author_sig.packed_author_signature_t array array * 
-	int array array * int array * float array) = 
+      (word array array *  (* chunks *)
+	float array array *  (* trust *)
+	Author_sig.packed_author_signature_t array array *  (* sigs *)
+	int array array *  (* origin *)
+	string array array *  (* author *)
+	int array *  (* age *)
+	float array  (* timestamp *)
+      ) = 
       let n_els = 1 + List.length chunk_l in 
       let chunks_a = Array.make n_els [| |] in 
       let trust_a  = Array.make n_els [| |] in 
@@ -742,7 +747,7 @@ class page
         let (new_chunks_10_a, medit_10_l) = Chdiff.text_tracking chunks_a rev0_t in 
 	(* Computes origin *)
 	let (new_origin_10_a, new_author_10_a) = 
-	  Compute_trust.compute_origin origin_a author_a new_chunks_10_a medit_10_l rev0_id rev0_uname in 
+	  Compute_robust_trust.compute_origin origin_a author_a new_chunks_10_a medit_10_l rev0_id rev0_uname in 
 	(* Computes trust *)
         (* If the author is the same, we do not increase the reputation 
 	   of exisiting text, to thwart a trivial attack. *)
@@ -767,7 +772,6 @@ class page
 	   For the trust, it computes the trust that would result from that edit, 
            and assigns to each word the maximum trust that either this edit, or the edit 1 --> 0, 
            would have computed. *)
-	 *)
         if !close_idx > 1 then begin 
           let rev2 = Vec.get !close_idx revs in 
 	  (* Prepares the chunks of the previous revisions *)
@@ -778,11 +782,11 @@ class page
 	  let origin_dual_a = Array.make n_chunks_dual [| |] in 
 	  let author_dual_a = Array.make n_chunks_dual [| |] in 
 	  for i = 1 to n_chunks_dual - 2 do begin 
-	    chunks_dual_a.(i + 1) = chunks_a.(i);
-	    trust_dual_a.(i + 1)  = trust_a.(i);
-	    sigs_dual_a.(i + 1)   = sigs_a.(i);
-	    origin_dual_a.(i + 1) = origin_a.(i);
-	    author_dual_a.(i + 1) = author_a.(i);
+	    chunks_dual_a.(i + 1) <- chunks_a.(i);
+	    trust_dual_a.(i + 1)  <- trust_a.(i);
+	    sigs_dual_a.(i + 1)   <- sig_a.(i);
+	    origin_dual_a.(i + 1) <- origin_a.(i);
+	    author_dual_a.(i + 1) <- author_a.(i);
 	  end done;
 	  (* rev1, the preceding one, is considered deleted, ... *)
 	  chunks_dual_a.(1) <- rev1#get_words;
@@ -802,7 +806,7 @@ class page
 
 	  (* Computes origin *)
 	  let (new_origin_20_a, new_author_20_a) = 
-	    Compute_trust.compute_origin origin_a author_a new_chunks_20_a medit_20_l rev0_id rev0_uname in 
+	    Compute_robust_trust.compute_origin origin_a author_a new_chunks_20_a medit_20_l rev0_id rev0_uname in 
 	  (* Keeps this origin information as the most reliable one. *)
 	  new_origin_10_a.(0) <- new_origin_20_a.(0);
 	  new_author_10_a.(0) <- new_author_20_a.(0);

@@ -231,14 +231,14 @@ class revision
       self#read_quality_info; 
       if modified_quality_info then 
 	db#write_wikitrust_revision {
-	  rev_id = rev_id; 
-	  rev_page = page_id; 
-	  rev_text_id = text_id; 
-	  rev_timestamp = time_string; 
-	  rev_user = user_id; 
-	  rev_user_text = username;
-	  rev_is_minor = is_minor;
-	  rev_comment = comment
+	  Online_db.rev_id = rev_id; 
+	  Online_db.rev_page = page_id; 
+	  Online_db.rev_text_id = text_id; 
+	  Online_db.rev_timestamp = time_string; 
+	  Online_db.rev_user = user_id; 
+	  Online_db.rev_user_text = username;
+	  Online_db.rev_is_minor = is_minor;
+	  Online_db.rev_comment = comment
 	} quality_info
 	  
   end (* revision class *)
@@ -246,14 +246,14 @@ class revision
 (** Makes a revision from a revision_t record *)
 let make_revision (rev : Online_db.revision_t) db: revision = 
   new revision db 
-    rev.rev_id
-    rev.rev_page
-    rev.rev_text_id
-    rev.rev_timestamp
-    rev.rev_user
-    rev.rev_user_text
-    rev.rev_is_minor
-    rev.rev_comment
+    rev.Online_db.rev_id
+    rev.Online_db.rev_page
+    rev.Online_db.rev_text_id
+    rev.Online_db.rev_timestamp
+    rev.Online_db.rev_user
+    rev.Online_db.rev_user_text
+    rev.Online_db.rev_is_minor
+    rev.Online_db.rev_comment
 
 (** Makes a revision from a database row *)
 let make_revision_from_cursor row db: revision = 
@@ -300,13 +300,13 @@ let read_wikitrust_revision (db: Online_db.db) (id: int) : revision =
     let (r_data, q_data) = db#read_wikitrust_revision id in 
     let rev = new revision db 
       id
-      r_data.rev_page
-      r_data.rev_text_id
-      r_data.rev_timestamp
-      r_data.rev_user
-      r_data.rev_user_text
-      r_data.rev_is_minor
-      r_data.rev_comment
+      r_data.Online_db.rev_page
+      r_data.Online_db.rev_text_id
+      r_data.Online_db.rev_timestamp
+      r_data.Online_db.rev_user
+      r_data.Online_db.rev_user_text
+      r_data.Online_db.rev_is_minor
+      r_data.Online_db.rev_comment
     in 
     rev#set_quality_info q_data; 
     rev
