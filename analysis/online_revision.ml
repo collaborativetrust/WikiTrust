@@ -109,7 +109,7 @@ class revision
     method read_text : unit = 
       try 
         let text_vec = Vec.singleton (db#read_rev_text text_id) in 
-        let (w, t, o, s_idx, s) = Text.split_into_words_seps_and_info false text_vec in 
+        let (w, t, o, a, s_idx, s) = Text.split_into_words_seps_and_info false text_vec in 
         words <- w; 
         seps <- s; 
         sep_word_idx <- s_idx;
