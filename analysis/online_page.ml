@@ -685,7 +685,7 @@ class page
         (* Produces the live chunk, consisting of the text of the revision, annotated
            with trust and origin information *)
         let chunk_0 = Revision.produce_annotated_markup rev0_seps chunk_0_trust chunk_0_origin chunk_0_author
-	  false true in 
+	  false true true in 
         (* And writes it out to the db *)
         db#write_colored_markup rev0_id (Buffer.contents chunk_0) rev0_timestamp; 
 	rev0#set_trust  chunk_0_trust;
@@ -840,7 +840,7 @@ class page
 	  new_sigs_10_a new_origin_10_a new_author_10_a del_chunks_list medit_10_l rev1_time rev0_time;
         (* Writes the annotated markup, trust, origin, sigs to disk *)
         let buf = Revision.produce_annotated_markup rev0_seps new_trust_10_a.(0) 
-	  new_origin_10_a.(0) new_author_10_a.(0) false true in 
+	  new_origin_10_a.(0) new_author_10_a.(0) false true true in 
         db#write_colored_markup rev0_id (Buffer.contents buf) rev0_timestamp;
 	rev0#set_trust  new_trust_10_a.(0);
 	rev0#set_origin new_origin_10_a.(0);
@@ -895,7 +895,7 @@ class page
 
       (* Writes the new colored markup *)
       let buf = Revision.produce_annotated_markup rev0_seps new_trust_a.(0) 
-	rev0#get_origin rev0#get_author false true in 
+	rev0#get_origin rev0#get_author false true true in 
       db#write_colored_markup rev0_id (Buffer.contents buf) rev0_timestamp;
 
       (* Writes the trust information to the revision *)

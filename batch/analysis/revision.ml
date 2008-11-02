@@ -293,12 +293,15 @@ let produce_annotated_markup
   (seps: Text.sep_t array) (* the revision text *)
   (word_trust: float array) (* the revision word trust *)
   (word_origin: int array) (* the revision word origin *)
+  (word_author: string array) (* the author of each word *)
   (trust_is_float: bool) (* flag indicating whether trust values have to be written out as floating-point *)
   (include_origin: bool) (* flag indicating whether we have to include also word origin *)
+  (include_author: bool) (* flag indicating whether we have to include also word author *)
   : Buffer.t = 
   let out_buf = Buffer.create 1000 in 
   let curr_color = ref 0 in 
   let curr_origin = ref (-1) in 
+  let curr_author = ref "" in 
   (* approximates a float to an int *)
   let approx x = int_of_float (x +. 0.5) in 
   (* Gives me the reputation of the next word, if there is one *)
@@ -316,8 +319,16 @@ let produce_annotated_markup
     then word_origin.(i) 
     else if n_words > 0 
     then word_origin.(n_words - 1)
-    else 0 (* No trust for empty pages. *) 
+    else 0
   end
+  in 
+  let next_word_author i = begin 
+    if i < n_words
+    then word_author.(i)
+    else if n_words > 0
+    then word_author.(n_words - 1)
+    else ""
+  end 
   in 
   (* Prints the tag.  [always_print] indicates that the tag
      must be printed even if the info has not changed. 
@@ -326,27 +337,36 @@ let produce_annotated_markup
     let new_color_float = next_word_color i in
     let new_color_int = approx new_color_float in 
     let new_origin = next_word_origin i in 
+    let new_author = next_word_author i in
     (* Prints the tag if one of these holds: 
        - trust_is_float holds
        - always_print holds
        - the info has changed. *)
-    if include_origin then begin 
-      (* include origin *)
-      if trust_is_float || always_print || (new_color_int != !curr_color) || (new_origin != !curr_origin) then begin 
-	if trust_is_float
-	then Printf.bprintf out_buf "{{#t:%.2f,%d}}" new_color_float new_origin
-	else Printf.bprintf out_buf "{{#t:%d,%d}}"   new_color_int   new_origin
-      end
-    end else begin 
-      (* do not include origin *)
-      if trust_is_float || always_print || (new_color_int != !curr_color) || then begin 
-	if trust_is_float
-	then Printf.bprintf out_buf "{{#t:%.2f,}}" new_color_float
-	else Printf.bprintf out_buf "{{#t:%d,}}"   new_color_int  
-      end
-    end;
+    if trust_is_float || always_print || (new_color_int != !curr_color) 
+      || (include_origin && (new_origin != !curr_origin))
+      || (include_author && (new_author != !curr_author)) then begin 
+	begin 
+	  (* writes trust *)
+	  if trust_is_float
+	  then Printf.bprintf out_buf "{{#t:%.2f" new_color_float
+	  else Printf.bprintf out_buf "{{#t:%d"   new_color_int
+	end;
+	begin
+	  (* writes origin *)
+	  if include_origin
+	  then Printf.bprintf out_buf ",%d" new_origin
+	  else Printf.bprintf out_but ","
+	end;
+	begin 
+	  (* writes author *)
+	  if include_author
+	  then Printf.bprintf out_buf ",%S}}" new_author
+	  else Printf.bprintf out_buf ",}}"
+	end
+      end;
     curr_color := new_color_int;
-    curr_origin := new_origin
+    curr_origin := new_origin;
+    curr_author := new_author
   end
   in
   (* We write the text of the revision *)
@@ -469,9 +489,10 @@ class trust_revision
       (** This method is used to output the colorized version of a 
           revision to an output file. *)
       self#output_rev_preamble trust_file; 
-      (* Now we must write the text of the revision *)
+      (* Now we must write the text of the revision.  Note that we do not write the
+         author information, as we do not have it.*)
       Buffer.output_buffer trust_file
-        (produce_annotated_markup seps word_trust word_origin false include_origin);
+        (produce_annotated_markup seps word_trust word_origin [| |] false include_origin false);
       output_string trust_file "</text>\n</revision>\n"
 
     method output_trust_revision = self#output_rev_text false
