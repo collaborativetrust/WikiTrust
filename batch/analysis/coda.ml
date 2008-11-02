@@ -52,13 +52,13 @@ module OrderedMatch: Elqt = struct
     let (l2, c2, q2) = el2 in 
     (* The longer, the better *)
     if l1 < l2 then 1
-    else if l2 < l1 then -1
+    else if l1 > l2 then -1
       (* The lower chunk, the better *)
-    else if c1 > c2 then 1
     else if c1 < c2 then -1
-      (* The higher quality, the better *)
-    else if q1 < q2 then 1
-    else if q2 > q1 then -1
+    else if c1 > c2 then 1
+      (* The lower the mismatch, the better *)
+    else if q1 < q2 then -1
+    else if q1 > q2 then 1
     else 0
 end;;
 

@@ -79,22 +79,27 @@ let quality (l: int) (i1: int) (len1: int) (i2: int) (len2: int) : match_quality
 
 let quality_survival (l: int) (i1: int) (len1: int) (i2: int) (len2: int) (ch1_idx: int) 
     : match_quality_t = 
-  let l' = float_of_int l in 
-  let i1' = float_of_int i1 in 
+  let i1' = (float_of_int (i1 + l)) /. 2. in 
   let len1' = float_of_int len1 in 
-  let i2' = float_of_int i2 in 
+  let i2' = (float_of_int (i2 + l)) /. 2. in 
   let len2' = float_of_int len2 in 
   let q = if ch1_idx > 0 then 
     (* dead chunk *)
-    l' *. 0.6 
+    0.
   else
     (* live chunk *)
-    l' *. (1.0 -. (0.3 *. abs_float ((i1' /. len1') -. (i2' /. len2'))))
+    abs_float ((i1' /. len1') -. (i2' /. len2'))
   in 
+  Printf.printf "\ni1: %d len1: %d i2: %d len2: %d q: %f" i1 len1 i2 len2 q;
   (l, ch1_idx, q)
 
-let print_chunks (waa: word array array) = Array.iter Text.print_words waa;;
-
+let print_chunks (waa: word array array) = 
+  let f ws = begin
+    Text.print_words ws; 
+    print_string "\n"
+  end in 
+  print_string "\nChunks: \n";
+  Array.iter f waa;;
 	    
 
 (* **************************************************************** *)
@@ -839,7 +844,7 @@ if false then begin
   let ts5 = "In molti casi, il bene comune non coincide con quello individuale.  Questo e' causato dall'egoismo delle persone, che cercano di massimizzare il loro bene individuale, invece di quello comune." in 
   let ts6 = "In generale, il bene comune non coincide con quello individuale.  La causa e' l'egoismo delle persone, che cercano di massimizzare il loro bene individuale, invece di quello comune." in 
   let ts7 = "In generale, il bene comune non coincide con quello individuale, dato che le persone non badano a quello comune." in 
-  let ts8 = "Volete comperare Viagra? Molto buono dato che le persone non badano a quello comune." in 
+  let ts8 = "Volete comperare Viagra? Molto buono basso prezzo dato che le persone non badano a quello comune." in 
   let ts9 = ts7 in 
 
   let print_vals (wa: word array) (ia: int array) = 
@@ -854,7 +859,7 @@ if false then begin
   in 
 
   let print_chunks (wal: word array list) (ial: int array list) = 
-    print_string "\nDead chunks:"; 
+    print_string "\nDead chunks:";
     List.iter2 print_vals wal ial
   in 
 
@@ -979,7 +984,7 @@ if false then begin
   let ts5 = "In molti casi, il bene comune non coincide con quello individuale.  Questo e' causato dall'egoismo delle persone, che cercano di massimizzare il loro bene individuale, invece di quello comune." in 
   let ts6 = "In generale, il bene comune non coincide con quello individuale.  La causa e' l'egoismo delle persone, che cercano di massimizzare il loro bene individuale, invece di quello comune." in 
   let ts7 = "In generale, il bene comune non coincide con quello individuale, dato che le persone non badano a quello comune." in 
-  let ts8 = "Volete comperare Viagra? Molto buono dato che le persone non badano a quello comune." in 
+  let ts8 = "Volete comperare Viagra? Molto buono basso prezzo." in
   let ts9 = ts7 in 
   let ts10 = "In generale, il bene comune non coincide con quello individuale, dato che le persone non badano a quello comune se non quando gli fa comodo." in 
 
@@ -987,7 +992,9 @@ if false then begin
   let taa = Array.map (function x -> Text.split_into_words false (Vec.singleton x)) tsa in 
   let (c, l) = text_tracking [| taa.(0) |] taa.(1) in 
   Text.print_words taa.(0);
+  Printf.printf "\n";
   Text.print_words taa.(1);
+  Printf.printf "\n";
   print_chunks c;
   print_mdiff  l; 
   let cr = ref c in 
@@ -996,7 +1003,6 @@ if false then begin
     Printf.printf "\n================\n";
     Printf.printf "New words:\n";
     Text.print_words taa.(i);
-    Printf.printf "\nResulting chunks:\n";
     print_chunks c; 
     print_mdiff  l;
     cr := c
@@ -1005,6 +1011,33 @@ if false then begin
 end;;
 
 
+(** One more unit test for text tracking *)
+
+if true then begin
+  let ts1 = "a b c d e o o o o o a b c d e" in 
+  let ts2 = "a b c d e q q a b c d e q q q q a b c d e" in 
+  let ts3 = "o o a b c d o o b c d e o o b c d e" in 
+  let tsa = [| ts1; ts2; ts3 |] in
+  let taa = Array.map (function x -> Text.split_into_words false (Vec.singleton x)) tsa in 
+  let (c, l) = text_tracking [| taa.(0) |] taa.(1) in 
+  Text.print_words taa.(0);
+  Printf.printf "\n";
+  Text.print_words taa.(1);
+  Printf.printf "\n";
+  print_chunks c;
+  print_mdiff  l; 
+  let cr = ref c in 
+  for i = 2 to (Array.length taa) - 1 do begin 
+    let (c, l) = text_tracking !cr taa.(i) in 
+    Printf.printf "\n================\n";
+    Printf.printf "New words:\n";
+    Text.print_words taa.(i);
+    print_chunks c; 
+    print_mdiff  l;
+    cr := c
+  end done
+
+end;;
 
 
 (** Unit test for edit diff *)
