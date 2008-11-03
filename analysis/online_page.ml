@@ -385,7 +385,7 @@ class page
 	(* Checks if minimum must be replaced *)
 	let cur_trust = cur_rev#get_overall_trust in 
 	let min_rev = Vec.get !min_trust_idx hi_trust_revs in
-	if (cur_trust >= !min_trust) && (cur_rev#get_id != min_rev#get_id) then begin 
+	if (cur_trust >= !min_trust) && (cur_rev#get_id <> min_rev#get_id) then begin 
 	  (* We insert the current revision *)
 	  if (Vec.length hi_trust_revs) = trust_coeff.len_hi_trust_revs then begin 
 	    (* We throw out the minimum revision if needed to keep list bounded *)
@@ -689,10 +689,10 @@ class page
 	in 
         (* Produces the live chunk, consisting of the text of the revision, annotated
            with trust and origin information *)
-        let chunk_0 = Revision.produce_annotated_markup rev0_seps chunk_0_trust chunk_0_origin chunk_0_author
+        let buf = Revision.produce_annotated_markup rev0_seps chunk_0_trust chunk_0_origin chunk_0_author
 	  false true true in 
         (* And writes it out to the db *)
-        db#write_colored_markup rev0_id (Buffer.contents chunk_0) rev0_timestamp; 
+        db#write_colored_markup rev0_id (Buffer.contents buf) rev0_timestamp; 
 	rev0#set_trust  chunk_0_trust;
 	rev0#set_origin chunk_0_origin;
 	rev0#set_author chunk_0_author;
@@ -1014,7 +1014,7 @@ class page
           let rev1_uid   = rev1#get_user_id in 
 	  (* We work only on non-anonymous rev1; otherwise, there is nothing to be updated. 
 	     Moreover, rev1 and rev2 need to be by different authors. *)
-	  if (not_anonymous rev1_uid) && (rev1_uid != rev2_uid) then begin 
+	  if (not_anonymous rev1_uid) && (rev1_uid <> rev2_uid) then begin 
             let rev1_id    = rev1#get_id in 
             let rev1_uname = rev1#get_user_name in 
             let rev1_time  = rev1#get_time in 

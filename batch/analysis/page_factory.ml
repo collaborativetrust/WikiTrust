@@ -374,9 +374,9 @@ class page_factory
 
     (* This method closes the output files *)
     method close_out_files : unit = 
-      if out_file != stderr then begin Fileinfo.close_info_out out_file; out_file <- stderr end;
-      if xml_file != stderr then begin Fileinfo.close_info_out xml_file; xml_file <- stderr end;
-      if words_file != stderr then begin Fileinfo.close_info_out words_file; words_file <- stderr end 
+      if out_file <> stderr then begin Fileinfo.close_info_out out_file; out_file <- stderr end;
+      if xml_file <> stderr then begin Fileinfo.close_info_out xml_file; xml_file <- stderr end;
+      if words_file <> stderr then begin Fileinfo.close_info_out words_file; words_file <- stderr end 
 
     (* Writes the output preamble if needed *)
     method output_preamble (s : string) : unit = 

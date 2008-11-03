@@ -150,19 +150,19 @@ class revision
       let origin_len = Array.length origin in 
       let author_len = Array.length author in 
       let text_len = Array.length words in 
-      if sigs_len != text_len then begin
+      if sigs_len <> text_len then begin
 	sigs <- Array.create text_len Author_sig.empty_sigs;
 	Printf.printf "Warning: reconstructed sigs for revision %d\n" rev_id;
       end;
-      if trust_len != text_len then begin
+      if trust_len <> text_len then begin
 	trust <- Array.create text_len 0.;
 	Printf.printf "Warning: reconstructed trust for revision %d\n" rev_id;
       end;
-      if origin_len != text_len then begin
+      if origin_len <> text_len then begin
 	origin <- Array.create text_len 0;
 	Printf.printf "Warning: reconstructed origin for revision %d\n" rev_id;
       end;
-      if author_len != text_len then begin
+      if author_len <> text_len then begin
 	author <- Array.create text_len "";
 	Printf.printf "Warning: reconstructed authors for revision %d\n" rev_id;
       end

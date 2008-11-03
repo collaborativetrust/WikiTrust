@@ -252,7 +252,7 @@ let compute_robust_trust
 	       the trust of a word.  The user has to be not anonymous, and not present 
 	       in the signature. *)
 	    new_chunks_canincrease_a.(0).(dst_word_idx + i) <- 
-	      (user_id != 0) && not (Author_sig.is_author_in_sigs user_id w hsig);  
+	      (user_id <> 0) && not (Author_sig.is_author_in_sigs user_id w hsig);  
 	    new_chunks_hasincreased_a.(0).(dst_word_idx + i) <- false; 
           end done; 
 

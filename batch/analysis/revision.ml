@@ -298,7 +298,7 @@ let produce_annotated_markup
   (include_origin: bool) (* flag indicating whether we have to include also word origin *)
   (include_author: bool) (* flag indicating whether we have to include also word author *)
   : Buffer.t = 
-  let out_buf = Buffer.create 1000 in 
+  let out_buf = Buffer.create 10000 in 
   let curr_color = ref 0 in 
   let curr_origin = ref (-1) in 
   let curr_author = ref "" in 
@@ -342,9 +342,10 @@ let produce_annotated_markup
        - trust_is_float holds
        - always_print holds
        - the info has changed. *)
-    if trust_is_float || always_print || (new_color_int != !curr_color) 
-      || (include_origin && (new_origin != !curr_origin))
-      || (include_author && (new_author != !curr_author)) then begin 
+    if trust_is_float || always_print 
+      || (new_color_int <> !curr_color) 
+      || (include_origin && (new_origin <> !curr_origin))
+      || (include_author && not (new_author <> !curr_author)) then begin 
 	begin 
 	  (* writes trust *)
 	  if trust_is_float
@@ -362,11 +363,11 @@ let produce_annotated_markup
 	  if include_author
 	  then Printf.bprintf out_buf ",%s}}" new_author
 	  else Printf.bprintf out_buf ",}}"
-	end
-      end;
-    curr_color := new_color_int;
-    curr_origin := new_origin;
-    curr_author := new_author
+	end;
+	curr_color := new_color_int;
+	curr_origin := new_origin;
+	curr_author := new_author;
+      end (* Needs to print the tag. *)
   end
   in
   (* We write the text of the revision *)
