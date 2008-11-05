@@ -837,7 +837,6 @@ class page
       (* Gets the voter reputation *)
       let voter_rep = self#get_rep voter_uid in 
       let voter_weight = self#weight (voter_rep) in 
-
       (* Prepares the arguments for a call to compute_robust_trust *)
       (* Prepares the arrays trust_a, sig_a as if they were for the previous
 	 revision. *)
@@ -847,7 +846,6 @@ class page
       let new_chunks_a = [| rev0_t     |] in 
       (* Builds the edit list *)
       let medit_l = [ Editlist.Mmov (0, 0, 0, 0, rev0_l) ] in 
-
       (* Computes the new trust and signatures *)
       let (new_trust_a, new_sigs_a) = Compute_robust_trust.compute_robust_trust 
         trust_a 
@@ -864,14 +862,14 @@ class page
         0. (* trust_coeff.read_part *)
         trust_coeff.local_decay
       in 
-
       (* Writes the new colored markup *)
-      let buf = Revision.produce_annotated_markup rev0_seps new_trust_a.(0) rev0#get_origin false true in 
+      let buf = Revision.produce_annotated_markup rev0_seps new_trust_a.(0) 
+	rev0#get_origin false true in 
       db#write_colored_markup rev0_id (Buffer.contents buf) rev0_timestamp;
-
       (* Writes the trust information to the revision *)
       rev0#set_trust new_trust_a.(0); 
       rev0#set_sigs  new_sigs_a.(0);
+      rev0#write_words_trust_origin_sigs;
       let t = self#compute_overall_trust new_trust_a.(0) in 
       rev0#set_overall_trust t
       (* end of vote_for_trust *)
