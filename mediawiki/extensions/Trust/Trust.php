@@ -564,7 +564,10 @@ colors text according to trust.'
    if (!$this->title){
      $this->title = $parser->getTitle();
    }
-   
+    
+   // count the number of times we load this text
+   $this->times_rev_loaded++;
+
    // Load the current revision id.
    if (!$this->current_rev){
      if ($parser->mRevisionId){
@@ -574,23 +577,26 @@ colors text according to trust.'
        $this->current_rev = $this->title->getPreviousRevisionID( PHP_INT_MAX );
      }
    }
-  
-   /**
-    This method is being called multiple times for each page. 
-    We only pull the colored text for the first time through.
-   */
-   if ($this->colored){
-     return true;
-   }
-   
-   if ($wgRequest->getVal('diff')){
-     $this->times_rev_loaded++;
-     // For diffs, look for the absence of the diff token instead of counting
-     if(substr($text,0,3) == self::DIFF_TOKEN_TO_COLOR){
-       return true;
-     }
-   } 
-   
+
+  /**
+   This method is being called multiple times for each page. 
+   We only pull the colored text for the first time through.
+  */
+  if ($this->colored){
+    return true;
+  }
+
+  if (strstr($text, "{{ns:project}}")) {
+    return true;
+  }
+
+  if ($wgRequest->getVal('diff')){
+    // For diffs, look for the absence of the diff token instead of counting
+    if(substr($text,0,3) == self::DIFF_TOKEN_TO_COLOR){
+      return true;
+    }
+  }
+
    // if we made it here, we are going to color some text
    $this->colored = true;
    
@@ -606,7 +612,7 @@ colors text according to trust.'
        
        // Now update the text.
        $text = $voteitText . $colored_text . "\n" . $wgTrustExplanation;
-     } else { 
+     } else {
        // If the colored text is missing, generate it in the background.
        // For now, return a message about the missing text.
        self::runEvalEdit(self::TRUST_EVAL_MISSING);
@@ -615,7 +621,6 @@ colors text according to trust.'
    } else {
      return false;
    }
-   
    $dbr->freeResult( $res );
    return true;
  }
