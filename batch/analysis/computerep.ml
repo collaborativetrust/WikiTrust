@@ -399,7 +399,7 @@ object (self)
 	      end
 	    in
 	    
-	    if qual != 0. then begin 
+	    if qual <> 0. then begin 
 
 	      (* Computes the reputation increment repinc *)
               let judge_w = user_data#get_weight e.edit_inc_uid2 in 
@@ -430,7 +430,7 @@ object (self)
 	      if debug then Printf.printf "EditInc Uid %d q3 %f\n" uid1 real_repinc; (* debug *)
               user_data#inc_rep uid1 uname1 real_repinc e.edit_inc_time
 
-	    end (* if qual != 0 *)
+	    end (* if qual <> 0 *)
           end;
 	  e.edit_inc_time 
       end

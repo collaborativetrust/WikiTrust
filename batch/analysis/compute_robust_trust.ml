@@ -252,7 +252,7 @@ let compute_robust_trust
 	       the trust of a word.  The user has to be not anonymous, and not present 
 	       in the signature. *)
 	    new_chunks_canincrease_a.(0).(dst_word_idx + i) <- 
-	      (user_id != 0) && not (Author_sig.is_author_in_sigs user_id w hsig);  
+	      (user_id <> 0) && not (Author_sig.is_author_in_sigs user_id w hsig);  
 	    new_chunks_hasincreased_a.(0).(dst_word_idx + i) <- false; 
           end done; 
 
@@ -408,34 +408,47 @@ let compute_robust_trust
   (new_chunks_trust_a, new_chunks_authorsig_a)
 
 
-(** [compute_origin chunks_origin_a new_chunks_a medit_l revid] computes the origin of 
-    the text in the chunks [new_chunks_a], belonging to a revision with id [revid]. 
-    [medit_l] is the edit list explaining the change from previous to current revision. *)
+(** [compute_origin chunks_origin_a new_chunks_a medit_l revid author_name] 
+    computes the origin of the text in the chunks [new_chunks_a],
+    belonging to a revision with id [revid] written by a user with
+    name [author_name].  [medit_l] is the edit list explaining the
+    change from previous to current revision. 
+    The information on origin and authors of the old text is given 
+    in [chunks_origin_a] and [chunks_author_a], respectively. 
+    The function returns a pair [new_origin_a, new_author_a], 
+    describing the new origin and author. *)
 let compute_origin
     (chunks_origin_a: int array array) 
+    (chunks_author_a: string array array)
     (new_chunks_a: word array array) 
     (medit_l: Editlist.medit list) 
-    (revid: int) : int array array =
+    (revid: int) 
+    (author_name: string): (int array array * string array array) =
   
+  (* Creates the chunks for origin and authors with defaults. *)
   let f x = Array.make (Array.length x) 0 in 
   let new_chunks_origin_a = Array.map f new_chunks_a in 
+  let f x = Array.make (Array.length x) "" in 
+  let new_chunks_author_a = Array.map f new_chunks_a in 
   
   (* Now, goes over medit_l, and fills in new_chunks_origin_a properly. *)
   let f = function 
       Editlist.Mins (word_idx, l) -> begin 
-	for i = word_idx to word_idx + l - 1 do
-	  new_chunks_origin_a.(0).(i) <- revid
-	done
+	for i = word_idx to word_idx + l - 1 do begin
+	  new_chunks_origin_a.(0).(i) <- revid;
+	  new_chunks_author_a.(0).(i) <- author_name
+	end done
       end
     | Editlist.Mmov (src_word_idx, src_chunk_idx, dst_word_idx, dst_chunk_idx, l) -> begin 
-	for i = 0 to l - 1 do
+	for i = 0 to l - 1 do begin
 	  new_chunks_origin_a.(dst_chunk_idx).(dst_word_idx + i) <- 
-	    chunks_origin_a.(src_chunk_idx).(src_word_idx + i)
-	done
+	    chunks_origin_a.(src_chunk_idx).(src_word_idx + i);
+	  new_chunks_author_a.(dst_chunk_idx).(dst_word_idx + i) <- 
+	    chunks_author_a.(src_chunk_idx).(src_word_idx + i);
+	end done
       end
 	
     | _ -> ()
   in 
   List.iter f medit_l; 
-  new_chunks_origin_a
-    
+  (new_chunks_origin_a, new_chunks_author_a)

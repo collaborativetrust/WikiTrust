@@ -100,7 +100,10 @@ OUR_OPT_GENERATE_REPUTATION_OBJS = timeconv.cmx text.cmx \
 OUR_SPLITWIKI_OBJS = splitwiki.cmo
 OUR_OPT_SPLITWIKI_OBJS = splitwiki.cmx
 
-CHDIFF_OBJS = text.cmo prioq.cmo coda.cmo chdiff.cmo
+OUR_EXTRACTWIKI_OBJS = extract_wiki_subset.cmo
+OUR_OPT_EXTRACTWIKI_OBJS = extract_wiki_subset.cmx
+
+CHDIFF_OBJS = text.cmo prioq.cmo coda.cmo editlist.cmo chdiff.cmo
 
 TEXT_OBJS = text.cmo
 
@@ -135,6 +138,14 @@ splitwiki:  $(OUR_SPLITWIKI_OBJS)
 splitwikiopt:  $(OUR_OPT_SPLITWIKI_OBJS)
 	$(OCAMLOPT) -linkpkg -o splitwiki $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) $(OUR_OPT_SPLITWIKI_OBJS)
 
+# extract_wiki_subset is used to extract a given subset of wiki page ids into a seperate file
+
+extract_wiki_subset:  $(OUR_EXTRACTWIKI_OBJS)
+	$(OCAMLC) -linkpkg -o extract_wiki_subset $(OCAML_CFLAGS) $(OUR_LD_ADD) $(OUR_EXTRACTWIKI_OBJS)
+
+extract_wiki_subsetopt:  $(OUR_OPT_EXTRACTWIKI_OBJS)
+	$(OCAMLOPT) -linkpkg -o extract_wiki_subset $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) $(OUR_OPT_EXTRACTWIKI_OBJS)
+
 # chdiff computes text differences, and this is used to test it. 
 
 chdiff: $(CHDIFF_OBJS)
@@ -158,8 +169,8 @@ combinestatsopt: combinestatsfiles.ml
 timeconv: $(TIMECONV_OBJS)
 	$(OCAMLC) -linkpkg -o timeconv $(OCAML_CFLAGS) $(OUR_LD_ADD) $(TIMECONV_OBJS)
 
-all: evalwiki generate_reputation splitwiki combinestats libs
-allopt: evalwikiopt generate_reputationopt splitwikiopt combinestatsopt libsopt
+all: evalwiki generate_reputation splitwiki combinestats libs extract_wiki_subset
+allopt: evalwikiopt generate_reputationopt splitwikiopt combinestatsopt libsopt extract_wiki_subsetopt
 universe: all allopt
 
 #

@@ -35,21 +35,34 @@ POSSIBILITY OF SUCH DAMAGE.
 
 TYPE_CONV_PATH "UCSC_WIKI_RESEARCH"
 
+(* The match quality is a tuple: match length, chunk index 
+   (the lower the better), and a floating-point "quality". *)
+type match_quality_t = int * int * float
+
 module type Elqt = 
   sig
-    type t = float
-    val compare: float -> float -> int
+    type t = int * int * float
+    val compare: t -> t -> int
   end
 
-module OrderedFloat: Elqt = struct 
-  type t = float 
-  let compare (f1: float) (f2: float) : int = 
-    if f1 < f2 then 1
-    else if f2 < f1 then -1
+module OrderedMatch: Elqt = struct 
+  type t = int * int * float
+  let compare (el1: match_quality_t) (el2: match_quality_t) : int = 
+    let (l1, c1, q1) = el1 in 
+    let (l2, c2, q2) = el2 in 
+    (* The longer, the better *)
+    if l1 < l2 then 1
+    else if l1 > l2 then -1
+      (* The lower chunk, the better *)
+    else if c1 < c2 then -1
+    else if c1 > c2 then 1
+      (* The lower the mismatch, the better *)
+    else if q1 < q2 then -1
+    else if q1 > q2 then 1
     else 0
 end;;
 
 (* In the other code, do: 
    module Heap = Queue.PriorityQueue *)
 
-module PriorityQueue = Prioq.Make (OrderedFloat);;
+module PriorityQueue = Prioq.Make (OrderedMatch);;

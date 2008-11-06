@@ -21,7 +21,9 @@
 
 ## MW extension
 # This defines a custom MW function to map trust values to HTML markup
-# TEST 1
+# 
+# Uses Tool Tip JS library under the LGPL.
+# http://www.walterzorn.com/tooltip/tooltip_e.htm
 
 class TextTrust extends TrustBase
 {
@@ -394,6 +396,7 @@ colors text according to trust.'
 			       );
 	  $dbw =& wfGetDB( DB_MASTER );
 	  if ($dbw->insert( 'wikitrust_vote', $insert_vals)){
+	    $dbw->commit();
 	    $response = new AjaxResponse(implode  ( ",", $insert_vals));
 	    self::runEvalEdit(self::TRUST_EVAL_VOTE, $rev_id, $page_id, $user_id); // Launch the evaluation of the vote.
 	  }
@@ -625,7 +628,9 @@ colors text according to trust.'
  
  /* Turn the finished trust info into a span tag. Also handle closing tags. */
  function ucscOrigin_Finalize(&$parser, &$text) {
+   global $wgScriptPath;
    $count = 0;
+   $text = '<script type="text/javascript" src="'.$wgScriptPath.'/extensions/Trust/js/wz_tooltip.js"></script>' . $text;
    $text = preg_replace('/' . self::TRUST_OPEN_TOKEN . '/', "<", $text, -1, $count);
    $text = preg_replace('/' . self::TRUST_CLOSE_TOKEN .'/', ">", $text, -1, $count);
    $text = preg_replace('/<\/p>/', "</span></p>", $text, -1, $count);
@@ -636,15 +641,18 @@ colors text according to trust.'
  }
 
  /* Text Trust */
- function ucscColorTrust_Render( &$parser, $combinedValue = "0,0" ) {
+ function ucscColorTrust_Render( &$parser, $combinedValue = "0,0,0" ) {
    
    // Split the value into trust and origin information.
    // 0 = trust
    // 1 = origin
+   // 2 = contributing author
    $splitVals = explode(self::TRUST_SPLIT_TOKEN, $combinedValue);
    
    $class = $this->computeColorFromFloat($splitVals[0]);
-   $output = self::TRUST_OPEN_TOKEN . "span class=\"$class\" onclick=\"showOrigin(" 
+   $output = self::TRUST_OPEN_TOKEN . "span class=\"$class\"" 
+     . "onmouseover=\"Tip('".$splitVals[2]."')\" onmouseout=\"UnTip()\""
+     . "onclick=\"showOrigin(" 
      . $splitVals[1] . ")\"" . self::TRUST_CLOSE_TOKEN;
 
    $this->current_trust = $class;

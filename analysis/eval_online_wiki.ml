@@ -228,12 +228,12 @@ let rec evaluate_revision (page_id: int) (rev_id: int): unit =
 	  begin
 	    (* We need to evaluate page_id', rev_id' first *)
 	    (* This if is a basic sanity check only. It should always be true *)
-	    if rev_id' != rev_id then 
+	    if rev_id' <> rev_id then 
 	      begin 
 		Printf.printf "Missing trust info: we need first to evaluate revision %d of page %d\n" rev_id' page_id';
 		evaluate_revision page_id' rev_id';
 		evaluate_revision page_id rev_id
-	      end (* rev_id' != rev_id *)
+	      end (* rev_id' <> rev_id *)
 	  end (* with: Was missing trust of a previous revision *)
       end (* End of try ... with ... *)
     end

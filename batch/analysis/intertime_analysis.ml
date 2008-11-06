@@ -67,7 +67,7 @@ class page
       let do_analysis = 
 	match last_uid with 
 	  None -> true 
-	| Some u -> u != user_id
+	| Some u -> u <> user_id
       in 
       last_uid <- Some user_id; 
 
