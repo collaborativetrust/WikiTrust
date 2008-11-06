@@ -52,19 +52,23 @@ if ($continue != "Y" && $continue != "\n"){
   exit(0);
  }
 
-// Reads the root password from std in.
-print "Enter the root mysql password:\n";
-$dba_pass = rtrim(shell_exec('
-bash -c \'
-stty_orig=`stty -g`
-trap "stty ${stty_orig}; exit" 1 2 3 15
-stty -echo <&- 2<&-
-read -s PASS
-stty ${stty_orig} <&- 2<&-
-trap 1 2 3 15
-echo $PASS
-\'
-'));
+// Reads the root password from std in, or a file if given
+if (array_key_exists(4, $argv) && is_file($argv[4])){
+  $dba_pass = trim(file_get_contents($argv[4]));
+} else {
+  print "Enter the root mysql password:\n";
+  $dba_pass = rtrim(shell_exec('
+  bash -c \'
+  stty_orig=`stty -g`
+  trap "stty ${stty_orig}; exit" 1 2 3 15
+  stty -echo <&- 2<&-
+  read -s PASS
+  stty ${stty_orig} <&- 2<&-
+  trap 1 2 3 15
+  echo $PASS
+  \'
+  '));
+}
 
 // Load all of the MW files.
 include($mw_root."/maintenance/commandLine.inc");
@@ -104,34 +108,34 @@ $db_root = Database::newFromParams($wgDBserver, $dba, $dba_pass, $wgDBname);
 if (!$do_remove){
   // Now do the actual creating of tables.
   foreach ($create_scripts as $table => $scripts) {
-    if (!$db_tables[$table]){
+    if (!array_key_exists($table, $db_tables)){
       foreach ($scripts as $script){
-	$db_root->query($script);
+        $db_root->query($script);
       }
     }
   }
   // Now do the actual creating of indexes.
   foreach ($create_index_scripts as $table => $idxs){
     foreach ($idxs as $name => $idx){
-      if(!$db_indexes[$table][$name]){
-	$db_root->query($idx);
+      if(!array_key_exists($name, $db_indexes[$table])){
+        $db_root->query($idx);
       }
     }
   }
 } else {
   // Or removing.
   foreach ($remove_scripts as $table => $scripts) {
-    if ($db_tables[$table]){
+    if (array_key_exists($table, $db_tables)){
       foreach ($scripts as $script){
-	$db_root->query($script);
+        $db_root->query($script);
       }
     }
   }
   // ...Of indexes.
   foreach ($remove_index_scripts as $table => $idxs){
     foreach ($idxs as $name => $idx){
-      if($db_indexes[$table][$name]){
-	$db_root->query($idx);
+      if(array_key_exists($name, $db_indexes[$table])){
+        $db_root->query($idx);
       }
     }
   }
