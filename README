@@ -84,7 +84,7 @@ $wgRepSpeed = 1.0;
 $wgTrustTabText = "check text";
 $wgTrustExplanation = '{| border="1" cellpadding="5" cellspacing="0" style="background:lightgreen; color:black"
 |-
-| The above text is colored according to how much it has been revised.  An orange background indicates new, unrevised, text;  white is for text that has been revised by many reputed authors.  If you click on a word, you will be redirected to the diff corresponding to the edit where the word was introduced.
+| The above text is colored according to how much it has been revised.  An orange background indicates new, unrevised, text;  white is for text that has been revised by many reputed authors.  If you click on a word, you will be redirected to the diff corresponding to the edit where the word was introduced.  If you hover over a word with the mouse pointer, a pop-up displays the name of the author of the word.
 |-
 | The text color and origin are computed by [http://trust.cse.ucsc.edu/WikiTrust WikiTrust]; if you notice problems, you can submit a bug report [http://code.google.com/p/wikitrust/issues here].
 |}';
