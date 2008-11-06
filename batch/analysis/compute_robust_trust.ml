@@ -387,11 +387,22 @@ let compute_robust_trust
   for i = 0 to len0 - 1 do begin 
     let old_trust = new_chunks_trust_a.(0).(i) in
     if rep_float > old_trust then begin 
-      let new_trust = old_trust +. (rep_float -. old_trust) *. trust_coeff_read_all in
+      let increased_trust = old_trust +. (rep_float -. old_trust) *. trust_coeff_read_all in
       (* Here I know that new_trust > old_trust *)
       if new_chunks_canincrease_a.(0).(i) then begin
-        new_chunks_trust_a.(0).(i) <- new_trust;
+	(* If the author can increase the reputation, because it does not appear in the 
+	   signature, it increases it. *)
+        new_chunks_trust_a.(0).(i) <- increased_trust;
 	new_chunks_hasincreased_a.(0).(i) <- true;
+      end else begin 
+	(* The author cannot perform a normal reputation increase, because it appears in 
+	   the signatures.  Nevertheless, it is still reasonable to ensure that the text
+	   has at least the same trust as freshly created text by the same author. *)
+	if old_trust < new_text_trust then begin
+          new_chunks_trust_a.(0).(i) <- new_text_trust;
+	  (* As the signature is already present, we do not re-add it, so we do not set 
+	     new_chunks_hasincreased_a.(0).(i) <- true *)
+	end
       end
     end
   end done; 
