@@ -67,7 +67,7 @@ OCAMLOPT_FLAGS=
 
 # Evalwiki does the batch evaluation
 
-OUR_EVALWIKI_OBJS = text.cmo textbuf.cmo prioq.cmo \
+OUR_EVALWIKI_OBJS = textbuf.cmo text.cmo prioq.cmo \
 	coda.cmo editlist.cmo chdiff.cmo compute_edlist.cmo timeconv.cmo \
 	eval_defs.cmo author_sig.cmo rephist.cmo revision.cmo prune_analysis.cmo \
 	linear_analysis.cmo circbuf_analysis.cmo reputation_analysis.cmo \
@@ -76,7 +76,7 @@ OUR_EVALWIKI_OBJS = text.cmo textbuf.cmo prioq.cmo \
 	trust_origin_analysis.cmo revs_to_files_analysis.cmo word_frequency.cmo \
 	page_factory.cmo do_eval.cmo evalwiki.cmo
 
-OUR_OPT_EVALWIKI_OBJS = text.cmx textbuf.cmx prioq.cmx \
+OUR_OPT_EVALWIKI_OBJS = textbuf.cmx text.cmx prioq.cmx \
 	coda.cmx editlist.cmx chdiff.cmx compute_edlist.cmx timeconv.cmx \
 	eval_defs.cmx author_sig.cmx revision.cmx rephist.cmx prune_analysis.cmx \
 	linear_analysis.cmx circbuf_analysis.cmx reputation_analysis.cmx \
@@ -88,11 +88,11 @@ OUR_OPT_EVALWIKI_OBJS = text.cmx textbuf.cmx prioq.cmx \
 
 # Generate_Reputation computes the reputation histories
 
-OUR_GENERATE_REPUTATION_OBJS = timeconv.cmo text.cmo \
+OUR_GENERATE_REPUTATION_OBJS = timeconv.cmo textbuf.cmo text.cmo \
 	eval_defs.cmo rephist.cmo evaltypes.cmo wikidata.cmo \
 	computestats.cmo computerep.cmo generate_reputation.cmo 
 
-OUR_OPT_GENERATE_REPUTATION_OBJS = timeconv.cmx text.cmx \
+OUR_OPT_GENERATE_REPUTATION_OBJS = timeconv.cmx textbuf.cmx text.cmx \
 	eval_defs.cmx rephist.cmx  evaltypes.cmx wikidata.cmx \
 	computestats.cmx computerep.cmx generate_reputation.cmx 
 
@@ -103,9 +103,9 @@ OUR_OPT_SPLITWIKI_OBJS = splitwiki.cmx
 OUR_EXTRACTWIKI_OBJS = extract_wiki_subset.cmo
 OUR_OPT_EXTRACTWIKI_OBJS = extract_wiki_subset.cmx
 
-CHDIFF_OBJS = text.cmo prioq.cmo coda.cmo editlist.cmo chdiff.cmo
+CHDIFF_OBJS = textbuf.cmo text.cmo prioq.cmo coda.cmo editlist.cmo chdiff.cmo
 
-TEXT_OBJS = text.cmo
+TEXT_OBJS = textbuf.cmo text.cmo
 
 TIMECONV_OBJS = timeconv.cmo
 

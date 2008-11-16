@@ -108,8 +108,10 @@ class revision
       (* Reads the revision text from the db, and splits it appropriately *)
     method read_text : unit = 
       try 
-        let text_vec = Vec.singleton (db#read_rev_text text_id) in 
-        let (w, t, o, a, s_idx, s) = Text.split_into_words_seps_and_info false text_vec in 
+	(* We have to use Textbuf here to split text into smaller chunks, 
+	   since otherwise Text chokes on it *)
+	let buf = Textbuf.add (db#read_rev_text text_id) Textbuf.empty in 
+        let (w, t, o, a, s_idx, s) = Text.split_into_words_seps_and_info false (Textbuf.get buf) in 
         words <- w; 
         seps <- s; 
         sep_word_idx <- s_idx;
@@ -133,8 +135,10 @@ class revision
 	(* Not found: we parse the colored text.  If this is also not found, 
 	   we let the error pop up, so that the caller knows that the revision 
 	   needs to be colored. *)
-	let text_vec = Vec.singleton (db#read_colored_markup rev_id) in 
-	let (w, t, o, a, s_idx, s) = Text.split_into_words_seps_and_info false text_vec in 
+	(* We have to use Textbuf here to split text into smaller chunks, 
+	   since otherwise Text chokes on it *)
+	let buf = Textbuf.add (db#read_colored_markup rev_id) Textbuf.empty in 
+        let (w, t, o, a, s_idx, s) = Text.split_into_words_seps_and_info false (Textbuf.get buf) in 
 	words <- w; 
 	trust <- t; 
 	origin <- o; 

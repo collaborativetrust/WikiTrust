@@ -1053,4 +1053,21 @@ if false then begin
 
   print_string (remove_html_comments "babba <!--gatto--->pollo\n")
 
-end
+end;;
+
+(* **************************************************************** *)
+(* This code can be used to test the text splitting on very large pieces of text,
+   to figure out where it breaks. *)
+if false then begin 
+  let f = open_in "../../debug/big-revision.txt" in 
+  let buf = ref (Textbuf.empty) in 
+  let read_more = ref true in 
+  while !read_more do begin 
+    try 
+      buf := Textbuf.add (input_line f) !buf 
+    with End_of_file -> read_more := false
+  end done;
+  let text = Textbuf.get !buf in 
+  let (word_v, _, _, _, _, _) = split_into_words_seps_and_info false text in
+  Printf.printf "Found %d words.\n" (Array.length word_v)
+end;;
