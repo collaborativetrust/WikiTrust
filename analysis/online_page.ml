@@ -602,16 +602,27 @@ class page
       (* First of all, makes a Vec of chunk_t, and copies there the information. *)
       let chunk_v = ref Vec.empty in 
       for i = 1 to Array.length (new_chunks_a) - 1 do begin 
-        let c = {
-          timestamp = 0.; (* we will fix this later *)
-          n_del_revisions = 0; (* we will fix this later *)
-          text = new_chunks_a.(i); 
-          trust = new_trust_a.(i); 
-	  sigs = new_sigs_a.(i); 
-          origin = new_origin_a.(i); 
-	  author = new_author_a.(i);
-        } in 
-        chunk_v := Vec.append c !chunk_v
+	(* If the chunk is too long, we truncate it. *)
+	let c = 
+	  if (Array.length new_chunks_a.(i)) > trust_coeff.max_dead_chunk_len
+	  then {
+            timestamp = 0.; (* we will fix this later *)
+            n_del_revisions = 0; (* we will fix this later *)
+            text   = Array.sub new_chunks_a.(i) 0 trust_coeff.max_dead_chunk_len; 
+            trust  = Array.sub new_trust_a.(i)  0 trust_coeff.max_dead_chunk_len; 
+            sigs   = Array.sub new_sigs_a.(i)   0 trust_coeff.max_dead_chunk_len; 
+            origin = Array.sub new_origin_a.(i) 0 trust_coeff.max_dead_chunk_len; 
+            author = Array.sub new_author_a.(i) 0 trust_coeff.max_dead_chunk_len; 
+	  } else {
+            timestamp = 0.; (* we will fix this later *)
+            n_del_revisions = 0; (* we will fix this later *)
+            text   = new_chunks_a.(i);
+            trust  = new_trust_a.(i);
+            sigs   = new_sigs_a.(i);
+            origin = new_origin_a.(i);
+            author = new_author_a.(i);
+          }
+	in chunk_v := Vec.append c !chunk_v
       end done; 
       let original_chunk_a = Array.of_list original_chunk_l in 
       (* Then, uses medit_l to update the age and timestamp information *)
@@ -647,7 +658,7 @@ class page
         ||
         (c.n_del_revisions < trust_coeff.max_del_revs_chunk)
       in 
-      let chunk_v' = Vec.filter p !chunk_v in 
+      let chunk_v' = Vec.filter p !chunk_v in
       (* Finally, makes a list of these chunks *)
       Vec.to_list chunk_v'
 

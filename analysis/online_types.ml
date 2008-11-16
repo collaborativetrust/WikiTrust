@@ -82,6 +82,8 @@ type trust_coeff_t = {
   mutable max_del_time_chunk : float; 
   (** max n. of revisions for which a chunk can be deleted before being discarded *)
   mutable max_del_revs_chunk : int; 
+  (** Max n. of words in a deleted chunk (if longer, it is truncated) *)
+  mutable max_dead_chunk_len : int;
   (** how much reputation is lent as trust for new text *)
   mutable lends_rep : float; 
   (** how much the text of revised articles raises in trust towards the 
@@ -135,6 +137,7 @@ let default_trust_coeff = {
   hi_rep_list_threshold = 6.0;
   max_del_time_chunk = 90. *. 24. *. 3600.; (* 3 months *)
   max_del_revs_chunk = 100;
+  max_dead_chunk_len = 10000;
   lends_rep = 0.4;
   read_all = 0.2;
   read_part = 0.2;
