@@ -352,6 +352,9 @@ while !n_processed_events < !max_events_to_process do
   end done; (* Loop as long as we need to do events *)
 
     );
-(* Closes the db connection *)
-db#close
 
+(* Closes the db connection *)
+db#close;
+
+(* Close the logger *)
+logger#close
