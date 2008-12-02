@@ -274,12 +274,18 @@ colors text according to trust.'
   public function setup()
   {
     parent::setup();
-    global $wgHooks, $wgParser, $wgRequest, $wgUseAjax, $wgShowVoteButton, $wgAjaxExportList;
+    global $wgHooks, $wgParser, $wgRequest, $wgUseAjax, $wgShowVoteButton, $wgAjaxExportList, $wgUser;
 
 # Code which takes the "I vote" action. 
 # This has to be statically called.
     if($wgUseAjax && $wgShowVoteButton){
       $wgAjaxExportList[] = "TextTrust::handleVote";
+    }
+
+    // Is the user opting to use wikitrust?
+    $tname = "gadget-WikiTrust";
+    if (!$wgUser->getOption( $tname ) ) {
+      return;
     }
     
 # Updater fiered when updating to a new version of MW.
@@ -590,12 +596,24 @@ colors text according to trust.'
     return true;
   }
 
+  if (strstr($text, "{{SITENAME}}")) {
+    return true;
+  }
+
+   if (strstr($text, "This page has been accessed {{PLURAL")) {
+    return true;
+  }
+
   if ($wgRequest->getVal('diff')){
     // For diffs, look for the absence of the diff token instead of counting
     if(substr($text,0,3) == self::DIFF_TOKEN_TO_COLOR){
       return true;
     }
   }
+
+  print "coloring!\n";
+  print ($text);
+  print($this->times_rev_loaded);
 
    // if we made it here, we are going to color some text
    $this->colored = true;
@@ -641,7 +659,12 @@ colors text according to trust.'
    $text = preg_replace('/<\/p>/', "</span></p>", $text, -1, $count);
    $text = preg_replace('/<p><\/span>/', "<p>", $text, -1, $count);
    $text = preg_replace('/<li><\/span>/', "<li>", $text, -1, $count);
-  
+
+
+   //print "<p>BEGIN TEXT";
+   //print_r($text);
+   //print "<p>END TEXT";
+
    return true;
  }
 
