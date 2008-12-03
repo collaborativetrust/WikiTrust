@@ -89,22 +89,29 @@ vote_revision: $(OUR_ONLINE_OBJS)
 vote_revisionopt: $(OUR_OPT_ONLINE_OBJS)
 	$(OCAMLOPT) -linkpkg -o vote_revision $(OCAMLOPT_FLAGS) $(OUR_LIBS_OPT) $(OUR_OPT_ONLINE_OBJS) vote_revision.ml
 
+server: $(OUR_ONLINE_OBJS) 
+	$(OCAMLC) -package "netstring,netcgi2,unix,nethttpd-for-netcgi2,netplex" -linkpkg -o server $(OCAML_CFLAGS) $(OUR_LIBS) $(OUR_ONLINE_OBJS) -thread server.ml 
+
+serveropt: $(OUR_OPT_ONLINE_OBJS)
+	$(OCAMLOPT) -package "netstring,netcgi2,unix,nethttpd-for-netcgi2,netplex" -linkpkg -o server $(OCAMLOPT_FLAGS) $(OUR_LIBS_OPT) $(OUR_OPT_ONLINE_OBJS) -thread server.ml 
 
 all:
 	cd ../batch/analysis; make all
 	make online_eval
 	make vote_revision
+	make server
 
 allopt:
 	cd ../batch/analysis; make allopt
 	make online_evalopt
 	make vote_revisionopt
+	make server
 
 universe: all allopt
 
 clean:
 	cd ../batch/analysis; make clean
-	rm -f *.o *.cmo *.cmx *.cmi .depends run_harness eval_online_wiki vote_revision
+	rm -f *.o *.cmo *.cmx *.cmi .depends run_harness eval_online_wiki vote_revision server
 
 # Boilerplate code for building ocaml dependencies.
 
