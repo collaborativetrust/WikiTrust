@@ -550,6 +550,11 @@ class db
       let s = Printf.sprintf "INSERT INTO %swikitrust_vote (revision_id, page_id, voter_id, voted_on) VALUES (%s, %s, %s, %s)" db_prefix (ml2int vote.vote_revision_id) (ml2int vote.vote_page_id) (ml2int vote.vote_voter_id) (ml2str vote.vote_time) in
 	ignore (self#db_exec wikitrust_dbh s)
 
+    (** Note that the requested rev was needs to be colored *)
+    method mark_to_color (rev_id : int) =
+      let s = Printf.sprintf "INSERT INTO %swikitrust_missing_revs (revision_id) VALUES (%s) ON DUPLICATE KEY UPDATE requested_on = now()" db_prefix (ml2int rev_id) in
+	ignore (self#db_exec wikitrust_dbh s)
+
     (** Clear everything out (except for the votes) *)
     method delete_all (really : bool) =
       match really with

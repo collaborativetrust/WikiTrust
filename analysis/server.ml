@@ -33,29 +33,33 @@ let text = Netencoding.Html.encode_from_latin1;;
  * as character entities. E.g. text "<" = "&lt;", and text "ä" = "&auml;"
  *)
 
+(* Return colored markup *)
 let generate_text_page (cgi : Netcgi.cgi_activation) (rev_id : int) =
   let out = cgi # out_channel # output_string in
     match !dbh with
       | Some db -> ( 
 	  let colored_text = try (db # read_colored_markup rev_id) 
-	  with Online_db.DB_Not_Found -> not_found_text_token in
+	  with Online_db.DB_Not_Found -> ((db # mark_to_color rev_id);
+					  not_found_text_token) in
 	    out (text (colored_text))
 	)
       | None -> out "DB not initialized"
 ;;  
 
+(* Return information about an incorrect request. *)
 let generate_help_page (cgi : Netcgi.cgi_activation) =
   let out = cgi # out_channel # output_string in
     out not_found_text_token
 ;;
 
+(* Record that a vote happened. *)
 let generate_vote_page (cgi : Netcgi.cgi_activation) (rev_id : int) 
     (page_id : int) (user_id : int) (v_time : string) =
   let out = cgi # out_channel # output_string in
   match !dbh with
     | Some db -> ( 
 	let vote = {
-	  vote_time=v_time;
+	  vote_time=(Mysql.escape v_time);
 	  vote_page_id=page_id;
 	  vote_revision_id=rev_id;
 	  vote_voter_id=user_id;
@@ -98,7 +102,6 @@ let generate_page (cgi : Netcgi.cgi_activation) =
 	  generate_vote_page cgi rev_id page_id user_id time_str
       )
 ;;
-
 
 let process2 (cgi : Netcgi.cgi_activation) =
   (* The [try] block catches errors during the page generation. *)
