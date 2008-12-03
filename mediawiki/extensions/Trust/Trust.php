@@ -56,7 +56,7 @@ class TextTrust extends TrustBase
 
   ## Server forms
   const NOT_FOUND_TEXT_TOKEN = "TEXT_NOT_FOUND";
-  const CONTENT_URL = "http://localhost:4444/?rev="; 
+  const CONTENT_URL = "http://localhost:4444/?"; 
 
   ## default values for variables found from LocalSettings.php
   var $DEFAULTS = array(
@@ -131,7 +131,7 @@ function voteCallback(http_request){
   if ((http_request.readyState == 4) && (http_request.status == 200)) {
     document.getElementById("vote-button-done").style.visibility = "visible";
     document.getElementById("vote-button").style.visibility = "hidden";
-    //alert(http_request.responseText);
+    alert(http_request.responseText);
     return true;
   } else {
     alert(http_request.responseText);
@@ -302,7 +302,8 @@ colors text according to trust.'
     $wgHooks['ParserBeforeStrip'][] = array( &$this, 'ucscSeeIfColored');
 
 # Color saved text
-    $wgHooks['ArticleSaveComplete'][] = array( &$this, 'ucscRunColoring');
+# Not for Wiki integration.
+#    $wgHooks['ArticleSaveComplete'][] = array( &$this, 'ucscRunColoring');
 
 # If the trust tab is not selected, or some other tabs are don't worry about things any more.
     if(!$wgRequest->getVal('trust') || $wgRequest->getVal('action')){
@@ -392,31 +393,11 @@ colors text according to trust.'
 	}
       }
       $dbr->freeResult( $res );  
-
-      // Now see if this user has not already voted, and count the vote if its the first time though.
-      $res = $dbr->select('wikitrust_vote', array('revision_id'), array('revision_id' => $rev_id, 'voter_id' => $user_id), array());
-      if ($res){
-	$row = $dbr->fetchRow($res);
-	if(!$row['revision_id']){
-	
-	  $insert_vals = array("revision_id" => $rev_id,
-			       "page_id" => $page_id ,
-			       "voter_id" => $user_id,
-			       "voted_on" => wfTimestampNow()
-			       );
-	  $dbw =& wfGetDB( DB_MASTER );
-	  if ($dbw->insert( 'wikitrust_vote', $insert_vals)){
-	    $dbw->commit();
-	    $response = new AjaxResponse(implode  ( ",", $insert_vals));
-	    self::runEvalEdit(self::TRUST_EVAL_VOTE, $rev_id, $page_id, $user_id); // Launch the evaluation of the vote.
-	  }
-	} else {
-	  $response = new AjaxResponse("Already Voted");
-	}
-	$dbr->freeResult( $res ); 
-      }
+      $vote_str = ("Voting at " . self::CONTENT_URL . "vote=1&rev=$rev_id&page=$page_id&user=$user_id&time=" . wfTimestampNow());
+      $colored_text = file_get_contents(self::CONTENT_URL . "vote=1&rev=$rev_id&page=$page_id&user=$user_id&time=" . 
+					wfTimestampNow());
+      $response = new AjaxResponse($vote_str);	   
     }
-    
     return $response;
   }
 
@@ -622,9 +603,8 @@ colors text according to trust.'
    // if we made it here, we are going to color some text
    $this->colored = true;
    
-   self::CONTENT_URL . $this->current_rev;
-   print("Fetching content from web server at " . self::CONTENT_URL . $this->current_rev);
-   $colored_text = file_get_contents(self::CONTENT_URL . $this->current_rev);
+   print("Fetching content from web server at " . self::CONTENT_URL . "rev=" . $this->current_rev);
+   $colored_text = file_get_contents(self::CONTENT_URL . "rev=" . $this->current_rev);
    if ($colored_text != self::NOT_FOUND_TEXT_TOKEN){
      // First, make sure that there are not any instances of our tokens in the colored_text
      $colored_text = str_replace(self::TRUST_OPEN_TOKEN, "", $colored_text);
@@ -633,9 +613,7 @@ colors text according to trust.'
      // Now update the text.
      $text = $voteitText . $colored_text . "\n" . $wgTrustExplanation;
    } else {
-     // If the colored text is missing, generate it in the background.
-     // For now, return a message about the missing text.
-     self::runEvalEdit(self::TRUST_EVAL_MISSING);
+     // Return a message about the missing text.
      $text = $wgNoTrustExplanation . "\n" . $text;
    }
    return true;

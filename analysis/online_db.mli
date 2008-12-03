@@ -259,6 +259,9 @@ class db :
 	relating user ids to their reputation *)
     method get_rep : int -> float
 
+    (** [get_user_id name] gets the user id for the user with the given user name *)
+    method get_user_id : string -> int
+
     (* ================================================================ *)
     (* Debugging. *)
 

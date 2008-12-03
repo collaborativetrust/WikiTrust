@@ -4,13 +4,10 @@
  * The basic code is copied from the nethttpd example.
  *)
 
-(**********************************************************************)
-(* Dynamic page: The "adder", known from cgi                          *)
-(**********************************************************************)
-
 open Netcgi1_compat.Netcgi_types;;
 open Printf;;
 open Mysql;;
+open Online_db;;
 
 (* Mediawiki DB *)
 let mw_db_user = ref "wikiuser"
@@ -52,19 +49,53 @@ let generate_help_page (cgi : Netcgi.cgi_activation) =
     out not_found_text_token
 ;;
 
+let generate_vote_page (cgi : Netcgi.cgi_activation) (rev_id : int) 
+    (page_id : int) (user_id : int) (v_time : string) =
+  let out = cgi # out_channel # output_string in
+  match !dbh with
+    | Some db -> ( 
+	let vote = {
+	  vote_time=v_time;
+	  vote_page_id=page_id;
+	  vote_revision_id=rev_id;
+	  vote_voter_id=user_id;
+	} in
+	let res = try (db # vote vote; "good") with 
+	    Online_db.DB_TXN_Bad -> "bad" in 
+	  out res
+      )
+    | None -> out "DB not initialized"
+;;
+
 let generate_page (cgi : Netcgi.cgi_activation) =
   (* Check which page is to be displayed. This is contained in the CGI
    * argument "page".
    *)
-  match cgi # argument_value "rev" with
-    | "" ->
-	generate_help_page cgi
+  match cgi # argument_value "vote" with
+    | "" -> (
+	match cgi # argument_value "rev" with
+	  | "" ->
+	      generate_help_page cgi
+	  | _ -> (
+	      let rev_id = try (int_of_string 
+				  (cgi # argument_value "rev")) with
+		  int_of_string -> -1 in
+		if rev_id < 0 then generate_help_page cgi else
+		  generate_text_page cgi rev_id
+	    )
+      )
     | _ -> (
 	let rev_id = try (int_of_string 
 			    (cgi # argument_value "rev")) with
 	    int_of_string -> -1 in
-	  if rev_id < 0 then generate_help_page cgi else
-	    generate_text_page cgi rev_id
+	let page_id = try (int_of_string 
+			     (cgi # argument_value "page")) with
+	    int_of_string -> -1 in
+	let user_id = try (int_of_string 
+			     (cgi # argument_value "user")) with
+	    int_of_string -> -1 in
+	let time_str = (cgi # argument_value "time") in
+	  generate_vote_page cgi rev_id page_id user_id time_str
       )
 ;;
 

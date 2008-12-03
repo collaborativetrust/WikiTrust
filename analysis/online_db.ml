@@ -534,12 +534,20 @@ class db
         None -> raise DB_Not_Found
       | Some x -> not_null float2ml x.(0)
       
-
+	  
+    (** [get_user_id name] gets the user id for the user with the given user name *)
+    method get_user_id (user_name : string) : int =
+      let s = Printf.sprintf "SELECT user_id FROM %swikitrust_revision WHERE username = %s" db_prefix (ml2str user_name) in
+      let result = self#db_exec wikitrust_dbh s in
+	match Mysql.fetch result with 
+            None -> raise DB_Not_Found
+	  | Some x -> not_null int2ml x.(0)      
+	      
     (* ================================================================ *)
 
     (** Add the vote to the db *)
     method vote (vote : vote_t) =
-      let s = Printf.sprintf "INSERT INTO %swikitrust_vote (rev_id, page_id, voter_id, voted_on) VALUES (%s, %s, %s, %s)" db_prefix (ml2int vote.vote_revision_id) (ml2int vote.vote_page_id) (ml2int vote.vote_voter_id) (ml2str vote.vote_time) in
+      let s = Printf.sprintf "INSERT INTO %swikitrust_vote (revision_id, page_id, voter_id, voted_on) VALUES (%s, %s, %s, %s)" db_prefix (ml2int vote.vote_revision_id) (ml2int vote.vote_page_id) (ml2int vote.vote_voter_id) (ml2str vote.vote_time) in
 	ignore (self#db_exec wikitrust_dbh s)
 
     (** Clear everything out (except for the votes) *)
