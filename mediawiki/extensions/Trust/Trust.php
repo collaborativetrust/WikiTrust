@@ -616,7 +616,7 @@ colors text according to trust.'
    
    print("Fetching content from web server at " . self::CONTENT_URL . "rev=" . $this->current_rev . "&page=$page_id");
    $colored_text = file_get_contents(self::CONTENT_URL . "rev=" . $this->current_rev . "&page=$page_id");
-   if ($colored_text != self::NOT_FOUND_TEXT_TOKEN){
+   if ($colored_text && $colored_text != self::NOT_FOUND_TEXT_TOKEN){
      // First, make sure that there are not any instances of our tokens in the colored_text
      $colored_text = str_replace(self::TRUST_OPEN_TOKEN, "", $colored_text);
      $colored_text = str_replace(self::TRUST_CLOSE_TOKEN, "", $colored_text);
