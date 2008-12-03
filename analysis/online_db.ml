@@ -152,7 +152,9 @@ class db
       end;
       try 
 	Mysql.exec dbh s
-      with _ -> raise DB_TXN_Bad
+      with Mysql.Error e -> if debug_mode then 
+	begin print_endline e; flush stdout end; 
+	raise DB_TXN_Bad
 
     (* ================================================================ *)
     (* Disconnect *)

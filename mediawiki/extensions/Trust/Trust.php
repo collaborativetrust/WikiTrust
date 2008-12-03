@@ -54,6 +54,10 @@ class TextTrust extends TrustBase
   ## Token to be replaed with >
   const TRUST_CLOSE_TOKEN = ":ampc:";
 
+  ## Server forms
+  const NOT_FOUND_TEXT_TOKEN = "TEXT_NOT_FOUND";
+  const CONTENT_URL = "http://localhost:4444/?rev="; 
+
   ## default values for variables found from LocalSettings.php
   var $DEFAULTS = array(
 			'wgShowVoteButton' => false,
@@ -611,35 +615,29 @@ colors text according to trust.'
     }
   }
 
-  print "coloring!\n";
-  print ($text);
-  print($this->times_rev_loaded);
+  //print "coloring!\n";
+  //print ($text);
+  //print($this->times_rev_loaded);
 
    // if we made it here, we are going to color some text
    $this->colored = true;
    
-   $res = $dbr->select('wikitrust_colored_markup', 'revision_text',
-		       array( 'revision_id' => $this->current_rev ), array());
-   if ($res){
-     $row = $dbr->fetchRow($res);
-     $colored_text = $row[0];
-     if ($colored_text){
-       // First, make sure that there are not any instances of our tokens in the colored_text
-       $colored_text = str_replace(self::TRUST_OPEN_TOKEN, "", $colored_text);
-       $colored_text = str_replace(self::TRUST_CLOSE_TOKEN, "", $colored_text);
-       
-       // Now update the text.
-       $text = $voteitText . $colored_text . "\n" . $wgTrustExplanation;
-     } else {
-       // If the colored text is missing, generate it in the background.
-       // For now, return a message about the missing text.
-       self::runEvalEdit(self::TRUST_EVAL_MISSING);
-       $text = $wgNoTrustExplanation . "\n" . $text;
-     }
+   self::CONTENT_URL . $this->current_rev;
+   print("Fetching content from web server at " . self::CONTENT_URL . $this->current_rev);
+   $colored_text = file_get_contents(self::CONTENT_URL . $this->current_rev);
+   if ($colored_text != self::NOT_FOUND_TEXT_TOKEN){
+     // First, make sure that there are not any instances of our tokens in the colored_text
+     $colored_text = str_replace(self::TRUST_OPEN_TOKEN, "", $colored_text);
+     $colored_text = str_replace(self::TRUST_CLOSE_TOKEN, "", $colored_text);
+     
+     // Now update the text.
+     $text = $voteitText . $colored_text . "\n" . $wgTrustExplanation;
    } else {
-     return false;
+     // If the colored text is missing, generate it in the background.
+     // For now, return a message about the missing text.
+     self::runEvalEdit(self::TRUST_EVAL_MISSING);
+     $text = $wgNoTrustExplanation . "\n" . $text;
    }
-   $dbr->freeResult( $res );
    return true;
  }
  

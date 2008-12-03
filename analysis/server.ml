@@ -27,6 +27,8 @@ let db_prefix = ref ""
 let set_db_prefix d = db_prefix := d 
 let dump_db_calls = ref false
 
+let not_found_text_token = "TEXT_NOT_FOUND"
+
 let dbh = ref None
 
 let text = Netencoding.Html.encode_from_latin1;;
@@ -34,80 +36,20 @@ let text = Netencoding.Html.encode_from_latin1;;
  * as character entities. E.g. text "<" = "&lt;", and text "ä" = "&auml;"
  *)
 
-let begin_page cgi title =
-  (* Output the beginning of the page with the passed [title]. *)
-  let out = cgi # output # output_string in
-  out "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.0//EN\" \"http://www.w3.org/TR/REC-html40/strict.dtd\">\n";
-  out "<HTML>\n";
-  out "<HEAD>\n";
-  out ("<TITLE>" ^ text title ^ "</TITLE>\n");
-  out ("<STYLE TYPE=\"text/css\">\n");
-  out "body { background: white; color: black; }\n";
-  out "</STYLE>\n";
-  out "</HEAD>\n";
-  out "<BODY>\n";
-  out ("<H1>" ^ text title ^ "</H1>\n")
-;;
-
-
-let end_page cgi =
-  let out = cgi # output # output_string in
-  out "</BODY>\n";
-  out "</HTML>\n"
-;;
-
-
-let generate_query_page (cgi : Netcgi.cgi_activation) =
-  (* Display the query form. *)
-  begin_page cgi "Add Two Numbers";
-  let out = cgi # output # output_string in
-  out "<P>This CGI page can perform additions. Please enter two integers,\n";
-  out "and press the button!\n";
-  out (sprintf "<P><FORM METHOD=GET ACTION=\"%s\">\n" 
-	 (text (cgi#url())));
-  (* Note that cgi#url() returns the URL of this script (without ? clause).
-   * We pass this string through the text function to avoid problems with
-   * some characters.
-   *)
-  out "<INPUT TYPE=TEXT NAME=\"x\"> + <INPUT TYPE=TEXT NAME=\"y\"> = ";
-  out "<INPUT TYPE=SUBMIT NAME=\"button\" VALUE=\"Go!\">\n";
-  (* The hidden field only indicates that now the result page should
-   * be consulted.
-   *)
-  out "<INPUT TYPE=HIDDEN NAME=\"page\" VALUE=\"result\">\n";
-  out "</FORM>\n";
-  end_page cgi
-;;
-
-
-let generate_result_page (cgi : Netcgi.cgi_activation) =
-  (* Compute the result, and display it *)
-  begin_page cgi "Sum";
-  let out = cgi # output # output_string in
-  out "<P>The result is:\n";
-  let x = cgi # argument_value "x" in
-  let y = cgi # argument_value "y" in
-  let sum = (int_of_string x) + (int_of_string y) in
-  out (sprintf "<P>%s + %s = %d\n" x y sum);
-  out (sprintf "<P><A HREF=\"%s\">Add further numbers</A>\n" 
-	 (text (cgi#url 
-		  ~with_query_string:
-		                   (`Args [new Netcgi.simple_argument "page" "query"])
-		  ()
-	       )));
-  (* Here, the URL contains the CGI argument "page", but no other arguments. *)
-  end_page cgi
-;;
-
-
 let generate_text_page (cgi : Netcgi.cgi_activation) (rev_id : int) =
-  let out = cgi # output # output_string in
-    out "text"
+  let out = cgi # out_channel # output_string in
+    match !dbh with
+      | Some db -> ( 
+	  let colored_text = try (db # read_colored_markup rev_id) 
+	  with Online_db.DB_Not_Found -> not_found_text_token in
+	    out (text (colored_text))
+	)
+      | None -> out "DB not initialized"
 ;;  
 
 let generate_help_page (cgi : Netcgi.cgi_activation) =
-  let out = cgi # output # output_string in
-    out "Usage: http://trust-ul.com/?rev=REV_ID"
+  let out = cgi # out_channel # output_string in
+    out not_found_text_token
 ;;
 
 let generate_page (cgi : Netcgi.cgi_activation) =
@@ -148,14 +90,14 @@ let process2 (cgi : Netcgi.cgi_activation) =
     (* After the page has been fully generated, we can send it to the
      * browser. 
      *)
-    cgi # output # commit_work();
+    cgi # out_channel # commit_work();
   with
       error ->
 	(* An error has happened. Generate now an error page instead of
 	 * the current page. By rolling back the output buffer, any 
 	 * uncomitted material is deleted.
 	 *)
-	cgi # output # rollback_work();
+	cgi # out_channel # rollback_work();
 
 	(* We change the header here only to demonstrate that this is
 	 * possible.
@@ -163,16 +105,14 @@ let process2 (cgi : Netcgi.cgi_activation) =
 	cgi # set_header 
 	  ~status:`Forbidden                  (* Indicate the error *)
 	  ~cache:`No_cache 
-	  ~content_type:"text/html; charset=\"iso-8859-1\""
+	  ~content_type:"text/plain; charset=\"iso-8859-1\""
 	  ();
 
-	begin_page cgi "Software error";
-        cgi # output # output_string "While processing the request an O'Caml exception has been raised:<BR>";
-        cgi # output # output_string ("<TT>" ^ text(Printexc.to_string error) ^ "</TT><BR>");
-	end_page cgi;
+        cgi # out_channel # output_string "While processing the request an O'Caml exception has been raised:\n";
+        cgi # out_channel # output_string ("" ^ text(Printexc.to_string error) ^ "\n");
 
 	(* Now commit the error page: *)
-	cgi # output # commit_work()
+	cgi # out_channel # commit_work()
 ;;
 
 
