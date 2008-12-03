@@ -89,6 +89,7 @@ GRANT ALL ON ".$wgDBprefix."wikitrust_user TO $wgDBuser;
 $create_scripts[$wgDBprefix.'wikitrust_missing_revs'] = array("
 CREATE TABLE ".$wgDBprefix."wikitrust_missing_revs (
        revision_id     int PRIMARY KEY,
+       page_id         int NOT NULL,
        requested_on    timestamp DEFAULT now()
 ) ENGINE=InnoDB","
 GRANT ALL ON ".$wgDBprefix."wikitrust_missing_revs TO $wgDBuser;

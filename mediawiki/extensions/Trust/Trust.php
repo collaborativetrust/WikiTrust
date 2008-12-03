@@ -568,12 +568,12 @@ colors text according to trust.'
        $this->current_rev = $this->title->getPreviousRevisionID( PHP_INT_MAX );
      }
    }
-
-  /**
-   This method is being called multiple times for each page. 
-   We only pull the colored text for the first time through.
-  */
-  if ($this->colored){
+   
+   /**
+    This method is being called multiple times for each page. 
+    We only pull the colored text for the first time through.
+   */
+   if ($this->colored){
     return true;
   }
 
@@ -602,9 +602,20 @@ colors text according to trust.'
 
    // if we made it here, we are going to color some text
    $this->colored = true;
+
+   // Get the page id  
+   $res = $dbr->select('revision', array('rev_page'), array('rev_id' => $this->current_rev), array());
+   if ($res){
+     $row = $dbr->fetchRow($res);
+     $page_id = $row['rev_page'];
+     if (!$page_id) {
+       $page_id = 0;
+     }
+   }
+   $dbr->freeResult( $res );  
    
-   print("Fetching content from web server at " . self::CONTENT_URL . "rev=" . $this->current_rev);
-   $colored_text = file_get_contents(self::CONTENT_URL . "rev=" . $this->current_rev);
+   print("Fetching content from web server at " . self::CONTENT_URL . "rev=" . $this->current_rev . "&page=$page_id");
+   $colored_text = file_get_contents(self::CONTENT_URL . "rev=" . $this->current_rev . "&page=$page_id");
    if ($colored_text != self::NOT_FOUND_TEXT_TOKEN){
      // First, make sure that there are not any instances of our tokens in the colored_text
      $colored_text = str_replace(self::TRUST_OPEN_TOKEN, "", $colored_text);

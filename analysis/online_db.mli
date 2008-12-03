@@ -273,6 +273,6 @@ class db :
     method vote : vote_t -> unit
 
     (** Note that the requested rev was needs to be colored *)
-    method mark_to_color : int -> unit
+    method mark_to_color : int -> int -> unit
       
   end

@@ -34,12 +34,13 @@ let text = Netencoding.Html.encode_from_latin1;;
  *)
 
 (* Return colored markup *)
-let generate_text_page (cgi : Netcgi.cgi_activation) (rev_id : int) =
+let generate_text_page (cgi : Netcgi.cgi_activation) (rev_id : int) 
+    (page_id : int) =
   let out = cgi # out_channel # output_string in
     match !dbh with
       | Some db -> ( 
 	  let colored_text = try (db # read_colored_markup rev_id) 
-	  with Online_db.DB_Not_Found -> ((db # mark_to_color rev_id);
+	  with Online_db.DB_Not_Found -> ((db # mark_to_color rev_id page_id);
 					  not_found_text_token) in
 	    out (text (colored_text))
 	)
@@ -64,7 +65,9 @@ let generate_vote_page (cgi : Netcgi.cgi_activation) (rev_id : int)
 	  vote_revision_id=rev_id;
 	  vote_voter_id=user_id;
 	} in
-	let res = try (db # vote vote; "good") with 
+	let res = try (db # vote vote; 
+		       db # mark_to_color rev_id page_id; 
+		       "good") with 
 	    Online_db.DB_TXN_Bad -> "bad" in 
 	  out res
       )
@@ -81,11 +84,14 @@ let generate_page (cgi : Netcgi.cgi_activation) =
 	  | "" ->
 	      generate_help_page cgi
 	  | _ -> (
+	      let page_id = try (int_of_string 
+				   (cgi # argument_value "page")) with
+		  int_of_string -> -1 in
 	      let rev_id = try (int_of_string 
 				  (cgi # argument_value "rev")) with
 		  int_of_string -> -1 in
-		if rev_id < 0 then generate_help_page cgi else
-		  generate_text_page cgi rev_id
+		if rev_id < 0 || page_id < 0 then generate_help_page cgi else
+		  generate_text_page cgi rev_id page_id
 	    )
       )
     | _ -> (

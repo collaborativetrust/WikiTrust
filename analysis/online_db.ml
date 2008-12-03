@@ -551,8 +551,8 @@ class db
 	ignore (self#db_exec wikitrust_dbh s)
 
     (** Note that the requested rev was needs to be colored *)
-    method mark_to_color (rev_id : int) =
-      let s = Printf.sprintf "INSERT INTO %swikitrust_missing_revs (revision_id) VALUES (%s) ON DUPLICATE KEY UPDATE requested_on = now()" db_prefix (ml2int rev_id) in
+    method mark_to_color (rev_id : int) (page_id : int) =
+      let s = Printf.sprintf "INSERT INTO %swikitrust_missing_revs (revision_id, page_id) VALUES (%s, %s) ON DUPLICATE KEY UPDATE requested_on = now()" db_prefix (ml2int rev_id) (ml2int page_id) in
 	ignore (self#db_exec wikitrust_dbh s)
 
     (** Clear everything out (except for the votes) *)
