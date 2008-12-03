@@ -37,6 +37,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
 open Printf
 open Mysql
+open Unix
 
 (* Mediawiki DB *)
 let mw_db_user = ref "wikiuser"
@@ -95,13 +96,23 @@ let dispatch_page (r,p) = (
 ) in
 
 let rec main_loop () =
-  if (Hashtbl.length working_children) >= max_concurrent_procs then () else (
+  if (Hashtbl.length working_children) >= max_concurrent_procs then (
+    (* Wait for the processes to stop before accepting more *)
+    let f k v = (
+      let stat = Unix.close_process v in
+	match stat with
+	  | WEXITED s -> Hashtbl.remove working_children k
+	  | WSIGNALED s -> Hashtbl.remove working_children k
+	  | WSTOPPED s -> Hashtbl.remove working_children k
+    ) in
+      Hashtbl.iter f working_children
+  ) else (
     let revs_to_process = db # fetch_next_to_color 
       (max (max_concurrent_procs - Hashtbl.length working_children) 0) in
       List.iter dispatch_page revs_to_process;
   );
   Unix.sleep sleep_time_sec;
-  flush stdout;
+  flush Pervasives.stdout;
   main_loop ()
 in
 
