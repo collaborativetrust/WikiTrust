@@ -95,6 +95,12 @@ server: $(OUR_ONLINE_OBJS)
 serveropt: $(OUR_OPT_ONLINE_OBJS)
 	$(OCAMLOPT) -package "netstring,netcgi2,unix,nethttpd-for-netcgi2,netplex" -linkpkg -o server $(OCAMLOPT_FLAGS) $(OUR_LIBS_OPT) $(OUR_OPT_ONLINE_OBJS) -thread server.ml 
 
+dispatcher: $(OUR_ONLINE_OBJS) 	
+	$(OCAMLC) -linkpkg -o dispatcher $(OCAML_CFLAGS) $(OUR_LIBS) $(OUR_ONLINE_OBJS) server_coloring_dispatcher.ml 
+
+dispatcheropt: $(OUR_OPT_ONLINE_OBJS)
+	$(OCAMLOPT) -linkpkg -o dispatcher $(OCAMLOPT_FLAGS) $(OUR_LIBS_OPT) $(OUR_OPT_ONLINE_OBJS) server_coloring_dispatcher.ml
+
 all:
 	cd ../batch/analysis; make all
 	make online_eval

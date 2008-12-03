@@ -272,7 +272,13 @@ class db :
     (** Add the vote to the db *)
     method vote : vote_t -> unit
 
+    (* ================================================================ *)
+    (* Server System. *)
+
     (** Note that the requested rev was needs to be colored *)
     method mark_to_color : int -> int -> unit
-      
+
+    (** Get the next revs to color *)
+    method fetch_next_to_color : int -> (int * int) list
+
   end

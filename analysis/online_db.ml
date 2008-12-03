@@ -111,6 +111,9 @@ let vote_row2vote_t row =
     vote_revision_id = (not_null int2ml row.(2));
     vote_voter_id = (not_null int2ml row.(3));
   }
+
+let next2color_row row =
+  ((not_null int2ml row.(0)), (not_null int2ml row.(1)))
     
 (** This class provides a handle for accessing the database in the on-line 
     implementation. *)
@@ -550,10 +553,17 @@ class db
       let s = Printf.sprintf "INSERT INTO %swikitrust_vote (revision_id, page_id, voter_id, voted_on) VALUES (%s, %s, %s, %s)" db_prefix (ml2int vote.vote_revision_id) (ml2int vote.vote_page_id) (ml2int vote.vote_voter_id) (ml2str vote.vote_time) in
 	ignore (self#db_exec wikitrust_dbh s)
 
+    (* ================================================================ *)
+
     (** Note that the requested rev was needs to be colored *)
     method mark_to_color (rev_id : int) (page_id : int) =
       let s = Printf.sprintf "INSERT INTO %swikitrust_missing_revs (revision_id, page_id) VALUES (%s, %s) ON DUPLICATE KEY UPDATE requested_on = now()" db_prefix (ml2int rev_id) (ml2int page_id) in
 	ignore (self#db_exec wikitrust_dbh s)
+
+    (** Get the next revs to color *)
+    method fetch_next_to_color (max_to_get : int) : (int * int) list =
+      let s = Printf.sprintf "SELECT revision_id, page_id FROM %swikitrust_missing_revs ORDER BY requested_on ASC LIMIT %s" db_prefix (ml2int max_to_get) in
+	Mysql.map (self#db_exec wikitrust_dbh s) next2color_row
 
     (** Clear everything out (except for the votes) *)
     method delete_all (really : bool) =
