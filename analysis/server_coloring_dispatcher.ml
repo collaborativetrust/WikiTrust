@@ -88,6 +88,7 @@ let mediawiki_db = {
 (* Here begins the sequential code *)
 let db = new Online_db.db !db_prefix mediawiki_db None !dump_db_calls in
 
+(* Start a new process going which actually processes the missing page. *)
 let dispatch_page (r,p) = (
   try ignore (Hashtbl.find working_children p) with Not_found -> (
     Hashtbl.add working_children p (Unix.open_process "ls");
@@ -95,6 +96,7 @@ let dispatch_page (r,p) = (
   )
 ) in
 
+(* Poll to see if there is any more work to be done. *)
 let rec main_loop () =
   if (Hashtbl.length working_children) >= max_concurrent_procs then (
     (* Wait for the processes to stop before accepting more *)
