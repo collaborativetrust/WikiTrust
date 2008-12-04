@@ -39,6 +39,7 @@ open Printf
 open Mysql
 open Unix
 open Online_command_line
+open Wikipedia_api
 
 let max_concurrent_procs = 10
 let sleep_time_sec = 1
@@ -62,9 +63,10 @@ let db = new Online_db.db !db_prefix mediawiki_db None !dump_db_calls in
 
 (* Color the asked for revision. *)
 let rec process_rev r p =
-  Unix.sleep sleep_time_sec;
-  if !synch_log then flush Pervasives.stdout;
-  process_rev r p
+  let revs = fetch_revs [r] in
+    Unix.sleep sleep_time_sec;
+    if !synch_log then flush Pervasives.stdout;
+    process_rev r p
 in
 
 (* Start a new process going which actually processes the missing page. *)
