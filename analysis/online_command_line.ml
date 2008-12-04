@@ -120,6 +120,7 @@ let command_line_format =
    ("-wt_db_port", Arg.Int set_wt_db_port, "<int>: Wikitrust DB port (specify only if the wikitrust db is different from the mediawiki db) (default: 3306)");
  ("-rev_id",  Arg.Int set_requested_rev_id, "<int>: (optional) revision ID that we want to ensure it is colored");
    ("-log_file", Arg.String set_log_name, "<filename>: Logger output file (default: /dev/null)");
+   ("-sync_log", Arg.Set synch_log, ": Flush writes to the log immidiatly. This is very slow; use only for debugging.");
    ("-eval_vote", Arg.Unit set_vote, ": Just evaluate the given vote");
    ("-voter_id",  Arg.Int set_requested_voter_id, "<int>: (optional) voter ID that we want to evaluate the vote of");
    ("-page_id",  Arg.Int set_requested_page_id, "<int>: (optional) page ID that we want to evaluate the vote on");

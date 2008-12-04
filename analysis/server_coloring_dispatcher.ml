@@ -60,11 +60,25 @@ let mediawiki_db = {
 (* Here begins the sequential code *)
 let db = new Online_db.db !db_prefix mediawiki_db None !dump_db_calls in
 
+(* Color the asked for revision. *)
+let rec process_rev r p =
+  Unix.sleep sleep_time_sec;
+  if !synch_log then flush Pervasives.stdout;
+  process_rev r p
+in
+
 (* Start a new process going which actually processes the missing page. *)
 let dispatch_page (r,p) = (
   try ignore (Hashtbl.find working_children p) with Not_found -> (
-    Hashtbl.add working_children p (Unix.open_process "ls");
-    Printf.printf "Running on page %d rev %d\n" r p
+    let new_pid = Unix.fork () in
+      match new_pid with 
+	| 0 -> (
+	    Printf.printf "I'm the child\n Running on page %d rev %d\n" r p;
+	    process_rev r p
+	  )
+	| _ -> (Printf.printf "Parent of pid %d\n" new_pid;  
+		Hashtbl.add working_children p (new_pid)
+	       )
   )
 ) in
 
@@ -73,11 +87,12 @@ let rec main_loop () =
   if (Hashtbl.length working_children) >= max_concurrent_procs then (
     (* Wait for the processes to stop before accepting more *)
     let f k v = (
-      let stat = Unix.close_process v in
-	match stat with
-	  | WEXITED s -> Hashtbl.remove working_children k
-	  | WSIGNALED s -> Hashtbl.remove working_children k
-	  | WSTOPPED s -> Hashtbl.remove working_children k
+      let stat = Unix.waitpid [WNOHANG] v in
+	match (stat) with
+	  | (0,_) -> () (* Process not yet done. *)
+	  | (_, WEXITED s) -> Hashtbl.remove working_children k (* Otherwise, remove the process. *)
+	  | (_, WSIGNALED s) -> Hashtbl.remove working_children k
+	  | (_, WSTOPPED s) -> Hashtbl.remove working_children k
     ) in
       Hashtbl.iter f working_children
   ) else (
@@ -86,7 +101,7 @@ let rec main_loop () =
       List.iter dispatch_page revs_to_process;
   );
   Unix.sleep sleep_time_sec;
-  flush Pervasives.stdout;
+  if !synch_log then flush Pervasives.stdout;
   main_loop ()
 in
 
