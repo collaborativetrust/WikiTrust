@@ -8,21 +8,7 @@ open Netcgi1_compat.Netcgi_types;;
 open Printf;;
 open Mysql;;
 open Online_db;;
-
-(* Mediawiki DB *)
-let mw_db_user = ref "wikiuser"
-let set_mw_db_user u = mw_db_user := u
-let mw_db_pass = ref ""
-let set_mw_db_pass p = mw_db_pass := p
-let mw_db_name = ref "wikidb"
-let set_mw_db_name d = mw_db_name := d
-let mw_db_host = ref "localhost"
-let set_mw_db_host d = mw_db_host := d
-let mw_db_port = ref 3306
-let set_mw_db_port d = mw_db_port := d
-let db_prefix = ref ""
-let set_db_prefix d = db_prefix := d 
-let dump_db_calls = ref false
+open Online_command_line
 
 let not_found_text_token = "TEXT_NOT_FOUND"
 
@@ -174,14 +160,7 @@ let start() =
   let opt_list' =
     [ ("-mt", Arg.Set use_mt,
       "  Use multi-threading instead of multi-processing");
-      ("-db_prefix", Arg.String set_db_prefix, "<string>: Database table prefix (default: none)");
-      ("-db_user", Arg.String set_mw_db_user, "<string>: Mediawiki DB username (default: wikiuser)");
-      ("-db_name", Arg.String set_mw_db_name, "<string>: Mediawiki DB name (default: wikidb)");
-      ("-db_pass", Arg.String set_mw_db_pass, "<string>: Mediawiki DB password");
-      ("-db_host", Arg.String set_mw_db_host, "<string>: Mediawiki DB host (default: localhost)");
-      ("-db_port", Arg.Int set_mw_db_port,    "<int>: Mediawiki DB port (default: 3306)");
-      ("-dump_db_calls", Arg.Set dump_db_calls, ": Writes to the db log all database calls.  This is very verbose; use only for debugging.");
-    ] @ opt_list in
+    ] @ (command_line_format @ opt_list) in
 
   Arg.parse 
     opt_list'
