@@ -71,6 +71,8 @@ type wiki_revision = {
 
 exception Http_client_error
 
+Random.self_init ()
+
 let pipeline = new pipeline
 let buf_len = 8192
 let requested_encoding_type = "gzip"
