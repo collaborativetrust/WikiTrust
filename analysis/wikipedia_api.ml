@@ -162,8 +162,18 @@ let process_page (page : xml) : (wiki_page * wiki_revision list) =
   let revs = Xml.children page in
     (w_page, (Xml.map process_rev (List.hd revs)))
 
-let fetch_revs (rev_ids : int list) : ((wiki_page * wiki_revision list) list) =
-  let url = "http://en.wikipedia.org/w/api.php?action=query&prop=revisions|info&format=xml&inprop=&rvprop=ids|flags|timestamp|user|size|comment|content&revids=43005" in
+let fetch_pages_and_revs (rev_ids : int list) : ((wiki_page * wiki_revision list) list) =
+  let f (acc) (r) = 
+    match acc with 
+      | (0,r_done) -> (1,(string_of_int r)) 
+      | (_,r_done) -> (1, r_done ^ "|" ^ (string_of_int r)) 
+  in
+  let revs = List.fold_left f (0,"") rev_ids in
+  let url = "http://en.wikipedia.org/w/api.php?action=query&prop=revisions|info&format=xml&inprop=&rvprop=ids|flags|timestamp|user|size|comment|content&revids=" ^ (let _,rvs = revs in rvs) in
+
+(* http://en.wikipedia.org/w/api.php?action=query&prop=revisions|info&format=xml&inprop=&rvprop=ids|flags|timestamp|user|size|comment|content&rvstart=20060501000000&rvlimit=50&rvdir=newer&titles=Main%20Page *)
+
+    print_endline url;
   let res = run_call url in
   let api = Xml.parse_string res in
   let query = Xml.children (api) in
