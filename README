@@ -220,6 +220,8 @@ Follow these instructions in place of step 2) above.
           libmysql-ocaml-dev
           libextlib-ocaml-dev
           python-mysqldb
+	  libxml-light-ocaml-dev	
+	  libzip-ocaml-dev
 
         You also need:
 

@@ -64,6 +64,10 @@ let db = new Online_db.db !db_prefix mediawiki_db None !dump_db_calls in
 (* Color the asked for revision. *)
 let rec process_rev r p =
   let revs = fetch_revs [r] in
+  let title = 
+    match (List.hd revs) with
+      | (p,l) -> Printf.printf "Got page titled %s\n" p.page_title; p
+  in
     Unix.sleep sleep_time_sec;
     if !synch_log then flush Pervasives.stdout;
     process_rev r p

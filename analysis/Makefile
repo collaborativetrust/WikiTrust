@@ -30,7 +30,7 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 # Vars we use in our rules to build ocaml programs
-PACKAGES = unix,str,vec,mapmin,hashtbl_bounded,fileinfo,intvmap,extlib,mysql,netsys,netclient,sexplib.syntax 
+PACKAGES = unix,str,vec,mapmin,hashtbl_bounded,fileinfo,intvmap,extlib,mysql,netsys,netclient,zip,xml-light,sexplib.syntax 
 SYNTAX = camlp4o
 OUR_LIBS = evalwiki.cma
 OUR_LIBS_OPT = evalwiki.cmxa
@@ -72,11 +72,11 @@ OCAMLOPT_FLAGS=$(INCLUDES)
 # one for the optimizing compilation. 
 OUR_ONLINE_OBJS = online_types.cmo online_db.cmo online_revision.cmo \
 	db_page.cmo online_page.cmo online_log.cmo event_feed.cmo  \
-	online_command_line.cmo wikipedia_api.cmo \
+	online_command_line.cmo tmpfile.cmo wikipedia_api.cmo \
 
 OUR_OPT_ONLINE_OBJS = online_types.cmx online_db.cmx online_revision.cmx \
 	db_page.cmx online_page.cmx online_log.cmx event_feed.cmx \
-	online_command_line.cmx wikipedia_api.cmx \
+	online_command_line.cmx tmpfile.cmx wikipedia_api.cmx \
 
 
 online_eval: $(OUR_ONLINE_OBJS) 
