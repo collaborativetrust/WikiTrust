@@ -101,6 +101,12 @@ let set_requested_voter_id f = requested_voter_id := Some f
 let requested_page_id = ref None.
 let set_requested_page_id f = requested_page_id := Some f
 
+(* API params *)
+let target_wikimedia = ref "http://en.wikipedia.org/w/api.php"
+let set_target_wikimedia t = target_wikimedia := t 
+let user_id_server = ref "http://toolserver.org/~Ipye/UserName2UserId.php"
+let set_user_id_server t = user_id_server := t 
+
 (* Figure out what to do and how we are going to do it. *)
 let command_line_format = 
   [
@@ -111,6 +117,8 @@ let command_line_format =
    ("-db_host", Arg.String set_mw_db_host, "<string>: Mediawiki DB host (default: localhost)");
    ("-db_port", Arg.Int set_mw_db_port,    "<int>: Mediawiki DB port
    (default: 3306)");
+   ("-wiki_api", Arg.String set_target_wikimedia, "<string>: Mediawiki api to target for missing revs");
+   ("-user_id_api", Arg.String set_user_id_server, "<string>: location of a tool which turns user_names into user_ids");
    ("-dump_db_calls", Arg.Set dump_db_calls, ": Writes to the db log all
  database calls.  This is very verbose; use only for debugging.");
    ("-wt_db_user", Arg.String set_wt_db_user, "<string>: Wikitrust DB username (specify only if the wikitrust db is different from the mediawiki db) (default: wikiuser)");

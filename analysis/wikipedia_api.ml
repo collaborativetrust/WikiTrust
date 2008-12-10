@@ -50,7 +50,6 @@ let buf_len = 8192
 let requested_encoding_type = "gzip"
 let tmp_prefix = "wiki"
 let rev_lim = "50"
-let target_wikimedia = "http://en.wikipedia.org/w/api.php"
 
 (* Given an input channel, return a string representing all there is
    to be read of this channel. *)
@@ -142,7 +141,8 @@ let process_page (page : xml) : (wiki_page option * wiki_revision list) =
 
 let fetch_page_and_revs_after (page_title : string) (rev_date : string) : (wiki_page option * wiki_revision list) =
  
-  let url = target_wikimedia ^ "?action=query&prop=revisions|"
+  let url = !Online_command_line.target_wikimedia 
+    ^ "?action=query&prop=revisions|"
     ^ "info&format=xml&inprop=&rvprop=ids|flags|timestamp|user|size|comment|"
     ^ "content&rvstart=" ^ rev_date ^ "&rvlimit=" ^ rev_lim
     ^ "&rvdir=newer&titles=" ^ page_title in
@@ -164,3 +164,8 @@ let fetch_page_and_revs_after (page_title : string) (rev_date : string) : (wiki_
       List.fold_left pick_page (None,[]) poss_pages
 ;;
     
+let get_user_id (user_name : string) : int =
+  let url = !Online_command_line.user_id_server ^ "?n=" ^ user_name in
+    Printf.printf "%s\n" url;
+    try int_of_string (run_call url) with int_of_string -> 0
+;;

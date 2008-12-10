@@ -144,7 +144,7 @@ in
 (* Returns the user id of the user name if we have it. *)
 (* TODO -- query someone if this is not found! *)
 let get_user_id u_name =
-  try db # get_user_id u_name with DB_Not_Found -> 0
+  try db # get_user_id u_name with DB_Not_Found -> get_user_id u_name
 in
 
 (* Color the asked for revision. *)
