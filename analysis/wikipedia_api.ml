@@ -40,6 +40,7 @@ open ExtLib;;
 open Gzip;;
 open Xml;;
 open Online_types;;
+open Str;;
 
 exception Http_client_error
 
@@ -50,6 +51,15 @@ let buf_len = 8192
 let requested_encoding_type = "gzip"
 let tmp_prefix = "wiki"
 let rev_lim = "50"
+let api_tz_re = Str.regexp "\\([0-9][0-9][0-9][0-9]\\)-\\([0-9][0-9]\\)-\\([0-9][0-9]\\)T\\([0-9][0-9]\\):\\([0-9][0-9]\\):\\([0-9][0-9]\\)Z"
+
+(* Maps the Wikipedias api timestamp to our internal one. *)
+let api_ts2mw_ts s =
+  let ts = if string_match api_tz_re s 0 then 
+    (matched_group 1 s) ^ (matched_group 2 s) ^ (matched_group 3 s)
+    ^ (matched_group 4 s) ^ (matched_group 5 s) ^ (matched_group 6 s) 
+  else "19700201000000" in
+    ts
 
 (* Given an input channel, return a string representing all there is
    to be read of this channel. *)
@@ -73,7 +83,10 @@ let input_all ic =
             loop (buf :: acc) new_total (String.create buf_len) 0
 	  else loop acc new_total buf new_ofs in
     loop [] 0 (String.create buf_len) 0
-      
+
+(*
+  Given a string url, make a get call and return the response as a string.
+*)      
 let run_call url = 
   let call = new get url in
   let request_header = call # request_header `Base in
@@ -103,6 +116,9 @@ let run_call url =
       | _ -> raise Http_client_error
 ;;
 
+(*
+  Internal xml processing for the api
+*)
 let process_rev (rev : xml) : wiki_revision =
   let w_rev = {
     revision_id = int_of_string (Xml.attrib rev "revid");
@@ -112,7 +128,7 @@ let process_rev (rev : xml) : wiki_revision =
 		   with Xml.No_attribute e -> "");
     revision_user = -1;
     revision_user_text = (Xml.attrib rev "user");
-    revision_timestamp = (Xml.attrib rev "timestamp");
+    revision_timestamp = api_ts2mw_ts (Xml.attrib rev "timestamp");
     revision_minor_edit = (try ignore(Xml.attrib rev "minor"); true 
 		      with Xml.No_attribute e -> false);
     revision_deleted = false;
@@ -122,6 +138,9 @@ let process_rev (rev : xml) : wiki_revision =
   } in
     w_rev
 
+(*
+  Internal xml processing for the api
+*)
 let process_page (page : xml) : (wiki_page option * wiki_revision list) =
   let w_page = {
     page_id = int_of_string (Xml.attrib page "pageid");
@@ -129,29 +148,27 @@ let process_page (page : xml) : (wiki_page option * wiki_revision list) =
     page_title = (Xml.attrib page "title"); 
     page_restrictions = "";
     page_counter = int_of_string (Xml.attrib page "counter");
-    page_is_redirect = false;
+    page_is_redirect = (try ignore(Xml.attrib page "redirect"); true 
+			with Xml.No_attribute e -> false);
     page_is_new = false;
     page_random = (Random.float 1.0);
-    page_touched = (Xml.attrib page "touched"); 
+    page_touched = api_ts2mw_ts (Xml.attrib page "touched"); 
     page_latest = int_of_string (Xml.attrib page "lastrevid");
     page_len = int_of_string (Xml.attrib page "length")
   } in
   let revs = Xml.children page in
     (Some w_page, (Xml.map process_rev (List.hd revs)))
 
+(* 
+   Given a page and date to start with, returns the next n revs for this page. 
+*)
 let fetch_page_and_revs_after (page_title : string) (rev_date : string) : (wiki_page option * wiki_revision list) =
- 
   let url = !Online_command_line.target_wikimedia 
     ^ "?action=query&prop=revisions|"
     ^ "info&format=xml&inprop=&rvprop=ids|flags|timestamp|user|size|comment|"
     ^ "content&rvstart=" ^ rev_date ^ "&rvlimit=" ^ rev_lim
     ^ "&rvdir=newer&titles=" ^ page_title in
-
- (* let url = "http://en.wikipedia.org/w/api.php?action=query&prop=revisions|info&format=xml&inprop=&rvprop=ids|flags|timestamp|user|size|comment|content&revids=" ^ (let _,rvs = revs in rvs) in *)
-
-(* http://en.wikipedia.org/w/api.php?action=query&prop=revisions|info&format=xml&inprop=&rvprop=ids|flags|timestamp|user|size|comment|content&rvstart=20060501000000&rvlimit=50&rvdir=newer&titles=Main%20Page *)
-
-    print_endline url;
+    if !Online_command_line.dump_db_calls then Printf.printf "%s\n" url;
     let res = run_call url in
     let api = Xml.parse_string res in
     let query = Xml.children (api) in
@@ -164,8 +181,11 @@ let fetch_page_and_revs_after (page_title : string) (rev_date : string) : (wiki_
       List.fold_left pick_page (None,[]) poss_pages
 ;;
     
+(* Given a user_name, returns the corresponding user_id *)
 let get_user_id (user_name : string) : int =
   let url = !Online_command_line.user_id_server ^ "?n=" ^ user_name in
-    Printf.printf "%s\n" url;
-    try int_of_string (run_call url) with int_of_string -> 0
+    if !Online_command_line.dump_db_calls then Printf.printf "%s\n" url;
+    let uids = ExtString.String.nsplit (run_call url) "`" in
+    let uid = List.nth uids 1 in
+      try int_of_string uid with int_of_string -> 0 in
 ;;

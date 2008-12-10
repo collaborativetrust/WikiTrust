@@ -141,8 +141,10 @@ let evaluate_vote (page_id: int) (revision_id: int) (voter_id: int) =
     end 
 in 
 
-(* Returns the user id of the user name if we have it. *)
-(* TODO -- query someone if this is not found! *)
+(* 
+   Returns the user id of the user name if we have it, 
+   or asks a web service for it if we do not. 
+*)
 let get_user_id u_name =
   try db # get_user_id u_name with DB_Not_Found -> get_user_id u_name
 in
