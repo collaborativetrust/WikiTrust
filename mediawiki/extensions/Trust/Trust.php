@@ -632,6 +632,7 @@ colors text according to trust.'
    $page_title = $_GET['title'];
    print("Fetching content from web server at " . self::CONTENT_URL . "rev=" . $this->current_rev . "&page=$page_id&page_title=$page_title&time=$rev_timestamp&user=$rev_user");
    $colored_text = file_get_contents(self::CONTENT_URL . "rev=" . $this->current_rev . "&page=$page_id&page_title=$page_title&time=$rev_timestamp&user=$rev_user");
+
    if ($colored_text && $colored_text != self::NOT_FOUND_TEXT_TOKEN){
      // First, make sure that there are not any instances of our tokens in the colored_text
      $colored_text = str_replace(self::TRUST_OPEN_TOKEN, "", $colored_text);
@@ -662,7 +663,6 @@ colors text according to trust.'
    $text = preg_replace('/<\/p>/', "</span></p>", $text, -1, $count);
    $text = preg_replace('/<p><\/span>/', "<p>", $text, -1, $count);
    $text = preg_replace('/<li><\/span>/', "<li>", $text, -1, $count);
-
 
    //print "<p>BEGIN TEXT";
    //print_r($text);

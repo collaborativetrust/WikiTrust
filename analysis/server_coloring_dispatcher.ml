@@ -76,6 +76,16 @@ let every_n_events_delay =
     else None
 in
 
+(* Wait for the processes to stop before accepting more *)
+let clean_kids k v = (
+  let stat = Unix.waitpid [WNOHANG] v in
+    match (stat) with
+      | (0,_) -> () (* Process not yet done. *)
+      | (_, WEXITED s) -> Hashtbl.remove working_children k (* Otherwise, remove the process. *)
+      | (_, WSIGNALED s) -> Hashtbl.remove working_children k
+      | (_, WSTOPPED s) -> Hashtbl.remove working_children k
+) in
+
 (* This is the function that evaluates a revision. 
    The function is recursive, because if some past revision of the same page 
    that falls within the analysis horizon is not yet evaluated and colored
@@ -225,6 +235,7 @@ let dispatch_page rev_pages =
 		Hashtbl.add working_children p (new_pid)
 	       )
   ) in
+    Hashtbl.iter clean_kids working_children;
     List.iter set_revs_to_get rev_pages;
     Hashtbl.iter launch_processing new_pages
 in
@@ -232,16 +243,7 @@ in
 (* Poll to see if there is any more work to be done. *)
 let rec main_loop () =
   if (Hashtbl.length working_children) >= max_concurrent_procs then (
-    (* Wait for the processes to stop before accepting more *)
-    let f k v = (
-      let stat = Unix.waitpid [WNOHANG] v in
-	match (stat) with
-	  | (0,_) -> () (* Process not yet done. *)
-	  | (_, WEXITED s) -> Hashtbl.remove working_children k (* Otherwise, remove the process. *)
-	  | (_, WSIGNALED s) -> Hashtbl.remove working_children k
-	  | (_, WSTOPPED s) -> Hashtbl.remove working_children k
-    ) in
-      Hashtbl.iter f working_children
+      Hashtbl.iter clean_kids working_children
   ) else (
     let revs_to_process = db # fetch_next_to_color 
       (max (max_concurrent_procs - Hashtbl.length working_children) 0) in
