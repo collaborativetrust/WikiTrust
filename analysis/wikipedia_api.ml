@@ -50,6 +50,7 @@ let buf_len = 8192
 let requested_encoding_type = "gzip"
 let tmp_prefix = "wiki"
 let rev_lim = "50"
+let target_wikimedia = "http://en.wikipedia.org/w/api.php"
 
 (* Given an input channel, return a string representing all there is
    to be read of this channel. *)
@@ -107,7 +108,7 @@ let process_rev (rev : xml) : wiki_revision =
   let w_rev = {
     revision_id = int_of_string (Xml.attrib rev "revid");
     revision_page = 0;
-    revision_text_id = 0;
+    revision_text_id = int_of_string (Xml.attrib rev "revid");
     revision_comment = (try (Xml.attrib rev "comment") 
 		   with Xml.No_attribute e -> "");
     revision_user = -1;
@@ -141,7 +142,7 @@ let process_page (page : xml) : (wiki_page option * wiki_revision list) =
 
 let fetch_page_and_revs_after (page_title : string) (rev_date : string) : (wiki_page option * wiki_revision list) =
  
-  let url = "http://en.wikipedia.org/w/api.php?action=query&prop=revisions|"
+  let url = target_wikimedia ^ "?action=query&prop=revisions|"
     ^ "info&format=xml&inprop=&rvprop=ids|flags|timestamp|user|size|comment|"
     ^ "content&rvstart=" ^ rev_date ^ "&rvlimit=" ^ rev_lim
     ^ "&rvdir=newer&titles=" ^ page_title in

@@ -606,10 +606,12 @@ colors text according to trust.'
    // Get the page id  
    $page_id=0;
    $rev_timestamp="";
-   $res = $dbr->select('revision', array('rev_page', 'rev_timestamp'), array('rev_id' => $this->current_rev), array());
+   $rev_user=0;
+   $res = $dbr->select('revision', array('rev_page', 'rev_timestamp', 'rev_user'), array('rev_id' => $this->current_rev), array());
    if ($res){
      $row = $dbr->fetchRow($res);
      $page_id = $row['rev_page'];
+     $rev_user = $row['rev_user'];
      $rev_timestamp = $row['rev_timestamp']; 
      if (!$page_id) {
        $page_id = 0;
@@ -618,8 +620,8 @@ colors text according to trust.'
    $dbr->freeResult( $res );  
    
    $page_title = $_GET['title'];
-   print("Fetching content from web server at " . self::CONTENT_URL . "rev=" . $this->current_rev . "&page=$page_id&page_title=$page_title&time=$rev_timestamp");
-   $colored_text = file_get_contents(self::CONTENT_URL . "rev=" . $this->current_rev . "&page=$page_id&page_title=$page_title&time=$rev_timestamp");
+   print("Fetching content from web server at " . self::CONTENT_URL . "rev=" . $this->current_rev . "&page=$page_id&page_title=$page_title&time=$rev_timestamp&user=$rev_user");
+   $colored_text = file_get_contents(self::CONTENT_URL . "rev=" . $this->current_rev . "&page=$page_id&page_title=$page_title&time=$rev_timestamp&user=$rev_user");
    if ($colored_text && $colored_text != self::NOT_FOUND_TEXT_TOKEN){
      // First, make sure that there are not any instances of our tokens in the colored_text
      $colored_text = str_replace(self::TRUST_OPEN_TOKEN, "", $colored_text);

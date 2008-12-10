@@ -21,7 +21,8 @@ let text = Netencoding.Html.encode_from_latin1;;
 
 (* Return colored markup *)
 let generate_text_page (cgi : Netcgi.cgi_activation) (rev_id : int) 
-    (page_id : int) (page_title : string) (rev_time : string)  =
+    (page_id : int) (page_title : string) (rev_time : string) (user_id : int) 
+    =
   let out = cgi # out_channel # output_string in
   let safe_page_title = Mysql.escape page_title in
   let safe_rev_time = Mysql.escape rev_time in
@@ -29,7 +30,8 @@ let generate_text_page (cgi : Netcgi.cgi_activation) (rev_id : int)
       | Some db -> ( 
 	  let colored_text = try (db # read_colored_markup rev_id) 
 	  with Online_db.DB_Not_Found -> ((db # mark_to_color rev_id page_id
-					  safe_page_title safe_rev_time);
+					  safe_page_title safe_rev_time
+					  user_id);
 					  not_found_text_token) in
 	    out (text (colored_text))
 	)
@@ -57,7 +59,7 @@ let generate_vote_page (cgi : Netcgi.cgi_activation) (rev_id : int)
 	} in
 	let res = try (db # vote vote; 
 		       db # mark_to_color rev_id page_id safe_page_title 
-			 (Mysql.escape v_time); 
+			 (Mysql.escape v_time) user_id; 
 		       "good") with 
 	    Online_db.DB_TXN_Bad -> "bad" in 
 	  out res
@@ -69,37 +71,23 @@ let generate_page (cgi : Netcgi.cgi_activation) =
   (* Check which page is to be displayed. This is contained in the CGI
    * argument "page".
    *)
+
+  let page_id = try (int_of_string (cgi # argument_value "page")) 
+      with int_of_string -> -1 in
+  let rev_id = try (int_of_string (cgi # argument_value "rev")) 
+      with int_of_string -> -1 in
+  let page_title = (cgi # argument_value "page_title") in
+  let time_str = (cgi # argument_value "time") in
+  let user_id = try (int_of_string (cgi # argument_value "user")) 
+      with int_of_string -> 0 in
   match cgi # argument_value "vote" with
     | "" -> (
-	match cgi # argument_value "rev" with
-	  | "" ->
-	      generate_help_page cgi
-	  | _ -> (
-	      let page_id = try (int_of_string 
-				   (cgi # argument_value "page")) with
-		  int_of_string -> -1 in
-	      let rev_id = try (int_of_string 
-				  (cgi # argument_value "rev")) with
-		  int_of_string -> -1 in
-	      let page_title = (cgi # argument_value "page_title") in
-	      let time_str = (cgi # argument_value "time") in
-		if rev_id < 0 || page_id < 0 then generate_help_page cgi else
-		  generate_text_page cgi rev_id page_id page_title time_str
-	    )
+	if rev_id < 0 || page_id < 0 then generate_help_page cgi else
+	  generate_text_page cgi rev_id page_id page_title time_str 
+	    user_id
       )
     | _ -> (
-	let rev_id = try (int_of_string 
-			    (cgi # argument_value "rev")) with
-	    int_of_string -> -1 in
-	let page_id = try (int_of_string 
-			     (cgi # argument_value "page")) with
-	    int_of_string -> -1 in
-	let user_id = try (int_of_string 
-			     (cgi # argument_value "user")) with
-	    int_of_string -> -1 in
-	let time_str = (cgi # argument_value "time") in
-	let page_title = (cgi # argument_value "page_title") in
-	  generate_vote_page cgi rev_id page_id user_id time_str page_title
+	generate_vote_page cgi rev_id page_id user_id time_str page_title
       )
 ;;
 

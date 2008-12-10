@@ -141,10 +141,17 @@ let evaluate_vote (page_id: int) (revision_id: int) (voter_id: int) =
     end 
 in 
 
+(* Returns the user id of the user name if we have it. *)
+(* TODO -- query someone if this is not found! *)
+let get_user_id u_name =
+  try db # get_user_id u_name with DB_Not_Found -> 0
+in
+
 (* Color the asked for revision. *)
 let process_revs (page_id : int) (rev_ids : int list) (page_title : string)
-    (rev_timestamp : string) =
+    (rev_timestamp : string) (user_id : int) =
   let rec do_processing (rev_id : int) = 
+    (* I assume that a user cannot vote on an unprocessed revision here. *)
     if (db # revision_needs_coloring rev_id) then (
       (* Grab the text and color it. *)
       let last_colored_timestamp = try db # get_latest_colored_rev_timestamp 
@@ -156,7 +163,12 @@ let process_revs (page_id : int) (rev_ids : int list) (page_title : string)
 	      Printf.printf "Got page titled %s\n" pp.page_title;
 	      db # write_page pp
 	    );
-	      List.iter (db # write_revision) wrevs;
+	      let update_and_write_rev rev =
+		rev.revision_page <- page_id;
+		rev.revision_user <- (get_user_id rev.revision_user_text);
+		db # write_revision rev
+	      in
+	      List.iter update_and_write_rev wrevs;
 	      let f rev = 
 		evaluate_revision page_id rev.revision_id
 	      in
@@ -166,18 +178,18 @@ let process_revs (page_id : int) (rev_ids : int list) (page_title : string)
 		if (db # revision_needs_coloring rev_id) then (
 		  do_processing rev_id
 		)
-		else ()
-		
+		else ()	
     ) else ( (* Vote! *)
       let process_vote v = (
 	if v.vote_page_id == page_id then 
 	  evaluate_vote page_id rev_id v.vote_voter_id
       ) in
-      let votes = db # fetch_unprocessed_votes 100 in
+      let votes = db # fetch_unprocessed_votes !max_events_to_process in
 	List.iter process_vote votes
     )
   in
-    List.iter do_processing rev_ids
+    List.iter do_processing rev_ids;
+    exit 0 (* No more work to do, stop this process. *)
 in
 
 (* Start a new process going which actually processes the missing page. *)
@@ -186,24 +198,25 @@ let dispatch_page rev_pages =
   let is_new_page p =
     try ignore (Hashtbl.find working_children p); false with Not_found -> true
   in
-  let set_revs_to_get (r,p,title,time) =
+  let set_revs_to_get (r,p,title,time,uid) =
     Printf.printf "page %d\n" p;
     if (is_new_page p) then (
       (
 	let current_revs = try Hashtbl.find new_pages p with 
-	    Not_found -> ([],title,time) in
-	  (Hashtbl.replace new_pages p ((r::(let x,_,_  = 
-					       current_revs in x)),title,time))
+	    Not_found -> ([],title,time,uid) in
+	  (Hashtbl.replace new_pages p ((r::(let x,_,_,_  = 
+					       current_revs in x)),
+					title,time,uid))
       )
     ) else ()
   in 
-  let launch_processing p (r,t,rt) = (
+  let launch_processing p (r,t,rt,uid) = (
     let new_pid = Unix.fork () in
       match new_pid with 
 	| 0 -> (
 	    Printf.printf "I'm the child\n Running on page %d rev %d\n" p 
 	      (List.hd r);
-	    process_revs p r t rt
+	    process_revs p r t rt uid
 	  )
 	| _ -> (Printf.printf "Parent of pid %d\n" new_pid;  
 		Hashtbl.add working_children p (new_pid)

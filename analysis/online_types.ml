@@ -231,10 +231,10 @@ type wiki_page = {
 
 type wiki_revision = {
   revision_id : int;
-  revision_page : int;
+  mutable revision_page : int;
   revision_text_id : int;
   revision_comment : string;
-  revision_user : int;
+  mutable revision_user : int;
   revision_user_text : string;
   revision_timestamp : string;
   revision_minor_edit : bool;

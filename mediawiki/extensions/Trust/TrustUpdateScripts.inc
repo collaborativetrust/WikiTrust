@@ -92,6 +92,7 @@ CREATE TABLE ".$wgDBprefix."wikitrust_missing_revs (
        page_id         int NOT NULL,
        page_title      varchar(255) NOT NULL,
        rev_time        varchar(255) NOT NULL,
+       user_id         int NOT NULL,
        requested_on    timestamp DEFAULT now(),
        processed       bool DEFAULT false
 ) ENGINE=InnoDB","

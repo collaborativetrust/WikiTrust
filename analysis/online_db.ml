@@ -116,7 +116,8 @@ let next2color_row row =
   ((not_null int2ml row.(0)), 
    (not_null int2ml row.(1)), 
    (not_null str2ml row.(2)),
-   (not_null str2ml row.(3)))
+   (not_null str2ml row.(3)),
+   (not_null int2ml row.(4)))
     
 (** This class provides a handle for accessing the database in the on-line 
     implementation. *)
@@ -575,15 +576,16 @@ class db
 
     (** Note that the requested rev was needs to be colored *)
     method mark_to_color (rev_id : int) (page_id : int) (page_title : string) 
-      (rev_time : string) =
-      let s = Printf.sprintf "INSERT INTO %swikitrust_missing_revs (revision_id, page_id, page_title, rev_time) VALUES (%s, %s, %s, %s) ON DUPLICATE KEY UPDATE requested_on = now()" db_prefix (ml2int rev_id) (ml2int page_id) (ml2str page_title) (ml2str rev_time) in
+      (rev_time : string) (user_id : int) =
+      let s = Printf.sprintf "INSERT INTO %swikitrust_missing_revs (revision_id, page_id, page_title, rev_time, user_id) VALUES (%s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE requested_on = now()" db_prefix (ml2int rev_id) (ml2int page_id) (ml2str page_title) (ml2str rev_time) (ml2int user_id) in
 	ignore (self#db_exec wikitrust_dbh s)
 
     (** Get the next revs to color *)
-    method fetch_next_to_color (max_to_get : int) : (int * int * string * string) list =
-      let s = Printf.sprintf "SELECT revision_id, page_id, page_title, rev_time FROM %swikitrust_missing_revs WHERE NOT processed GROUP BY page_id ORDER BY requested_on ASC LIMIT %s" db_prefix (ml2int max_to_get) in
+    method fetch_next_to_color (max_to_get : int) : 
+      (int * int * string * string * int) list =
+      let s = Printf.sprintf "SELECT revision_id, page_id, page_title, rev_time, user_id FROM %swikitrust_missing_revs WHERE NOT processed ORDER BY requested_on ASC LIMIT %s" db_prefix (ml2int max_to_get) in
       let results = Mysql.map (self#db_exec wikitrust_dbh s) next2color_row in
-      let mark_as_done (rev,page,title,time) = 
+      let mark_as_done (rev,_,_,_,_) = 
 	let s = Printf.sprintf "UPDATE %swikitrust_missing_revs SET processed = true WHERE revision_id = %s" db_prefix (ml2int rev) in
 	  ignore (self#db_exec wikitrust_dbh s)
       in

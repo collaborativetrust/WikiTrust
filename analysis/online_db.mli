@@ -283,10 +283,10 @@ class db :
     (* Server System. *)
 
     (** Note that the requested rev was needs to be colored *)
-    method mark_to_color : int -> int -> string -> string -> unit
+    method mark_to_color : int -> int -> string -> string -> int -> unit
 
     (** Get the next revs to color *)
-    method fetch_next_to_color : int -> (int * int * string * string) list
+    method fetch_next_to_color : int -> (int * int * string * string * int) list
 
     (** Add the page to the db *)
     method write_page : wiki_page -> unit
