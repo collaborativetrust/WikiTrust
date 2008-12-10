@@ -56,6 +56,7 @@ class TextTrust extends TrustBase
 
   ## Server forms
   const NOT_FOUND_TEXT_TOKEN = "TEXT_NOT_FOUND";
+  const TRUST_COLOR_TOKEN = "<!--trust-->";
   const CONTENT_URL = "http://localhost:4444/?"; 
 
   ## default values for variables found from LocalSettings.php
@@ -70,6 +71,7 @@ class TextTrust extends TrustBase
 			'wgTrustLog' => "/dev/null",
 			'wgTrustDebugLog' => "/dev/null",
 			'wgRepSpeed' => 1.0,
+			'wgNotPartExplanation' => "This page is not part of the trust coloring experement",
 			'wgTrustTabText' => "Show Trust",
 			'wgTrustExplanation' => 
 			"<p><center><b>This is a product of the text trust algoruthm.</b></center></p>",
@@ -235,7 +237,7 @@ function startVote(){
    parent::__construct( );
    global $wgExtensionCredits, $wgShowVoteButton, $wgVoteText, $wgThankYouForVoting;
    global $wgNoTrustExplanation, $wgTrustCmd, $wgVoteRev, $wgTrustLog, $wgTrustDebugLog, $wgRepSpeed;
-   global $wgTrustTabText, $wgTrustExplanation;
+   global $wgTrustTabText, $wgTrustExplanation, $wgNotPartExplanation;
 
    //Add default values if globals not set.
    if(!$wgShowVoteButton)	
@@ -246,6 +248,8 @@ function startVote(){
      $wgThankYouForVoting = $this->DEFAULTS['wgThankYouForVoting'];
    if(!$wgNoTrustExplanation)
      $wgNoTrustExplanation = $this->DEFAULTS['wgNoTrustExplanation'];
+   if(!$wgNotPartExplanation)
+     $wgNotPartExplanation = $this->DEFAULTS['wgNotPartExplanation'];
    if(!$wgTrustCmd)
      $wgTrustCmd = $this->DEFAULTS['wgTrustCmd' ];
    if(!$wgVoteRev)
@@ -527,7 +531,7 @@ colors text according to trust.'
   TODO: Make this function work with caching turned on.
  */
  function ucscSeeIfColored(&$parser, &$text, &$strip_state) { 
-   global $wgRequest, $wgTrustExplanation, $wgUseAjax, $wgShowVoteButton, $wgDBprefix, $wgNoTrustExplanation, $wgVoteText, $wgThankYouForVoting; 
+   global $wgRequest, $wgTrustExplanation, $wgUseAjax, $wgShowVoteButton, $wgDBprefix, $wgNoTrustExplanation, $wgVoteText, $wgThankYouForVoting, $wgNotPartExplanation; 
 
    // Turn off caching for this instanching for this instance.
    $parser->disableCache();
@@ -585,7 +589,13 @@ colors text according to trust.'
     return true;
   }
 
-   if (strstr($text, "This page has been accessed {{PLURAL")) {
+  if (strstr($text, "This page has been accessed {{PLURAL")) {
+    return true;
+  }
+
+  //** This is not part of the coloring test **/
+  if (!strstr($text, self::TRUST_COLOR_TOKEN)){
+    $text = $wgNotPartExplanation . "\n" . $text;
     return true;
   }
 

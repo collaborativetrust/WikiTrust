@@ -577,7 +577,7 @@ class db
     (** Note that the requested rev was needs to be colored *)
     method mark_to_color (rev_id : int) (page_id : int) (page_title : string) 
       (rev_time : string) (user_id : int) =
-      let s = Printf.sprintf "INSERT INTO %swikitrust_missing_revs (revision_id, page_id, page_title, rev_time, user_id) VALUES (%s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE requested_on = now()" db_prefix (ml2int rev_id) (ml2int page_id) (ml2str page_title) (ml2str rev_time) (ml2int user_id) in
+      let s = Printf.sprintf "INSERT INTO %swikitrust_missing_revs (revision_id, page_id, page_title, rev_time, user_id) VALUES (%s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE requested_on = now(), processed = false" db_prefix (ml2int rev_id) (ml2int page_id) (ml2str page_title) (ml2str rev_time) (ml2int user_id) in
 	ignore (self#db_exec wikitrust_dbh s)
 
     (** Get the next revs to color *)

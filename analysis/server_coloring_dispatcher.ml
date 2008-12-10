@@ -191,6 +191,7 @@ let process_revs (page_id : int) (rev_ids : int list) (page_title : string)
     )
   in
     List.iter do_processing rev_ids;
+    Printf.printf "Finished processing page %s\n" page_title;	      
     exit 0 (* No more work to do, stop this process. *)
 in
 
