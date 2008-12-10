@@ -131,7 +131,7 @@ function voteCallback(http_request){
   if ((http_request.readyState == 4) && (http_request.status == 200)) {
     document.getElementById("vote-button-done").style.visibility = "visible";
     document.getElementById("vote-button").style.visibility = "hidden";
-    //alert(http_request.responseText);
+   // alert(http_request.responseText);
     return true;
   } else {
     alert(http_request.responseText);
@@ -161,7 +161,7 @@ function startVote(){
     }
   }
 
-  return sajax_do_call( "TextTrust::handleVote", [wgUserName, wgArticleId, revID] , voteCallback ); 
+  return sajax_do_call( "TextTrust::handleVote", [wgUserName, wgArticleId, revID, wgPageName] , voteCallback ); 
 }
 
 /*]]>*/</script>';
@@ -372,8 +372,8 @@ colors text according to trust.'
 
    Called via ajax, so this must be static.
   */
-  static function handleVote($user_name_raw, $page_id_raw = 0, $rev_id_raw = 0){
-    
+  static function handleVote($user_name_raw, $page_id_raw = 0, $rev_id_raw = 0, $page_title = ""){
+   
     $response = new AjaxResponse("0");
    
     $dbr =& wfGetDB( DB_SLAVE );
@@ -393,8 +393,8 @@ colors text according to trust.'
 	}
       }
       $dbr->freeResult( $res );  
-      $vote_str = ("Voting at " . self::CONTENT_URL . "vote=1&rev=$rev_id&page=$page_id&user=$user_id&time=" . wfTimestampNow());
-      $colored_text = file_get_contents(self::CONTENT_URL . "vote=1&rev=$rev_id&page=$page_id&user=$user_id&time=" . 
+      $vote_str = ("Voting at " . self::CONTENT_URL . "vote=1&rev=$rev_id&page=$page_id&user=$user_id&page_title=$page_title&time=" . wfTimestampNow());
+      $colored_text = file_get_contents(self::CONTENT_URL . "vote=1&rev=$rev_id&page=$page_id&user=$user_id&page_title=$page_title&time=" . 
 					wfTimestampNow());
       $response = new AjaxResponse($vote_str);	   
     }
@@ -604,18 +604,22 @@ colors text according to trust.'
    $this->colored = true;
 
    // Get the page id  
-   $res = $dbr->select('revision', array('rev_page'), array('rev_id' => $this->current_rev), array());
+   $page_id=0;
+   $rev_timestamp="";
+   $res = $dbr->select('revision', array('rev_page', 'rev_timestamp'), array('rev_id' => $this->current_rev), array());
    if ($res){
      $row = $dbr->fetchRow($res);
      $page_id = $row['rev_page'];
+     $rev_timestamp = $row['rev_timestamp']; 
      if (!$page_id) {
        $page_id = 0;
      }
    }
    $dbr->freeResult( $res );  
    
-   print("Fetching content from web server at " . self::CONTENT_URL . "rev=" . $this->current_rev . "&page=$page_id");
-   $colored_text = file_get_contents(self::CONTENT_URL . "rev=" . $this->current_rev . "&page=$page_id");
+   $page_title = $_GET['title'];
+   print("Fetching content from web server at " . self::CONTENT_URL . "rev=" . $this->current_rev . "&page=$page_id&page_title=$page_title&time=$rev_timestamp");
+   $colored_text = file_get_contents(self::CONTENT_URL . "rev=" . $this->current_rev . "&page=$page_id&page_title=$page_title&time=$rev_timestamp");
    if ($colored_text && $colored_text != self::NOT_FOUND_TEXT_TOKEN){
      // First, make sure that there are not any instances of our tokens in the colored_text
      $colored_text = str_replace(self::TRUST_OPEN_TOKEN, "", $colored_text);
