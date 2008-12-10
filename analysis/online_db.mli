@@ -180,6 +180,13 @@ class db :
 	recent revision of page [page_id]. *)
     method get_latest_rev_id : int -> int
 
+    (** [get_latest_colored_rev_id page_id] returns the timestamp of the most 
+     recent revision of page [page_id]. *)
+    method get_latest_colored_rev_timestamp : int -> string
+
+    (** [get_latest_colored_rev_id page title] returns the timestamp of 
+	the most recent revision of page [page-title]. *)
+    method get_latest_colored_rev_timestamp_by_title : string -> string
 
     (* ================================================================ *)
     (* Revision methods.  We assume we have a lock on the page to which 
@@ -276,9 +283,15 @@ class db :
     (* Server System. *)
 
     (** Note that the requested rev was needs to be colored *)
-    method mark_to_color : int -> int -> unit
+    method mark_to_color : int -> int -> string -> string -> unit
 
     (** Get the next revs to color *)
-    method fetch_next_to_color : int -> (int * int) list
+    method fetch_next_to_color : int -> (int * int * string * string) list
+
+    (** Add the page to the db *)
+    method write_page : wiki_page -> unit
+
+    (** Add the rev to the db *)
+    method write_revision : wiki_revision -> unit
 
   end

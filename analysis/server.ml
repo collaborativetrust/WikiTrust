@@ -21,12 +21,15 @@ let text = Netencoding.Html.encode_from_latin1;;
 
 (* Return colored markup *)
 let generate_text_page (cgi : Netcgi.cgi_activation) (rev_id : int) 
-    (page_id : int) =
+    (page_id : int) (page_title : string) (rev_time : string)  =
   let out = cgi # out_channel # output_string in
+  let safe_page_title = Mysql.escape page_title in
+  let safe_rev_time = Mysql.escape rev_time in
     match !dbh with
       | Some db -> ( 
 	  let colored_text = try (db # read_colored_markup rev_id) 
-	  with Online_db.DB_Not_Found -> ((db # mark_to_color rev_id page_id);
+	  with Online_db.DB_Not_Found -> ((db # mark_to_color rev_id page_id
+					  safe_page_title safe_rev_time);
 					  not_found_text_token) in
 	    out (text (colored_text))
 	)
@@ -41,8 +44,9 @@ let generate_help_page (cgi : Netcgi.cgi_activation) =
 
 (* Record that a vote happened. *)
 let generate_vote_page (cgi : Netcgi.cgi_activation) (rev_id : int) 
-    (page_id : int) (user_id : int) (v_time : string) =
+    (page_id : int) (user_id : int) (v_time : string) (page_title : string) =
   let out = cgi # out_channel # output_string in
+  let safe_page_title = Mysql.escape page_title in
   match !dbh with
     | Some db -> ( 
 	let vote = {
@@ -52,7 +56,8 @@ let generate_vote_page (cgi : Netcgi.cgi_activation) (rev_id : int)
 	  vote_voter_id=user_id;
 	} in
 	let res = try (db # vote vote; 
-		       db # mark_to_color rev_id page_id; 
+		       db # mark_to_color rev_id page_id safe_page_title 
+			 (Mysql.escape v_time); 
 		       "good") with 
 	    Online_db.DB_TXN_Bad -> "bad" in 
 	  out res
@@ -76,8 +81,10 @@ let generate_page (cgi : Netcgi.cgi_activation) =
 	      let rev_id = try (int_of_string 
 				  (cgi # argument_value "rev")) with
 		  int_of_string -> -1 in
+	      let page_title = (cgi # argument_value "page_title") in
+	      let time_str = (cgi # argument_value "time") in
 		if rev_id < 0 || page_id < 0 then generate_help_page cgi else
-		  generate_text_page cgi rev_id page_id
+		  generate_text_page cgi rev_id page_id page_title time_str
 	    )
       )
     | _ -> (
@@ -91,7 +98,8 @@ let generate_page (cgi : Netcgi.cgi_activation) =
 			     (cgi # argument_value "user")) with
 	    int_of_string -> -1 in
 	let time_str = (cgi # argument_value "time") in
-	  generate_vote_page cgi rev_id page_id user_id time_str
+	let page_title = (cgi # argument_value "page_title") in
+	  generate_vote_page cgi rev_id page_id user_id time_str page_title
       )
 ;;
 

@@ -39,35 +39,7 @@ open Http_client;;
 open ExtLib;;
 open Gzip;;
 open Xml;;
-
-type wiki_page = {
-  page_id : int;
-  page_namespace : int;
-  page_title : string; 
-  page_restrictions : string;
-  page_counter : int;
-  page_is_redirect : bool;
-  page_is_new : bool;
-  page_random : float;
-  page_touched : string; 
-  page_latest : int;
-  page_len : int
-}
-
-type wiki_revision = {
-  rev_id : int;
-  rev_page : int;
-  rev_text_id : int;
-  rev_comment : string;
-  rev_user : int;
-  rev_user_text : string;
-  rev_timestamp : string;
-  rev_minor_edit : bool;
-  rev_deleted : bool;
-  rev_len : int;
-  rev_parent_id : int;
-  rev_content : string;
-}
+open Online_types;;
 
 exception Http_client_error
 
@@ -77,6 +49,7 @@ let pipeline = new pipeline
 let buf_len = 8192
 let requested_encoding_type = "gzip"
 let tmp_prefix = "wiki"
+let rev_lim = "50"
 
 (* Given an input channel, return a string representing all there is
    to be read of this channel. *)
@@ -132,22 +105,24 @@ let run_call url =
 
 let process_rev (rev : xml) : wiki_revision =
   let w_rev = {
-    rev_id = int_of_string (Xml.attrib rev "revid");
-    rev_page = 0;
-    rev_text_id = 0;
-    rev_comment = (Xml.attrib rev "comment");
-    rev_user = -1;
-    rev_user_text = (Xml.attrib rev "user");
-    rev_timestamp = (Xml.attrib rev "timestamp");
-    rev_minor_edit = false;
-    rev_deleted = false;
-    rev_len = 0;
-    rev_parent_id = 0;
-    rev_content = (Xml.to_string (List.hd (Xml.children rev)));
+    revision_id = int_of_string (Xml.attrib rev "revid");
+    revision_page = 0;
+    revision_text_id = 0;
+    revision_comment = (try (Xml.attrib rev "comment") 
+		   with Xml.No_attribute e -> "");
+    revision_user = -1;
+    revision_user_text = (Xml.attrib rev "user");
+    revision_timestamp = (Xml.attrib rev "timestamp");
+    revision_minor_edit = (try ignore(Xml.attrib rev "minor"); true 
+		      with Xml.No_attribute e -> false);
+    revision_deleted = false;
+    revision_len = (try int_of_string (Xml.attrib rev "size") with Xml.No_attribute e -> 0);
+    revision_parent_id = 0;
+    revision_content = (Xml.to_string (List.hd (Xml.children rev)));
   } in
     w_rev
 
-let process_page (page : xml) : (wiki_page * wiki_revision list) =
+let process_page (page : xml) : (wiki_page option * wiki_revision list) =
   let w_page = {
     page_id = int_of_string (Xml.attrib page "pageid");
     page_namespace = (int_of_string (Xml.attrib page "ns"));
@@ -162,24 +137,29 @@ let process_page (page : xml) : (wiki_page * wiki_revision list) =
     page_len = int_of_string (Xml.attrib page "length")
   } in
   let revs = Xml.children page in
-    (w_page, (Xml.map process_rev (List.hd revs)))
+    (Some w_page, (Xml.map process_rev (List.hd revs)))
 
-let fetch_pages_and_revs (rev_ids : int list) : ((wiki_page * wiki_revision list) list) =
-  let f (acc) (r) = 
-    match acc with 
-      | (0,r_done) -> (1,(string_of_int r)) 
-      | (_,r_done) -> (1, r_done ^ "|" ^ (string_of_int r)) 
-  in
-  let revs = List.fold_left f (0,"") rev_ids in
-  let url = "http://en.wikipedia.org/w/api.php?action=query&prop=revisions|info&format=xml&inprop=&rvprop=ids|flags|timestamp|user|size|comment|content&revids=" ^ (let _,rvs = revs in rvs) in
+let fetch_page_and_revs_after (page_title : string) (rev_date : string) : (wiki_page option * wiki_revision list) =
+ 
+  let url = "http://en.wikipedia.org/w/api.php?action=query&prop=revisions|"
+    ^ "info&format=xml&inprop=&rvprop=ids|flags|timestamp|user|size|comment|"
+    ^ "content&rvstart=" ^ rev_date ^ "&rvlimit=" ^ rev_lim
+    ^ "&rvdir=newer&titles=" ^ page_title in
+
+ (* let url = "http://en.wikipedia.org/w/api.php?action=query&prop=revisions|info&format=xml&inprop=&rvprop=ids|flags|timestamp|user|size|comment|content&revids=" ^ (let _,rvs = revs in rvs) in *)
 
 (* http://en.wikipedia.org/w/api.php?action=query&prop=revisions|info&format=xml&inprop=&rvprop=ids|flags|timestamp|user|size|comment|content&rvstart=20060501000000&rvlimit=50&rvdir=newer&titles=Main%20Page *)
 
     print_endline url;
-  let res = run_call url in
-  let api = Xml.parse_string res in
-  let query = Xml.children (api) in
-  let pages = Xml.children (List.hd query) in
-    Xml.map process_page (List.hd pages)
+    let res = run_call url in
+    let api = Xml.parse_string res in
+    let query = Xml.children (api) in
+    let poss_pages = Xml.children (List.hd query) in
+    let pick_page acc page =
+      if (Xml.tag page = "pages") then 
+	process_page (List.hd (Xml.children page))
+      else acc 
+    in
+      List.fold_left pick_page (None,[]) poss_pages
 ;;
     

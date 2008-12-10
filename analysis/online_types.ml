@@ -213,3 +213,33 @@ let page_info_default = {
 
 (* Timestamp in the DB *)
 type timestamp_t = int * int * int * int * int * int;;
+
+(* Types for talking with Wikipedia *)
+type wiki_page = {
+  page_id : int;
+  page_namespace : int;
+  page_title : string; 
+  page_restrictions : string;
+  page_counter : int;
+  page_is_redirect : bool;
+  page_is_new : bool;
+  page_random : float;
+  page_touched : string; 
+  page_latest : int;
+  page_len : int
+}
+
+type wiki_revision = {
+  revision_id : int;
+  revision_page : int;
+  revision_text_id : int;
+  revision_comment : string;
+  revision_user : int;
+  revision_user_text : string;
+  revision_timestamp : string;
+  revision_minor_edit : bool;
+  revision_deleted : bool;
+  revision_len : int;
+  revision_parent_id : int;
+  revision_content : string;
+}
