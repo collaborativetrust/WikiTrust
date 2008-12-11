@@ -8,8 +8,10 @@ open Netcgi1_compat.Netcgi_types;;
 open Printf;;
 open Mysql;;
 open Online_db;;
-open Online_command_line
+open Online_command_line;;
+open Gzip;;
 
+let tmp_prefix = "wiki-com"
 let not_found_text_token = "TEXT_NOT_FOUND"
 
 let dbh = ref None
@@ -18,6 +20,16 @@ let text = Netencoding.Html.encode_from_latin1;;
 (* This function encodes "<", ">", "&", double quotes, and Latin 1 characters 
  * as character entities. E.g. text "<" = "&lt;", and text "ä" = "&auml;"
  *)
+
+let compress_str raw =
+  let tmp_file = Tmpfile.new_tmp_file_name tmp_prefix in
+    let out = Gzip.open_out tmp_file in
+      Gzip.output out raw 0 (String.length raw);
+      Gzip.close_out out;
+      let compressed = Std.input_file ?bin:(Some true) tmp_file in
+	Tmpfile.remove_tmp_file tmp_file; 
+	compressed
+;;
 
 (* Return colored markup *)
 let generate_text_page (cgi : Netcgi.cgi_activation) (rev_id : int) 
@@ -33,7 +45,12 @@ let generate_text_page (cgi : Netcgi.cgi_activation) (rev_id : int)
 					  safe_page_title safe_rev_time
 					  user_id);
 					  not_found_text_token) in
-	    out (text (colored_text))
+	  let compressed = compress_str (colored_text) in
+	    cgi # set_header 
+	      ~content_type:"application/x-gzip"
+	      ~content_length:(String.length compressed)
+	      ();
+	    out compressed
 	)
       | None -> out "DB not initialized"
 ;;  

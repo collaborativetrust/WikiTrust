@@ -631,13 +631,32 @@ colors text according to trust.'
    
    $page_title = $_GET['title'];
    print("Fetching content from web server at " . self::CONTENT_URL . "rev=" . $this->current_rev . "&page=$page_id&page_title=$page_title&time=$rev_timestamp&user=$rev_user");
-   $colored_text = file_get_contents(self::CONTENT_URL . "rev=" . $this->current_rev . "&page=$page_id&page_title=$page_title&time=$rev_timestamp&user=$rev_user");
+   $colored_text = (file_get_contents(self::CONTENT_URL . "rev=" . $this->current_rev . "&page=$page_id&page_title=$page_title&time=$rev_timestamp&user=$rev_user"));
+
+   // Work around because of issues with php's built in 
+   // gzip function.
+   $f = tempnam('/tmp', 'gz_fix');
+   file_put_contents($f, $colored_text);
+   $colored_text = file_get_contents('compress.zlib://' . $f);
+   unlink($f);
+
+   $colored_text = preg_replace("/&apos;/", "'", $colored_text, -1);
+   
+
+   //print $colored_text;
+ 
+   $colored_text = preg_replace("/&amp;/", "&", $colored_text, -1);
+
+   $colored_text = preg_replace("/&gt;/", self::TRUST_CLOSE_TOKEN."w", $colored_text, -1);
+   $colored_text = preg_replace("/&lt;/", self::TRUST_OPEN_TOKEN."q", $colored_text, -1);
+
+   //   $colored_text = $parser->variableSubstitution($colored_text);
 
    if ($colored_text && $colored_text != self::NOT_FOUND_TEXT_TOKEN){
      // First, make sure that there are not any instances of our tokens in the colored_text
      $colored_text = str_replace(self::TRUST_OPEN_TOKEN, "", $colored_text);
      $colored_text = str_replace(self::TRUST_CLOSE_TOKEN, "", $colored_text);
-     
+
      // Now update the text.
      $text = $voteitText . $colored_text . "\n" . $wgTrustExplanation;
    } else {
