@@ -59,6 +59,9 @@ class TextTrust extends TrustBase
   const TRUST_COLOR_TOKEN = "<!--trust-->";
   const CONTENT_URL = "http://localhost:4444/?"; 
 
+  ## Context for communicating with the trust server
+  const TRUST_TIMEOUT = 10;
+
   ## default values for variables found from LocalSettings.php
   var $DEFAULTS = array(
 			'wgShowVoteButton' => false,
@@ -396,10 +399,19 @@ colors text according to trust.'
 	  $user_id = 0;
 	}
       }
-      $dbr->freeResult( $res );  
+      $dbr->freeResult( $res ); 
+      
+      $ctx = stream_context_create(
+				   array('http' => array(
+							 'timeout' => 
+							 self::TRUST_TIMEOUT
+							 )
+					 )
+				   );
+ 
       $vote_str = ("Voting at " . self::CONTENT_URL . "vote=1&rev=$rev_id&page=$page_id&user=$user_id&page_title=$page_title&time=" . wfTimestampNow());
       $colored_text = file_get_contents(self::CONTENT_URL . "vote=1&rev=$rev_id&page=$page_id&user=$user_id&page_title=$page_title&time=" . 
-					wfTimestampNow());
+					wfTimestampNow(), 0, $ctx);
       $response = new AjaxResponse($vote_str);	   
     }
     return $response;
@@ -435,58 +447,6 @@ colors text according to trust.'
      $this->median = 1;
    
    return $this->median;
- }
-
- /** 
-  * Actually run the eval edit program.
-  * Returns -1 on error, the process id of the launched eval process otherwise.
-  */
- private static function runEvalEdit($eval_type = self::TRUST_EVAL_EDIT, $rev_id = -1, $page_id = -1, $voter_id = -1){
-   
-   global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgRepSpeed, $wgDBprefix;
-   
-   $process = -1;
-   $command = "";
-   // Get the db.
-   $dbr =& wfGetDB( DB_SLAVE );
-   
-   // Do we use a DB prefix?
-   $prefix = ($wgDBprefix)? "-db_prefix " . $dbr->strencode($wgDBprefix): "";
-   
-   switch ($eval_type) {
-   case self::TRUST_EVAL_EDIT:
-     $command = escapeshellcmd("$wgTrustCmd -rep_speed $wgRepSpeed -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix") . " &";
-     break;
-   case self::TRUST_EVAL_VOTE:
-     if ($rev_id == -1 || $page_id == -1 || $voter_id == -1)
-       return -1;
-     $command = escapeshellcmd("$wgTrustCmd -eval_vote -rev_id " . $dbr->strencode($rev_id) . " -voter_id " . $dbr->strencode($voter_id) . " -page_id " . $dbr->strencode($page_id) . " -rep_speed $wgRepSpeed -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix") . " &";
-     break;
-   case self::TRUST_EVAL_MISSING:
-     $command = escapeshellcmd("$wgTrustCmd -rev_id " . $dbr->strencode($rev_id) . " -rep_speed $wgRepSpeed -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix") . " &";
-     break;  
-   }
-
-   $descriptorspec = array(
-			   0 => array("pipe", "r"),  // stdin is a pipe that the child will read from
-			   1 => array("file", escapeshellcmd($wgTrustDebugLog), "a"),  // stdout is a pipe that the child will write to
-			   2 => array("file", escapeshellcmd($wgTrustDebugLog), "a") // stderr is a file to write to
-			   );
-   $cwd = '/tmp';
-   $env = array();
-   $process = proc_open($command, $descriptorspec, $pipes, $cwd, $env);
-   
-   return $process; 
- }
- 
-/* 
- Code to fork and exec a new process to color any new revisions.
- Called after any edits are made.
-*/
- function ucscRunColoring(&$article, &$user, &$text, &$summary, $minor, $watch, $sectionanchor, &$flags, $revision) { 
-   if (self::runEvalEdit(self::TRUST_EVAL_EDIT) >= 0)
-     return true;
-   return false;
  }
 
 # Actually add the tab.
@@ -613,6 +573,9 @@ colors text according to trust.'
    // if we made it here, we are going to color some text
    $this->colored = true;
 
+   // Set the timeout value
+   
+
    // Get the page id  
    $page_id=0;
    $rev_timestamp="";
@@ -630,8 +593,16 @@ colors text according to trust.'
    $dbr->freeResult( $res );  
    
    $page_title = $_GET['title'];
+   $ctx = stream_context_create(
+				array('http' => array(
+						      'timeout' => 
+						      self::TRUST_TIMEOUT
+						      )
+				      )
+				);
+
    print("Fetching content from web server at " . self::CONTENT_URL . "rev=" . $this->current_rev . "&page=$page_id&page_title=$page_title&time=$rev_timestamp&user=$rev_user");
-   $colored_text = (file_get_contents(self::CONTENT_URL . "rev=" . $this->current_rev . "&page=$page_id&page_title=$page_title&time=$rev_timestamp&user=$rev_user"));
+   $colored_text = (file_get_contents(self::CONTENT_URL . "rev=" . $this->current_rev . "&page=$page_id&page_title=$page_title&time=$rev_timestamp&user=$rev_user", 0, $ctx));
 
    // Work around because of issues with php's built in 
    // gzip function.

@@ -13,6 +13,7 @@ open Gzip;;
 
 let tmp_prefix = "wiki-com"
 let not_found_text_token = "TEXT_NOT_FOUND"
+let sleep_time_sec = 1 
 
 let dbh = ref None
 
@@ -31,6 +32,17 @@ let compress_str raw =
 	compressed
 ;;
 
+let handle_missing_rev (rev_id : int) (page_id : int) (page_title : string) 
+    (rev_time : string) (user_id : int) =
+  match !dbh with
+    | Some db -> (
+	db # mark_to_color rev_id page_id page_title rev_time user_id;
+	Unix.sleep sleep_time_sec;
+	try (db # read_colored_markup rev_id) with
+	  | Online_db.DB_Not_Found -> not_found_text_token
+      )
+    | None -> "DB not initialized"
+
 (* Return colored markup *)
 let generate_text_page (cgi : Netcgi.cgi_activation) (rev_id : int) 
     (page_id : int) (page_title : string) (rev_time : string) (user_id : int) 
@@ -41,10 +53,10 @@ let generate_text_page (cgi : Netcgi.cgi_activation) (rev_id : int)
     match !dbh with
       | Some db -> ( 
 	  let colored_text = try (db # read_colored_markup rev_id) 
-	  with Online_db.DB_Not_Found -> ((db # mark_to_color rev_id page_id
-					  safe_page_title safe_rev_time
-					  user_id);
-					  not_found_text_token) in
+	  with Online_db.DB_Not_Found -> (handle_missing_rev rev_id page_id
+					    safe_page_title safe_rev_time
+					    user_id) 
+	  in
 	  let compressed = compress_str (colored_text) in
 	    cgi # set_header 
 	      ~content_type:"application/x-gzip"
