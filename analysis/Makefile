@@ -30,7 +30,7 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 # Vars we use in our rules to build ocaml programs
-PACKAGES = unix,str,vec,mapmin,hashtbl_bounded,fileinfo,intvmap,extlib,mysql,netsys,netclient,zip,xml-light,sexplib.syntax 
+PACKAGES = unix,str,vec,mapmin,hashtbl_bounded,fileinfo,intvmap,extlib,mysql,netsys,netclient,camlzip,xml-light,sexplib.syntax 
 SYNTAX = camlp4o
 OUR_LIBS = evalwiki.cma
 OUR_LIBS_OPT = evalwiki.cmxa
