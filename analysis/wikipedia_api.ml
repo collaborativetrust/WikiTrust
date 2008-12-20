@@ -134,7 +134,9 @@ let process_rev (rev : xml) : wiki_revision =
     revision_deleted = false;
     revision_len = (try int_of_string (Xml.attrib rev "size") with Xml.No_attribute e -> 0);
     revision_parent_id = 0;
-    revision_content = (Xml.to_string (List.hd (Xml.children rev)));
+    revision_content = (Netencoding.Html.decode ~in_enc:`Enc_utf8 
+			  ~out_enc:`Enc_utf8 () 
+			  (Xml.to_string (List.hd (Xml.children rev))));
   } in
     w_rev
 

@@ -236,6 +236,9 @@ class db :
 	and origin information. *)
     method read_colored_markup : int -> string
 
+    (** Same as above but returns the median info as well. *)
+    method read_colored_markup_with_median : int -> string * float
+
     (** [write_trust_origin_sigs rev_id words trust origin sigs] writes that the 
 	revision [rev_id] is associated with [words], [trust], [origin], and [sigs]. *)
     method write_words_trust_origin_sigs : 

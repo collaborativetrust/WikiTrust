@@ -13,7 +13,7 @@ open Gzip;;
 
 let tmp_prefix = "wiki-com"
 let not_found_text_token = "TEXT_NOT_FOUND"
-let sleep_time_sec = 1 
+let sleep_time_sec = 3 
 
 let dbh = ref None
 
@@ -38,10 +38,10 @@ let handle_missing_rev (rev_id : int) (page_id : int) (page_title : string)
     | Some db -> (
 	db # mark_to_color rev_id page_id page_title rev_time user_id;
 	Unix.sleep sleep_time_sec;
-	try (db # read_colored_markup rev_id) with
-	  | Online_db.DB_Not_Found -> not_found_text_token
+	try (db # read_colored_markup_with_median rev_id) with
+	  | Online_db.DB_Not_Found -> (not_found_text_token,1.0)
       )
-    | None -> "DB not initialized"
+    | None -> ("DB not initialized",1.0)
 
 (* Return colored markup *)
 let generate_text_page (cgi : Netcgi.cgi_activation) (rev_id : int) 
@@ -52,17 +52,22 @@ let generate_text_page (cgi : Netcgi.cgi_activation) (rev_id : int)
   let safe_rev_time = Mysql.escape rev_time in
     match !dbh with
       | Some db -> ( 
-	  let colored_text = try (db # read_colored_markup rev_id) 
+	  let (colored_text,median) = 
+	    try (db # read_colored_markup_with_median rev_id) 
 	  with Online_db.DB_Not_Found -> (handle_missing_rev rev_id page_id
 					    safe_page_title safe_rev_time
 					    user_id) 
 	  in
-	  let compressed = compress_str (colored_text) in
-	    cgi # set_header 
-	      ~content_type:"application/x-gzip"
-	      ~content_length:(String.length compressed)
-	      ();
-	    out compressed
+	    if colored_text != not_found_text_token then
+	      let compressed = compress_str ((string_of_float median) ^
+					       "," ^ colored_text) in
+		cgi # set_header 
+		  ~content_type:"application/x-gzip"
+		  ~content_length:(String.length compressed)
+		  ();
+		out compressed
+	    else
+	      out colored_text
 	)
       | None -> out "DB not initialized"
 ;;  

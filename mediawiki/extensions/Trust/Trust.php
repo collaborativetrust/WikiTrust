@@ -25,6 +25,14 @@
 # Uses Tool Tip JS library under the LGPL.
 # http://www.walterzorn.com/tooltip/tooltip_e.htm
 
+// Turn old style errors into exceptions.
+function exception_error_handler($errno, $errstr, $errfile, $errline ) {
+  throw new ErrorException($errstr, 0, $errno, $errfile, $errline);
+}
+
+// But only for warnings.
+set_error_handler("exception_error_handler", E_WARNING);
+
 class TextTrust extends TrustBase
 {
   
@@ -81,7 +89,7 @@ class TextTrust extends TrustBase
 			);
 
   ## Median Value of Trust
-  var $median = 0.0;
+  var $median = 1.0;
 
   ## Number of times a revision is looked at.
   var $times_rev_loaded = 0;
@@ -330,9 +338,6 @@ colors text according to trust.'
 
 # After everything, make the blame info work
     $wgHooks['ParserAfterTidy'][] = array( &$this, 'ucscOrigin_Finalize');
-    
-# Pull the median value
-    $this->update_median();
   }
 
   /**
@@ -429,25 +434,6 @@ colors text according to trust.'
     }
     return true;
   }
-
- /**
-  Updated the cached median reputation value.
- */
- function update_median(){
-   $dbr =& wfGetDB( DB_SLAVE );
-   $res = $dbr->select('wikitrust_global', 'median', array(), array());
-   if ($res){
-     $row = $dbr->fetchRow($res);
-     $this->median = $row['median']; 
-   } 
-   $dbr->freeResult( $res );
-
-   // check for divide by 0 errors.
-   if ($this->median == 0)
-     $this->median = 1;
-   
-   return $this->median;
- }
 
 # Actually add the tab.
  function ucscTrustTemplate($skin, &$content_actions) { 
@@ -554,10 +540,10 @@ colors text according to trust.'
   }
 
   //** This is not part of the coloring test **/
-  if (!strstr($text, self::TRUST_COLOR_TOKEN)){
-    $text = $wgNotPartExplanation . "\n" . $text;
-    return true;
-  }
+  //  if (!strstr($text, self::TRUST_COLOR_TOKEN)){
+  //   $text = $wgNotPartExplanation . "\n" . $text;
+  //  return true;
+  //}
 
   if ($wgRequest->getVal('diff')){
     // For diffs, look for the absence of the diff token instead of counting
@@ -600,33 +586,40 @@ colors text according to trust.'
 						      )
 				      )
 				);
+   try {
+     $colored_raw = (file_get_contents(self::CONTENT_URL . "rev=" . $this->current_rev . "&page=$page_id&page_title=$page_title&time=$rev_timestamp&user=$rev_user", 0, $ctx));
+   } catch (Exception $e) {
+     $colored_raw = "";
+   }
 
-   print("Fetching content from web server at " . self::CONTENT_URL . "rev=" . $this->current_rev . "&page=$page_id&page_title=$page_title&time=$rev_timestamp&user=$rev_user");
-   $colored_text = (file_get_contents(self::CONTENT_URL . "rev=" . $this->current_rev . "&page=$page_id&page_title=$page_title&time=$rev_timestamp&user=$rev_user", 0, $ctx));
+   if ($colored_raw && $colored_raw != self::NOT_FOUND_TEXT_TOKEN){
+     // Work around because of issues with php's built in 
+     // gzip function.
+     $f = tempnam('/tmp', 'gz_fix');
+     file_put_contents($f, $colored_raw);
+     $colored_raw = file_get_contents('compress.zlib://' . $f);
+     unlink($f);
 
-   // Work around because of issues with php's built in 
-   // gzip function.
-   $f = tempnam('/tmp', 'gz_fix');
-   file_put_contents($f, $colored_text);
-   $colored_text = file_get_contents('compress.zlib://' . $f);
-   unlink($f);
+     // Pick off the median value first.
+     $colored_data = explode(",", $colored_raw, 2);
+     $colored_text = $colored_data[1];
+     if (preg_match("/^[+-]?(([0-9]+)|([0-9]*\.[0-9]+|[0-9]+\.[0-9]*)|
+			    (([0-9]+|([0-9]*\.[0-9]+|[0-9]+\.[0-9]*))[eE][+-]?[0-9]+))$/", $colored_data[0])){
+       $this->median = $colored_data[0];
+     } 
 
-   $colored_text = preg_replace("/&apos;/", "'", $colored_text, -1);
-   
 
-   //print $colored_text;
- 
-   $colored_text = preg_replace("/&amp;/", "&", $colored_text, -1);
-
-   $colored_text = preg_replace("/&gt;/", self::TRUST_CLOSE_TOKEN."w", $colored_text, -1);
-   $colored_text = preg_replace("/&lt;/", self::TRUST_OPEN_TOKEN."q", $colored_text, -1);
-
-   //   $colored_text = $parser->variableSubstitution($colored_text);
-
-   if ($colored_text && $colored_text != self::NOT_FOUND_TEXT_TOKEN){
-     // First, make sure that there are not any instances of our tokens in the colored_text
+     //     print $colored_text;
+      // First, make sure that there are not any instances of our tokens in the colored_text
      $colored_text = str_replace(self::TRUST_OPEN_TOKEN, "", $colored_text);
      $colored_text = str_replace(self::TRUST_CLOSE_TOKEN, "", $colored_text);
+
+     $colored_text = preg_replace("/&apos;/", "'", $colored_text, -1);
+    
+     $colored_text = preg_replace("/&amp;/", "&", $colored_text, -1);
+
+     $colored_text = preg_replace("/&lt;/", self::TRUST_OPEN_TOKEN, $colored_text, -1);
+     $colored_text = preg_replace("/&gt;/", self::TRUST_CLOSE_TOKEN, $colored_text, -1);
 
      // Now update the text.
      $text = $voteitText . $colored_text . "\n" . $wgTrustExplanation;
@@ -653,10 +646,6 @@ colors text according to trust.'
    $text = preg_replace('/<\/p>/', "</span></p>", $text, -1, $count);
    $text = preg_replace('/<p><\/span>/', "<p>", $text, -1, $count);
    $text = preg_replace('/<li><\/span>/', "<li>", $text, -1, $count);
-
-   //print "<p>BEGIN TEXT";
-   //print_r($text);
-   //print "<p>END TEXT";
 
    return true;
  }

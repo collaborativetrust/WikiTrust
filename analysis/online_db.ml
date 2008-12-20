@@ -497,6 +497,17 @@ class db
         None -> raise DB_Not_Found
       | Some x -> not_null str2ml x.(0)
 
+    (** [read_colored_markup_and_median rev_id] reads the text markup of a revision with id
+	[rev_id].  The markup is the text of the revision, annontated with trust
+	and origin information. This method also returns the median value *)
+    method read_colored_markup_with_median (rev_id : int) : string * float =
+      let s = Printf.sprintf  "SELECT revision_text,median FROM %swikitrust_colored_markup JOIN %swikitrust_global WHERE revision_id = %s" db_prefix db_prefix 
+	(ml2int rev_id) in 
+      let result = self#db_exec wikitrust_dbh s in
+	match Mysql.fetch result with
+            None -> raise DB_Not_Found
+	  | Some x -> (not_null str2ml x.(0), not_null float2ml x.(1))
+
     (** [write_trust_origin_sigs rev_id words trust origin sigs] writes that the 
 	revision [rev_id] is associated with [words], [trust], [origin], and [sigs]. *)
     method write_words_trust_origin_sigs (rev_id: int) 
