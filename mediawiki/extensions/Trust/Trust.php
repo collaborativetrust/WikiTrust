@@ -540,10 +540,10 @@ colors text according to trust.'
   }
 
   //** This is not part of the coloring test **/
-  //  if (!strstr($text, self::TRUST_COLOR_TOKEN)){
-  //   $text = $wgNotPartExplanation . "\n" . $text;
-  //  return true;
-  //}
+  if (!strstr($text, self::TRUST_COLOR_TOKEN)){
+    $text = $wgNotPartExplanation . "\n" . $text;
+    return true;
+  }
 
   if ($wgRequest->getVal('diff')){
     // For diffs, look for the absence of the diff token instead of counting
@@ -559,10 +559,7 @@ colors text according to trust.'
    // if we made it here, we are going to color some text
    $this->colored = true;
 
-   // Set the timeout value
-   
-
-   // Get the page id  
+   // Get the page id and other data  
    $page_id=0;
    $rev_timestamp="";
    $rev_user=0;
@@ -608,8 +605,6 @@ colors text according to trust.'
        $this->median = $colored_data[0];
      } 
 
-
-     //     print $colored_text;
       // First, make sure that there are not any instances of our tokens in the colored_text
      $colored_text = str_replace(self::TRUST_OPEN_TOKEN, "", $colored_text);
      $colored_text = str_replace(self::TRUST_CLOSE_TOKEN, "", $colored_text);
