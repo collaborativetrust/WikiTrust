@@ -314,11 +314,7 @@ colors text according to trust.'
     $wgHooks['SkinTemplateTabs'][] = array( &$this, 'ucscTrustTemplate');
 
 # And add a hook so the colored text is found. 
-    $wgHooks['ParserBeforeStrip'][] = array( &$this, 'ucscSeeIfColored');
-
-# Color saved text
-# Not for Wiki integration.
-#    $wgHooks['ArticleSaveComplete'][] = array( &$this, 'ucscRunColoring');
+//    $wgHooks['ParserBeforeStrip'][] = array( &$this, 'ucscSeeIfColored');
 
 # If the trust tab is not selected, or some other tabs are don't worry about things any more.
     if(!$wgRequest->getVal('trust') || $wgRequest->getVal('action')){
@@ -366,22 +362,9 @@ colors text according to trust.'
       }
     }
   }
-  
-  /** 
-   * Turns an ASCII string into an octal encoded one.
-   * Call like this: TextTrust::prepareOutput("This is a test");
-   */
-  static function prepareOutput($command){
-    $escaped = "";
-    foreach (str_split($command) as $c ){
-      $escaped .= sprintf("\\0o%03o", ord($c));
-    }
-    return $escaped;
-  }
 
   /**
-   Run the vote executable.
-
+   Records the vote.
    Called via ajax, so this must be static.
   */
   static function handleVote($user_name_raw, $page_id_raw = 0, $rev_id_raw = 0, $page_title = ""){
@@ -432,6 +415,8 @@ colors text according to trust.'
       $out->addScript($this->trustCSS);
       $this->scripts_added = true;
     }
+
+    //    print $text;
     return true;
   }
 
@@ -476,12 +461,20 @@ colors text according to trust.'
   
   TODO: Make this function work with caching turned on.
  */
- function ucscSeeIfColored(&$parser, &$text, &$strip_state) { 
+ function ucscSeeIfColored(&$parser, &$text, &$strip_state = Null) { 
    global $wgRequest, $wgTrustExplanation, $wgUseAjax, $wgShowVoteButton, $wgDBprefix, $wgNoTrustExplanation, $wgVoteText, $wgThankYouForVoting, $wgNotPartExplanation; 
 
    // Turn off caching for this instanching for this instance.
-   $parser->disableCache();
+   //$parser->disableCache();
+
+   //global $wgOut;
+   //$wgOut->enableClientCache(false);
    
+   //header( 'Cache-Control: no-cache' );
+   
+   //   print_r($wgOut);
+   //print $this->times_rev_loaded. " $text\n";
+
    // Get the db.
    $dbr =& wfGetDB( DB_SLAVE );
 
@@ -523,43 +516,42 @@ colors text according to trust.'
     This method is being called multiple times for each page. 
     We only pull the colored text for the first time through.
    */
-   if ($this->colored){
+  if ($this->colored){
     return true;
   }
-
+  /**  
   if (strstr($text, "{{ns:project}}")) {
     return true;
   }
 
-  if (strstr($text, "{{SITENAME}}")) {
+  if (strstr($text, "{{SITENAME}}")) {  
     return true;
   }
 
-  if (strstr($text, "This page has been accessed {{PLURAL")) {
+  if (strstr($text, "{{PLURAL")) {
     return true;
   }
-
-  //** This is not part of the coloring test **/
-  if (!strstr($text, self::TRUST_COLOR_TOKEN)){
-    $text = $wgNotPartExplanation . "\n" . $text;
-    return true;
-  }
-
+  */
   if ($wgRequest->getVal('diff')){
     // For diffs, look for the absence of the diff token instead of counting
     if(substr($text,0,3) == self::DIFF_TOKEN_TO_COLOR){
       return true;
     }
   }
+  
+  // if we made it here, we are going to color some text
+  $this->colored = true;
 
-  //print "coloring!\n";
-  //print ($text);
-  //print($this->times_rev_loaded);
+   //print "colored\n";
 
-   // if we made it here, we are going to color some text
-   $this->colored = true;
+   //** This is not part of the coloring test **/
+   //if (!strstr($text, self::TRUST_COLOR_TOKEN)){
+   //  $text = $wgNotPartExplanation . "\n" . $text;
+   //  return true;
+   //}
 
    // Get the page id and other data  
+   $colored_text="";
    $page_id=0;
    $rev_timestamp="";
    $rev_user=0;
@@ -622,6 +614,7 @@ colors text according to trust.'
      // Return a message about the missing text.
      $text = $wgNoTrustExplanation . "\n" . $text;
    }
+
    return true;
  }
  
@@ -633,7 +626,23 @@ colors text according to trust.'
  
  /* Turn the finished trust info into a span tag. Also handle closing tags. */
  function ucscOrigin_Finalize(&$parser, &$text) {
-   global $wgScriptPath;
+   global $wgScriptPath, $IP, $wgOut;
+
+   //   print "$text dd\n";
+   if(!$this->colored){
+     if (!strstr($text, "This page has been accessed")){
+       print "not colored";
+       $colored_text = $text;
+       $this->ucscSeeIfColored($parser, $colored_text);
+       $text = $wgOut->parse( $colored_text );
+     } else {
+       print "not colored";
+       $colored_text = $text;
+       $this->ucscSeeIfColored($parser, $colored_text);
+       $wgOut->mBodytext = $wgOut->parse( $colored_text );
+     }
+   } 
+
    $count = 0;
    $text = '<script type="text/javascript" src="'.$wgScriptPath.'/extensions/Trust/js/wz_tooltip.js"></script>' . $text;
    $text = preg_replace('/' . self::TRUST_OPEN_TOKEN . '/', "<", $text, -1, $count);
