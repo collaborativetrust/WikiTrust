@@ -64,7 +64,6 @@ class TextTrust extends TrustBase {
   ## Server forms
   const NOT_FOUND_TEXT_TOKEN = "TEXT_NOT_FOUND";
   const TRUST_COLOR_TOKEN = "<!--trust-->";
-  const CONTENT_URL = "http://localhost:4444/?"; 
 
   ## Context for communicating with the trust server
   const TRUST_TIMEOUT = 10;
@@ -85,6 +84,7 @@ class TextTrust extends TrustBase {
 			'wgTrustTabText' => "Show Trust",
 			'wgTrustExplanation' => 
 			"<p><center><b>This is a product of the text trust algoruthm.</b></center></p>",
+			'wgContentServerURL' => "http://localhost:4444/?"
 			);
 
   ## Median Value of Trust
@@ -246,7 +246,7 @@ function startVote(){
     parent::__construct( );
     global $wgExtensionCredits, $wgShowVoteButton, $wgVoteText, $wgThankYouForVoting;
     global $wgNoTrustExplanation, $wgTrustCmd, $wgVoteRev, $wgTrustLog, $wgTrustDebugLog, $wgRepSpeed;
-    global $wgTrustTabText, $wgTrustExplanation, $wgNotPartExplanation;
+    global $wgTrustTabText, $wgTrustExplanation, $wgNotPartExplanation, $wgContentServerURL;
     
     //Add default values if globals not set.
     if(!$wgShowVoteButton)	
@@ -273,6 +273,8 @@ function startVote(){
       $wgTrustTabText = $this->DEFAULTS['wgTrustTabText'];
     if(!$wgTrustExplanation)
       $wgTrustExplanation = $this->DEFAULTS['wgTrustExplanation'];
+    if(!$wgContentServerURL)
+      $wgContentServerURL = $this->DEFAULTS['wgContentServerURL'];
     
 # Define a setup function
     $wgExtensionFunctions[] = 'ucscColorTrust_Setup';
@@ -364,6 +366,7 @@ colors text according to trust.'
   */
   static function handleVote($user_name_raw, $page_id_raw = 0, $rev_id_raw = 0, $page_title = ""){
     
+    global $wgContentServerURL;
     $response = new AjaxResponse("0");
     
     $dbr =& wfGetDB( DB_SLAVE );
@@ -392,8 +395,8 @@ colors text according to trust.'
 					 )
 				   );
       
-      $vote_str = ("Voting at " . self::CONTENT_URL . "vote=1&rev=$rev_id&page=$page_id&user=$user_id&page_title=$page_title&time=" . wfTimestampNow());
-      $colored_text = file_get_contents(self::CONTENT_URL . "vote=1&rev=$rev_id&page=$page_id&user=$user_id&page_title=$page_title&time=" . 
+      $vote_str = ("Voting at " . $wgContentServerURL . "vote=1&rev=$rev_id&page=$page_id&user=$user_id&page_title=$page_title&time=" . wfTimestampNow());
+      $colored_text = file_get_contents($wgContentServerURL . "vote=1&rev=$rev_id&page=$page_id&user=$user_id&page_title=$page_title&time=" . 
 					wfTimestampNow(), 0, $ctx);
       $response = new AjaxResponse($vote_str);	   
     }
@@ -458,7 +461,7 @@ colors text according to trust.'
    but only if the trust tab is selected.
   */
   function ucscSeeIfColored(&$parser, &$text, &$strip_state = Null) { 
-    global $wgRequest, $wgTrustExplanation, $wgUseAjax, $wgShowVoteButton, $wgDBprefix, $wgNoTrustExplanation, $wgVoteText, $wgThankYouForVoting, $wgNotPartExplanation; 
+    global $wgRequest, $wgTrustExplanation, $wgUseAjax, $wgShowVoteButton, $wgDBprefix, $wgNoTrustExplanation, $wgVoteText, $wgThankYouForVoting, $wgNotPartExplanation, $wgContentServerURL; 
     
     // Get the db.
     $dbr =& wfGetDB( DB_SLAVE );
@@ -549,7 +552,7 @@ colors text according to trust.'
 				 );
     try {
       // Should we do doing this via HTTPS?
-      $colored_raw = (file_get_contents(self::CONTENT_URL . "rev=" . $this->current_rev . "&page=$page_id&page_title=$page_title&time=$rev_timestamp&user=$rev_user", 0, $ctx));
+      $colored_raw = (file_get_contents($wgContentServerURL . "rev=" . $this->current_rev . "&page=$page_id&page_title=$page_title&time=$rev_timestamp&user=$rev_user", 0, $ctx));
     } catch (Exception $e) {
       $colored_raw = "";
     }
