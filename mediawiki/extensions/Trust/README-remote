@@ -14,7 +14,7 @@ require_once( $IP . "/extensions/Trust/Trust.php" );
 
 Use this line:
 
-require_once( $IP . "/extensions/Trust/TrustRemote.php" );
+require_once( $IP . "/extensions/Trust/RemoteTrust.php" );
 
 Also, add this variable to LocalSettings.php:
 $wgContentServerURL = "http://localhost:4444/?";
