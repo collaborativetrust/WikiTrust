@@ -506,6 +506,11 @@ colors text according to trust.'
      // we don't want trust for actions.
      return true;
    }
+
+   if ($wgRequest->getVal('diff')){
+     // or for diffs
+     return true;
+   }
    
    $trust_qs = $_SERVER['QUERY_STRING'];
    if($trust_qs){
