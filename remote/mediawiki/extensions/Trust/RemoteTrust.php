@@ -25,14 +25,6 @@
 # Uses Tool Tip JS library under the LGPL.
 # http://www.walterzorn.com/tooltip/tooltip_e.htm
 
-  // Turn old style errors into exceptions.
-  //function exception_error_handler($errno, $errstr, $errfile, $errline ) {
-  // throw new ErrorException($errstr, 0, $errno, $errfile, $errline);
-  //}
-    
-  // But only for warnings.
-  //set_error_handler("exception_error_handler", E_WARNING);
-
 class TextTrust extends TrustBase {
   
   ## Types of analysis to perform.
@@ -130,114 +122,6 @@ class TextTrust extends TrustBase {
 
   ## Only write a new trust tag when the trust changes.
   var $current_trust = "trust0";
-  
-  var $trustJS = '
-<script type="text/javascript">/*<![CDATA[*/
-var ctrlState = false;
-function showOrigin(revnum) {
-  document.location.href = wgScriptPath + "/index.php?title=" + encodeURIComponent(wgPageName) + "&diff=" + encodeURIComponent(revnum);
-}
-
-// The Vote functionality
-function voteCallback(http_request){
-  if ((http_request.readyState == 4) && (http_request.status == 200)) {
-    document.getElementById("vote-button-done").style.visibility = "visible";
-    document.getElementById("vote-button").style.visibility = "hidden";
-    alert(http_request.responseText);
-    return true;
-  } else {
-    alert(http_request.responseText);
-    return false;
-  }
-}
-
-function getQueryVariable(variable) {
-  var query = window.location.search.substring(1);
-  var vars = query.split("&");
-  for (var i=0;i<vars.length;i++) {
-    var pair = vars[i].split("=");
-    if (pair[0] == variable) {
-      return pair[1];
-    }
-  } 
-  return "";
-}
-
-function startVote(){
-
-  var revID = getQueryVariable("oldid");
-  if (revID == ""){
-    revID = getQueryVariable("diff");
-    if (revID == ""){
-      revID = wgCurRevisionId;
-    }
-  }
-
-  return sajax_do_call( "TextTrust::handleVote", [wgUserName, wgArticleId, revID, wgPageName] , voteCallback ); 
-}
-
-/*]]>*/</script>';
-
-  var $trustCSS = '
-<style type="text/css">/*<![CDATA[*/
-.trust0 {
-  background-color: #FFB947;
-}
-
-.trust1 {
-  background-color: #FFC05C;
-}
-
-.trust2 {
-  background-color: #FFC870;
-}
-
-.trust3 {
-  background-color: #FFD085;
-}
-
-.trust4 {
-  background-color: #FFD899;
-}
-
-.trust5 {
-  background-color: #FFE0AD;
-}
-
-.trust6 {
-  background-color: #FFE8C2;
-}
-
-.trust7 {
-  background-color: #FFEFD6;
-}
-
-.trust8 {
-  background-color: #FFF7EB;
-}
-
-.trust9 {
-  background-color: #FFFFFF;
-}
-
-.trust10 {
-  background-color: #FFFFFF;
-}
-
-#vote-button-done {
-  visibility: hidden;
-  position: absolute;
-  top: 10px;
-  left: 500px;
-}
-
-#vote-button {
-  position: absolute;
-  top: 10px;
-  left: 500px;
-}
-
-/*]]>*/</style>';
 
   public static function &singleton( )
   { return parent::singleton( ); }
@@ -293,7 +177,7 @@ colors text according to trust.'
   // Sets the extension hooks.
   public function setup() {
     parent::setup();
-    global $wgHooks, $wgParser, $wgRequest, $wgUseAjax, $wgShowVoteButton, $wgAjaxExportList, $wgUser;
+    global $wgHooks, $wgParser, $wgRequest, $wgUseAjax, $wgShowVoteButton, $wgAjaxExportList, $wgUser, $wgOut, $wgScriptPath;
     
 # Code which takes the "I vote" action. 
 # This has to be statically called.
@@ -307,7 +191,11 @@ colors text according to trust.'
       return;
     }
     
-# Updater fiered when updating to a new version of MW.
+# Add the js and css files.
+    $wgOut->addScript("<script type=\"text/javascript\" src=\"".$wgScriptPath."/extensions/Trust/js/trust.js\"></script>\n");
+    $wgOut->addScript("<link rel=\"stylesheet\" type=\"text/css\" href=\"".$wgScriptPath."/extensions/Trust/css/trust.css\" />\n");
+
+# Updater fired when updating to a new version of MW.
     $wgHooks['LoadExtensionSchemaUpdates'][] = array(&$this, 'updateDB');
     
 # And add and extra tab.
