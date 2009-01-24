@@ -58,9 +58,6 @@ class TextTrustImpl {
 
   ## Only add the scripts once.
   var $scripts_added = false;
-
-  ## Should we do all the fancy trust processing?
-  var $trust_engaged = false;
     
   ## map trust values to html color codes
   var $COLORS = array(
@@ -90,8 +87,6 @@ class TextTrustImpl {
   var $current_trust = "trust0";
 
   public function TextTrustImpl(){
-    $this->trust_engaged = true;
-
     global $wgShowVoteButton, $wgTrustCmd, $wgTrustLog, 
       $wgTrustDebugLog,  $wgContentServerURL, $wgRepSpeed;
 
@@ -196,8 +191,9 @@ class TextTrustImpl {
     }
 
     // Return if trust is not selected.
-    if (!$this->trust_engaged)
+    if(!$wgRequest->getVal('trust') || $wgRequest->getVal('action')){
       return true;
+    }
    
     // Save the title object, if it is not already present
     if (!$this->title){

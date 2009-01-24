@@ -65,11 +65,11 @@ class TextTrust {
       wfRunHooks( 'ParserFirstCallInit', $wgParser );
     }
     
-# Code which takes the "I vote" action. 
-# This has to be statically called.
-    if($wgUseAjax && $wgShowVoteButton){
-      $wgAjaxExportList[] = "TextTrustImpl::handleVote";
-    }
+# Updater fired when updating to a new version of MW.
+    $wgHooks['LoadExtensionSchemaUpdates'][] = 'TextTrustUpdate::updateDB';
+    
+# And add and extra tab.
+    $wgHooks['SkinTemplateTabs'][] = 'TextTrust::ucscTrustTemplate';
     
     // Is the user opting to use wikitrust?
     $tname = "gadget-WikiTrust";
@@ -77,17 +77,15 @@ class TextTrust {
       return;
     }
     
-# Updater fired when updating to a new version of MW.
-    $wgHooks['LoadExtensionSchemaUpdates'][] = 'TextTrustUpdate::updateDB';
-    
-# And add and extra tab.
-    $wgHooks['SkinTemplateTabs'][] = 'TextTrust::ucscTrustTemplate';
-    
-# If the trust tab is not selected, or some other tabs are don't worry about things any more.
+    // Return if trust is not selected.
     if(!$wgRequest->getVal('trust') || $wgRequest->getVal('action')){
-      // $this->trust_engaged = false;
       return;
-    } 
+    }
+
+# Code which takes the "I vote" action. 
+    if($wgUseAjax && $wgShowVoteButton){
+      $wgAjaxExportList[] = "TextTrustImpl::handleVote";
+    }
     
 # Add trust CSS and JS
     $wgHooks['OutputPageBeforeHTML'][] ='TextTrust::ucscColorTrust_OP';
