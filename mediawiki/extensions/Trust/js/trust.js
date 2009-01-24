@@ -8,10 +8,11 @@ function voteCallback(http_request){
   if ((http_request.readyState == 4) && (http_request.status == 200)) {
     document.getElementById("vote-button-done").style.visibility = "visible";
     document.getElementById("vote-button").style.visibility = "hidden";
-    alert(http_request.responseText);
+    //alert(http_request.responseText);
     return true;
   } else {
-    alert(http_request.responseText);
+    // Turn off error reporting.
+    //alert(http_request.responseText);
     return false;
   }
 }
@@ -38,5 +39,5 @@ function startVote(){
     }
   }
 
-  return sajax_do_call( "TextTrust::handleVote", [wgUserName, wgArticleId, revID, wgPageName] , voteCallback ); 
+  return sajax_do_call( "TextTrustImpl::handleVote", [wgUserName, wgArticleId, revID, wgPageName] , voteCallback ); 
 }
