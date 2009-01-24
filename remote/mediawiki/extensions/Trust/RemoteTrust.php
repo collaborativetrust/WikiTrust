@@ -42,6 +42,7 @@ $wgExtensionCredits['other'][] = array(
 				       );
 			 
 $wgAutoloadClasses['TextTrustImpl'] = $dir . 'RemoteTrustImpl.php';
+$wgAutoloadClasses['TextTrustUpdate'] = $dir . 'RemoteTrustUpdate.php';
 $wgExtensionFunctions[] = 'TextTrust::init';
 
 class TextTrust {
@@ -77,7 +78,7 @@ class TextTrust {
     }
     
 # Updater fired when updating to a new version of MW.
-    $wgHooks['LoadExtensionSchemaUpdates'][] = 'TextTrust::updateDB';
+    $wgHooks['LoadExtensionSchemaUpdates'][] = 'TextTrustUpdate::updateDB';
     
 # And add and extra tab.
     $wgHooks['SkinTemplateTabs'][] = 'TextTrust::ucscTrustTemplate';
@@ -101,38 +102,14 @@ class TextTrust {
     $wgHooks['ParserAfterTidy'][] = 'TextTrust::ucscOrigin_Finalize';
   }
 
-  /**
-   * Update the DB when MW is updated.
-   * This assums that the db has permissions to create tables.
-   */
-  public static function updateDB(){
-   
-    require_once(dirname(__FILE__) . '/' . "TrustUpdateScripts.inc");
-    
-    $db =& wfGetDB( DB_MASTER );
-    
-    // First check to see what tables have already been created.
-    $res = $db->query("show tables");
-    while ($row = $db->fetchRow($res)){
-      $db_tables[$row[0]] = True;
-    }
-    
-    foreach ($create_scripts as $table => $scripts) {
-      if (!$db_tables[$table]){
-	foreach ($scripts as $script){
-	  $db->query($script);
-	}
-      }
-    }
-  }
-
   private static function getTrustObj(){
     if (!self::$trust){
       self::$trust = new TextTrustImpl();
     }
   }
-  
+
   // Handle trust tab.
+  // This is here because we use it all the time. 
   public static function ucscTrustTemplate($skin, &$content_actions){
     
     global $wgRequest;

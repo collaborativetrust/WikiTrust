@@ -112,34 +112,7 @@ class TextTrustImpl {
     if(!$wgContentServerURL)
       $wgContentServerURL = $this->DEFAULTS['wgContentServerURL'];
   }
-  
-  /**
-   * Update the DB when MW is updated.
-   * This assums that the db has permissions to create tables.
-   */
-  function updateDB(){
-    // Create only those tables missing.
-    // Create the needed tables, if neccesary.
-    // Pull in the create scripts.
-    require_once("TrustUpdateScripts.inc");
-    
-    $db =& wfGetDB( DB_MASTER );
-    
-    // First check to see what tables have already been created.
-    $res = $db->query("show tables");
-    while ($row = $db->fetchRow($res)){
-      $db_tables[$row[0]] = True;
-    }
-    
-    foreach ($create_scripts as $table => $scripts) {
-      if (!$db_tables[$table]){
-	foreach ($scripts as $script){
-	  $db->query($script);
-	}
-      }
-    }
-  }
-  
+   
   /**
    Records the vote.
    Called via ajax, so this must be static.
