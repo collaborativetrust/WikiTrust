@@ -32,17 +32,21 @@ POSSIBILITY OF SUCH DAMAGE.
 
 """
 
-# Given a file and experiment, deletes the file from the experiment
+# Works with RemoteTrust for connecting to a remote wiki.
 
 import MySQLdb
 import getopt
-import ConfigParser                                                             import zlib          
+import ConfigParser                                                         
+import zlib
+import gzip
+import cStringIO
+import time
 
 from mod_python import util
 from mod_python import apache
 
-BASE_DIR = "."                                                     
-INI_FILE = BASE_DIR + "db_options.ini"   
+BASE_DIR = "/home/ipye/git/wikitrust/test-scripts/" 
+INI_FILE = BASE_DIR + "db_access_data.ini"   
 FILE_ENDING_SEP = " "
 DB_PREFIX = ""
 not_found_text_token = "TEXT_NOT_FOUND"
@@ -51,9 +55,19 @@ sleep_time_sec = 3
 connection = None
 curs = None
 
+# Compress a string
+def compressBuf(buf):
+   zbuf = cStringIO.StringIO()
+   zfile = gzip.GzipFile(mode = 'wb',  fileobj = zbuf, compresslevel = 6)
+   zfile.write(buf)
+   zfile.close()
+   return zbuf.getvalue()
+
+# Start a persisent connection to the db
 def connect_db():
   global connection
   global curs
+  global DB_PREFIX
 
   ## parse the ini file
   ini_config = ConfigParser.ConfigParser()
@@ -65,33 +79,60 @@ def connect_db():
       , db=ini_config.get('db', 'db') )
   curs = connection.cursor()
 
+  ## Prefix
+  DB_PREFIX = ini_config.get('db', 'prefix')
+
+# add the revision to the queue for coloring
 def mark_for_coloring(rev_id, page_id, user_id, rev_time, page_title):
-  sql = """INSERT INTO %(prefix)swikitrust_missing_revs (revision_id, page_id, page_title, rev_time, user_id) VALUES (%(rid)d, %(pid)d, %(title)s, %(time)s, %(vid)d) ON DUPLICATE KEY UPDATE requested_on = now(), processed = false"""
-  args = {'prefix':DB_PREFIX, 'rid':rev_id, 'pid':page_id, 'title':page_title, 
-          'time':v_time, 'vid':user_id }
-  curs.execute(sql, args)
+  global DB_PREFIX
+  global curs
 
+  sql = """INSERT INTO """+DB_PREFIX+"""wikitrust_missing_revs (revision_id, page_id, page_title, rev_time, user_id) VALUES (%(rid)s, %(pid)s, %(title)s, %(time)s, %(vid)s) ON DUPLICATE KEY UPDATE requested_on = now(), processed = false"""
+  args = {'rid':rev_id, 'pid':page_id, 'title':page_title, 
+          'time':rev_time, 'vid':user_id }
+
+  curs.execute(sql, args)
+  connection.commit()
+
+# Insert the vote into the db
 def handle_vote(req, rev_id, page_id, user_id, v_time, page_title):
-  sql = """INSERT INTO %(prefix)swikitrust_vote (revision_id, page_id, voter_id, voted_on) VALUES (%(rid)d, %(pid)d, %(vid)d, %(time)s)"""
-  args = {'prefix':DB_PREFIX, 'rid':rev_id, 'pid':page_id, 'vid':user_id,
-          'time':v_time}
-  curs.execute(sql, args)
+  global DB_PREFIX
+  global curs
 
-  mark_for_coloring(rev_id, page_id, user_id, rev_time, page_title)
+  sql = """INSERT INTO """+DB_PREFIX+"""wikitrust_vote (revision_id, page_id, voter_id, voted_on) VALUES (%(rid)s, %(pid)s, %(vid)s, %(time)s) ON DUPLICATE KEY UPDATE voted_on = %(time)s"""
+  args = {'rid':rev_id, 'pid':page_id, 'vid':user_id, 'time':v_time}
   
+  curs.execute(sql, args)
+  connection.commit()
+
+  mark_for_coloring(rev_id, page_id, user_id, v_time, page_title)
+  
+  # token saying things are ok
   req.write("good")
 
+# Return colored text from the DB
 def fetch_colored_markup(rev_id, page_id, user_id, rev_time, page_title):
-  sql = """SELECT revision_text FROM %swikitrust_colored_markup WHERE revision_id = %s"""
-  args = {}
+  global DB_PREFIX
+  global curs
+  global not_found_text_token
+
+  sql = """SELECT revision_text,median FROM """ + DB_PREFIX + \
+      """wikitrust_colored_markup JOIN """+ DB_PREFIX + \
+      """wikitrust_global WHERE revision_id = %s"""
+  args = (rev_id)
   numRows = curs.execute(sql, args)
 
   if (numRows > 0):
-    dbRow = curs.fetchone()  
-    return dbRow[0]
+    dbRow = curs.fetchone()
+    return "%f,%s" % (dbRow[1],dbRow[0])
   return not_found_text_token
 
+# Return colored text if it exists
 def handle_text_request(req, rev_id, page_id, user_id, rev_time, page_title):
+  global DB_PREFIX
+  global sleep_time_sec
+  global not_found_text_token
+
   res = fetch_colored_markup(rev_id, page_id, user_id, rev_time, page_title)
   if (res == not_found_text_token):
     mark_for_coloring(rev_id, page_id, user_id, rev_time, page_title)
@@ -101,16 +142,26 @@ def handle_text_request(req, rev_id, page_id, user_id, rev_time, page_title):
   if (res == not_found_text_token):
     req.write(not_found_text_token)
   else:
-    compressed = compress(res)
+    compressed = compressBuf(res)
+ 
     req.content_type = "application/x-gzip"
     req.content_length = len (compressed)
+    req.send_http_header()
+
     req.write(compressed)
   
+# Before we start, connect to the db
 connect_db()
 
+# Entry point for web request.
 def handler(req):
 
-  req.content_type = "text/plain" ## needed for web based things
+  ## Default mimetype
+  req.content_type = "text/plain" 
+
+  # Restart the connection to the DB if its not good.
+  if (not connection.ping()):
+    connect_db()
 
   ## Parse the form inputs
   form = util.FieldStorage(req)
@@ -121,10 +172,14 @@ def handler(req):
   user_id = form.getfirst("user", -1)
   is_vote = form.getfirst("vote", None)
   
-  if is_vote:
-    handle_vote(req, rev_id, page_id, user_id, time_str, page_title)
-  else:
-    handle_text_request(req, rev_id, page_id, user_id, time_str, page_title)
+  if (page_id < 0) or (rev_id < 0) or (page_title == "") or (time_str == "") \
+        or (user_id < 0):
+    req.write("bad")
+  else:  
+    if is_vote:
+      handle_vote(req, rev_id, page_id, user_id, time_str, page_title)
+    else:
+      handle_text_request(req, rev_id, page_id, user_id, time_str, page_title)
 
   return apache.OK
 

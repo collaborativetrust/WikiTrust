@@ -26,12 +26,12 @@
 # http://www.walterzorn.com/tooltip/tooltip_e.htm
 
   // Turn old style errors into exceptions.
-function exception_error_handler($errno, $errstr, $errfile, $errline ) {
-  throw new ErrorException($errstr, 0, $errno, $errfile, $errline);
-}
+  //function exception_error_handler($errno, $errstr, $errfile, $errline ) {
+  // throw new ErrorException($errstr, 0, $errno, $errfile, $errline);
+  //}
     
   // But only for warnings.
-set_error_handler("exception_error_handler", E_WARNING);
+  //set_error_handler("exception_error_handler", E_WARNING);
 
 class TextTrust extends TrustBase {
   
@@ -84,7 +84,7 @@ class TextTrust extends TrustBase {
 			'wgTrustTabText' => "Show Trust",
 			'wgTrustExplanation' => 
 			"<p><center><b>This is a product of the text trust algoruthm.</b></center></p>",
-			'wgContentServerURL' => "http://localhost:4444/?"
+			'wgContentServerURL' => "http://localhost:10302/?"
 			);
 
   ## Median Value of Trust
@@ -143,7 +143,7 @@ function voteCallback(http_request){
   if ((http_request.readyState == 4) && (http_request.status == 200)) {
     document.getElementById("vote-button-done").style.visibility = "visible";
     document.getElementById("vote-button").style.visibility = "hidden";
-   // alert(http_request.responseText);
+    alert(http_request.responseText);
     return true;
   } else {
     alert(http_request.responseText);
@@ -507,14 +507,14 @@ colors text according to trust.'
     if ($this->colored){
       return true;
     }
-    
+   
     if ($wgRequest->getVal('diff')){
       // For diffs, look for the absence of the diff token instead of counting
       if(substr($text,0,3) == self::DIFF_TOKEN_TO_COLOR){
 	return true;
       }
     }
-  
+
     // if we made it here, we are going to color some text
     $this->colored = true;
     
@@ -524,7 +524,7 @@ colors text according to trust.'
     //  $text = $wgNotPartExplanation . "\n" . $text;
     //  return true;
     //}
-    
+
     // Get the page id and other data  
     $colored_text="";
     $page_id=0;
@@ -553,18 +553,25 @@ colors text according to trust.'
     try {
       // Should we do doing this via HTTPS?
       $colored_raw = (file_get_contents($wgContentServerURL . "rev=" . $this->current_rev . "&page=$page_id&page_title=$page_title&time=$rev_timestamp&user=$rev_user", 0, $ctx));
+      // print $colored_raw;
+
+
+
     } catch (Exception $e) {
+      print_r ($e);
       $colored_raw = "";
     }
     
     if ($colored_raw && $colored_raw != self::NOT_FOUND_TEXT_TOKEN){
       // Work around because of issues with php's built in 
       // gzip function.
-      $f = tempnam('/tmp', 'gz_fix');
-      file_put_contents($f, $colored_raw);
-      $colored_raw = file_get_contents('compress.zlib://' . $f);
-      unlink($f);
+      //$f = tempnam('/tmp', 'gz_fix');
+      //file_put_contents($f, $colored_raw);
+      //$colored_raw = file_get_contents('compress.zlib://' . $f);
+      //unlink($f);
       
+      $colored_raw = gzinflate(substr($colored_raw, 10));
+
       // Pick off the median value first.
       $colored_data = explode(",", $colored_raw, 2);
       $colored_text = $colored_data[1];
