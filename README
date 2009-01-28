@@ -200,7 +200,8 @@ Follow these instructions in place of step 2) above.
 
         Get godi from http://godi.camlcity.org/godi/index.html and
         download godi. Follow the instructions to install it.  Install
-        the following Ocaml packages from godi:
+        the following Ocaml packages from godi (use godi_console to 
+	install them):
 
           godi-extlib
           godi-findlib
