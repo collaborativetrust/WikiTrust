@@ -64,9 +64,6 @@ class TextTrust {
       global $wgParser;
       wfRunHooks( 'ParserFirstCallInit', $wgParser );
     }
-    
-    // GetColoredText
-    $wgAjaxExportList[] = "TextTrustImpl::getColoredText";
 
 # Updater fired when updating to a new version of MW.
     $wgHooks['LoadExtensionSchemaUpdates'][] = 'TextTrustUpdate::updateDB';

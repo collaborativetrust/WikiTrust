@@ -205,8 +205,9 @@ class TextTrustImpl {
       $response = new AjaxResponse($text);
     } else {
       // text not found.
+      $response = new AjaxResponse(self::NOT_FOUND_TEXT_TOKEN);
     } 
-      
+    
     return $response;
   }
 }
