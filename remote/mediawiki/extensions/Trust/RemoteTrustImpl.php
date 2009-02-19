@@ -36,7 +36,7 @@ class TextTrustImpl {
   const TRUST_TIMEOUT = 10;
 
   ## Median Value of Trust
-  var $median = 1.0;
+  static $median = 1.0;
 
   ## Number of times a revision is looked at.
   var $times_rev_loaded = 0;
@@ -48,7 +48,7 @@ class TextTrustImpl {
   var $colored = false;
 
   ## Don't close the first opening span tag
-  var $first_span = true;
+  static $first_span = true;
 
   ## And the same for origin tags
   var $first_origin = true;
@@ -60,7 +60,7 @@ class TextTrustImpl {
   var $scripts_added = false;
     
   ## map trust values to html color codes
-  var $COLORS = array(
+  static $COLORS = array(
 		  "trust0",
 		  "trust1",
 		  "trust2",
@@ -113,7 +113,7 @@ class TextTrustImpl {
    Called via ajax, so this must be static.
   */
   static function handleVote($user_name_raw, $page_id_raw = 0, 
-			     $rev_id_raw = 0, $page_title = ""){
+			     $rev_id_raw = 0, $page_title_raw = ""){
     
     global $wgContentServerURL;
     $response = new AjaxResponse("0");
@@ -123,6 +123,7 @@ class TextTrustImpl {
     $userName = $dbr->strencode($user_name_raw, $dbr);
     $page_id = $dbr->strencode($page_id_raw, $dbr);
     $rev_id = $dbr->strencode($rev_id_raw, $dbr);
+    $page_title = $dbr->strencode($page_title_raw, $dbr);
     
     if($page_id){
       // First, look up the id numbers from the page and user strings
@@ -279,7 +280,7 @@ class TextTrustImpl {
       $colored_text = $colored_data[1];
       if (preg_match("/^[+-]?(([0-9]+)|([0-9]*\.[0-9]+|[0-9]+\.[0-9]*)|
 			    (([0-9]+|([0-9]*\.[0-9]+|[0-9]+\.[0-9]*))[eE][+-]?[0-9]+))$/", $colored_data[0])){
-	$this->median = $colored_data[0];
+	self::$median = $colored_data[0];
       } 
       
       // First, make sure that there are not any instances of our tokens in the colored_text
@@ -345,6 +346,27 @@ class TextTrustImpl {
     return true;
   }
   
+  static function handleParserRe($matches){
+    
+    $normalized_value = min(self::MAX_TRUST_VALUE, 
+			    max(self::MIN_TRUST_VALUE, 
+				(($matches[1] + .5) * 
+				 self::TRUST_MULTIPLIER) 
+				/ self::$median));
+    $class = self::$COLORS[$normalized_value];
+    $output = self::TRUST_OPEN_TOKEN . "span class=\"$class\"" 
+      . "onmouseover=\"Tip('".$matches[3]."')\" onmouseout=\"UnTip()\""
+      . "onclick=\"showOrigin(" 
+      . $matches[2] . ")\"" . self::TRUST_CLOSE_TOKEN;
+    
+    if (self::$first_span){
+      self::$first_span = false;
+    } else {
+      $output = self::TRUST_OPEN_TOKEN . "/span" . self::TRUST_CLOSE_TOKEN . $output;
+    }
+    return $output;
+  }
+  
   /* Text Trust */
   function ucscColorTrust_Render( &$parser, $combinedValue = "0,0,0" ) {
     
@@ -361,8 +383,8 @@ class TextTrustImpl {
       . $splitVals[1] . ")\"" . self::TRUST_CLOSE_TOKEN;
     
     $this->current_trust = $class;
-    if ($this->first_span){
-      $this->first_span = false;
+    if (self::$first_span){
+      self::$first_span = false;
     } else {
       $output = self::TRUST_OPEN_TOKEN . "/span" . self::TRUST_CLOSE_TOKEN . $output;
     }
@@ -377,14 +399,100 @@ class TextTrustImpl {
   function computeColorFromFloat($trust){
     $normalized_value = min(self::MAX_TRUST_VALUE, max(self::MIN_TRUST_VALUE, 
 						       (($trust + .5) * self::TRUST_MULTIPLIER) 
-						       / $this->median));
+						       / self::$median));
     return $this->computeColor3($normalized_value);
   }
   
   /* Maps a trust value to a HTML color representing the trust value. */
   function computeColor3($fTrustValue){
-    return $this->COLORS[$fTrustValue];
+    return self::$COLORS[$fTrustValue];
   } 
+
+   /**
+   Returns colored markup.
+
+   @return colored markup.
+  */
+  static function getColoredText($page_id_raw, 
+				 $rev_id_raw, 
+				 $page_title_raw){
+    global $wgParser, $wgContentServerURL, $wgUser;
+    $response = new AjaxResponse("0");
+    
+
+    $dbr =& wfGetDB( DB_SLAVE );
+    
+    $page_id = $dbr->strencode($page_id_raw, $dbr);
+    $rev_id = $dbr->strencode($rev_id_raw, $dbr);
+    $page_title = $dbr->strencode($page_title_raw, $dbr);
+    
+    $ctx = stream_context_create(
+				 array('http' => array(
+						       'timeout' => 
+						       self::TRUST_TIMEOUT
+						       )
+				       )
+				 );
+    
+    // Should we do doing this via HTTPS?
+    $colored_raw = (file_get_contents($wgContentServerURL . "rev=" . 
+				      urlencode($rev_id) . 
+				      "&page=".urlencode($page_id).
+				      "&page_title=".
+				      urlencode($page_title)."&time=".
+				      urlencode(wfTimestampNow())."&user="
+				      .urlencode(0)."", 0, $ctx));
+    
+    if ($colored_raw && $colored_raw != self::NOT_FOUND_TEXT_TOKEN){
+    
+      // Inflate. Pick off the first 10 bytes for python-php conversion.
+      $colored_raw = gzinflate(substr($colored_raw, 10));
+      
+      // Pick off the median value first.
+      $colored_data = explode(",", $colored_raw, 2);
+      $colored_text = $colored_data[1];
+      if (preg_match("/^[+-]?(([0-9]+)|([0-9]*\.[0-9]+|[0-9]+\.[0-9]*)|
+			    (([0-9]+|([0-9]*\.[0-9]+|[0-9]+\.[0-9]*))[eE][+-]?[0-9]+))$/", $colored_data[0])){
+	self::$median = $colored_data[0];
+      }
+
+      // First, make sure that there are not any instances of our tokens in the colored_text
+      $colored_text = str_replace(self::TRUST_OPEN_TOKEN, "", $colored_text);
+      $colored_text = str_replace(self::TRUST_CLOSE_TOKEN, "", $colored_text);
+      
+      $colored_text = preg_replace("/&apos;/", "'", $colored_text, -1);
+      
+      $colored_text = preg_replace("/&amp;/", "&", $colored_text, -1);
+      
+      $colored_text = preg_replace("/&lt;/", self::TRUST_OPEN_TOKEN, $colored_text, -1);
+      $colored_text = preg_replace("/&gt;/", self::TRUST_CLOSE_TOKEN, $colored_text, -1);
+
+      $title = Title::newFromText($page_title);
+      $options = ParserOptions::newFromUser($wgUser);
+      $parsed = $wgParser->parse($colored_text, $title, $options);
+      $text = $parsed->getText();
+      
+      $count = 0;
+      $text = preg_replace_callback("/\{\{#t:(\d+),(\d+),(.*?)\}\}/",
+				    "TextTrustImpl::handleParserRe",
+				    $text,
+				    -1,
+				    $count
+				    );
+      $text = '<script type="text/javascript" src="'.$wgScriptPath.'/extensions/Trust/js/wz_tooltip.js"></script>' . $text;
+      $text = preg_replace('/' . self::TRUST_OPEN_TOKEN . '/', "<", $text, -1, $count);
+      $text = preg_replace('/' . self::TRUST_CLOSE_TOKEN .'/', ">", $text, -1, $count);
+      $text = preg_replace('/<\/p>/', "</span></p>", $text, -1, $count);
+      $text = preg_replace('/<p><\/span>/', "<p>", $text, -1, $count);
+      $text = preg_replace('/<li><\/span>/', "<li>", $text, -1, $count);
+      
+      $response = new AjaxResponse($text);
+    } else {
+      // text not found.
+    } 
+      
+    return $response;
+  }
 }
 
 ?>

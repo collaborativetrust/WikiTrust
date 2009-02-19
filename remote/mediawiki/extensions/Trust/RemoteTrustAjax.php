@@ -41,14 +41,11 @@ $wgExtensionCredits['other'][] = array(
 				       'Text is colored according to how much it has been revised.  An orange background indicates new, unrevised, text;  white is for text that has been revised by many reputed authors.  If you click on a word, you will be redirected to the diff corresponding to the edit where the word was introduced.  If you hover over a word, a pop-up displays the word author.'
 				       );
 			 
-$wgAutoloadClasses['TextTrustImpl'] = $dir . 'RemoteTrustImpl.php';
+$wgAutoloadClasses['TextTrustImpl'] = $dir . 'RemoteTrustImplAjax.php';
 $wgAutoloadClasses['TextTrustUpdate'] = $dir . 'RemoteTrustUpdate.php';
 $wgExtensionFunctions[] = 'TextTrust::init';
 
 class TextTrust {
-  
-  // Instance of our TrustImpl class
-  private static $trust;
 
   /**
    * Initializes and configures the extension.
@@ -65,25 +62,13 @@ class TextTrust {
       wfRunHooks( 'ParserFirstCallInit', $wgParser );
     }
     
-    // GetColoredText
-    $wgAjaxExportList[] = "TextTrustImpl::getColoredText";
+    # GetColoredText Functionality
+    if($wgUseAjax){ 
+      $wgAjaxExportList[] = "TextTrustImpl::getColoredText";
+    }
 
 # Updater fired when updating to a new version of MW.
     $wgHooks['LoadExtensionSchemaUpdates'][] = 'TextTrustUpdate::updateDB';
-    
-# And add and extra tab.
-    $wgHooks['SkinTemplateTabs'][] = 'TextTrust::ucscTrustTemplate';
-    
-    // Is the user opting to use wikitrust?
-    $tname = "gadget-WikiTrust";
-    if (!$wgUser->getOption( $tname ) ) {
-      return;
-    }
-    
-    // Return if trust is not selected.
-    if(!$wgRequest->getVal('trust') || $wgRequest->getVal('action')){
-      return;
-    }
 
 # Code which takes the "I vote" action. 
     if($wgUseAjax && $wgShowVoteButton){
@@ -92,73 +77,22 @@ class TextTrust {
     
 # Add trust CSS and JS
     $wgHooks['OutputPageBeforeHTML'][] ='TextTrust::ucscColorTrust_OP';
-    
-# Add a hook to initialise the magic words
-    $wgHooks['LanguageGetMagic'][] = 'TextTrust::ucscColorTrust_Magic';
-    
-# Set a function hook associating the blame and trust words with a callback function
-    $wgParser->setFunctionHook( 't', 'TextTrust::ucscColorTrust_Render');
-    
-# After everything, make the blame info work
-    $wgHooks['ParserAfterTidy'][] = 'TextTrust::ucscOrigin_Finalize';
   }
 
-  private static function getTrustObj(){
-    if (!self::$trust){
-      self::$trust = new TextTrustImpl();
-    }
-  }
-
-  // Handle trust tab.
-  // This is here because we use it all the time. 
-  public static function ucscTrustTemplate($skin, &$content_actions){
-    global $wgRequest;
-    wfLoadExtensionMessages('RemoteTrust');
-    
-    if ($wgRequest->getVal('action') || $wgRequest->getVal('diff')){
-      // we don't want trust for actions or diffs.
-      return true;
-    }
-    
-    $trust_qs = $_SERVER['QUERY_STRING'];
-    if($trust_qs){
-      $trust_qs = "?" . $trust_qs .  "&trust=t";
-    } else {
-      $trust_qs .= "?trust=t"; 
-    }
-    
-    $content_actions['trust'] = array ( 'class' => '',
-					'text' => 
-					wfMsgNoTrans("wgTrustTabText"),
-					'href' => 
-					$_SERVER['PHP_SELF'] . $trust_qs );
-    
-    if($wgRequest->getVal('trust')){
-      $content_actions['trust']['class'] = 'selected';
-      $content_actions['nstab-main']['class'] = '';
-      $content_actions['nstab-main']['href'] .= '';
-    } else {
-      $content_actions['trust']['href'] .= '';
-    }
-    return true;
-  }
-  
   public static function ucscColorTrust_OP(&$out, &$text){
-    self::getTrustObj();
-    return self::$trust->ucscColorTrust_OP($out, $text);
-  }
-  public static function ucscColorTrust_Magic(&$magicWords, $langCode){
-    self::getTrustObj();
-    return self::$trust->ucscColorTrust_Magic($magicWords, $langCode);
-  }
-  public static function ucscColorTrust_Render(&$parser, 
-					       $combinedValue = "0,0,0"){
-    self::getTrustObj();
-    return self::$trust->ucscColorTrust_Render($parser, $combinedValue);
-  }
-  public static function ucscOrigin_Finalize(&$parser, &$text){
-    self::getTrustObj();
-    return self::$trust->ucscOrigin_Finalize($parser, $text);
+    global $wgScriptPath;
+    wfLoadExtensionMessages('RemoteTrust');
+
+    $out->addScript("<script type=\"text/javascript\" src=\"".$wgScriptPath."/extensions/Trust/js/trust.js\"></script>\n");
+    $out->addScript("<link rel=\"stylesheet\" type=\"text/css\" href=\"".$wgScriptPath."/extensions/Trust/css/trust.css\" />\n");
+
+    $ctext_html = "<div id='text-button'><input type='button' name='ctext' value='getColoredText' onclick='startGetColoredText()'></div>";
+    $vtext_html = "<div id='vote-button'><input type='button' name='vote' value='" . wfMsgNoTrans("wgVoteText") . "' onclick='startVote()' /></div><div id='vote-button-done'>". wfMsgNoTrans("wgThankYouForVoting") ."</div>";
+    
+    $out->addHTML($ctext_html);
+    $out->addHTML($vtext_html);
+
+    return true;
   }
 }    
 

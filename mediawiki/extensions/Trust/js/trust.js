@@ -41,3 +41,28 @@ function startVote(){
 
   return sajax_do_call( "TextTrustImpl::handleVote", [wgUserName, wgArticleId, revID, wgPageName] , voteCallback ); 
 }
+
+function coloredTextCallback(http_request){
+  if ((http_request.readyState == 4) && (http_request.status == 200)) {
+    alert("response: " + http_request.responseText);
+    return true;
+  } else {
+    // Turn off error reporting.
+    alert("error: " + http_request.responseText);
+    return false;
+  }
+}
+
+function startGetColoredText(){
+  var revID = getQueryVariable("oldid");
+  if (revID == ""){
+    revID = getQueryVariable("diff");
+    if (revID == ""){
+      revID = wgCurRevisionId;
+    }
+  }
+  
+  return sajax_do_call("TextTrustImpl::getColoredText", 
+		       [wgArticleId, revID, wgPageName], 
+		       coloredTextCallback); 
+}
