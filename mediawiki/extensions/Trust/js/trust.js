@@ -63,6 +63,7 @@ function startGetColoredText(){
   }
   
   return sajax_do_call("TextTrustImpl::getColoredText", 
-		       [wgArticleId, revID, wgPageName], 
+		       // wgArticleId, revID,
+		       [wgPageName, wgArticleId, revID], 
 		       coloredTextCallback); 
 }

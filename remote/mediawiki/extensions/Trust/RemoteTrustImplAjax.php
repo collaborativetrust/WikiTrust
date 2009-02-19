@@ -129,12 +129,28 @@ class TextTrustImpl {
 
    @return colored markup.
   */
-  static function getColoredText($page_id_raw, 
-				 $rev_id_raw, 
-				 $page_title_raw){
-    global $wgParser, $wgContentServerURL, $wgUser;
+  static function getColoredText($page_title_raw,
+				 $page_id_raw = NULL, 
+				 $rev_id_raw = NULL){
+    global $wgParser, $wgContentServerURL, $wgWikiApiURL, $wgUser;
     $response = new AjaxResponse("0");
     
+    if(!$page_id_raw || !$rev_id_raw){
+      $data = array('action'=>'query',
+		    'prop'=>'revisions',
+		    'titles'=>$page_title_raw,
+		    'rvlimit'=>'1',
+		    'rvprop' => 'ids',
+		    'format' => 'json'
+		    );
+      
+      $page_info_raw = file_get_contents($wgWikiApiURL
+					 .http_build_query($data));
+      $page_json = json_decode($page_info_raw, true);
+      $pages_arr = array_keys($page_json["query"]["pages"]);
+      $page_id_raw = $pages_arr[0];
+      $rev_id_raw = $page_json["query"]["pages"][$page_id_raw]["revisions"][0]["revid"];
+    }
 
     $dbr =& wfGetDB( DB_SLAVE );
     
