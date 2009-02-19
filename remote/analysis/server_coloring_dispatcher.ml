@@ -50,6 +50,7 @@ let custom_line_format = [] @ command_line_format
 let _ = Arg.parse custom_line_format noop "Usage: dispatcher";;
 
 let working_children = Hashtbl.create max_concurrent_procs
+let user_id_cache = Hashtbl.create 1000
 
 (* Prepares the database connection information *)
 let mediawiki_db = {
@@ -156,7 +157,13 @@ in
    or asks a web service for it if we do not. 
 *)
 let get_user_id u_name =
-  try db # get_user_id u_name with DB_Not_Found -> get_user_id u_name
+  try Hashtbl.find user_id_cache u_name with Not_found -> (
+    let u_id = try db # get_user_id u_name with DB_Not_Found -> 
+      get_user_id u_name
+    in
+      Hashtbl.add user_id_cache u_name u_id;
+      u_id
+  )
 in
 
 (* Color the asked for revision. *)

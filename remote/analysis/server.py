@@ -160,8 +160,11 @@ def handler(req):
   req.content_type = "text/plain" 
 
   # Restart the connection to the DB if its not good.
-  if (not connection.ping()):
-    connect_db()
+  try:
+     if (not connection.ping()):
+        connect_db()
+  except OperationalError:
+     connect_db()
 
   ## Parse the form inputs
   form = util.FieldStorage(req)

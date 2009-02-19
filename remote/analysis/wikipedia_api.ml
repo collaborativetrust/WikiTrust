@@ -169,7 +169,7 @@ let fetch_page_and_revs_after (page_title : string) (rev_date : string) : (wiki_
     ^ "?action=query&prop=revisions|"
     ^ "info&format=xml&inprop=&rvprop=ids|flags|timestamp|user|size|comment|"
     ^ "content&rvstart=" ^ rev_date ^ "&rvlimit=" ^ rev_lim
-    ^ "&rvdir=newer&titles=" ^ page_title in
+    ^ "&rvdir=newer&titles=" ^ (Netencoding.Url.encode page_title) in
     if !Online_command_line.dump_db_calls then Printf.printf "%s\n" url;
     let res = run_call url in
     let api = Xml.parse_string res in
@@ -185,7 +185,8 @@ let fetch_page_and_revs_after (page_title : string) (rev_date : string) : (wiki_
     
 (* Given a user_name, returns the corresponding user_id *)
 let get_user_id (user_name : string) : int =
-  let url = !Online_command_line.user_id_server ^ "?n=" ^ user_name in
+  let safe_user_name = Netencoding.Url.encode user_name in
+  let url = !Online_command_line.user_id_server ^ "?n=" ^ safe_user_name in
     if !Online_command_line.dump_db_calls then Printf.printf "%s\n" url;
     let uids = ExtString.String.nsplit (run_call url) "`" in
     let uid = List.nth uids 1 in
