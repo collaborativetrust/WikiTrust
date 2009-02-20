@@ -57,8 +57,8 @@ from mod_python import util
 from mod_python import apache
 
 # Fetch this via an enviromental paramiter.
-BASE_DIR = os.environ["WIKITRUST_BASE_DIR"]
-INI_FILE = BASE_DIR + "db_access_data.ini"   
+BASE_DIR = ""
+INI_FILE =  "/db_access_data.ini"   
 FILE_ENDING_SEP = " "
 DB_PREFIX = ""
 not_found_text_token = "TEXT_NOT_FOUND"
@@ -80,10 +80,12 @@ def connect_db():
   global connection
   global curs
   global DB_PREFIX
+  global BASE_DIR
+  global INI_FILE
 
   ## Parse the ini file containing the db name and password.
   ini_config = ConfigParser.ConfigParser()
-  ini_config.readfp(open(INI_FILE))
+  ini_config.readfp(open(BASE_DIR + INI_FILE))
 
   ## Initializes the DB.
   connection = MySQLdb.connect(host = ini_config.get('db', 'host'),
@@ -185,22 +187,19 @@ def handle_text_request (req, rev_id, page_id, user_id, rev_time, page_title):
     req.content_length = len (compressed)
     req.send_http_header()
     req.write(compressed)
-  
-
-# Before we start, connect to the db
-connect_db()
 
 # Entry point for web request.
 def handler(req):
 
+  global BASE_DIR
+  ## Get the base directory for the db config
+  BASE_DIR = req.get_options()["WIKITRUST_BASE_DIR"]
+
   ## Default mimetype
   req.content_type = "text/plain" 
   # Restart the connection to the DB if its not good.
-  try:
-     if (not connection.ping()):
-        connect_db()
-  except OperationalError:
-     connect_db()
+  if (connection == None):
+    connect_db()
 
   ## Parse the form inputs.
   form = util.FieldStorage(req)
