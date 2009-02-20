@@ -59,7 +59,6 @@ from mod_python import apache
 # Fetch this via an enviromental paramiter.
 BASE_DIR = ""
 INI_FILE =  "/db_access_data.ini"   
-FILE_ENDING_SEP = " "
 DB_PREFIX = ""
 not_found_text_token = "TEXT_NOT_FOUND"
 sleep_time_sec = 3 
