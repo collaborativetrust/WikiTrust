@@ -51,6 +51,7 @@ let buf_len = 8192
 let requested_encoding_type = "gzip"
 let tmp_prefix = "wiki"
 let rev_lim = "50"
+let default_timestamp = "19700201000000"
 let api_tz_re = Str.regexp "\\([0-9][0-9][0-9][0-9]\\)-\\([0-9][0-9]\\)-\\([0-9][0-9]\\)T\\([0-9][0-9]\\):\\([0-9][0-9]\\):\\([0-9][0-9]\\)Z"
 
 (* Maps the Wikipedias api timestamp to our internal one. *)
@@ -58,7 +59,7 @@ let api_ts2mw_ts s =
   let ts = if string_match api_tz_re s 0 then 
     (matched_group 1 s) ^ (matched_group 2 s) ^ (matched_group 3 s)
     ^ (matched_group 4 s) ^ (matched_group 5 s) ^ (matched_group 6 s) 
-  else "19700201000000" in
+  else default_timestamp in
     ts
 
 (* Given an input channel, return a string representing all there is
@@ -99,8 +100,6 @@ let run_call url =
       | `Successful -> (
 	  let body = call # response_body # value in
 	  let repsponse_header = call # response_header in
-	    Printf.printf "content_type: %s\n" 
-	      (let cnt,_ = (repsponse_header # content_type ()) in cnt);
 	    match (repsponse_header # content_type ()) with
 	      | ("text/xml",_) -> (
 		  let tmp_file = Tmpfile.new_tmp_file_name tmp_prefix in
@@ -164,13 +163,15 @@ let process_page (page : xml) : (wiki_page option * wiki_revision list) =
 (* 
    Given a page and date to start with, returns the next n revs for this page. 
 *)
-let fetch_page_and_revs_after (page_title : string) (rev_date : string) : (wiki_page option * wiki_revision list) =
+let fetch_page_and_revs_after (page_title : string) (rev_date : string) 
+    (logger : Online_log.logger) : (wiki_page option * wiki_revision list) =
   let url = !Online_command_line.target_wikimedia 
     ^ "?action=query&prop=revisions|"
     ^ "info&format=xml&inprop=&rvprop=ids|flags|timestamp|user|size|comment|"
     ^ "content&rvstart=" ^ rev_date ^ "&rvlimit=" ^ rev_lim
     ^ "&rvdir=newer&titles=" ^ (Netencoding.Url.encode page_title) in
-    if !Online_command_line.dump_db_calls then Printf.printf "%s\n" url;
+    if !Online_command_line.dump_db_calls then 
+      logger#log (Printf.sprintf "%s\n" url);
     let res = run_call url in
     let api = Xml.parse_string res in
     let query = Xml.children (api) in
@@ -184,10 +185,11 @@ let fetch_page_and_revs_after (page_title : string) (rev_date : string) : (wiki_
 ;;
     
 (* Given a user_name, returns the corresponding user_id *)
-let get_user_id (user_name : string) : int =
+let get_user_id (user_name : string) (logger : Online_log.logger) : int =
   let safe_user_name = Netencoding.Url.encode user_name in
   let url = !Online_command_line.user_id_server ^ "?n=" ^ safe_user_name in
-    if !Online_command_line.dump_db_calls then Printf.printf "%s\n" url;
+    if !Online_command_line.dump_db_calls then 
+      logger#log (Printf.sprintf "%s\n" url);
     let uids = ExtString.String.nsplit (run_call url) "`" in
     let uid = List.nth uids 1 in
       try int_of_string uid with int_of_string -> 0 in

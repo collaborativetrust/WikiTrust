@@ -385,8 +385,24 @@ class db
 	    None -> raise DB_Not_Found
 	  | Some x -> not_null str2ml x.(0)  
 
+    (** [get_latest_present_rev_id page_id] returns the timestamp of the most 
+	recent revision of page [page_id] which is present, colored or not. *)
+    method get_latest_present_rev_timestamp (page_id : int) : string =
+      let s = Printf.sprintf "SELECT rev_timestamp FROM %srevision WHERE rev_page = %s ORDER BY rev_timestamp DESC, rev_id DESC LIMIT 1" db_prefix (ml2int page_id) in 
+	match fetch (self#db_exec mediawiki_dbh s) with 
+	    None -> raise DB_Not_Found
+	  | Some x -> not_null str2ml x.(0)    
+
+    (** [get_revisions_present_not_colored page] returns a list of revisions 
+	which are present in the revision table locally but not colored.
+    *)
+    method get_revisions_present_not_colored (page_id: int) : int list =
+      let s = Printf.sprintf "SELECT rev_id FROM %srevision WHERE rev_page = %s AND  rev_id NOT IN (SELECT revision_id FROM %swikitrust_colored_markup)" db_prefix (ml2int page_id) db_prefix in 
+      let rev_row2rev row = not_null int2ml row.(0) in
+	Mysql.map (self#db_exec wikitrust_dbh s) rev_row2rev
+	  
     (* ================================================================ *)
-    (* Revision methods. *)
+    (* Revision methods. *) 
 
     (** [revision_needs_coloring rev_id] checks whether a revision has already been 
 	colored for trust. *)
@@ -591,16 +607,28 @@ class db
       let s = Printf.sprintf "INSERT INTO %swikitrust_missing_revs (revision_id, page_id, page_title, rev_time, user_id) VALUES (%s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE requested_on = now(), processed = false" db_prefix (ml2int rev_id) (ml2int page_id) (ml2str page_title) (ml2str rev_time) (ml2int user_id) in
 	ignore (self#db_exec wikitrust_dbh s)
 
+	  
+    (** Mark that the missing revision has been processed. *)  
+    method mark_rev_as_processed (rev_id : int) =
+    let s = Printf.sprintf "UPDATE %swikitrust_missing_revs SET processed = 'processed' WHERE revision_id = %s" db_prefix (ml2int rev_id) in
+      ignore (self#db_exec wikitrust_dbh s)
+
+    (** Mark that the missing revision has not been processed. *)  
+    method mark_rev_as_unprocessed (rev_id : int) =
+    let s = Printf.sprintf "UPDATE %swikitrust_missing_revs SET processed = 'unprocessed' WHERE revision_id = %s" db_prefix (ml2int rev_id) in
+      ignore (self#db_exec wikitrust_dbh s)
+
     (** Get the next revs to color *)
     method fetch_next_to_color (max_to_get : int) : 
       (int * int * string * string * int) list =
-      let s = Printf.sprintf "SELECT revision_id, page_id, page_title, rev_time, user_id FROM %swikitrust_missing_revs WHERE NOT processed ORDER BY requested_on ASC LIMIT %s" db_prefix (ml2int max_to_get) in
+      let s = Printf.sprintf "SELECT revision_id, page_id, page_title, rev_time, user_id FROM %swikitrust_missing_revs WHERE processed = 'unprocessed' ORDER BY requested_on ASC LIMIT %s" db_prefix (ml2int max_to_get) in
       let results = Mysql.map (self#db_exec wikitrust_dbh s) next2color_row in
-      let mark_as_done (rev,_,_,_,_) = 
-	let s = Printf.sprintf "UPDATE %swikitrust_missing_revs SET processed = true WHERE revision_id = %s" db_prefix (ml2int rev) in
+	(* Should this be done now, or later? *)
+      let mark_as_processing (rev,_,_,_,_) = 
+	let s = Printf.sprintf "UPDATE %swikitrust_missing_revs SET processed = 'processing' WHERE revision_id = %s" db_prefix (ml2int rev) in
 	  ignore (self#db_exec wikitrust_dbh s)
       in
-	List.iter mark_as_done results;
+	List.iter mark_as_processing results;
 	results
 
     (** Add the page to the db *)
