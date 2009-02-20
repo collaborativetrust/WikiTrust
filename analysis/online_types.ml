@@ -215,7 +215,7 @@ let page_info_default = {
 type timestamp_t = int * int * int * int * int * int;;
 
 (* Types for talking with Wikipedia *)
-type wiki_page = {
+type wiki_page_t = {
   page_id : int;
   page_namespace : int;
   page_title : string; 
@@ -229,7 +229,7 @@ type wiki_page = {
   page_len : int
 }
 
-type wiki_revision = {
+type wiki_revision_t = {
   revision_id : int;
   mutable revision_page : int;
   revision_text_id : int;

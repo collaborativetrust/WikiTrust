@@ -35,48 +35,46 @@ POSSIBILITY OF SUCH DAMAGE.
 
 (* Using the wikipedia API, retrieves information about pages and revisions *)
 
-(* Ian: can you please avoid opening all these? Online_types is ok, but for the rest, 
-   can you switch to the Gzip. notation, etc?  Otherwise, it is very difficult to 
-   follow.  Simply comment out the opens, and fix the code until it runs. *)
-open Http_client;;
-open ExtLib;;
-open Gzip;;
-open Xml;;
 open Online_types;;
-open Str;;
 
 exception Http_client_error
 
 Random.self_init ()
 
-let pipeline = new pipeline
+let pipeline = new Http_client.pipeline
 let buf_len = 8192
 let requested_encoding_type = "gzip"
 let tmp_prefix = "wiki"
 let rev_lim = "50"
 let default_timestamp = "19700201000000"
-(* Ian: add some comments... I guess this is a time-zone, but you should say for each 
-   of the above constants, what they are. *)
+(* Regex to map from a mediawiki api timestamp to a mediawiki timestamp
+
+   YYYY-MM-DDTHH:MM:SS
+ *)
 let api_tz_re = Str.regexp "\\([0-9][0-9][0-9][0-9]\\)-\\([0-9][0-9]\\)-\\([0-9][0-9]\\)T\\([0-9][0-9]\\):\\([0-9][0-9]\\):\\([0-9][0-9]\\)Z"
 
 (* Maps the Wikipedias api timestamp to our internal one. *)
 let api_ts2mw_ts s =
-  let ts = if string_match api_tz_re s 0 then 
-    (matched_group 1 s) ^ (matched_group 2 s) ^ (matched_group 3 s)
-    ^ (matched_group 4 s) ^ (matched_group 5 s) ^ (matched_group 6 s) 
+  let ts = if Str.string_match api_tz_re s 0 then 
+    (Str.matched_group 1 s) ^ (Str.matched_group 2 s) ^ (Str.matched_group 3 s)
+    ^ (Str.matched_group 4 s) ^ (Str.matched_group 5 s) 
+    ^ (Str.matched_group 6 s) 
   else default_timestamp in
     ts
 
-(* Given an input channel, return a string representing all there is
-   to be read of this channel. *)
-(* Ian: can you please add comments?  I find it hard to understand. 
-   Also your comment is a bit cryptic... you mean, it reads it all?  
-   BTW, you know that there is a Buffer module for doing string concatenation in 
-   linear time?  I cannot exactly follow what you are doing below, but I feel you are
-   trying to solve that problem... *)
-let input_all ic =
+(* Given an Gzip.in_channel, return a string representing all there is
+   to be read of this gzipped file.
+
+   This is a slup function, reading everything possible into a string and then
+   returning the string.
+
+   This is code copied from the extlib library, but converted to 
+   work with an Gzip.in_channel input.
+*)
+
+let input_all (ic : Gzip.in_channel) =
   let rec loop acc total buf ofs =
-    let n = input ic buf ofs (buf_len - ofs) in
+    let n = Gzip.input ic buf ofs (buf_len - ofs) in
       if n = 0 then
 	let res = String.create total in
 	let pos = total - ofs in
@@ -99,7 +97,7 @@ let input_all ic =
   Given a string url, make a get call and return the response as a string.
 *)      
 let run_call url = 
-  let call = new get url in
+  let call = new Http_client.get url in
   let request_header = call # request_header `Base in
     (* Accept gziped format *)
     request_header # update_field "Accept-encoding" requested_encoding_type; 
@@ -109,13 +107,7 @@ let run_call url =
     match call # status with
       | `Successful -> (
 	  let body = call # response_body # value in
-	  (* Ian: is repsponse_header just a typo for response_header? 
-	     In Ocaml it is not good style to override a let with another let
-	     for the same identifier; remember, these are not assignments, but
-	     let-bindings.  Can you clean up this code, using different names
-	     for different let-binding identifiers? *)
-	  let repsponse_header = call # response_header in
-	    match (repsponse_header # content_type ()) with
+	    match (call # response_header # content_type ()) with
 	      | ("text/xml",_) -> (
 		  let tmp_file = Tmpfile.new_tmp_file_name tmp_prefix in
 		    Std.output_file ~filename:tmp_file ~text:body;
@@ -131,11 +123,11 @@ let run_call url =
 ;;
 
 (*
-  Internal xml processing for the api
+  Internal xml processing for the api.
+
+  Given a revision xml tab, return a wiki_revision_t stucture.
 *)
-(* Ian: the comment above is not understandable. Can you say more about what you are doing, 
-   and what the purpose of the returned revision is? *)
-let process_rev (rev : xml) : wiki_revision =
+let process_rev (rev : Xml.xml) : wiki_revision_t =
   let r = {
     revision_id = int_of_string (Xml.attrib rev "revid");
     revision_page = 0;
@@ -157,10 +149,14 @@ let process_rev (rev : xml) : wiki_revision =
   r
 
 (*
-  Internal xml processing for the api
+  Internal xml processing for the api.
+
+  Given a page xml tag, return a wiki_page_t structure.
+  Also return a wiki_revision_t list structure.
+
 *)
-(* Ian: again, can you add comments? *)
-let process_page (page : xml) : (wiki_page option * wiki_revision list) =
+let process_page (page : Xml.xml) : 
+    (wiki_page_t option * wiki_revision_t list) =
   let w_page = {
     page_id = int_of_string (Xml.attrib page "pageid");
     page_namespace = (int_of_string (Xml.attrib page "ns"));
@@ -183,7 +179,7 @@ let process_page (page : xml) : (wiki_page option * wiki_revision list) =
    after the specified date. 
 *)
 let fetch_page_and_revs_after (page_title : string) (rev_date : string) 
-    (logger : Online_log.logger) : (wiki_page option * wiki_revision list) =
+    (logger : Online_log.logger) : (wiki_page_t option * wiki_revision_t list) =
   let url = !Online_command_line.target_wikimedia 
     ^ "?action=query&prop=revisions|"
     ^ "info&format=xml&inprop=&rvprop=ids|flags|timestamp|user|size|comment|"

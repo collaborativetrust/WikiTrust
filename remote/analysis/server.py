@@ -31,8 +31,16 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
 
 """
+"""
+This is a mod_python handler for wikitrust.
 
-# Ian: can you describe what does this code do, at high level?
+It listens for two types of requests: votes and colored_markup.
+
+For votes, it registers the vote and returns the string "good"
+For markup requests, it returns the markup if this is present.
+
+Otherwise, it registers the need to color the revision and returns a text_not_found token.
+"""
 
 # Works with RemoteTrust for connecting to a remote wiki.
 
@@ -43,15 +51,13 @@ import zlib
 import gzip
 import cStringIO
 import time
+import os
 
 from mod_python import util
 from mod_python import apache
 
-# Ian: please don't hardcode these directories in the files.
-# Also, test-scripts should contain only scripts used for testing, right?
-# Instead, it looks like it contains also the permissions to use the db. 
-# I think that information belongs in this directory, no?
-BASE_DIR = "/home/ipye/git/wikitrust/test-scripts/" 
+# Fetch this via an enviromental paramiter.
+BASE_DIR = os.environ["WIKITRUST_BASE_DIR"]
 INI_FILE = BASE_DIR + "db_access_data.ini"   
 FILE_ENDING_SEP = " "
 DB_PREFIX = ""
@@ -80,7 +86,6 @@ def connect_db():
   ini_config.readfp(open(INI_FILE))
 
   ## Initializes the DB.
-  # Ian: I reformatted the following code... don't you have an auto-indenter for Python?
   connection = MySQLdb.connect(host = ini_config.get('db', 'host'),
                                user = ini_config.get('db', 'user'), 
                                passwd = ini_config.get('db', 'pass'),
@@ -105,6 +110,13 @@ def mark_for_coloring (rev_id, page_id, user_id, rev_time, page_title):
 # Ian: I think that, if there is a vote on a version that is already colored, you could 
 # try to process it immediately... we should keep it in mind as an improvement as soon as
 # we are satisfied with the rest.  People will want to see the immediate effect of their votes.
+#
+# Luca - assuming the coloring dispatcher is running, this will be colored 
+# immediatly, and the next time the person re-loads the page, s/he will
+# see the difference. Shall I change the logic so that the updated 
+# wiki-text is returned after a vote, without waiting for a user to
+# reload the page?
+#
 def handle_vote(req, rev_id, page_id, user_id, v_time, page_title):
   global DB_PREFIX
   global curs
@@ -117,12 +129,22 @@ def handle_vote(req, rev_id, page_id, user_id, v_time, page_title):
   mark_for_coloring(rev_id, page_id, user_id, v_time, page_title)
   
   # Token saying things are ok
-  # Ian: you do not return this token in other cases.  Maybe explain why you return it in this case.
+  # Votes do not return anything. This just sends back the ACK
+  # that the vote was recorded.
+  # We could change this to be the re-colored wiki-text, reflecting the
+  # effect of the vote, if you like.
   req.write("good")
 
 
 # Return colored text and median from the DB.
 # Ian: I think it is a bad idea to do the join!  It is much better to do two queries, no?
+# Luca: My understanding is that making a join is actually much
+# MORE efficient than doing two queries.
+# Infact, this is putting the relational back in relational DB.
+# I agree that this is convoluted, and would be simpler to understand as 
+# two queries.
+
+
 def fetch_colored_markup (rev_id, page_id, user_id, rev_time, page_title):
   global DB_PREFIX
   global curs

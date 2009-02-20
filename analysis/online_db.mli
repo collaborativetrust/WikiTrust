@@ -297,11 +297,17 @@ class db :
     (* ================================================================ *)
     (* Server System. *)
 
-    (** [mark_to_color rev_id page_id page_title rev_time user_id] marks that the revision
-	[rev_id] of page [page_id], with title [page_title], and time [rev_time], 
-	needs to be colored.  Ian: I have no idea what [user_id] is, whether it is the user
-	who did the request, or the author of the revision.  Ian: why do we need to 
-	store also the page title? *)
+    (** [mark_to_color rev_id page_id page_title rev_time user_id] marks that 
+	the revision [rev_id] of page [page_id], with title [page_title], 
+	and time [rev_time], needs to be colored.  
+	
+	user_id is the id of the user who requested to coloring, NOT the id
+	of the author of the revision.
+
+	page_title is needed because this is what the mediawiki api
+	is keyed off of. To make a request, we need the page_title and
+	a timestamp to start from.
+    *)
     method mark_to_color : int -> int -> string -> string -> int -> unit
 
     (** [mark_rev_as_processed rev_id] marks that the revision [rev_id] has been processed. *)  
@@ -313,16 +319,28 @@ class db :
     (** Get the next revs to color. *)
     (* Ian: I always return these things as revision_t list.  Can you follow this standard also
        here, or is there a good reason why not? *)
+      (** 
+	  Luca: This is not a revision_t type being returned. Instead, its 
+	  just rows from the table wikitrust_missing_revs.
+	  I can create a new type for this table, and map it into it if you
+	  prefer. I though it would be cleaner to just give back the tuple
+	  without any modification.
+      *)
     method fetch_next_to_color : int -> (int * int * string * string * int) list
 
-    (** Add the page to the db *)
-    (* Ian: what is the purpose of this?  Also, can you use wiki_page_t?  Notice how 
-       all the types we use follow this convention (as revision_t). *)
-    method write_page : wiki_page -> unit
+    (** Add the page data to the db 
+	This adds the given data to the page table of the database. 
+	In this manor, we can import data from the mediawiki api and
+	store it locally.
+    *)
+    method write_page : wiki_page_t -> unit
 
-    (** Add the rev to the db *)
-    (* Ian: what is the purpose of this?  Also, can you use wiki_revision_t?  Notice how 
-       all the types we use follow this convention (as revision_t).  *)
-    method write_revision : wiki_revision -> unit
+    (** Add the revision data to the db 
+	This adds the given data to the revision and text tables of the 
+	database. 
+	In this manor, we can import data (including page content) from the 
+	mediawiki api and store it locally.
+    *)
+    method write_revision : wiki_revision_t -> unit
 
   end

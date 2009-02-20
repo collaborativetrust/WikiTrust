@@ -636,13 +636,13 @@ class db
 	results
 
     (** Add the page to the db *)
-    method write_page (page : wiki_page) =
+    method write_page (page : wiki_page_t) =
       let s = Printf.sprintf "INSERT INTO %spage (page_id, page_namespace, page_title, page_restrictions, page_counter, page_is_redirect, page_is_new, page_random, page_touched, page_latest, page_len) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE page_latest = %s" db_prefix (ml2int page.page_id) (ml2int page.page_namespace) (ml2str page.page_title) (ml2str page.page_restrictions) (ml2int page.page_counter) (if page.page_is_redirect then "true" else "false") (if page.page_is_new then "true" else "false") (ml2float page.page_random) (ml2str page.page_touched) (ml2int page.page_latest) (ml2int page.page_len) (ml2int page.page_latest)
       in
 	ignore (self#db_exec wikitrust_dbh s)
 
     (** Add the rev to the db *)
-    method write_revision (rev : wiki_revision) = 
+    method write_revision (rev : wiki_revision_t) = 
       (* Add the content. *)
       let s = Printf.sprintf "INSERT INTO %stext (old_id, old_text, old_flags) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE old_flags = %s" db_prefix (ml2int rev.revision_id) (ml2str rev.revision_content) (ml2str "utf8") (ml2str "utf8") in
 	ignore (self#db_exec wikitrust_dbh s);

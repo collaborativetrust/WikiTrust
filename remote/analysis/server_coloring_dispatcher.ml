@@ -34,22 +34,28 @@ POSSIBILITY OF SUCH DAMAGE.
  *)
 
 (*
-  This module runs as a deamon, polling every second for new requests.
+  This module runs as a daemon, polling every second for new requests.
   Requests are of two types, a vote and a coloring request.
   
   Whenever a new request is found, a new process is forked to handle this 
-  request. Note that to ensure consistancy, there is page level locking, so 
+  request. Note that to ensure consistency, there is page level locking, so 
   that there is never a situation where two child processes are working on the 
-  same page simultaniously.  (Ian: please, improve your English spelling...)
+  same page simultaneously. 
 
   There is also a limit to the number of concurrent child processes.
 
-  The child process take a request tuple (Ian: what is a request tuple?  Above 
-  you talk simply about requests) and figures out what type of request 
-  this is.
+  The child process take a request tuple. This is a row from the 
+  database table: revision_id, page_id, page_title, rev_time, user_id. 
   
+  Vote and Coloring requests are separated as follows:
+  Votes are those where there is colored markup for the requested revision.
+  Coloring conversely are those requests where there is not already 
+  colored markup. We assume that is it never the case where a user can 
+  vote on a revision which has not been colored, and conversely a colored 
+  revision will never be re-colored without being voted on.
+
   If it is a coloring request, the revision text is downloaded from the 
-  mediawiki api. (Ian: always?  Don't you try to get it from a dump if possible?)
+  mediawiki api if it is not present locally.
   
   It then gives the request to the appropriate function, evaluate_revision or 
   evaluate_vote.
