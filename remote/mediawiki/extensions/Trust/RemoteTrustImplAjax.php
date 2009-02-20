@@ -148,8 +148,15 @@ class TextTrustImpl {
 					 .http_build_query($data));
       $page_json = json_decode($page_info_raw, true);
       $pages_arr = array_keys($page_json["query"]["pages"]);
-      $page_id_raw = $pages_arr[0];
-      $rev_id_raw = $page_json["query"]["pages"][$page_id_raw]["revisions"][0]["revid"];
+
+      // Now, parse out only what we need
+      if(!$page_id_raw){
+	$page_id_raw = $pages_arr[0];
+      }
+
+      if(!$rev_id_raw){
+	$rev_id_raw = $page_json["query"]["pages"][$page_id_raw]["revisions"][0]["revid"];
+      }
     }
 
     $dbr =& wfGetDB( DB_SLAVE );
