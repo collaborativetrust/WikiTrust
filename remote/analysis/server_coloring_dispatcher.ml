@@ -1,6 +1,6 @@
 (*
 
-Copyright (c) 2007-2008 The Regents of the University of California
+Copyright (c) 2007-2009 The Regents of the University of California
 All rights reserved.
 
 Authors: Luca de Alfaro, Ian Pye
@@ -33,7 +33,8 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
-(* Figures out which pages to update, and starts them going. *)
+(* Ian: here, you need to explain the general flow of the code.
+   How does this all work?  Give a high-level description here. *)
 
 open Printf
 open Mysql
@@ -50,7 +51,10 @@ let custom_line_format = [] @ command_line_format
 let _ = Arg.parse custom_line_format noop "Usage: dispatcher";;
 
 let working_children = Hashtbl.create max_concurrent_procs
-let user_id_cache = Hashtbl.create 1000
+let max_id_cache_size = 1000
+let user_id_cache_front = Hashtbl.create max_id_cache_size
+let user_id_cache_back = ref (Hashtbl.create max_id_cache_size)
+
 
 (* Prepares the database connection information *)
 let mediawiki_db = {
@@ -157,12 +161,19 @@ in
    or asks a web service for it if we do not. 
 *)
 let get_user_id u_name =
-  try Hashtbl.find user_id_cache u_name with Not_found -> (
-    let u_id = try db # get_user_id u_name with DB_Not_Found -> 
-      get_user_id u_name
-    in
-      Hashtbl.add user_id_cache u_name u_id;
-      u_id
+  try Hashtbl.find user_id_cache_front u_name with Not_found -> (
+    try Hashtbl.find !user_id_cache_back u_name with Not_found -> (
+      let u_id = try db # get_user_id u_name with DB_Not_Found -> 
+	get_user_id u_name
+      in
+	if Hashtbl.length user_id_cache_front >= max_id_cache_size then (
+	  Hashtbl.clear !user_id_cache_back;
+	  user_id_cache_back := (Hashtbl.copy user_id_cache_front);
+	  Hashtbl.clear user_id_cache_front 
+	);
+	Hashtbl.add user_id_cache_front u_name u_id;
+	u_id
+    )
   )
 in
 
@@ -171,21 +182,29 @@ let process_revs (page_id : int) (rev_ids : int list) (page_title : string)
     (rev_timestamp : string) (user_id : int) =
   let rec do_processing (rev_id : int) = 
     (* I assume that a user cannot vote on an unprocessed revision here. *)
-    if (db # revision_needs_coloring rev_id) then (
+    if (db#revision_needs_coloring rev_id) then (
       (* Grab the text and color it. *)
-      let last_colored_timestamp = try db # get_latest_colored_rev_timestamp 
-	page_id with DB_Not_Found -> "19700201000000" in
+      let last_colored_timestamp = 
+	try 
+	  db#get_latest_colored_rev_timestamp page_id 
+	with DB_Not_Found -> "19700201000000" 
+      in
+      (* Ian: add comments, and use meaningful names, not wpage, wrevs.  It is not clear
+	 what w stands for. *)
       let (wpage, wrevs) = fetch_page_and_revs_after page_title last_colored_timestamp in
 	match wpage with
 	  | None -> Printf.printf "Failed for page %s\n" page_title
 	  | Some pp -> (
+	      (* Ian: why do you use all these Printf, rather than using the log? 
+		 Applies to both here and elsewhere. *)
 	      Printf.printf "Got page titled %s\n" pp.page_title;
-	      db # write_page pp
+	      db#write_page pp
 	    );
+	      (* Ian: please add comments on what you are doing here and below. *)
 	      let update_and_write_rev rev =
 		rev.revision_page <- page_id;
 		rev.revision_user <- (get_user_id rev.revision_user_text);
-		db # write_revision rev
+		db#write_revision rev
 	      in
 	      List.iter update_and_write_rev wrevs;
 	      let f rev = 
@@ -194,16 +213,20 @@ let process_revs (page_id : int) (rev_ids : int list) (page_title : string)
 		List.iter f wrevs;
 		Unix.sleep sleep_time_sec;
 		if !synch_log then flush Pervasives.stdout;
-		if (db # revision_needs_coloring rev_id) then (
+		if (db#revision_needs_coloring rev_id) then (
 		  do_processing rev_id
 		)
+		  (* Ian: the code is not well indented.  Also, 
+		     almost never does one need "else ()".  Perhaps you wanted to 
+		     use begin..end? Or what did you want to do here? I think there
+		     should be a way to eliminate this else part. *)
 		else ()	
     ) else ( (* Vote! *)
       let process_vote v = (
 	if v.vote_page_id == page_id then 
 	  evaluate_vote page_id rev_id v.vote_voter_id
       ) in
-      let votes = db # fetch_unprocessed_votes !max_events_to_process in
+      let votes = db#fetch_unprocessed_votes !max_events_to_process in
 	List.iter process_vote votes
     )
   in
@@ -212,11 +235,15 @@ let process_revs (page_id : int) (rev_ids : int list) (page_title : string)
     exit 0 (* No more work to do, stop this process. *)
 in
 
+(* Ian: give a high-level description of how this code meshes with the rest. 
+   Your quick comment below is not sufficient. *)
 (* Start a new process going which actually processes the missing page. *)
 let dispatch_page rev_pages = 
   let new_pages = Hashtbl.create (List.length rev_pages) in
   let is_new_page p =
-    try ignore (Hashtbl.find working_children p); false with Not_found -> true
+    (* Ian: use Hashtbl.mem here *)
+    try ignore (Hashtbl.find working_children p); false 
+    with Not_found -> true
   in
   let set_revs_to_get (r,p,title,time,uid) =
     Printf.printf "page %d\n" p;
@@ -230,6 +257,7 @@ let dispatch_page rev_pages =
       )
     ) else ()
   in 
+  (* Ian: again, add high-level description for this code. *)
   let launch_processing p (r,t,rt,uid) = (
     let new_pid = Unix.fork () in
       match new_pid with 
@@ -248,11 +276,13 @@ let dispatch_page rev_pages =
 in
 
 (* Poll to see if there is any more work to be done. *)
+(* Ian: are you sure you need recursion here? Can't you use iteration? 
+   It would make the code more readable. *)
 let rec main_loop () =
   if (Hashtbl.length working_children) >= max_concurrent_procs then (
       Hashtbl.iter clean_kids working_children
   ) else (
-    let revs_to_process = db # fetch_next_to_color 
+    let revs_to_process = db#fetch_next_to_color 
       (max (max_concurrent_procs - Hashtbl.length working_children) 0) in
       dispatch_page revs_to_process
   );

@@ -1,17 +1,37 @@
-WikiTrust can be used to assign text trust and author reputation in
-real-time, as edits to a wiki are made.  Text trust is displayed via
-different colors for the text background, from dark orange (low trust)
-to white (maximum trust).  The colors can be easily changed by
-changing a skin file. 
+WikiTrust is a MediaWiki extension that computes in real time the
+reputation of wiki authors, and the trust of wiki text.  Text trust is
+displayed via different colors for the text background, from dark
+orange (low trust) to white (maximum trust).  The colors can be easily
+changed by changing a skin file.  WikiTrust also computes, for each
+word of text, the author of the word, and the revision where the word
+was first inserted.  When clicking on a word, the user is sent to the
+revision diff where the word was added.  When hovering with the mouse
+over a word, a pop-up displays the name of the word's author.
 
-The extension can be added to an existing wiki, or to a new one. 
-If the extension is added to a new wiki, it will start computing
+The WikiTrustextension can be added to an existing wiki, or to a new
+one.  If the extension is added to a new wiki, it will start computing
 reputations and trusts as soon as someone makes an edit, or requests
 to view a trust-colored revision.  The reputation and trust
-computation takes some time, after which the coloring is available. 
+computation takes some time, after which the coloring is available.
 If you switch the extension off, then on, the extension will compute
 the missing reputation and trust values in a self-healing,
-fault-tolerant fashion. 
+fault-tolerant fashion.
+
+
+AUTHORS:
+
+The main developers are: 
+
+- Luca de Alfaro (lda@dealfaro.com)
+- Ian Pye (ipye@gmail.com)
+
+
+REMOTE INSTALLATION
+
+We describe in this README file the use of WikiTrust as a MediaWiki
+extension.  It is also possible to have WikiTrust run on a different
+server than the servers that run MediaWiki.  This setup is described
+in the remote/README file.
 
 
 PREREQUISITES: 
@@ -200,7 +220,8 @@ Follow these instructions in place of step 2) above.
 
         Get godi from http://godi.camlcity.org/godi/index.html and
         download godi. Follow the instructions to install it.  Install
-        the following Ocaml packages from godi:
+        the following Ocaml packages from godi (use godi_console to 
+	install them):
 
           godi-extlib
           godi-findlib

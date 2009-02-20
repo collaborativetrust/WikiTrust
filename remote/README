@@ -22,7 +22,7 @@ records votes.
 
 * server.ml
 
-A depricated implementation of the wikitrust server. It is a
+A deprecated implementation of the wikitrust server. It is a
 standalone server, and does not require Apache. 
 
 * server_coloring_dispatcher.ml 
@@ -35,7 +35,7 @@ Very basic code which create a unique temp file.
 
 * wikipedia_api.ml
 
-A library which communicated with a mediawiki api. It also talks to a
+A library which communicates with a mediawiki api. It also talks to a
 user-id mapping program, currently running on the toolserver.
 
 * mediawiki/extensions/Trust/
