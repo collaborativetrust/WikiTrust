@@ -218,7 +218,7 @@ class TextTrustImpl {
 				    -1,
 				    $count
 				    );
-      $text = '<script type="text/javascript" src="http://redherring.cse.ucsc.edu/firefox/frontend/extensions/Trust/js/wz_tooltip.js"></script>' . $text;
+      // $text = '<script type="text/javascript" src="http://redherring.cse.ucsc.edu/firefox/frontend/extensions/Trust/js/wz_tooltip.js"></script>' . $text;
       $text = preg_replace('/' . self::TRUST_OPEN_TOKEN . '/', "<", $text, -1, $count);
       $text = preg_replace('/' . self::TRUST_CLOSE_TOKEN .'/', ">", $text, -1, $count);
       $text = preg_replace('/<\/p>/', "</span></p>", $text, -1, $count);
