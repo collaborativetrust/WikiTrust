@@ -104,21 +104,7 @@ type vote_t = {
   vote_voter_id: int;
 }
 
-let vote_row2vote_t row =
-  {
-    vote_time = (not_null str2ml row.(0));
-    vote_page_id = (not_null int2ml row.(1));
-    vote_revision_id = (not_null int2ml row.(2));
-    vote_voter_id = (not_null int2ml row.(3));
-  }
 
-let next2color_row row =
-  ((not_null int2ml row.(0)), 
-   (not_null int2ml row.(1)), 
-   (not_null str2ml row.(2)),
-   (not_null str2ml row.(3)),
-   (not_null int2ml row.(4)))
-    
 (** This class provides a handle for accessing the database in the on-line 
     implementation. *)
 
@@ -305,14 +291,22 @@ class db
     (** [fetch_all_revs] returns a cursor that points to all revisions in the database, 
 	in ascending order of timestamp. *)
     method fetch_all_revs (max_revs_to_return: int) : revision_t list = 
-      let s= Printf.sprintf  "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM %srevision ORDER BY rev_timestamp ASC, rev_id ASC LIMIT %s" db_prefix (ml2int max_revs_to_return) in
+      let s = Printf.sprintf  "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM %srevision ORDER BY rev_timestamp ASC, rev_id ASC LIMIT %s" db_prefix (ml2int max_revs_to_return) in
 	Mysql.map (self#db_exec mediawiki_dbh s) rev_row2revision_t
 	    
     (** [fetch_unprocessed_votes n_events] returns at most [n_events] unprocessed votes, 
 	starting from the oldest unprocessed vote. *)
     method fetch_unprocessed_votes (n_events: int) : vote_t list = 
-      let s= Printf.sprintf  "SELECT voted_on, page_id, revision_id, voter_id FROM %swikitrust_vote WHERE NOT processed ORDER BY voted_on ASC LIMIT %s" db_prefix (ml2int n_events) in
-	Mysql.map (self#db_exec wikitrust_dbh s) vote_row2vote_t
+      let s = Printf.sprintf  "SELECT voted_on, page_id, revision_id, voter_id FROM %swikitrust_vote WHERE NOT processed ORDER BY voted_on ASC LIMIT %s" db_prefix (ml2int n_events) in
+      let vote_row2vote_t row =
+	{
+	  vote_time = (not_null str2ml row.(0));
+	  vote_page_id = (not_null int2ml row.(1));
+	  vote_revision_id = (not_null int2ml row.(2));
+	  vote_voter_id = (not_null int2ml row.(3));
+	}
+      in
+      Mysql.map (self#db_exec wikitrust_dbh s) vote_row2vote_t
 
     (** [mark_vote_as_processed (revision_id: int) (voter_id : int)] marks a vote as processed. *)
     method mark_vote_as_processed (revision_id: int) (voter_id : int) : unit = 
@@ -601,6 +595,7 @@ class db
 	ignore (self#db_exec wikitrust_dbh s)
 
     (* ================================================================ *)
+    (* Server System *)
 
     (** [mark_to_color rev_id page_id page_title rev_time user_id] marks that the revision
 	[rev_id] of page [page_id], with title [page_title], and time [rev_time], 
@@ -612,45 +607,90 @@ class db
 	ignore (self#db_exec wikitrust_dbh s)
 
 	  
-    (** Mark that the missing revision has been processed. *)  
+    (** [mark_rev_as_processed rev_id] marks that the revision [rev_id] has ben processed. *)
     method mark_rev_as_processed (rev_id : int) =
     let s = Printf.sprintf "UPDATE %swikitrust_missing_revs SET processed = 'processed' WHERE revision_id = %s" db_prefix (ml2int rev_id) in
       ignore (self#db_exec wikitrust_dbh s)
 
-    (** Mark that the missing revision has not been processed. *)  
+    (** [mark_rev_as_processed rev_id] marks that the revision [rev_id] has not been processed. *)
     method mark_rev_as_unprocessed (rev_id : int) =
     let s = Printf.sprintf "UPDATE %swikitrust_missing_revs SET processed = 'unprocessed' WHERE revision_id = %s" db_prefix (ml2int rev_id) in
       ignore (self#db_exec wikitrust_dbh s)
 
-    (** Get the next revs to color *)
-    method fetch_next_to_color (max_to_get : int) : 
+    (** [fetch_next_revisions_to_process] fetches the next revisions that have to be 
+	possibly downloaded, and then colored. 
+	It also marks those revisions as "processing", so that subsequent requests do not return the 
+	same revisions.
+        This code is SINGLE-THREADED: it assumes that there is a single reader. *)
+    method fetch_next_revisions_to_color (max_to_get : int) : 
       (int * int * string * string * int) list =
-      let s = Printf.sprintf "SELECT revision_id, page_id, page_title, rev_time, user_id FROM %swikitrust_missing_revs WHERE processed = 'unprocessed' ORDER BY requested_on ASC LIMIT %s" db_prefix (ml2int max_to_get) in
-      let results = Mysql.map (self#db_exec wikitrust_dbh s) next2color_row in
-	(* Should this be done now, or later? *)
+      let s = Printf.sprintf "SELECT revision_id, page_id, page_title, rev_time, user_id FROM %swikitrust_missing_revs WHERE processed = 'unprocessed' ORDER BY requested_on ASC LIMIT %s" 
+	db_prefix (ml2int max_to_get) in
+      let db2color_row row =
+	((not_null int2ml row.(0)), 
+	(not_null int2ml row.(1)), 
+	(not_null str2ml row.(2)),
+	(not_null str2ml row.(3)),
+	(not_null int2ml row.(4)))
+      in
+      let results = Mysql.map (self#db_exec wikitrust_dbh s) db2color_row in
       let mark_as_processing (rev,_,_,_,_) = 
 	let s = Printf.sprintf "UPDATE %swikitrust_missing_revs SET processed = 'processing' WHERE revision_id = %s" db_prefix (ml2int rev) in
-	  ignore (self#db_exec wikitrust_dbh s)
+	ignore (self#db_exec wikitrust_dbh s)
       in
 	List.iter mark_as_processing results;
 	results
 
-    (** Add the page to the db *)
+    (** Adds a revision to the database.  This is normally taken care of by Mediawiki, except when
+        WikiTrust is used in remote mode. *)
     method write_page (page : wiki_page_t) =
-      let s = Printf.sprintf "INSERT INTO %spage (page_id, page_namespace, page_title, page_restrictions, page_counter, page_is_redirect, page_is_new, page_random, page_touched, page_latest, page_len) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE page_latest = %s" db_prefix (ml2int page.page_id) (ml2int page.page_namespace) (ml2str page.page_title) (ml2str page.page_restrictions) (ml2int page.page_counter) (if page.page_is_redirect then "true" else "false") (if page.page_is_new then "true" else "false") (ml2float page.page_random) (ml2str page.page_touched) (ml2int page.page_latest) (ml2int page.page_len) (ml2int page.page_latest)
+      let s = Printf.sprintf "INSERT INTO %spage (page_id, page_namespace, page_title, page_restrictions, page_counter, page_is_redirect, page_is_new, page_random, page_touched, page_latest, page_len) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE page_latest = %s" 
+	db_prefix 
+	(ml2int page.page_id) 
+	(ml2int page.page_namespace) 
+	(ml2str page.page_title) 
+	(ml2str page.page_restrictions) 
+	(ml2int page.page_counter) 
+	(if page.page_is_redirect then "true" else "false") 
+	(if page.page_is_new then "true" else "false") 
+	(ml2float page.page_random) 
+	(ml2str page.page_touched) 
+	(ml2int page.page_latest) 
+	(ml2int page.page_len) 
+	(ml2int page.page_latest)
       in
-	ignore (self#db_exec wikitrust_dbh s)
+      ignore (self#db_exec wikitrust_dbh s)
 
-    (** Add the rev to the db *)
+    (** Adds a revision to the database.  This is normally taken care by Mediawiki,
+	but not in the case of remote use of WikiTrust. *)
     method write_revision (rev : wiki_revision_t) = 
       (* Add the content. *)
       let s = Printf.sprintf "INSERT INTO %stext (old_id, old_text, old_flags) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE old_flags = %s" db_prefix (ml2int rev.revision_id) (ml2str rev.revision_content) (ml2str "utf8") (ml2str "utf8") in
 	ignore (self#db_exec wikitrust_dbh s);
 	  (* And then the revision metadata. *)
-	let s = Printf.sprintf "INSERT INTO %srevision (rev_id, rev_page, rev_text_id, rev_comment, rev_user, rev_user_text, rev_timestamp, rev_minor_edit, rev_deleted, rev_len, rev_parent_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE rev_len = %s" db_prefix (ml2int rev.revision_id) (ml2int rev.revision_page) (ml2int rev.revision_id) (ml2str rev.revision_comment) (ml2int rev.revision_user) (ml2str rev.revision_user_text) (ml2str rev.revision_timestamp) (if rev.revision_minor_edit then "true" else "false") (if rev.revision_deleted then "true" else "false") (ml2int rev.revision_len) (ml2int rev.revision_parent_id) (ml2int rev.revision_len) in
+	let s = Printf.sprintf "INSERT INTO %srevision (rev_id, rev_page, rev_text_id, rev_comment, rev_user, rev_user_text, rev_timestamp, rev_minor_edit, rev_deleted, rev_len, rev_parent_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE rev_len = %s" 
+	  db_prefix 
+	  (ml2int rev.revision_id) 
+	  (ml2int rev.revision_page) 
+	  (ml2int rev.revision_id) 
+	  (ml2str rev.revision_comment) 
+	  (ml2int rev.revision_user) 
+	  (ml2str rev.revision_user_text) 
+	  (ml2str rev.revision_timestamp) 
+	  (if rev.revision_minor_edit then "true" else "false") 
+	  (if rev.revision_deleted then "true" else "false") 
+	  (ml2int rev.revision_len) 
+	  (ml2int rev.revision_parent_id) 
+	  (ml2int rev.revision_len) 
+	in
 	ignore (self#db_exec wikitrust_dbh s)
 
-    (** Clear everything out (except for the votes) *)
+    (* ================================================================ *)
+
+    (** Deletes all WikiTrust data.
+	(Uncolored) revisions, pages, and votes are not deleted. 
+	This enables the recomputation from scratch of all reputations and trust. 
+	Careful!  The recomputation may take a very long time for large wikis. *)
     method delete_all (really : bool) =
       match really with
         true -> (

@@ -33,7 +33,9 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
-(* Using the wikipedia API, retrieves information about pages and revisions *)
+(* Using the wikipedia API, retrieves information about pages and revisions. *)
+(* Ian: make an .mli file with just the function declarations that are intended
+   to be visible from outside. *)
 
 open Online_types;;
 
@@ -48,7 +50,6 @@ let tmp_prefix = "wiki"
 let rev_lim = "50"
 let default_timestamp = "19700201000000"
 (* Regex to map from a mediawiki api timestamp to a mediawiki timestamp
-
    YYYY-MM-DDTHH:MM:SS
  *)
 let api_tz_re = Str.regexp "\\([0-9][0-9][0-9][0-9]\\)-\\([0-9][0-9]\\)-\\([0-9][0-9]\\)T\\([0-9][0-9]\\):\\([0-9][0-9]\\):\\([0-9][0-9]\\)Z"
@@ -64,12 +65,11 @@ let api_ts2mw_ts s =
 
 (* Given an Gzip.in_channel, return a string representing all there is
    to be read of this gzipped file.
-
    This is a slup function, reading everything possible into a string and then
    returning the string.
-
    This is code copied from the extlib library, but converted to 
    work with an Gzip.in_channel input.
+   Luca: but can the code be simplified by using the Buffer module?
 *)
 
 let input_all (ic : Gzip.in_channel) =
@@ -94,7 +94,7 @@ let input_all (ic : Gzip.in_channel) =
     loop [] 0 (String.create buf_len) 0
 
 (*
-  Given a string url, make a get call and return the response as a string.
+  [run_call url] makes a get call to [url] and returns the result as a string.
 *)      
 let run_call url = 
   let call = new Http_client.get url in
@@ -123,9 +123,9 @@ let run_call url =
 ;;
 
 (*
-  Internal xml processing for the api.
-
-  Given a revision xml tab, return a wiki_revision_t stucture.
+  [process_rev rev] takes an input an xml tab [rev], and returns 
+  a wiki_revision_t stucture.
+  Ian: what is an xml tab? 
 *)
 let process_rev (rev : Xml.xml) : wiki_revision_t =
   let r = {
@@ -148,12 +148,12 @@ let process_rev (rev : Xml.xml) : wiki_revision_t =
   } in
   r
 
-(*
-  Internal xml processing for the api.
-
-  Given a page xml tag, return a wiki_page_t structure.
-  Also return a wiki_revision_t list structure.
-
+(**
+  [process_page page] takes as input an xml tag representing an optional
+  page, and returns a pair consisting of a wiki_page_t structure, and a 
+  list of corresponding wiki_revision_t.
+  Ian: notice the style of this rewritten comment.  Also, I don't get it. 
+   Why do you return a page option?  You never return None, do you? 
 *)
 let process_page (page : Xml.xml) : 
     (wiki_page_t option * wiki_revision_t list) =
@@ -174,9 +174,11 @@ let process_page (page : Xml.xml) :
   let revs = Xml.children page in
   (Some w_page, (Xml.map process_rev (List.hd revs)))
 
-(* 
-   Given a page and date to start with, returns the next n revisions for this page
-   after the specified date. 
+(**
+   [fetch_page_and_revs after page_title rev_date logger], given a [page_title] 
+   and a [rev_date], returns all the revisions of [page_title] after [rev_date]. 
+   [logger] is, well, a logger. 
+   Ian: why do you use page_title, rather than page_id? 
 *)
 let fetch_page_and_revs_after (page_title : string) (rev_date : string) 
     (logger : Online_log.logger) : (wiki_page_t option * wiki_revision_t list) =
@@ -199,7 +201,9 @@ let fetch_page_and_revs_after (page_title : string) (rev_date : string)
       List.fold_left pick_page (None,[]) poss_pages
 ;;
     
-(* Given a user_name, returns the corresponding user_id *)
+(** [get_user_id user_name logger] returns the user_id of user with name [user_name]. 
+    Ian: explain here any costs involved. 
+ *)
 let get_user_id (user_name : string) (logger : Online_log.logger) : int =
   let safe_user_name = Netencoding.Url.encode user_name in
   let url = !Online_command_line.user_id_server ^ "?n=" ^ safe_user_name in

@@ -4,6 +4,8 @@
  * The basic code is copied from the nethttpd example.
  *)
 
+(* Ian: is this used, or obsolete? *)
+
 open Netcgi1_compat.Netcgi_types;;
 open Printf;;
 open Mysql;;
@@ -73,6 +75,7 @@ let generate_text_page (cgi : Netcgi.cgi_activation) (rev_id : int)
 ;;  
 
 (* Return information about an incorrect request. *)
+(* Ian: explain. *)
 let generate_help_page (cgi : Netcgi.cgi_activation) =
   let out = cgi # out_channel # output_string in
     out not_found_text_token

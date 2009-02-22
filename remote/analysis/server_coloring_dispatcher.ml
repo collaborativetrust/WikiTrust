@@ -62,6 +62,9 @@ POSSIBILITY OF SUCH DAMAGE.
    
 *)
 
+(* Ian: can you open fewer modules?  In particular, don't open if you can
+   Online_db, Unix, and Wikipedia_api.  The others are fine. *)
+
 open Printf
 open Mysql
 open Unix
@@ -213,12 +216,14 @@ let get_user_id u_name =
   )
 in
 
-(* Grab at most 50 revs of the given page, starting at the given
-   timestamp and going forward in time. 
-   
-   Returns a list of rev_ids which are to be colored.
+(**
+   [get_revs_from_api page_title page_id last_timestamp] reads 
+   a group of revisions of the given page (usually something like
+   50 revisions, see the Wikimedia API) from the Wikimedia API,
+   stores them to disk, and returns the list of revision ids. 
 *)
-let get_revs_from_api page_title page_id last_timestamp =
+(* Ian: is it here, or elsewhere, that you try to read them from the dump? *)
+let get_revs_from_api page_title page_id last_timestamp : int list =
   let (wiki_page, wiki_revs) = 
     (* Retrieve a page and revision list from mediawiki. *)
     fetch_page_and_revs_after page_title last_timestamp logger in
@@ -247,10 +252,11 @@ let get_revs_from_api page_title page_id last_timestamp =
 	      List.map get_id wiki_revs
 in		
 
-(* Given a revision, this function
-   either colors it or else processes the vote on it.
-
-   Also, if the text is missing, it is downloaded from the mediawiki api.
+(* Ian: I just invented the following comment.  Can you check it for
+   accuracy? *)
+(** [process_revs page_id rev_ids page_title rev_timestamp user_id] 
+    ... 
+    (also say what is the return type)
 *)
 let process_revs (page_id : int) (rev_ids : int list) (page_title : string)
     (rev_timestamp : string) (user_id : int) =
@@ -305,7 +311,12 @@ let process_revs (page_id : int) (rev_ids : int list) (page_title : string)
     exit 0 (* No more work to do, stop this process. *)
 in
 
-(* Given a list of revs to process, this function starts a new process
+(* Ian: can you add a standard comment, add types of input and output
+   parameters, and a good comment that explains what this does? 
+   In particular, is rev_pages of type revision_t list, as your comment
+   below seems to imply?
+
+   Given a list of revs to process, this function starts a new process
    going which either colores the revision text or else handles a vote.
 
    It groups the raw list of revs by page, and then forks a new 
@@ -321,7 +332,7 @@ let dispatch_page rev_pages =
        soon. I feel that trying to pass it to the working child would be too 
        complicated at this point.
     *)
-  let set_revs_to_get (r,p,title,time,uid) =
+  let set_revs_to_get (r, p, title, time, uid) =
     logger#log (Printf.sprintf "page %d\n" p);
     if (not (is_old_page p)) then (
       let current_revs = try Hashtbl.find new_pages p with 
@@ -336,7 +347,7 @@ let dispatch_page rev_pages =
     (* Given a page_id and a tuple, fork a child which processes
        all the revisions of this page.
     *)
-  let launch_processing p (r,t,rt,uid) = (
+  let launch_processing p (r, t, rt, uid) = (
     let new_pid = Unix.fork () in
       match new_pid with 
 	| 0 -> (
