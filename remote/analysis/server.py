@@ -64,7 +64,6 @@ not_found_text_token = "TEXT_NOT_FOUND"
 sleep_time_sec = 3 
 
 connection = None
-curs = None
 
 # Compress a string buffer
 def compressBuf(buf):
@@ -77,7 +76,6 @@ def compressBuf(buf):
 # Start a persisent connection to the db
 def connect_db():
   global connection
-  global curs
   global DB_PREFIX
   global BASE_DIR
   global INI_FILE
@@ -91,16 +89,16 @@ def connect_db():
                                user = ini_config.get('db', 'user'), 
                                passwd = ini_config.get('db', 'pass'),
                                db = ini_config.get('db', 'db') )
-  curs = connection.cursor()
-
+ 
   ## Parses the db prefix.
   DB_PREFIX = ini_config.get('db', 'prefix')
 
 # Adds a revision into the db for coloring.
 def mark_for_coloring (rev_id, page_id, user_id, rev_time, page_title):
   global DB_PREFIX
-  global curs
+  global connection
 
+  curs = connection.cursor()
   sql = """INSERT INTO """ + DB_PREFIX + """wikitrust_missing_revs (revision_id, page_id, page_title, rev_time, user_id) VALUES (%(rid)s, %(pid)s, %(title)s, %(time)s, %(vid)s) ON DUPLICATE KEY UPDATE requested_on = now(), processed = false"""
   args = {'rid':rev_id, 'pid':page_id, 'title':page_title, 
           'time':rev_time, 'vid':user_id }
@@ -110,8 +108,9 @@ def mark_for_coloring (rev_id, page_id, user_id, rev_time, page_title):
 # Insert a vote to be processed into the db.
 def handle_vote(req, rev_id, page_id, user_id, v_time, page_title):
   global DB_PREFIX
-  global curs
+  global connection
 
+  curs = connection.cursor()
   sql = """INSERT INTO """ + DB_PREFIX + """wikitrust_vote (revision_id, page_id, voter_id, voted_on) VALUES (%(rid)s, %(pid)s, %(vid)s, %(time)s) ON DUPLICATE KEY UPDATE voted_on = %(time)s"""
   args = {'rid':rev_id, 'pid':page_id, 'vid':user_id, 'time':v_time}
   curs.execute(sql, args)
@@ -130,7 +129,9 @@ def handle_vote(req, rev_id, page_id, user_id, v_time, page_title):
 # Returns the current median value from the DB.
 def get_median():
   global DB_PREFIX
-  global curs
+  global connection
+
+  curs = connection.cursor()
   sql = """SELECT median FROM """ + DB_PREFIX + """wikitrust_global"""
   args = ()
   numRows = curs.execute(sql, args)
@@ -142,14 +143,16 @@ def get_median():
 # Return colored text and median from the DB.
 def fetch_colored_markup (rev_id, page_id, user_id, rev_time, page_title):
   global DB_PREFIX
-  global curs
   global not_found_text_token
+  global connection
 
+  curs = connection.cursor()
   sql = """SELECT revision_text FROM """ + DB_PREFIX + \
       """wikitrust_colored_markup  """ + \
       """ WHERE revision_id = %s"""
   args = (rev_id)
-  numRows = curs.execute(sql, args)
+  curs.execute(sql, args)
+  numRows = int(curs.rowcount)
   median = get_median()
   if (numRows > 0):
     dbRow = curs.fetchone()
