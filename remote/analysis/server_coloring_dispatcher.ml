@@ -258,12 +258,12 @@ in
     ... 
     (also say what is the return type)
 *)
-let process_revs (page_id : int) (rev_ids : int list) (page_title : string)
-    (rev_timestamp : string) (user_id : int) =
+let process_revs (page_id : int) (page_title : string)
+    (requests : revision_processing_request_t list) =
   (* This recursive inner function actually does the processing *)
-  let rec do_processing (rev_id : int) = 
+  let rec do_processing (req : revision_processing_request_t) = 
     (* I assume that a user cannot vote on an unprocessed revision here. *)
-    if (db#revision_needs_coloring rev_id) then (
+    if (db#revision_needs_coloring req.req_revision_id) then (
       let last_present_timestamp = 
 	try 
 	  db#get_latest_present_rev_timestamp page_id 
@@ -288,24 +288,24 @@ let process_revs (page_id : int) (rev_ids : int list) (page_title : string)
 	if !synch_log then flush Pervasives.stdout;
 	(* We color 50 revs at a time. If the target revision_id 
 	   still isn't colored, keep going. *)
-	if (db#revision_needs_coloring rev_id) then (
-	  do_processing rev_id
+	if (db#revision_needs_coloring req.req_revision_id) then (
+	  do_processing req
 	) else (
 	  (* End evaluate revision part. *)
-	  db # mark_rev_as_processed rev_id
+	  db # mark_rev_as_processed req.req_revision_id
 	)
     ) else ( (* Vote! *)
       let process_vote v = (
 	if v.vote_page_id == page_id then 
-	  evaluate_vote page_id rev_id v.vote_voter_id;
-	  db # mark_rev_as_unprocessed rev_id
+	  evaluate_vote page_id v.vote_revision_id v.vote_voter_id;
+	  db # mark_rev_as_unprocessed v.vote_revision_id
       ) in
       let votes = db#fetch_unprocessed_votes !max_events_to_process in
 	List.iter process_vote votes
     )
   in
     (* Process each revision in turn. *)
-    List.iter do_processing rev_ids;
+    List.iter do_processing requests;
     logger#log (Printf.sprintf
 		  "Finished processing page %s\n" page_title);	      
     exit 0 (* No more work to do, stop this process. *)
@@ -332,29 +332,28 @@ let dispatch_page rev_pages =
        soon. I feel that trying to pass it to the working child would be too 
        complicated at this point.
     *)
-  let set_revs_to_get (r, p, title, time, uid) =
-    logger#log (Printf.sprintf "page %d\n" p);
-    if (not (is_old_page p)) then (
-      let current_revs = try Hashtbl.find new_pages p with 
-	  Not_found -> ([],title,time,uid) in
-	(Hashtbl.replace new_pages p ((r::(let x,_,_,_  = 
-					     current_revs in x)),
-				      title,time,uid))
+  let set_revs_to_get (req : revision_processing_request_t) =
+    logger#log (Printf.sprintf "page %d\n" req.req_page_id);
+    if (not (is_old_page req.req_page_id)) then (
+      let current_revs = try Hashtbl.find new_pages req.req_page_id with 
+	  Not_found -> [] in
+	Hashtbl.replace new_pages req.req_page_id (req :: current_revs)
     ) else (
-      db#mark_rev_as_unprocessed r
+      db#mark_rev_as_unprocessed req.req_revision_id
     )
   in 
-    (* Given a page_id and a tuple, fork a child which processes
-       all the revisions of this page.
+    (* 
+       Given a page_id and a list of coloring requests, 
+       fork a child which processes all the requests.
     *)
-  let launch_processing p (r, t, rt, uid) = (
+  let launch_processing p reqs = (
     let new_pid = Unix.fork () in
       match new_pid with 
 	| 0 -> (
 	    logger#log (Printf.sprintf 
 			  "I'm the child\n Running on page %d rev %d\n" p 
-			  (List.hd r));
-	    process_revs p r t rt uid
+			  (List.hd reqs).req_revision_id);
+	    process_revs p ((List.hd reqs).req_page_title) reqs
 	  )
 	| _ -> (logger#log (Printf.sprintf "Parent of pid %d\n" new_pid);  
 		Hashtbl.add working_children p (new_pid)
@@ -378,7 +377,7 @@ let main_loop () =
     if (Hashtbl.length working_children) >= max_concurrent_procs then (
       Hashtbl.iter clean_kids working_children
     ) else (
-      let revs_to_process = db#fetch_next_to_color 
+      let revs_to_process = db#fetch_next_revisions_to_color 
 	(max (max_concurrent_procs - Hashtbl.length working_children) 0) in
 	dispatch_page revs_to_process
     );

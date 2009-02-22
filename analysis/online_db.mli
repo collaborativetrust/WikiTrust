@@ -316,24 +316,17 @@ class db :
     (** [mark_rev_as_unprocessed rev_id] marks that the revision [rev_id] has not been processed. *)  
     method mark_rev_as_unprocessed : int -> unit
 
-    (** Get the next revs to color. *)
-      (** 
-	  Luca: This is not a revision_t type being returned. Instead, its 
-	  just rows from the table wikitrust_missing_revs.
-	  I can create a new type for this table, and map it into it if you
-	  prefer. I though it would be cleaner to just give back the tuple
-	  without any modification.
-	  Ian: yes, create some type... the problem with tuples is that you forget what is what. 
-	  See how the code of fetch_unprocessed_votes is cleaner?
-	  Also, when you define functions just for a map, do it where you use them (I moved the code
-	  already).
-      *)
-    method fetch_next_revisions_to_color : int -> (int * int * string * string * int) list
+    (** Get the next revs to color.
+	[fetch_next_revisions_to_color number_to_fetch]
+    *)
+    method fetch_next_revisions_to_color : int -> revision_processing_request_t list
 
     (** Add the page data to the db 
 	This adds the given data to the page table of the database. 
 	In this manor, we can import data from the mediawiki api and
 	store it locally.
+
+	[write_page page_to_add]
     *)
     method write_page : wiki_page_t -> unit
 
@@ -342,6 +335,7 @@ class db :
 	database. 
 	In this manor, we can import data (including page content) from the 
 	mediawiki api and store it locally.
+	[write_revision revision_to_add]
     *)
     method write_revision : wiki_revision_t -> unit
 

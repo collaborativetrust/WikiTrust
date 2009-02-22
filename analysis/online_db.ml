@@ -623,20 +623,22 @@ class db
 	same revisions.
         This code is SINGLE-THREADED: it assumes that there is a single reader. *)
     method fetch_next_revisions_to_color (max_to_get : int) : 
-      (int * int * string * string * int) list =
+      revision_processing_request_t list =
       let s = Printf.sprintf "SELECT revision_id, page_id, page_title, rev_time, user_id FROM %swikitrust_missing_revs WHERE processed = 'unprocessed' ORDER BY requested_on ASC LIMIT %s" 
 	db_prefix (ml2int max_to_get) in
-      let db2color_row row =
-	((not_null int2ml row.(0)), 
-	(not_null int2ml row.(1)), 
-	(not_null str2ml row.(2)),
-	(not_null str2ml row.(3)),
-	(not_null int2ml row.(4)))
+      let db2color_row row : revision_processing_request_t =
+	{
+	  req_revision_id = (not_null int2ml row.(0));
+	  req_page_id = (not_null int2ml row.(1));
+	  req_page_title = (not_null str2ml row.(2));
+	  req_revision_timestamp = (not_null str2ml row.(3));
+	  req_requesting_user_id = (not_null int2ml row.(4))
+	}
       in
       let results = Mysql.map (self#db_exec wikitrust_dbh s) db2color_row in
-      let mark_as_processing (rev,_,_,_,_) = 
-	let s = Printf.sprintf "UPDATE %swikitrust_missing_revs SET processed = 'processing' WHERE revision_id = %s" db_prefix (ml2int rev) in
-	ignore (self#db_exec wikitrust_dbh s)
+      let mark_as_processing req = 
+	let s = Printf.sprintf "UPDATE %swikitrust_missing_revs SET processed = 'processing' WHERE revision_id = %s" db_prefix (ml2int req.req_revision_id) in
+	  ignore (self#db_exec wikitrust_dbh s)
       in
 	List.iter mark_as_processing results;
 	results

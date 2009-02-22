@@ -214,6 +214,15 @@ let page_info_default = {
 (* Timestamp in the DB *)
 type timestamp_t = int * int * int * int * int * int;;
 
+(* A request for processing a revision *)
+type revision_processing_request_t = {
+  req_revision_id : int;
+  req_page_id : int;
+  req_page_title : string;
+  req_revision_timestamp : string;
+  req_requesting_user_id : int;
+}
+
 (* Types for talking with Wikipedia *)
 type wiki_page_t = {
   page_id : int;
