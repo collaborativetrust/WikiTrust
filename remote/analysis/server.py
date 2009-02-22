@@ -127,34 +127,34 @@ def handle_vote(req, rev_id, page_id, user_id, v_time, page_title):
   req.write("good")
 
 
-# Return colored text and median from the DB.
-# Ian: I think it is a bad idea to do the join!  It is much better to do two queries, no?
-# Luca: My understanding is that making a join is actually much
-# MORE efficient than doing two queries.
-# In fact, this is putting the relational back in relational DB.
-# I agree that this is convoluted, and would be simpler to understand as 
-# two queries.
-# Ian: I don't care about "putting the relational back into the relational db"; if 
-# you read around, there is a lot of disenchantement with relational dbs.  
-# If this is more efficient, why don't we always do joins whenever we 
-# do multiple queries?  Where does it stop?  I mean, the records being joined do not even
-# have a common column!!  I would still suggest two queries. 
+# Returns the current median value from the DB.
+def get_median():
+  global DB_PREFIX
+  global curs
+  sql = """SELECT median FROM """ + DB_PREFIX + """wikitrust_global"""
+  args = ()
+  numRows = curs.execute(sql, args)
+  if (numRows > 0):
+    dbRow = curs.fetchone()
+    return dbRow[0]
+  return 0.0
 
+# Return colored text and median from the DB.
 def fetch_colored_markup (rev_id, page_id, user_id, rev_time, page_title):
   global DB_PREFIX
   global curs
   global not_found_text_token
 
-  sql = """SELECT revision_text, median FROM """ + DB_PREFIX + \
-      """wikitrust_colored_markup JOIN """ + DB_PREFIX + \
-      """wikitrust_global WHERE revision_id = %s"""
+  sql = """SELECT revision_text FROM """ + DB_PREFIX + \
+      """wikitrust_colored_markup  """ + \
+      """ WHERE revision_id = %s"""
   args = (rev_id)
   numRows = curs.execute(sql, args)
+  median = get_median()
   if (numRows > 0):
     dbRow = curs.fetchone()
-    return "%f,%s" % (dbRow[1],dbRow[0])
+    return "%f,%s" % (median,dbRow[0])
   return not_found_text_token
-
 
 # Return colored text if it exists, compressed via gzip.
 # If it does not exist, it returns not_found_text_token, and it adds the
