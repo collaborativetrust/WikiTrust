@@ -81,12 +81,6 @@ OUR_ONLINE_OBJS = tmpfile.cmo wikipedia_api.cmo \
 
 OUR_OPT_ONLINE_OBJS = tmpfile.cmx wikipedia_api.cmx \
 
-server: $(OUR_ONLINE_OBJS) 
-	$(OCAMLC) -package "netstring,netcgi2,unix,nethttpd-for-netcgi2,netplex" -linkpkg -o server $(OCAML_CFLAGS) $(OUR_LIBS) $(OUR_ONLINE_OBJS) -thread server.ml 
-
-serveropt: $(OUR_OPT_ONLINE_OBJS)
-	$(OCAMLOPT) -package "netstring,netcgi2,unix,nethttpd-for-netcgi2,netplex" -linkpkg -o server $(OCAMLOPT_FLAGS) $(OUR_LIBS_OPT) $(OUR_OPT_ONLINE_OBJS) -thread server.ml 
-
 dispatcher: $(OUR_ONLINE_OBJS) 	
 	$(OCAMLC) -linkpkg -o dispatcher $(OCAML_CFLAGS) $(OUR_LIBS) $(OUR_ONLINE_OBJS) server_coloring_dispatcher.ml 
 
@@ -94,17 +88,15 @@ dispatcheropt: $(OUR_OPT_ONLINE_OBJS)
 	$(OCAMLOPT) -linkpkg -o dispatcher $(OCAMLOPT_FLAGS) $(OUR_LIBS_OPT) $(OUR_OPT_ONLINE_OBJS) server_coloring_dispatcher.ml
 
 all:
-	make server
 	make dispatcher
 
 allopt:
-	make serveropt
 	make dispatcheropt
 
 universe: all allopt
 
 clean:
-	rm -f *.o *.cmo *.cmx *.cmi .depends server dispatcher
+	rm -f *.o *.cmo *.cmx *.cmi .depends dispatcher
 
 # Boilerplate code for building ocaml dependencies.
 
