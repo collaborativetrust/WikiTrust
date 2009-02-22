@@ -34,8 +34,6 @@ POSSIBILITY OF SUCH DAMAGE.
  *)
 
 (* Using the wikipedia API, retrieves information about pages and revisions. *)
-(* Ian: make an .mli file with just the function declarations that are intended
-   to be visible from outside. *)
 
 open Online_types;;
 
@@ -123,9 +121,8 @@ let run_call url =
 ;;
 
 (*
-  [process_rev rev] takes an input an xml tab [rev], and returns 
+  [process_rev rev] takes as input a xml tag [rev], and returns 
   a wiki_revision_t stucture.
-  Ian: what is an xml tab? 
 *)
 let process_rev (rev : Xml.xml) : wiki_revision_t =
   let r = {
@@ -151,9 +148,13 @@ let process_rev (rev : Xml.xml) : wiki_revision_t =
 (**
   [process_page page] takes as input an xml tag representing an optional
   page, and returns a pair consisting of a wiki_page_t structure, and a 
-  list of corresponding wiki_revision_t.
-  Ian: notice the style of this rewritten comment.  Also, I don't get it. 
-   Why do you return a page option?  You never return None, do you? 
+  list of corresponding wiki_revision_t. 
+
+   The Some/None type of the wiki_page_t return is an error handling mechanisam.
+   If there are no pages found, this is an error.
+   None is set in fetch_page_and_revs_after.
+   Some is set only after a page is found.
+   
 *)
 let process_page (page : Xml.xml) : 
     (wiki_page_t option * wiki_revision_t list) =
@@ -179,6 +180,10 @@ let process_page (page : Xml.xml) :
    and a [rev_date], returns all the revisions of [page_title] after [rev_date]. 
    [logger] is, well, a logger. 
    Ian: why do you use page_title, rather than page_id? 
+
+   Luca: This is inherent in the way the mediawiki api works -- the function I
+   need is keyed off of page_title, not page_id. 
+   See http://en.wikipedia.org/w/api.php for more details.
 *)
 let fetch_page_and_revs_after (page_title : string) (rev_date : string) 
     (logger : Online_log.logger) : (wiki_page_t option * wiki_revision_t list) =
@@ -202,7 +207,8 @@ let fetch_page_and_revs_after (page_title : string) (rev_date : string)
 ;;
     
 (** [get_user_id user_name logger] returns the user_id of user with name [user_name]. 
-    Ian: explain here any costs involved. 
+    This involves querying the toolserver, which is usaually heavilly loaded,
+    resulting in long responce times.
  *)
 let get_user_id (user_name : string) (logger : Online_log.logger) : int =
   let safe_user_name = Netencoding.Url.encode user_name in

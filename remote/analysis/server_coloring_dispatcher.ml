@@ -62,15 +62,7 @@ POSSIBILITY OF SUCH DAMAGE.
    
 *)
 
-(* Ian: can you open fewer modules?  In particular, don't open if you can
-   Online_db, Unix, and Wikipedia_api.  The others are fine. *)
-
-open Printf
-open Mysql
-open Unix
 open Online_command_line
-open Wikipedia_api
-open Online_db
 open Online_types
 
 let max_concurrent_procs = 10
@@ -92,11 +84,11 @@ let user_id_cache_back = ref (Hashtbl.create max_id_cache_size)
 
 (* Prepares the database connection information *)
 let mediawiki_db = {
-  dbhost = Some !mw_db_host;
-  dbname = Some !mw_db_name;
-  dbport = Some !mw_db_port;
-  dbpwd  = Some !mw_db_pass;
-  dbuser = Some !mw_db_user;
+  Mysql.dbhost = Some !mw_db_host;
+  Mysql.dbname = Some !mw_db_name;
+  Mysql.dbport = Some !mw_db_port;
+  Mysql.dbpwd  = Some !mw_db_pass;
+  Mysql.dbuser = Some !mw_db_user;
 }
 
 (* Here begins the sequential code *)
@@ -117,12 +109,12 @@ in
 
 (* Wait for the processes to stop before accepting more *)
 let clean_kids k v = (
-  let stat = Unix.waitpid [WNOHANG] v in
+  let stat = Unix.waitpid [Unix.WNOHANG] v in
     match (stat) with
       | (0,_) -> () (* Process not yet done. *)
-      | (_, WEXITED s) -> Hashtbl.remove working_children k (* Otherwise, remove the process. *)
-      | (_, WSIGNALED s) -> Hashtbl.remove working_children k
-      | (_, WSTOPPED s) -> Hashtbl.remove working_children k
+      | (_, Unix.WEXITED s) -> Hashtbl.remove working_children k (* Otherwise, remove the process. *)
+      | (_, Unix.WSIGNALED s) -> Hashtbl.remove working_children k
+      | (_, Unix.WSTOPPED s) -> Hashtbl.remove working_children k
 ) in
 
 (* This is the function that evaluates a revision. 
@@ -202,8 +194,8 @@ in
 let get_user_id u_name =
   try Hashtbl.find user_id_cache_front u_name with Not_found -> (
     try Hashtbl.find !user_id_cache_back u_name with Not_found -> (
-      let u_id = try db # get_user_id u_name with DB_Not_Found -> 
-	get_user_id u_name logger
+      let u_id = try db # get_user_id u_name with Online_db.DB_Not_Found -> 
+	Wikipedia_api.get_user_id u_name logger
       in
 	if Hashtbl.length user_id_cache_front >= max_id_cache_size then (
 	  Hashtbl.clear !user_id_cache_back;
@@ -222,41 +214,48 @@ in
    50 revisions, see the Wikimedia API) from the Wikimedia API,
    stores them to disk, and returns the list of revision ids. 
 *)
-(* Ian: is it here, or elsewhere, that you try to read them from the dump? *)
+(* Ian: is it here, or elsewhere, that you try to read them from the dump? 
+   luca: elsewhere. This method call:
+   (db # get_revisions_present_not_colored page_id) in the function 
+   process_revs, returns a list of those revisions which are present in 
+   the db but not yet colored.
+*)
 let get_revs_from_api page_title page_id last_timestamp : int list =
   let (wiki_page, wiki_revs) = 
     (* Retrieve a page and revision list from mediawiki. *)
-    fetch_page_and_revs_after page_title last_timestamp logger in
-    match wiki_page with
-      | None -> (logger#log (Printf.sprintf "Failed for page %s\n" 
-			       page_title);
-		 raise Wikipedia_api.Http_client_error
-		)
-      | Some pp -> (
-	  logger#log (Printf.sprintf "Got page titled %s\n" pp.page_title);
-	  (* Write the new page to the page table. *)
-	  db#write_page pp
-	);
-	  (* Add the revision to the revision table of the db. *)
-	  let update_and_write_rev rev =
-	    rev.revision_page <- page_id;
-	    (* User ids are not given by the api, so we have to use the 
-	       toolserver. *)
-	    rev.revision_user <- (get_user_id rev.revision_user_text);
-	    db#write_revision rev
-	  in
-	    (* Write the list of revisions to the db. *)
-	    List.iter update_and_write_rev wiki_revs;
-	    (* Finaly, retun a list of simple rev_ids *)
-	    let get_id rev = rev.revision_id in
-	      List.map get_id wiki_revs
+    Wikipedia_api.fetch_page_and_revs_after page_title last_timestamp 
+      logger in  
+  let page_latest = match wiki_page with 
+    | None -> raise Wikipedia_api.Http_client_error
+    | Some pp -> (
+	logger#log (Printf.sprintf "Got page titled %s\n" pp.page_title);
+	(* Write the new page to the page table. *)
+	db#write_page pp;
+	pp.page_latest
+      )
+  in
+    logger#log (Printf.sprintf "Got page latest rev %d\n" page_latest);
+    (* Add the revision to the revision table of the db. *)
+    let update_and_write_rev rev =
+      rev.revision_page <- page_id;
+      (* User ids are not given by the api, so we have to use the 
+	 toolserver. *)
+      rev.revision_user <- (get_user_id rev.revision_user_text);
+      db#write_revision rev
+    in
+      (* Write the list of revisions to the db. *)
+      List.iter update_and_write_rev wiki_revs;
+      (* Finaly, retun a list of simple rev_ids *)
+      let get_id rev = rev.revision_id in
+	List.map get_id wiki_revs
 in		
-
-(* Ian: I just invented the following comment.  Can you check it for
-   accuracy? *)
+  
 (** [process_revs page_id rev_ids page_title rev_timestamp user_id] 
-    ... 
-    (also say what is the return type)
+    Returns unit.
+
+    This is given a page and a list of revisions to work on.
+    It sucessivly calls either evaluate_vote or evaluate_revsion 
+    for each revision.
 *)
 let process_revs (page_id : int) (page_title : string)
     (requests : revision_processing_request_t list) =
@@ -267,7 +266,7 @@ let process_revs (page_id : int) (page_title : string)
       let last_present_timestamp = 
 	try 
 	  db#get_latest_present_rev_timestamp page_id 
-	with DB_Not_Found -> Wikipedia_api.default_timestamp 
+	with Online_db.DB_Not_Found -> Wikipedia_api.default_timestamp 
       in
 	
       (* List of revs present but not colored. 
@@ -296,9 +295,13 @@ let process_revs (page_id : int) (page_title : string)
 	)
     ) else ( (* Vote! *)
       let process_vote v = (
-	if v.vote_page_id == page_id then 
-	  evaluate_vote page_id v.vote_revision_id v.vote_voter_id;
-	  db # mark_rev_as_unprocessed v.vote_revision_id
+	if v.Online_db.vote_page_id == page_id then (
+	  evaluate_vote page_id v.Online_db.vote_revision_id
+	    v.Online_db.vote_voter_id;
+	  db # mark_rev_as_processed v.Online_db.vote_revision_id
+	)
+	else
+	  db # mark_rev_as_unprocessed v.Online_db.vote_revision_id
       ) in
       let votes = db#fetch_unprocessed_votes !max_events_to_process in
 	List.iter process_vote votes
@@ -311,18 +314,18 @@ let process_revs (page_id : int) (page_title : string)
     exit 0 (* No more work to do, stop this process. *)
 in
 
-(* Ian: can you add a standard comment, add types of input and output
-   parameters, and a good comment that explains what this does? 
-   In particular, is rev_pages of type revision_t list, as your comment
-   below seems to imply?
+(* 
+   [dispatch_page rev_pages] -> unit.
 
-   Given a list of revs to process, this function starts a new process
+   Given a list of revisions to process 
+   (of type revision_processing_request_t), 
+   this function starts a new process
    going which either colores the revision text or else handles a vote.
 
    It groups the raw list of revs by page, and then forks a new 
    process to handle each page, up to the concurrant proc. limit.
 *)
-let dispatch_page rev_pages = 
+let dispatch_page (rev_pages : revision_processing_request_t list) = 
   let new_pages = Hashtbl.create (List.length rev_pages) in
   let is_old_page p = Hashtbl.mem working_children p in
     (* If the revision is part of a page which is not
