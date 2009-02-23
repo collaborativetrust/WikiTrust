@@ -94,16 +94,22 @@ def connect_db():
   DB_PREFIX = ini_config.get('db', 'prefix')
 
 # Adds a revision into the db for coloring.
-def mark_for_coloring (rev_id, page_id, user_id, rev_time, page_title):
+def mark_for_coloring (rev_id, page_id, user_id, rev_time, page_title, r_type):
   global DB_PREFIX
   global connection
 
   curs = connection.cursor()
-  sql = """INSERT INTO """ + DB_PREFIX + """wikitrust_missing_revs (revision_id, page_id, page_title, rev_time, user_id) VALUES (%(rid)s, %(pid)s, %(title)s, %(time)s, %(vid)s) ON DUPLICATE KEY UPDATE requested_on = now(), processed = false"""
-  args = {'rid':rev_id, 'pid':page_id, 'title':page_title, 
-          'time':rev_time, 'vid':user_id }
+  sql = """SELECT revision_id FROM """ + DB_PREFIX + """wikitrust_missing_revs WHERE revision_id = %(rid)s AND processed <> 'processed'"""
+  args = {'rid':rev_id}
   curs.execute(sql, args)
-  connection.commit()
+  numRows = curs.execute(sql, args)
+
+  if (numRows <= 0):
+     sql = """INSERT INTO """ + DB_PREFIX + """wikitrust_missing_revs (revision_id, page_id, page_title, rev_time, user_id, type) VALUES (%(rid)s, %(pid)s, %(title)s, %(time)s, %(vid)s, %(ty)s) ON DUPLICATE KEY UPDATE requested_on = now(), processed = 'unprocessed', type=%(ty)s"""
+     args = {'rid':rev_id, 'pid':page_id, 'title':page_title, 
+             'time':rev_time, 'vid':user_id, 'ty':r_type}
+     curs.execute(sql, args)
+     connection.commit()
 
 # Insert a vote to be processed into the db.
 def handle_vote(req, rev_id, page_id, user_id, v_time, page_title):
@@ -111,12 +117,14 @@ def handle_vote(req, rev_id, page_id, user_id, v_time, page_title):
   global connection
 
   curs = connection.cursor()
-  sql = """INSERT INTO """ + DB_PREFIX + """wikitrust_vote (revision_id, page_id, voter_id, voted_on) VALUES (%(rid)s, %(pid)s, %(vid)s, %(time)s) ON DUPLICATE KEY UPDATE voted_on = %(time)s"""
+  sql = """INSERT INTO """ + DB_PREFIX + """wikitrust_vote (revision_id, page_id, voter_id, voted_on) VALUES (%(rid)s, %(pid)s, %(vid)s, %(time)s)"""
   args = {'rid':rev_id, 'pid':page_id, 'vid':user_id, 'time':v_time}
-  curs.execute(sql, args)
+  numRows = curs.execute(sql, args)
   connection.commit()
   # Once a vote is inserted, we need to recolor the page.
-  mark_for_coloring(rev_id, page_id, user_id, v_time, page_title)
+  # Only do this though if the vote is not a repeat.
+  if (numRows > 0):
+     mark_for_coloring(rev_id, page_id, user_id, v_time, page_title, "vote")
   
   # Token saying things are ok
   # Votes do not return anything. This just sends back the ACK
@@ -167,11 +175,20 @@ def handle_text_request (req, rev_id, page_id, user_id, rev_time, page_title):
   global sleep_time_sec
   global not_found_text_token
   # First, tries to read the colored markup from the database. 
-  res = fetch_colored_markup(rev_id, page_id, user_id, rev_time, page_title)
+  res = fetch_colored_markup(rev_id, 
+                             page_id, 
+                             user_id, 
+                             rev_time, 
+                             page_title)
   if (res == not_found_text_token):
     # If the revision is not found among the colored ones, it marks it for coloring,
     # and it waits a bit, in the hope that it got colored.
-    mark_for_coloring(rev_id, page_id, user_id, rev_time, page_title)
+    mark_for_coloring(rev_id, 
+                      page_id, 
+                      user_id, 
+                      rev_time, 
+                      page_title,
+                      "coloring")
     time.sleep(sleep_time_sec)
   # Tries again to get it, to see if it has been colored.
   res = fetch_colored_markup(rev_id, page_id, user_id, rev_time, page_title) 

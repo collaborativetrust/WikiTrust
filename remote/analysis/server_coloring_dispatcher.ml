@@ -94,7 +94,6 @@ let mediawiki_db = {
 (* Here begins the sequential code *)
 let db = new Online_db.db !db_prefix mediawiki_db None !dump_db_calls in
 let logger = new Online_log.logger !log_name !synch_log in
-let n_processed_events = ref 0 in
 let trust_coeff = Online_types.get_default_coeff in
 
 (* There are two types of throttle delay: a second each time we are multiples 
@@ -122,79 +121,66 @@ let clean_kids k v = (
    that falls within the analysis horizon is not yet evaluated and colored
    for trust, it evaluates and colors it first. 
  *)
-let rec evaluate_revision (page_id: int) (rev_id: int): unit = 
-  if !n_processed_events < !max_events_to_process then 
-    begin 
-      begin (* try ... with ... *)
-	try 
-	  logger#log (Printf.sprintf "Evaluating revision %d of page %d\n" 
+let rec evaluate_revision (page_id: int) (rev_id: int) (child_db : Online_db.db) 
+    (n_processed_events : int)
+    : unit = 
+  begin (* try ... with ... *)
+    try 
+      logger#log (Printf.sprintf "Evaluating revision %d of page %d\n" 
+		    rev_id page_id);
+      let page = new Online_page.page child_db logger page_id rev_id trust_coeff !times_to_retry_trans in
+	if page#eval then begin 
+	  logger#log (Printf.sprintf "Done revision %d of page %d\n" 
 			rev_id page_id);
-	  let page = new Online_page.page db logger page_id rev_id trust_coeff !times_to_retry_trans in
-	  n_processed_events := !n_processed_events + 1;
-	  if page#eval then begin 
-	    logger#log (Printf.sprintf "Done revision %d of page %d\n" 
-			  rev_id page_id);
-	  end else begin 
-	    logger#log (
-	      Printf.sprintf "Revision %d of page %d was already done\n" 
-		rev_id page_id);
-	  end;
-	  (* Waits, if so requested to throttle the computation. *)
-	  if each_event_delay > 0 then Unix.sleep (each_event_delay); 
-	  begin 
-	    match every_n_events_delay with 
-	      Some d -> begin 
-		if (!n_processed_events mod d) = 0 then Unix.sleep (1);
+	end else begin 
+	  logger#log (
+	    Printf.sprintf "Revision %d of page %d was already done\n" 
+	      rev_id page_id);
+	end;
+	(* Waits, if so requested to throttle the computation. *)
+	if each_event_delay > 0 then Unix.sleep (each_event_delay); 
+	begin 
+	  match every_n_events_delay with 
+	    | Some d -> begin 
+		if (n_processed_events mod d) = 0 then Unix.sleep (1);
 	      end
 	    | None -> ()
-	  end; 
-
-	with Online_page.Missing_trust (page_id', rev_id') -> 
-	  begin
-	    (* We need to evaluate page_id', rev_id' first *)
-	    (* This if is a basic sanity check only. It should always be true *)
-	    if rev_id' <> rev_id then 
-	      begin 
-		logger#log (Printf.sprintf "Missing trust info: we need first to evaluate revision %d of page %d\n" rev_id' page_id');
-		evaluate_revision page_id' rev_id';
-		evaluate_revision page_id rev_id
-	      end (* rev_id' <> rev_id *)
-	  end (* with: Was missing trust of a previous revision *)
-      end (* End of try ... with ... *)
-    end
+	end; 
+	
+    with Online_page.Missing_trust (page_id', rev_id') -> 
+      begin
+	(* We need to evaluate page_id', rev_id' first *)
+	(* This if is a basic sanity check only. It should always be true *)
+	if rev_id' <> rev_id then 
+	  begin 
+	    logger#log (Printf.sprintf "Missing trust info: we need first to evaluate revision %d of page %d\n" rev_id' page_id');
+	    evaluate_revision page_id' rev_id' child_db (n_processed_events + 1);
+	    evaluate_revision page_id rev_id child_db (n_processed_events + 2)
+	  end (* rev_id' <> rev_id *)
+      end (* with: Was missing trust of a previous revision *)
+  end (* End of try ... with ... *)
 in
 
 (* This is the code that evaluates a vote *)
-let evaluate_vote (page_id: int) (revision_id: int) (voter_id: int) = 
-  if !n_processed_events < !max_events_to_process then 
-    begin 
-      logger#log (Printf.sprintf "Evaluating vote by %d on revision %d of page %d\n" voter_id revision_id page_id); 
-      let page = new Online_page.page db logger page_id revision_id trust_coeff !times_to_retry_trans in 
-      if page#vote voter_id then begin 
-	n_processed_events := !n_processed_events + 1;
-	logger#log (Printf.sprintf "Done revision %d of page %d\n" 
-		      revision_id page_id);
-      end;
-      (* Waits, if so requested to throttle the computation. *)
-      if each_event_delay > 0 then Unix.sleep (each_event_delay); 
-      begin 
-	match every_n_events_delay with 
-	  Some d -> begin 
-	    if (!n_processed_events mod d) = 0 then Unix.sleep (1);
-	  end
-	| None -> ()
-      end; 
-    end 
+let evaluate_vote (page_id: int) (revision_id: int) (voter_id: int) (child_db : Online_db.db) = 
+  logger#log (Printf.sprintf "Evaluating vote by %d on revision %d of page %d\n" voter_id 
+		revision_id page_id); 
+  let page = new Online_page.page child_db logger page_id revision_id trust_coeff 
+    !times_to_retry_trans in 
+    if page#vote voter_id then 
+      logger#log (Printf.sprintf "Done revision %d of page %d\n" 
+		    revision_id page_id)
+    else ()
 in 
 
 (* 
    Returns the user id of the user name if we have it, 
    or asks a web service for it if we do not. 
 *)
-let get_user_id u_name =
+let get_user_id u_name child_db =
   try Hashtbl.find user_id_cache_front u_name with Not_found -> (
     try Hashtbl.find !user_id_cache_back u_name with Not_found -> (
-      let u_id = try db # get_user_id u_name with Online_db.DB_Not_Found -> 
+      let u_id = try child_db # get_user_id u_name with Online_db.DB_Not_Found -> 
 	Wikipedia_api.get_user_id u_name logger
       in
 	if Hashtbl.length user_id_cache_front >= max_id_cache_size then (
@@ -220,7 +206,8 @@ in
    process_revs, returns a list of those revisions which are present in 
    the db but not yet colored.
 *)
-let get_revs_from_api page_title page_id last_timestamp : int list =
+let get_revs_from_api page_title page_id last_timestamp child_db : int list =
+  logger#log (Printf.sprintf "Getting revs from api for page %d\n" page_id);
   let (wiki_page, wiki_revs) = 
     (* Retrieve a page and revision list from mediawiki. *)
     Wikipedia_api.fetch_page_and_revs_after page_title last_timestamp 
@@ -230,7 +217,7 @@ let get_revs_from_api page_title page_id last_timestamp : int list =
     | Some pp -> (
 	logger#log (Printf.sprintf "Got page titled %s\n" pp.page_title);
 	(* Write the new page to the page table. *)
-	db#write_page pp;
+	child_db#write_page pp;
 	pp.page_latest
       )
   in
@@ -240,8 +227,8 @@ let get_revs_from_api page_title page_id last_timestamp : int list =
       rev.revision_page <- page_id;
       (* User ids are not given by the api, so we have to use the 
 	 toolserver. *)
-      rev.revision_user <- (get_user_id rev.revision_user_text);
-      db#write_revision rev
+      rev.revision_user <- (get_user_id rev.revision_user_text child_db);
+      child_db#write_revision rev
     in
       (* Write the list of revisions to the db. *)
       List.iter update_and_write_rev wiki_revs;
@@ -259,53 +246,60 @@ in
 *)
 let process_revs (page_id : int) (page_title : string)
     (requests : revision_processing_request_t list) =
+  
+  (* Each child has its own database. *)
+  let child_db = new Online_db.db !db_prefix mediawiki_db None !dump_db_calls in
+  
   (* This recursive inner function actually does the processing *)
   let rec do_processing (req : revision_processing_request_t) = 
-    (* I assume that a user cannot vote on an unprocessed revision here. *)
-    if (db#revision_needs_coloring req.req_revision_id) then (
-      let last_present_timestamp = 
-	try 
-	  db#get_latest_present_rev_timestamp page_id 
-	with Online_db.DB_Not_Found -> Wikipedia_api.default_timestamp 
-      in
-	
-      (* List of revs present but not colored. 
-	 This is calculated by first getting the list of all revs currently 
-	 present not colored, then requesting from the mediawiki
-	 api any remaining revs for the given page.
-      *) 
-      let revs_to_color = (db # get_revisions_present_not_colored page_id) @
-	(get_revs_from_api page_title page_id last_present_timestamp) in
-	(* Now that the data we need is present locally, evaluate the 
-	   revisions for trust,reputation. *)
-      let f rev = 
-	evaluate_revision page_id rev
-      in
-	List.iter f revs_to_color;
-	(* Sleep for a bit so that we don't get confused. *)
-	Unix.sleep sleep_time_sec;
-	if !synch_log then flush Pervasives.stdout;
-	(* We color 50 revs at a time. If the target revision_id 
-	   still isn't colored, keep going. *)
-	if (db#revision_needs_coloring req.req_revision_id) then (
-	  do_processing req
-	) else (
-	  (* End evaluate revision part. *)
-	  db # mark_rev_as_processed req.req_revision_id
+    match req.req_request_type with
+      | Coloring -> (
+	  logger#log (Printf.sprintf "Working on coloring: %d\n" 
+	     req.req_revision_id);
+	  let last_present_timestamp = 
+	    try 
+	      child_db#get_latest_present_rev_timestamp page_id 
+	    with Online_db.DB_Not_Found -> Wikipedia_api.default_timestamp 
+	  in
+	    
+	  (* List of revs present but not colored. 
+	     This is calculated by first getting the list of all revs currently 
+	     present not colored, then requesting from the mediawiki
+	     api any remaining revs for the given page.
+	  *) 
+	  let present_reps = child_db # get_revisions_present_not_colored page_id in
+	    logger # log (Printf.sprintf "Fetching revs from api from %s\n" 
+			    last_present_timestamp);
+	    let revs_to_color = present_reps @
+	      (get_revs_from_api page_title page_id last_present_timestamp child_db) in
+	      (* Now that the data we need is present locally, evaluate the 
+		 revisions for trust,reputation. *)
+	    let f rev = 
+	      (* if rev <= req.req_revision_id then *)
+	      (* If the above line is used, stop when we have reached the target revision.
+		 Otherwise, we color all the revisions from the list we got above.
+	      *)
+		evaluate_revision page_id rev child_db 0
+	    in
+	      List.iter f revs_to_color;
+	      (* Sleep for a bit so that we don't get confused. *)
+	      Unix.sleep sleep_time_sec;
+	      if !synch_log then flush Pervasives.stdout;
+	      (* We color 50 revs at a time. If the target revision_id 
+		 still isn't colored, keep going. *)
+	      if (child_db#revision_needs_coloring req.req_revision_id) then (
+		do_processing req
+	      ) else (
+		(* End evaluate revision part. *)
+		child_db # mark_rev_as_processed req.req_revision_id
+	      )
+	) 
+      | Vote -> ( (* Vote! *)
+	  logger#log (Printf.sprintf "Working on vote for %d\n" 
+			req.req_revision_id);
+	  evaluate_vote page_id req.req_revision_id req.req_requesting_user_id child_db;
+	  child_db # mark_rev_as_processed req.req_revision_id
 	)
-    ) else ( (* Vote! *)
-      let process_vote v = (
-	if v.Online_db.vote_page_id == page_id then (
-	  evaluate_vote page_id v.Online_db.vote_revision_id
-	    v.Online_db.vote_voter_id;
-	  db # mark_rev_as_processed v.Online_db.vote_revision_id
-	)
-	else
-	  db # mark_rev_as_unprocessed v.Online_db.vote_revision_id
-      ) in
-      let votes = db#fetch_unprocessed_votes !max_events_to_process in
-	List.iter process_vote votes
-    )
   in
     (* Process each revision in turn. *)
     List.iter do_processing requests;

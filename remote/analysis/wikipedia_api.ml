@@ -139,11 +139,14 @@ let process_rev (rev : Xml.xml) : wiki_revision_t =
     revision_deleted = false;
     revision_len = (try int_of_string (Xml.attrib rev "size") with Xml.No_attribute e -> 0);
     revision_parent_id = 0;
-    revision_content = (Netencoding.Html.decode ~in_enc:`Enc_utf8 
-			  ~out_enc:`Enc_utf8 () 
-			  (Xml.to_string (List.hd (Xml.children rev))));
-  } in
-  r
+    revision_content = try 
+      (Netencoding.Html.decode ~in_enc:`Enc_utf8 
+	 ~out_enc:`Enc_utf8 () 
+	 (Xml.to_string (List.hd (Xml.children rev))))
+    with Failure f -> "";
+  } 
+  in
+    r
 
 (**
   [process_page page] takes as input an xml tag representing an optional
@@ -173,7 +176,11 @@ let process_page (page : Xml.xml) :
     page_len = int_of_string (Xml.attrib page "length")
   } in
   let revs = Xml.children page in
-  (Some w_page, (Xml.map process_rev (List.hd revs)))
+  let new_revs = (Xml.map process_rev (List.hd revs)) in
+    if List.length new_revs > 1 then
+      (Some w_page, List.tl new_revs)
+    else 
+      (Some w_page, [])
 
 (**
    [fetch_page_and_revs after page_title rev_date logger], given a [page_title] 

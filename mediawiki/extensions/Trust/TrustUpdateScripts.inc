@@ -94,7 +94,8 @@ CREATE TABLE ".$wgDBprefix."wikitrust_missing_revs (
        rev_time        varchar(255) NOT NULL,
        user_id         int NOT NULL,
        requested_on    timestamp DEFAULT now(),
-       processed       ENUM('unprocessed', 'processing', 'processed') DEFAULT 'unprocessed'
+       type            ENUM('coloring', 'vote') NOT NULL,
+       processed       ENUM('unprocessed', 'processing', 'processed') NOT NULL DEFAULT 'unprocessed'
 ) ENGINE=InnoDB","
 GRANT ALL ON ".$wgDBprefix."wikitrust_missing_revs TO $wgDBuser;
 ");

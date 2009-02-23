@@ -51,6 +51,9 @@ exception DB_Internal_Error
 (* Commit failed, or other database error that may have to cause a rollback. *)
 exception DB_TXN_Bad
 
+(* Infinity for reputation delta *)
+let infinity = 100000.0;;
+
 (* This is the function that sexplib uses to convert floats *)
 Sexplib.Conv.default_string_of_float := (fun n -> sprintf "%.3f" n);;
 
@@ -447,11 +450,12 @@ class db
       let comment = ml2str revision_info.rev_comment in 
       (* Quality parameters *)
       let q1 = ml2str (string_of__of__sexp_of sexp_of_qual_info_t quality_info) in 
-      let q2 = ml2float quality_info.reputation_gain in 
+      let q2 =  ml2float quality_info.reputation_gain in 
+      let aq2 = if (q2 = "inf") then (ml2float infinity) else q2 in
       let q3 = ml2float quality_info.overall_trust in
       (* Db write access *)
       let s2 =  Printf.sprintf "INSERT INTO %swikitrust_revision (revision_id, page_id, text_id, time_string, user_id, username, is_minor, comment, quality_info, reputation_delta, overall_trust) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE quality_info = %s, reputation_delta = %s, overall_trust = %s"
-	db_prefix rev_id page_id text_id time_string user_id username is_minor comment q1 q2 q3 q1 q2 q3 in 
+	db_prefix rev_id page_id text_id time_string user_id username is_minor comment q1 aq2 q3 q1 aq2 q3 in 
       ignore (self#db_exec wikitrust_dbh s2)
 
     (** [read_revision_info rev_id] reads the wikitrust information of revision_id *)
@@ -624,7 +628,7 @@ class db
         This code is SINGLE-THREADED: it assumes that there is a single reader. *)
     method fetch_next_revisions_to_color (max_to_get : int) : 
       revision_processing_request_t list =
-      let s = Printf.sprintf "SELECT revision_id, page_id, page_title, rev_time, user_id FROM %swikitrust_missing_revs WHERE processed = 'unprocessed' ORDER BY requested_on ASC LIMIT %s" 
+      let s = Printf.sprintf "SELECT revision_id, page_id, page_title, rev_time, user_id, type FROM %swikitrust_missing_revs WHERE processed = 'unprocessed' ORDER BY requested_on ASC LIMIT %s" 
 	db_prefix (ml2int max_to_get) in
       let db2color_row row : revision_processing_request_t =
 	{
@@ -632,7 +636,10 @@ class db
 	  req_page_id = (not_null int2ml row.(1));
 	  req_page_title = (not_null str2ml row.(2));
 	  req_revision_timestamp = (not_null str2ml row.(3));
-	  req_requesting_user_id = (not_null int2ml row.(4))
+	  req_requesting_user_id = (not_null int2ml row.(4));
+	  req_request_type = (match (not_null str2ml row.(5)) with
+				| "vote" -> Vote
+				| _ -> Coloring) 
 	}
       in
       let results = Mysql.map (self#db_exec wikitrust_dbh s) db2color_row in

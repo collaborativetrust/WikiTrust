@@ -35,6 +35,9 @@ class TextTrustImpl {
   ## Context for communicating with the trust server
   const TRUST_TIMEOUT = 10;
 
+  ## Default median to avoid div by 0 errors
+  const TRUST_DEFAULT_MEDIAN = 1;
+
   ## Median Value of Trust
   static $median = 1.0;
 
@@ -193,6 +196,9 @@ class TextTrustImpl {
       if (preg_match("/^[+-]?(([0-9]+)|([0-9]*\.[0-9]+|[0-9]+\.[0-9]*)|
 			    (([0-9]+|([0-9]*\.[0-9]+|[0-9]+\.[0-9]*))[eE][+-]?[0-9]+))$/", $colored_data[0])){
 	self::$median = $colored_data[0];
+	if ($colored_data[0] == 0){
+	  self::$median = self::TRUST_DEFAULT_MEDIAN;
+	}
       }
 
       // First, make sure that there are not any instances of our tokens in the colored_text
