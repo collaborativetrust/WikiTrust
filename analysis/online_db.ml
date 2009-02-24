@@ -1,6 +1,6 @@
 (*
 
-Copyright (c) 2008 The Regents of the University of California
+Copyright (c) 2008-09 The Regents of the University of California
 All rights reserved.
 
 Authors: Luca de Alfaro, Ian Pye 
@@ -593,6 +593,7 @@ class db
 	  | Some x -> not_null int2ml x.(0)      
 	      
     (* ================================================================ *)
+    (* Votes. *)
 
     (** Add the vote to the db *)
     method vote (vote : vote_t) =
@@ -601,7 +602,10 @@ class db
 
     (* ================================================================ *)
 
-    (** Note that the requested rev was needs to be colored *)
+    (** [mark_to_color rev_id page_id page_title rev_time user_id] marks that the revision
+	[rev_id] of page [page_id], with title [page_title], and time [rev_time], 
+	needs to be colored.  I have no idea what [user_id] is, whether it is the user
+	who did the request, or the author of the revision. *)
     method mark_to_color (rev_id : int) (page_id : int) (page_title : string) 
       (rev_time : string) (user_id : int) =
       let s = Printf.sprintf "INSERT INTO %swikitrust_missing_revs (revision_id, page_id, page_title, rev_time, user_id) VALUES (%s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE requested_on = now(), processed = false" db_prefix (ml2int rev_id) (ml2int page_id) (ml2str page_title) (ml2str rev_time) (ml2int user_id) in

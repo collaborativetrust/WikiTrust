@@ -1,6 +1,6 @@
 (*
 
-Copyright (c) 2007-2008 The Regents of the University of California
+Copyright (c) 2009 The Regents of the University of California
 All rights reserved.
 
 Authors: Luca de Alfaro, Ian Pye
@@ -35,6 +35,9 @@ POSSIBILITY OF SUCH DAMAGE.
 
 (* Using the wikipedia API, retrieves information about pages and revisions *)
 
+(* Ian: can you please avoid opening all these? Online_types is ok, but for the rest, 
+   can you switch to the Gzip. notation, etc?  Otherwise, it is very difficult to 
+   follow.  Simply comment out the opens, and fix the code until it runs. *)
 open Http_client;;
 open ExtLib;;
 open Gzip;;
@@ -52,6 +55,8 @@ let requested_encoding_type = "gzip"
 let tmp_prefix = "wiki"
 let rev_lim = "50"
 let default_timestamp = "19700201000000"
+(* Ian: add some comments... I guess this is a time-zone, but you should say for each 
+   of the above constants, what they are. *)
 let api_tz_re = Str.regexp "\\([0-9][0-9][0-9][0-9]\\)-\\([0-9][0-9]\\)-\\([0-9][0-9]\\)T\\([0-9][0-9]\\):\\([0-9][0-9]\\):\\([0-9][0-9]\\)Z"
 
 (* Maps the Wikipedias api timestamp to our internal one. *)
@@ -64,6 +69,11 @@ let api_ts2mw_ts s =
 
 (* Given an input channel, return a string representing all there is
    to be read of this channel. *)
+(* Ian: can you please add comments?  I find it hard to understand. 
+   Also your comment is a bit cryptic... you mean, it reads it all?  
+   BTW, you know that there is a Buffer module for doing string concatenation in 
+   linear time?  I cannot exactly follow what you are doing below, but I feel you are
+   trying to solve that problem... *)
 let input_all ic =
   let rec loop acc total buf ofs =
     let n = input ic buf ofs (buf_len - ofs) in
@@ -99,6 +109,11 @@ let run_call url =
     match call # status with
       | `Successful -> (
 	  let body = call # response_body # value in
+	  (* Ian: is repsponse_header just a typo for response_header? 
+	     In Ocaml it is not good style to override a let with another let
+	     for the same identifier; remember, these are not assignments, but
+	     let-bindings.  Can you clean up this code, using different names
+	     for different let-binding identifiers? *)
 	  let repsponse_header = call # response_header in
 	    match (repsponse_header # content_type ()) with
 	      | ("text/xml",_) -> (
@@ -118,8 +133,10 @@ let run_call url =
 (*
   Internal xml processing for the api
 *)
+(* Ian: the comment above is not understandable. Can you say more about what you are doing, 
+   and what the purpose of the returned revision is? *)
 let process_rev (rev : xml) : wiki_revision =
-  let w_rev = {
+  let r = {
     revision_id = int_of_string (Xml.attrib rev "revid");
     revision_page = 0;
     revision_text_id = int_of_string (Xml.attrib rev "revid");
@@ -137,11 +154,12 @@ let process_rev (rev : xml) : wiki_revision =
 			  ~out_enc:`Enc_utf8 () 
 			  (Xml.to_string (List.hd (Xml.children rev))));
   } in
-    w_rev
+  r
 
 (*
   Internal xml processing for the api
 *)
+(* Ian: again, can you add comments? *)
 let process_page (page : xml) : (wiki_page option * wiki_revision list) =
   let w_page = {
     page_id = int_of_string (Xml.attrib page "pageid");
@@ -150,7 +168,7 @@ let process_page (page : xml) : (wiki_page option * wiki_revision list) =
     page_restrictions = "";
     page_counter = int_of_string (Xml.attrib page "counter");
     page_is_redirect = (try ignore(Xml.attrib page "redirect"); true 
-			with Xml.No_attribute e -> false);
+                        with Xml.No_attribute e -> false);
     page_is_new = false;
     page_random = (Random.float 1.0);
     page_touched = api_ts2mw_ts (Xml.attrib page "touched"); 
@@ -158,10 +176,11 @@ let process_page (page : xml) : (wiki_page option * wiki_revision list) =
     page_len = int_of_string (Xml.attrib page "length")
   } in
   let revs = Xml.children page in
-    (Some w_page, (Xml.map process_rev (List.hd revs)))
+  (Some w_page, (Xml.map process_rev (List.hd revs)))
 
 (* 
-   Given a page and date to start with, returns the next n revs for this page. 
+   Given a page and date to start with, returns the next n revisions for this page
+   after the specified date. 
 *)
 let fetch_page_and_revs_after (page_title : string) (rev_date : string) 
     (logger : Online_log.logger) : (wiki_page option * wiki_revision list) =

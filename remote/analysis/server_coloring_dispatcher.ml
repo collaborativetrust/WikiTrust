@@ -1,6 +1,6 @@
 (*
 
-Copyright (c) 2007-2009 The Regents of the University of California
+Copyright (c) 2008-2009 The Regents of the University of California
 All rights reserved.
 
 Authors: Luca de Alfaro, Ian Pye
@@ -34,24 +34,25 @@ POSSIBILITY OF SUCH DAMAGE.
  *)
 
 (*
-  This module runs as a deamon, polling every secound for new requests.
-   Requests are of two types, a vote and a coloring request.
+  This module runs as a deamon, polling every second for new requests.
+  Requests are of two types, a vote and a coloring request.
   
-   Whenever a new request is found, a new process is forked to handle this 
-   request. Note that to ensure consistancy, there is page level locking, so 
-   that there is never a situation where two child processes are working on the 
-   same page simultaniously.
+  Whenever a new request is found, a new process is forked to handle this 
+  request. Note that to ensure consistancy, there is page level locking, so 
+  that there is never a situation where two child processes are working on the 
+  same page simultaniously.  (Ian: please, improve your English spelling...)
 
-   There is also a limit to the number of concurrent child processes.
+  There is also a limit to the number of concurrent child processes.
 
-   The child process take a request tuple and figures out what type of request 
-   this is.
-
-   If it is a coloring request, the revision text is downloaded from the 
-   mediawiki api.
-
-   It then gives the request to the appropriate function, evaluate_revision or 
-   evaluate_vote.
+  The child process take a request tuple (Ian: what is a request tuple?  Above 
+  you talk simply about requests) and figures out what type of request 
+  this is.
+  
+  If it is a coloring request, the revision text is downloaded from the 
+  mediawiki api. (Ian: always?  Don't you try to get it from a dump if possible?)
+  
+  It then gives the request to the appropriate function, evaluate_revision or 
+  evaluate_vote.
    
 *)
 
