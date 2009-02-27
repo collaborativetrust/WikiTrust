@@ -317,16 +317,18 @@ class db :
     method mark_rev_as_unprocessed : int -> unit
 
     (** Get the next revs to color. *)
-    (* Ian: I always return these things as revision_t list.  Can you follow this standard also
-       here, or is there a good reason why not? *)
       (** 
 	  Luca: This is not a revision_t type being returned. Instead, its 
 	  just rows from the table wikitrust_missing_revs.
 	  I can create a new type for this table, and map it into it if you
 	  prefer. I though it would be cleaner to just give back the tuple
 	  without any modification.
+	  Ian: yes, create some type... the problem with tuples is that you forget what is what. 
+	  See how the code of fetch_unprocessed_votes is cleaner?
+	  Also, when you define functions just for a map, do it where you use them (I moved the code
+	  already).
       *)
-    method fetch_next_to_color : int -> (int * int * string * string * int) list
+    method fetch_next_revisions_to_color : int -> (int * int * string * string * int) list
 
     (** Add the page data to the db 
 	This adds the given data to the page table of the database. 

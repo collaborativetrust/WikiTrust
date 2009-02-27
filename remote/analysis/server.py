@@ -108,16 +108,6 @@ def mark_for_coloring (rev_id, page_id, user_id, rev_time, page_title):
   connection.commit()
 
 # Insert a vote to be processed into the db.
-# Ian: I think that, if there is a vote on a version that is already colored, you could 
-# try to process it immediately... we should keep it in mind as an improvement as soon as
-# we are satisfied with the rest.  People will want to see the immediate effect of their votes.
-#
-# Luca - assuming the coloring dispatcher is running, this will be colored 
-# immediatly, and the next time the person re-loads the page, s/he will
-# see the difference. Shall I change the logic so that the updated 
-# wiki-text is returned after a vote, without waiting for a user to
-# reload the page?
-#
 def handle_vote(req, rev_id, page_id, user_id, v_time, page_title):
   global DB_PREFIX
   global curs
@@ -141,10 +131,14 @@ def handle_vote(req, rev_id, page_id, user_id, v_time, page_title):
 # Ian: I think it is a bad idea to do the join!  It is much better to do two queries, no?
 # Luca: My understanding is that making a join is actually much
 # MORE efficient than doing two queries.
-# Infact, this is putting the relational back in relational DB.
+# In fact, this is putting the relational back in relational DB.
 # I agree that this is convoluted, and would be simpler to understand as 
 # two queries.
-
+# Ian: I don't care about "putting the relational back into the relational db"; if 
+# you read around, there is a lot of disenchantement with relational dbs.  
+# If this is more efficient, why don't we always do joins whenever we 
+# do multiple queries?  Where does it stop?  I mean, the records being joined do not even
+# have a common column!!  I would still suggest two queries. 
 
 def fetch_colored_markup (rev_id, page_id, user_id, rev_time, page_title):
   global DB_PREFIX
@@ -162,7 +156,9 @@ def fetch_colored_markup (rev_id, page_id, user_id, rev_time, page_title):
   return not_found_text_token
 
 
-# Return colored text if it exists
+# Return colored text if it exists, compressed via gzip.
+# If it does not exist, it returns not_found_text_token, and it adds the
+# revision to the list of revisions that need coloring.
 def handle_text_request (req, rev_id, page_id, user_id, rev_time, page_title):
   global DB_PREFIX
   global sleep_time_sec
