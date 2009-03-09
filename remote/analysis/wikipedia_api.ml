@@ -197,7 +197,7 @@ let fetch_page_and_revs_after (page_title : string) (rev_date : string)
   let url = !Online_command_line.target_wikimedia 
     ^ "?action=query&prop=revisions|"
     ^ "info&format=xml&inprop=&rvprop=ids|flags|timestamp|user|size|comment|"
-    ^ "content&rvstart=" ^ rev_date ^ "&rvlimit=" ^ rev_lim
+    ^ "content&rvexpandtemplates=1&rvstart=" ^ rev_date ^ "&rvlimit=" ^ rev_lim
     ^ "&rvdir=newer&titles=" ^ (Netencoding.Url.encode page_title) in
     if !Online_command_line.dump_db_calls then 
       logger#log (Printf.sprintf "%s\n" url);

@@ -1,0 +1,110 @@
+#!/bin/sh -e
+### BEGIN INIT INFO
+# Provides:          wikitrust
+# Required-Start:    $local_fs $remote_fs $network $syslog
+# Required-Stop:     $local_fs $remote_fs $network $syslog
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Start/stop wikitrust dispatcher
+### END INIT INFO
+#
+# wikitrust		This init.d script is used to start wikitrust.
+# Copied and hacked from the script for apache2.
+
+ENV="env -i LANG=C PATH=/usr/local/bin:/usr/bin:/bin"
+
+#WIKITRUST_DISPATCHER="/usr/sbin/dispatcher"
+WIKITRUST_DISPATCHER="/home/ipye/git/wikitrust/remote/analysis/dispatcher"
+WIKITRUST_DB_USER="wikiuser"
+WIKITRUST_USER="su - ipye -c"
+WIKITRUST_DB_NAME="wiki-new"
+WIKITRUST_DB_PASS="wikiword"
+WIKITRUST_WIKI_API="http://en.wikipedia.org/w/api.php"
+WIKITRUST_USER_ID_API="http://toolserver.org/~Ipye/UserName2UserId.php"
+WIKITRUST_LOG_FILE="/tmp/wiki-dispatcher.log"
+WIKITRUST_PID_FILE="/tmp/dispatcher.pid"
+WIKITRUST_OPTIONS="-db_user $WIKITRUST_DB_USER -db_name $WIKITRUST_DB_NAME -db_pass $WIKITRUST_DB_PASS -wiki_api $WIKITRUST_WIKI_API -user_id_api $WIKITRUST_USER_ID_API -log_file $WIKITRUST_LOG_FILE -dump_db_calls"
+
+set -e
+if [ -x $WIKITRUST_DISPATCHER ] ; then
+	HAVE_WIKITRUST=1
+else
+	echo "Dispatcher not found at: $WIKITRUST_DISPATCHER"
+	exit 0
+fi
+
+. /lib/lsb/init-functions
+
+test -f /etc/default/rcS && . /etc/default/rcS
+
+start_dispatcherclean() {
+    PID=$(pidof_dispatcher)
+    if [ "${PID}" ]; then
+	log_daemon_msg "Already running"    
+	return 1
+    else
+	$WIKITRUST_USER "$WIKITRUST_DISPATCHER $WIKITRUST_OPTIONS &"
+	log_daemon_msg ""    
+	return 0
+    fi
+}
+
+stop_dispatcherclean() {
+    PID=$(pidof_dispatcher)
+    if [ "${PID}" ]; then
+	killall dispatcher 2> /dev/null || echo ...error    
+	return 0
+    else
+	log_daemon_msg "Not running"
+	return 1
+    fi
+}
+
+pidof_dispatcher() {
+    # if pidof is null for some reasons the script exits automagically
+    # classified as good/unknown feature
+    PIDS=`pidof -x dispatcher` || true
+
+    for i in $PIDS; do
+      echo $i
+      return 0
+    done
+    return 1
+}
+
+# Stupid hack to keep lintian happy. (Warrk! Stupidhack!).
+case $1 in
+	start)
+		log_daemon_msg "Starting coloring dispatcher"
+		start_dispatcherclean || log_end_msg 1
+                log_end_msg 0
+	;;
+	stop)
+		log_daemon_msg "Stopping coloring dispatcher"
+		stop_dispatcherclean || log_end_msg 1
+                log_end_msg 0
+	;;
+	reload | force-reload)
+		
+                log_daemon_msg "Reloading dispatcher -- nothing to do"
+		log_end_msg 0
+	;;
+	restart)
+		log_daemon_msg "Stopping wikitrust dispatcher"
+	    
+		if ! stop_dispatcherclean; then
+		    log_daemon_msg "Dispatcher not running"
+		    log_end_msg 1 || true
+		else
+		  log_end_msg 0
+		fi    
+		sleep 3
+		log_daemon_msg "Starting coloring dispatcher"
+		start_dispatcherclean || log_end_msg 1
+		log_end_msg 0
+	;;
+	*)
+		log_success_msg "Usage: /etc/init.d/wikitrust {start|stop|restart|reload|force-reload}"
+		exit 1
+	;;
+esac

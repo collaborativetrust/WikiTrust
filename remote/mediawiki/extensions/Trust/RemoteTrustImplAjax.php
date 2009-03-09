@@ -127,6 +127,59 @@ class TextTrustImpl {
     return $output;
   }
 
+  /*
+   Callback for Images.
+  */
+  static function getImageInfo($matches){
+    global $wgWikiApiURL;
+
+    $data = array('action'=>'query',
+		  'prop'=>'imageinfo',
+		  'titles'=>"File:".$matches[1],
+		  'iiprop'=>'url|size',
+		  'format' => 'json'
+		  );
+    
+    // Don't do this now.
+    /**
+    $image_info_raw = file_get_contents($wgWikiApiURL
+				       .http_build_query($data));
+    $image_json = json_decode($image_info_raw, true);
+    $page_ids_arr = array_keys($image_json["query"]["pages"]);
+    $page_id = $page_ids_arr[0];
+    $width = $image_json["query"]["pages"][$page_id]["imageinfo"][0]["width"];
+    $height = $image_json["query"]["pages"][$page_id]["imageinfo"][0]["height"];
+    $url = $image_json["query"]["pages"][$page_id]["imageinfo"][0]["url"];
+
+    return  '<a href="/wiki/File:'.$matches[1].'" class="image"><img alt="" src="'.$url.'" width="'.$width.'" height="'.$height.'" border="0" class="thumbimage" /></a>';
+
+    */
+    return '<a href="/wiki/File:'.$matches[1].'" class="image">File:'.$matches[1].'</a>';
+  }
+
+  /**
+   Method to use the wiki API to parse the markup.
+   This allows templates to be resolved, as well as images and other good 
+   things.
+  */
+  static function parseWikiText($text){
+    global $wgWikiApiURL;
+
+    $data = array('action'=>'parse',
+		  'text'=>htmlspecialchars($text),
+		  'format' => 'json'
+		  );
+
+     file_put_contents("/tmp/test", $wgWikiApiURL
+				    .http_build_query($data));
+    
+    $parsed_raw = file_get_contents($wgWikiApiURL
+				    .http_build_query($data));
+    $parsed_json = json_decode($parsed_raw, true);
+    $parsed_text = $parsed_json["parse"]["text"];
+    return $parsed_text;
+  }
+
    /**
    Returns colored markup.
 
@@ -226,11 +279,17 @@ class TextTrustImpl {
 				    );
       // $text = '<script type="text/javascript" src="http://redherring.cse.ucsc.edu/firefox/frontend/extensions/Trust/js/wz_tooltip.js"></script>' . $text;
       $text = preg_replace('/' . self::TRUST_OPEN_TOKEN . '/', "<", $text, -1, $count);
+      $text = preg_replace('/<a href="(.*?)Image:(.*?)" (.*?)>/', self::TRUST_OPEN_TOKEN, $text, -1, $count);
+      $text = preg_replace('/<a href="(.*?)title=(.*?)&amp;action=edit&amp;redlink=1" class="new" title="(.*?) \(not yet written\)">/', '<a href="/wiki/$2" title="$3">', $text, -1, $count);
+      $text = preg_replace_callback(
+				    '/'.self::TRUST_OPEN_TOKEN.'Image:(.*?)<\/a>/'
+				    ,"TextTrustImpl::getImageInfo"
+				    ,$text, -1, $count);
+      
       $text = preg_replace('/' . self::TRUST_CLOSE_TOKEN .'/', ">", $text, -1, $count);
       $text = preg_replace('/<\/p>/', "</span></p>", $text, -1, $count);
       $text = preg_replace('/<p><\/span>/', "<p>", $text, -1, $count);
       $text = preg_replace('/<li><\/span>/', "<li>", $text, -1, $count);
-      
       $response = new AjaxResponse($text);
     } else {
       // text not found.
