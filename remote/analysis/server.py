@@ -46,7 +46,7 @@ Otherwise, it registers the need to color the revision and returns a text_not_fo
 
 import MySQLdb
 import getopt
-import ConfigParser                                                         
+import ConfigParser
 import zlib
 import gzip
 import cStringIO
@@ -211,14 +211,20 @@ def handler(req):
   BASE_DIR = req.get_options()["WIKITRUST_BASE_DIR"]
 
   ## Default mimetype
-  req.content_type = "text/plain" 
+  req.content_type = "text/plain"
   # Restart the connection to the DB if its not good.
   if (connection == None):
     connect_db()
 
+  # Also connect when the server has gone away
+  try:
+    connection.ping()
+  except MySQLdb.OperationalError:
+    connect_db()
+
   ## Parse the form inputs.
   form = util.FieldStorage(req)
-  page_id = form.getfirst("page", -1)     
+  page_id = form.getfirst("page", -1)
   rev_id = form.getfirst("rev", -1)
   page_title =form.getfirst("page_title", "")
   time_str = form.getfirst("time", "")
@@ -229,7 +235,7 @@ def handler(req):
   if (page_id < 0) or (rev_id < 0) or (page_title == "") or (time_str == "") \
         or (user_id < 0):
     req.write("bad")
-  else:  
+  else:
     if is_vote:
       handle_vote(req, rev_id, page_id, user_id, time_str, page_title)
     else:
