@@ -15,7 +15,7 @@ Requests come in via the Ajax handler,
 for example.
 
 This in turn tries to retrieve the colored markup from the server.py
-server. If it recieves colored markup, the markup is converted to
+server. If it receives colored markup, the markup is converted to
 HTML. The final HTML is sent back as an Ajax Response.
 
 ==========
@@ -23,7 +23,11 @@ HTML. The final HTML is sent back as an Ajax Response.
 /export/notbackedup/wikitrust1/wikitrust_ajax
 http://redherring.cse.ucsc.edu:10302
 
+This is the mod_python server. It accepts requests from the frontend server
+and fetches content/makes pages to process as needed. 
 
+For testing, this is accessible to the outside network, but for production
+it should really be only accessible from localhost. 
 
 
 
