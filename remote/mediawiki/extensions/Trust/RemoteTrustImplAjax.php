@@ -133,12 +133,12 @@ class TextTrustImpl {
   static function getImageInfo($matches){
     global $wgWikiApiURL;
 
+    /** Still not working
     $data = array('action'=>'parse',
 		  'text'=>"[[File:".$matches[2]."]]",
 		  'format' => 'json'
 		  );
-    
-    // Get the correct image info.
+   
     $image_info_raw = file_get_contents($wgWikiApiURL
 					.http_build_query($data));
     $image_json = json_decode($image_info_raw, true);
@@ -147,6 +147,9 @@ class TextTrustImpl {
     $image_final = explode("</p>", $image_texts[1]);
     
     return $image_final[0];
+    */
+    return  '<a href="/wiki/File:'.$matches[2].'" class="image">File:'.$matches[2].'</a>';
+
   }
 
   /**
