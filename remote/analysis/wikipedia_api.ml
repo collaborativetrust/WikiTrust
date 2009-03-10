@@ -205,8 +205,8 @@ let fetch_page_and_revs_after (page_title : string) (rev_date : string)
     ^ "info&format=xml&inprop=&rvprop=ids|flags|timestamp|user|size|comment|"
     ^ "content&rvexpandtemplates=1&rvstart=" ^ rev_date ^ "&rvlimit=" ^ rev_lim
     ^ "&rvdir=newer&titles=" ^ (Netencoding.Url.encode page_title) in
-    if !Online_command_line.dump_db_calls then 
-      logger#log (Printf.sprintf "%s\n" url);
+    
+    logger#log (Printf.sprintf "getting url: %s\n" url);
     let res = run_call url in
     let api = Xml.parse_string res in
     let query = Xml.children (api) in

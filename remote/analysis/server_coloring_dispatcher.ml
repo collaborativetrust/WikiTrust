@@ -67,6 +67,8 @@ open Online_types
 
 let max_concurrent_procs = 10
 let sleep_time_sec = 1
+let times_to_retry = 3
+let retry_delay_sec = 60
 let custom_line_format = [] @ command_line_format
 
 let _ = Arg.parse custom_line_format noop "Usage: dispatcher";;
@@ -221,35 +223,46 @@ in
    process_revs, returns a list of those revisions which are present in 
    the db but not yet colored.
 *)
-let get_revs_from_api page_title page_id last_timestamp child_db : int list =
-  logger#log (Printf.sprintf "Getting revs from api for page %d\n" page_id);
-  let (wiki_page, wiki_revs) = 
-    (* Retrieve a page and revision list from mediawiki. *)
-    Wikipedia_api.fetch_page_and_revs_after page_title last_timestamp 
-      logger in  
-  let page_latest = match wiki_page with 
-    | None -> raise Wikipedia_api.Http_client_error
-    | Some pp -> (
-	logger#log (Printf.sprintf "Got page titled %s\n" pp.page_title);
-	(* Write the new page to the page table. *)
-	child_db#write_page pp;
-	pp.page_latest
-      )
-  in
-    logger#log (Printf.sprintf "Got page latest rev %d\n" page_latest);
-    (* Add the revision to the revision table of the db. *)
-    let update_and_write_rev rev =
-      rev.revision_page <- page_id;
-      (* User ids are not given by the api, so we have to use the 
-	 toolserver. *)
-      rev.revision_user <- (get_user_id rev.revision_user_text child_db);
-      child_db#write_revision rev
+let rec get_revs_from_api page_title page_id last_timestamp child_db times_through : int list =
+  try
+    logger#log (Printf.sprintf "Getting revs from api for page %d\n" page_id);
+    let (wiki_page, wiki_revs) = 
+      (* Retrieve a page and revision list from mediawiki. *)
+      Wikipedia_api.fetch_page_and_revs_after page_title last_timestamp 
+	logger in  
+    let page_latest = match wiki_page with 
+      | None -> ( 	
+	  raise Wikipedia_api.Http_client_error
+	)
+      | Some pp -> (
+	  logger#log (Printf.sprintf "Got page titled %s\n" pp.page_title);
+	  (* Write the new page to the page table. *)
+	  child_db#write_page pp;
+	  pp.page_latest
+	)
     in
-      (* Write the list of revisions to the db. *)
-      List.iter update_and_write_rev wiki_revs;
-      (* Finaly, retun a list of simple rev_ids *)
-      let get_id rev = rev.revision_id in
-	List.map get_id wiki_revs
+      logger#log (Printf.sprintf "Got page latest rev %d\n" page_latest);
+      (* Add the revision to the revision table of the db. *)
+      let update_and_write_rev rev =
+	rev.revision_page <- page_id;
+	(* User ids are not given by the api, so we have to use the 
+	   toolserver. *)
+	rev.revision_user <- (get_user_id rev.revision_user_text child_db);
+	child_db#write_revision rev
+      in
+	(* Write the list of revisions to the db. *)
+	List.iter update_and_write_rev wiki_revs;
+	(* Finaly, retun a list of simple rev_ids *)
+	let get_id rev = rev.revision_id in
+	  List.map get_id wiki_revs
+  with
+    | Wikipedia_api.Http_client_error -> (
+	if (times_through < times_to_retry) then (
+	  logger#log (Printf.sprintf "Page load error. Trying again\n");
+	  Unix.sleep retry_delay_sec;
+	  get_revs_from_api page_title page_id last_timestamp child_db (times_through+1)
+	) else raise Wikipedia_api.Http_client_error
+      )
 in		
   
 (** [process_revs page_id rev_ids page_title rev_timestamp user_id] 
@@ -265,7 +278,7 @@ let process_revs (page_id : int) (page_title : string)
   (* Each child has its own database. *)
   let child_db = new Online_db.db !db_prefix mediawiki_db None !dump_db_calls in
   let prev_last_timestamp = ref Wikipedia_api.default_timestamp in
-  
+
   (* This recursive inner function actually does the processing *)
   let rec do_processing (req : revision_processing_request_t) = 
     match req.req_request_type with
@@ -283,11 +296,21 @@ let process_revs (page_id : int) (page_title : string)
 	     present not colored, then requesting from the mediawiki
 	     api any remaining revs for the given page.
 	  *) 
-	  let present_reps = child_db # get_revisions_present_not_colored page_id in
+	  let present_reps = child_db # get_revisions_present_not_colored 
+	    page_id in
 	    logger # log (Printf.sprintf "Fetching revs from api from %s\n" 
 			    last_present_timestamp);
-	    let revs_to_color = present_reps @
-	      (get_revs_from_api page_title page_id last_present_timestamp child_db) in
+	    let revs_to_color = try present_reps @
+	      (get_revs_from_api page_title page_id last_present_timestamp 
+		 child_db 0) 
+	    with 
+	      | Wikipedia_api.Http_client_error -> (
+		  logger#log (Printf.sprintf "Unrecoverable error page %d\n"
+				page_id);
+		  child_db # mark_rev_as_processed req.req_revision_id;
+		  raise Wikipedia_api.Http_client_error
+		)
+	    in
 	      (* Now that the data we need is present locally, evaluate the 
 		 revisions for trust,reputation. *)
 	    let f rev = 
@@ -309,8 +332,9 @@ let process_revs (page_id : int) (page_title : string)
 		 1 Reason this can occur is if the target revision id is not actually a revision 
 		 of the given page title.
 	      *)
-	      logger#log (Printf.sprintf "Last timestamp: %s, new timestamp: %s\n" 
-			!prev_last_timestamp last_present_timestamp);
+	      logger#log (Printf.sprintf 
+			    "Last timestamp: %s, new timestamp: %s\n" 
+			    !prev_last_timestamp last_present_timestamp);
 	      if ((child_db#revision_needs_coloring req.req_revision_id) && 
 		    (not (last_present_timestamp = !prev_last_timestamp))
 		 ) then (
