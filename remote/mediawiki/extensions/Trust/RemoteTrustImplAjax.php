@@ -133,28 +133,20 @@ class TextTrustImpl {
   static function getImageInfo($matches){
     global $wgWikiApiURL;
 
-    $data = array('action'=>'query',
-		  'prop'=>'imageinfo',
-		  'titles'=>"File:".$matches[1],
-		  'iiprop'=>'url|size',
+    $data = array('action'=>'parse',
+		  'text'=>"[[File:".$matches[2]."]]",
 		  'format' => 'json'
 		  );
     
-    // Don't do this now.
-    /**
+    // Get the correct image info.
     $image_info_raw = file_get_contents($wgWikiApiURL
-				       .http_build_query($data));
+					.http_build_query($data));
     $image_json = json_decode($image_info_raw, true);
-    $page_ids_arr = array_keys($image_json["query"]["pages"]);
-    $page_id = $page_ids_arr[0];
-    $width = $image_json["query"]["pages"][$page_id]["imageinfo"][0]["width"];
-    $height = $image_json["query"]["pages"][$page_id]["imageinfo"][0]["height"];
-    $url = $image_json["query"]["pages"][$page_id]["imageinfo"][0]["url"];
-
-    return  '<a href="/wiki/File:'.$matches[1].'" class="image"><img alt="" src="'.$url.'" width="'.$width.'" height="'.$height.'" border="0" class="thumbimage" /></a>';
-
-    */
-    return '<a href="/wiki/File:'.$matches[1].'" class="image">File:'.$matches[1].'</a>';
+    $image_text = $image_json["parse"]["text"]["*"];
+    $image_texts = explode("<p>", $image_text);
+    $image_final = explode("</p>", $image_texts[1]);
+    
+    return $image_final[0];
   }
 
   /**
@@ -259,8 +251,7 @@ class TextTrustImpl {
       $colored_text = str_replace(self::TRUST_CLOSE_TOKEN, "", 
 				  $colored_text);
       
-      $colored_text = preg_replace("/&apos;/", "'", $colored_text, -1);
-      
+      $colored_text = preg_replace("/&apos;/", "'", $colored_text, -1);      
       $colored_text = preg_replace("/&amp;/", "&", $colored_text, -1);
       
       $colored_text = preg_replace("/&lt;/", self::TRUST_OPEN_TOKEN, 
@@ -274,18 +265,21 @@ class TextTrustImpl {
       $text = $parsed->getText();
       
       $count = 0;
+      // Update the trust tags
       $text = preg_replace_callback("/\{\{#t:(\d+),(\d+),(.*?)\}\}/",
 				    "TextTrustImpl::handleParserRe",
 				    $text,
 				    -1,
 				    $count
 				    );
-      // $text = '<script type="text/javascript" src="http://redherring.cse.ucsc.edu/firefox/frontend/extensions/Trust/js/wz_tooltip.js"></script>' . $text;
+      
+      // Update open, close, images, and links.
       $text = preg_replace('/' . self::TRUST_OPEN_TOKEN . '/', "<", $text, -1, $count);
-      $text = preg_replace('/<a href="(.*?)Image:(.*?)" (.*?)>/', self::TRUST_OPEN_TOKEN, $text, -1, $count);
+      $text = preg_replace('/<a href="(.*?)(Image|File):(.*?)" (.*?)>/', self::TRUST_OPEN_TOKEN, $text, -1, $count);
       $text = preg_replace('/<a href="(.*?)title=(.*?)&amp;action=edit&amp;redlink=1" class="new" title="(.*?) \(not yet written\)">/', '<a href="/wiki/$2" title="$3">', $text, -1, $count);
       $text = preg_replace_callback(
-				    '/'.self::TRUST_OPEN_TOKEN.'Image:(.*?)<\/a>/'
+				    '/'.self::TRUST_OPEN_TOKEN
+				    .'(Image|File):(.*?)<\/a>/'
 				    ,"TextTrustImpl::getImageInfo"
 				    ,$text, -1, $count);
       
