@@ -52,7 +52,10 @@ let default_timestamp = "19700201000000"
  *)
 let api_tz_re = Str.regexp "\\([0-9][0-9][0-9][0-9]\\)-\\([0-9][0-9]\\)-\\([0-9][0-9]\\)T\\([0-9][0-9]\\):\\([0-9][0-9]\\):\\([0-9][0-9]\\)Z"
 
-(* Maps the Wikipedias api timestamp to our internal one. *)
+(* 
+   [api_ts2mw_ts timestamp]
+   Maps the Wikipedias api timestamp to our internal one. 
+*)
 let api_ts2mw_ts s =
   let ts = if Str.string_match api_tz_re s 0 then 
     (Str.matched_group 1 s) ^ (Str.matched_group 2 s) ^ (Str.matched_group 3 s)
@@ -61,7 +64,10 @@ let api_ts2mw_ts s =
   else default_timestamp in
     ts
 
-(* Given an Gzip.in_channel, return a string representing all there is
+(* 
+   [input_all in_channel]
+
+   Given an Gzip.in_channel, return a string representing all there is
    to be read of this gzipped file.
    This is a slup function, reading everything possible into a string and then
    returning the string.

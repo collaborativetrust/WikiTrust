@@ -256,14 +256,17 @@ class TextTrustImpl {
 
       // First, make sure that there are not any instances of our tokens in the colored_text
       $colored_text = str_replace(self::TRUST_OPEN_TOKEN, "", $colored_text);
-      $colored_text = str_replace(self::TRUST_CLOSE_TOKEN, "", $colored_text);
+      $colored_text = str_replace(self::TRUST_CLOSE_TOKEN, "", 
+				  $colored_text);
       
       $colored_text = preg_replace("/&apos;/", "'", $colored_text, -1);
       
       $colored_text = preg_replace("/&amp;/", "&", $colored_text, -1);
       
-      $colored_text = preg_replace("/&lt;/", self::TRUST_OPEN_TOKEN, $colored_text, -1);
-      $colored_text = preg_replace("/&gt;/", self::TRUST_CLOSE_TOKEN, $colored_text, -1);
+      $colored_text = preg_replace("/&lt;/", self::TRUST_OPEN_TOKEN, 
+				   $colored_text, -1);
+      $colored_text = preg_replace("/&gt;/", self::TRUST_CLOSE_TOKEN, 
+				   $colored_text, -1);
 
       $title = Title::newFromText($page_title);
       $options = ParserOptions::newFromUser($wgUser);

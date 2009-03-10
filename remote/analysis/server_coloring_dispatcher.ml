@@ -106,7 +106,14 @@ let every_n_events_delay =
     else None
 in
 
-(* Wait for the processes to stop before accepting more *)
+(* 
+   [clean_kids page_id proccess_id]
+
+   Wait for the processes to stop before accepting more.
+   This function cleans out the hashtable working_children, removing all of the 
+   entries which correspond to child processes which have stopped working.
+
+*)
 let clean_kids k v = (
   let stat = Unix.waitpid [Unix.WNOHANG] v in
     match (stat) with
@@ -116,7 +123,10 @@ let clean_kids k v = (
       | (_, Unix.WSTOPPED s) -> Hashtbl.remove working_children k
 ) in
 
-(* This is the function that evaluates a revision. 
+(* 
+   [evaluate_revision page_id rev_id child_db n_processed_events]
+
+   This is the function that evaluates a revision. 
    The function is recursive, because if some past revision of the same page 
    that falls within the analysis horizon is not yet evaluated and colored
    for trust, it evaluates and colors it first. 
@@ -161,7 +171,10 @@ let rec evaluate_revision (page_id: int) (rev_id: int) (child_db : Online_db.db)
   end (* End of try ... with ... *)
 in
 
-(* This is the code that evaluates a vote *)
+(* 
+   [evaluate_vote page_id revision_id voter_id child_db]
+   This is the code that evaluates a vote 
+*)
 let evaluate_vote (page_id: int) (revision_id: int) (voter_id: int) (child_db : Online_db.db) = 
   logger#log (Printf.sprintf "Evaluating vote by %d on revision %d of page %d\n" voter_id 
 		revision_id page_id); 
@@ -174,6 +187,8 @@ let evaluate_vote (page_id: int) (revision_id: int) (voter_id: int) (child_db : 
 in 
 
 (* 
+   [get_user_id user_name child_db]
+   
    Returns the user id of the user name if we have it, 
    or asks a web service for it if we do not. 
 *)
@@ -249,6 +264,7 @@ let process_revs (page_id : int) (page_title : string)
   
   (* Each child has its own database. *)
   let child_db = new Online_db.db !db_prefix mediawiki_db None !dump_db_calls in
+  let prev_last_timestamp = ref Wikipedia_api.default_timestamp in
   
   (* This recursive inner function actually does the processing *)
   let rec do_processing (req : revision_processing_request_t) = 
@@ -287,7 +303,18 @@ let process_revs (page_id : int) (page_title : string)
 	      if !synch_log then flush Pervasives.stdout;
 	      (* We color 50 revs at a time. If the target revision_id 
 		 still isn't colored, keep going. *)
-	      if (child_db#revision_needs_coloring req.req_revision_id) then (
+	      (* 
+		 The timestamp check is to ensure we are making progress -- if the last present
+		 timestamp is not changing, we are not getting anywhere, and so might as well give up.
+		 1 Reason this can occur is if the target revision id is not actually a revision 
+		 of the given page title.
+	      *)
+	      logger#log (Printf.sprintf "Last timestamp: %s, new timestamp: %s\n" 
+			!prev_last_timestamp last_present_timestamp);
+	      if ((child_db#revision_needs_coloring req.req_revision_id) && 
+		    (not (last_present_timestamp = !prev_last_timestamp))
+		 ) then (
+		prev_last_timestamp := last_present_timestamp;
 		do_processing req
 	      ) else (
 		(* End evaluate revision part. *)
@@ -322,7 +349,9 @@ in
 let dispatch_page (rev_pages : revision_processing_request_t list) = 
   let new_pages = Hashtbl.create (List.length rev_pages) in
   let is_old_page p = Hashtbl.mem working_children p in
-    (* If the revision is part of a page which is not
+    (* 
+       [set_revs_to_get request]
+       If the revision is part of a page which is not
        currently being processed, add it to a list to process.
 
        Otherwise, change its state back to unprocessed, and try again with it
@@ -340,6 +369,7 @@ let dispatch_page (rev_pages : revision_processing_request_t list) =
     )
   in 
     (* 
+       [launch_processing page requests]
        Given a page_id and a list of coloring requests, 
        fork a child which processes all the requests.
     *)
@@ -368,7 +398,11 @@ let dispatch_page (rev_pages : revision_processing_request_t list) =
     Hashtbl.iter launch_processing new_pages
 in
 
-(* Poll to see if there is any more work to be done. *)
+(* 
+   [main_loop]
+   Poll to see if there is any more work to be done. 
+   If there is, do it.
+*)
 let main_loop () =
   while true do
     if (Hashtbl.length working_children) >= max_concurrent_procs then (

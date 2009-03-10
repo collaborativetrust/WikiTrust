@@ -65,6 +65,7 @@ sleep_time_sec = 3
 
 connection = None
 
+# [compressBuf buffer]
 # Compress a string buffer
 def compressBuf(buf):
    zbuf = cStringIO.StringIO()
@@ -73,6 +74,7 @@ def compressBuf(buf):
    zfile.close()
    return zbuf.getvalue()
 
+# [connect_db]
 # Start a persisent connection to the db
 def connect_db():
   global connection
@@ -93,6 +95,7 @@ def connect_db():
   ## Parses the db prefix.
   DB_PREFIX = ini_config.get('db', 'prefix')
 
+# [mark_for_coloring (rev_id, page_id, user_id, rev_time, page_title, r_type)]
 # Adds a revision into the db for coloring.
 def mark_for_coloring (rev_id, page_id, user_id, rev_time, page_title, r_type):
   global DB_PREFIX
@@ -111,6 +114,7 @@ def mark_for_coloring (rev_id, page_id, user_id, rev_time, page_title, r_type):
      curs.execute(sql, args)
      connection.commit()
 
+# handle_vote(req, rev_id, page_id, user_id, v_time, page_title)
 # Insert a vote to be processed into the db.
 def handle_vote(req, rev_id, page_id, user_id, v_time, page_title):
   global DB_PREFIX
@@ -133,7 +137,7 @@ def handle_vote(req, rev_id, page_id, user_id, v_time, page_title):
   # effect of the vote, if you like.
   req.write("good")
 
-
+# [get_median]
 # Returns the current median value from the DB.
 def get_median():
   global DB_PREFIX
@@ -148,6 +152,7 @@ def get_median():
     return dbRow[0]
   return 0.0
 
+# [fetch_colored_markup (rev_id, page_id, user_id, rev_time, page_title)]
 # Return colored text and median from the DB.
 def fetch_colored_markup (rev_id, page_id, user_id, rev_time, page_title):
   global DB_PREFIX
@@ -167,6 +172,7 @@ def fetch_colored_markup (rev_id, page_id, user_id, rev_time, page_title):
     return "%f,%s" % (median,dbRow[0])
   return not_found_text_token
 
+# [handle_text_request (req, rev_id, page_id, user_id, rev_time, page_title)]
 # Return colored text if it exists, compressed via gzip.
 # If it does not exist, it returns not_found_text_token, and it adds the
 # revision to the list of revisions that need coloring.
@@ -203,6 +209,7 @@ def handle_text_request (req, rev_id, page_id, user_id, rev_time, page_title):
     req.send_http_header()
     req.write(compressed)
 
+# [handler(request)]
 # Entry point for web request.
 def handler(req):
 
