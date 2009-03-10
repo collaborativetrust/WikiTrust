@@ -29,5 +29,14 @@ and fetches content/makes pages to process as needed.
 For testing, this is accessible to the outside network, but for production
 it should really be only accessible from localhost. 
 
+===========
+
+Databases:
+
+Again, these are currently all hosted on redherring.
+
+ff_frontend_db -- Empty mediawiki db. This is not used for anything currently.
+ff_backend_db -- This is where the magic happens. All of the colored and
+non-colored text is currently stored here.
 
 
