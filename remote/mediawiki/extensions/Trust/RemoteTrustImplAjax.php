@@ -115,7 +115,7 @@ class TextTrustImpl {
 				/ self::$median));
     $class = self::$COLORS[$normalized_value];
     $output = self::TRUST_OPEN_TOKEN . "span class=\"$class\"" 
-      . "onmouseover=\"Tip('".str_replace("'","\\'",$matches[3])
+      . "onmouseover=\"Tip('".str_replace("&#39;","\\'",$matches[3])
       ."')\" onmouseout=\"UnTip()\""
       . "onclick=\"showOrigin(" 
       . $matches[2] . ")\"" . self::TRUST_CLOSE_TOKEN;
