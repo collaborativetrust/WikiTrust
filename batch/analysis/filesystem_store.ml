@@ -49,14 +49,16 @@ let read_gzipped_file (file_name: string) : string =
     then read_more := false
     else Buffer.add_string buf (String.sub s 0 n_read)
   end done;
+  Gzip.close_in f;
   Buffer.contents buf
 
 (** [write_gzipped_file file_name l s] writes to the file [file_name] 
     the gzipped contents of string [s], with compression level [l]. *)
-let write_gzipped_file (file_name: string) (s: string) (l: int) : unit =
-  let f = open_out l file_name in
+let write_gzipped_file (file_name: string) (s: string) : unit =
+  let f = Gzip.open_out file_name in
   let n = String.length s in 
-  Gzip.output f s 0 n
+  Gzip.output f s 0 n;
+  Gzip.close_out f
 
 (** [get_filename base_path page_id rev_id] computes the filename where
     a compressed revision is stored, given a base path for the file system, 
@@ -67,38 +69,44 @@ let write_gzipped_file (file_name: string) (s: string) (l: int) : unit =
 let get_filename (base_path: string) (page_id: int) (rev_id: int) : (string * string list) =   
   let page_str = Printf.sprintf "%012d" page_id in 
   let rev_str  = Printf.sprintf "%012d" rev_id  in 
-  let list_dirs = ref [base_name] in
-  let file_name = ref base_name in 
+  let list_dirs = ref [base_path] in
+  let file_name = ref base_path in 
   for i = 0 to 3 do begin
     let s = String.sub page_str (i * 3) 3 in 
     file_name := !file_name ^ "/" ^ s;
-    list_rirs := !list_dirs @ [!file_name]
+    list_dirs := !list_dirs @ [!file_name]
   end done;
   for i = 0 to 3 do begin
     let s = String.sub rev_str (i * 3) 3 in 
     file_name := !file_name ^ "/" ^ s;
-    list_rirs := !list_dirs @ [!file_name]
+    list_dirs := !list_dirs @ [!file_name]
   end done;
-  file_name := !file_name ^ "/" page_str ^ "_" rev_str ^ ".gz";
-  (file_name, !list_dirs)
+  file_name := !file_name ^ "/" ^ page_str ^ "_" ^ rev_str ^ ".gz";
+  (!file_name, !list_dirs)
 
 (** [write_revision base_name page_id rev_id s] writes to disk the revision text [s],
     in compressed format, belonging to the revision [rev_id] of page [page_id], 
     given the directory path [base_name].  Directories are created if they do not
     already exist. *)
-let write_revision (base_name: string) (page_id: int) (rev_id: string) (s: string) =
+let write_revision (base_name: string) (page_id: int) (rev_id: int) (s: string) =
   let (f_name, dir_l) = get_filename base_name page_id rev_id in 
   (* Makes the directories *)
-  let make_dir (d: sring) = 
+  let make_dir (d: string) = 
     begin try 
-      Unix.mkdir !d 0o755
+      Unix.mkdir d 0o755
     with Unix.Unix_error (Unix.EEXIST, _, _) -> () end
   in List.iter make_dir dir_l;
   (* Writes the revision *)
-  write_gzipped_file f_name s compression_level
+  write_gzipped_file f_name s
 
 (** [read_revision base_name page_id rev_id] returns the text of revision
     [rev_id] of page [page_id]. *)
-let read_revision (base_name: string) (page_id: int) (rev_id: string) : string =
+let read_revision (base_name: string) (page_id: int) (rev_id: int) : string =
   let (f_name, _) = get_filename base_name page_id rev_id in 
-  read_gzipped_file f_name
+  read_gzipped_file f_name;;
+
+(* **************************************************************** *)
+(* Unit tests. *)
+
+write_revision "/tmp/alpha" 23 54 "Ho voglia di sushi";
+print_string (read_revision "/tmp/alpha" 23 54);
