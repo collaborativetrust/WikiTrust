@@ -37,20 +37,26 @@ TYPE_CONV_PATH "UCSC_WIKI_RESEARCH"
 
 (** [read_gzipped_file file_name] returns as a string the uncompressed 
     contents of file [file_name]. *)
-let read_gzipped_file (file_name: string) : string = 
+let read_gzipped_file (file_name: string) : string option = 
   let str_len = 8192 in 
   let s = String.create str_len in
   let buf = Buffer.create 8192 in 
-  let f = Gzip.open_in file_name in
-  let read_more = ref true in 
-  while !read_more do begin
-    let n_read = Gzip.input f s 0 str_len in 
-    if n_read = 0 
-    then read_more := false
-    else Buffer.add_string buf (String.sub s 0 n_read)
-  end done;
-  Gzip.close_in f;
-  Buffer.contents buf
+  let fopt = try
+    Some (Gzip.open_in file_name)
+  with Sys_error _ -> None in
+  match fopt with
+    Some f -> begin
+      let read_more = ref true in 
+      while !read_more do begin
+	let n_read = Gzip.input f s 0 str_len in 
+	if n_read = 0 
+	then read_more := false
+	else Buffer.add_string buf (String.sub s 0 n_read)
+      end done;
+      Gzip.close_in f;
+      Some (Buffer.contents buf)
+    end
+  | None -> None
 
 (** [write_gzipped_file file_name l s] writes to the file [file_name] 
     the gzipped contents of string [s], with compression level [l]. *)
@@ -101,12 +107,27 @@ let write_revision (base_name: string) (page_id: int) (rev_id: int) (s: string) 
 
 (** [read_revision base_name page_id rev_id] returns the text of revision
     [rev_id] of page [page_id]. *)
-let read_revision (base_name: string) (page_id: int) (rev_id: int) : string =
+let read_revision (base_name: string) (page_id: int) (rev_id: int) : string option =
   let (f_name, _) = get_filename base_name page_id rev_id in 
   read_gzipped_file f_name;;
+
+(** [delete_revision base_name page_id rev_id] deletes the text of revision
+    [rev_id] of page [page_id]. *)
+let delete_revision (base_name: string) (page_id: int) (rev_id: int) =
+  let (f_name, _) = get_filename base_name page_id rev_id in 
+  try
+    Unix.unlink f_name
+  with Unix.Unix_error (Unix.ENOENT, _, _) -> ()
 
 (* **************************************************************** *)
 (* Unit tests. *)
 
+let not_null = function
+    None -> "Error: revision not found."
+  | Some x -> x;;
 write_revision "/tmp/alpha" 23 54 "Ho voglia di sushi";
-print_string (read_revision "/tmp/alpha" 23 54);
+print_string (not_null (read_revision "/tmp/alpha" 23 54));
+print_string (not_null (read_revision "/tmp/alpha" 23 55));
+delete_revision "/tmp/alpha" 23 54;
+print_string (not_null (read_revision "/tmp/alpha" 23 54));
+delete_revision "/tmp/alpha" 23 54;

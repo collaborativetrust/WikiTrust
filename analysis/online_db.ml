@@ -115,6 +115,9 @@ class db
   (db_prefix : string)
   (db_mediawiki : Mysql.db)
   (db_wikitrust_opt : Mysql.db option)
+  (rev_base_path: string option)
+  (sig_base_path: string option)
+  (colored_base_path: string option)
   (debug_mode : bool) =
   
   let mediawiki_dbh = Mysql.connect db_mediawiki in
@@ -409,7 +412,7 @@ class db
 	None -> true
       | Some _ -> false
 
-    (** [read_revision rev_id] reads a revision by id, returning the row *)
+    (** [read_revision page_id rev_id] reads a revision by id, returning the row *)
     method read_revision (rev_id: int) : string option array option = 
       let s = Printf.sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM %srevision WHERE rev_id = %s" db_prefix (ml2int rev_id) in
       fetch (self#db_exec mediawiki_dbh s)
@@ -474,17 +477,25 @@ class db
 	None -> raise DB_Not_Found
       | Some row -> not_null timestamp2ml row.(0)
 
-    (** [get_rev_text text_id] returns the text associated with text id [text_id] *)
-    method read_rev_text (text_id: int) : string =
-      let s = Printf.sprintf "SELECT old_text FROM %stext WHERE old_id = %s" db_prefix (ml2int text_id) in
-      let result = self#db_exec mediawiki_dbh s in 
-      match Mysql.fetch result with 
-        None -> raise DB_Not_Found
-      | Some y -> not_null str2ml y.(0)
+    (** [get_rev_text page_id text_id] returns the text associated with text id [text_id] *)
+    method read_rev_text (page_id: int) (rev_id: int) (text_id: int) : string =
+      match rev_base_path with 
+	None -> begin
+	  let s = Printf.sprintf "SELECT old_text FROM %stext WHERE old_id = %s" db_prefix (ml2int text_id) in
+	  let result = self#db_exec mediawiki_dbh s in 
+	  match Mysql.fetch result with 
+            None -> raise DB_Not_Found
+	  | Some y -> not_null str2ml y.(0)
+	end
+      | Some b -> begin
+	  let result = Filesystem_store.read_revision b page_id rev_id in
+	  match result with 
+	    None -> raise DB_Not_Found
+	  | Some r -> r
+	end
 
-    (** [write_colored_markup rev_id markup] writes, in a table with columns by 
-	(revision id, string), that the string [markup] is associated with the 
-	revision with id [rev_id]. 
+    (** [write_colored_markup page_id rev_id markup createdon] writes the "colored"
+	text [markup] of a revision.
 	The [markup] represents the main text of the revision, annotated with trust 
 	and origin information; it is what the "colored revisions" of our 
 	batch demo are. 
@@ -493,38 +504,46 @@ class db
 	easy and efficient to read.  A filesystem implementation, for small wikis, 
 	may be highly advisable. *)
     (* This is currently a first cut, which will be hopefully optimized later *)
-    method write_colored_markup (rev_id : int) (markup : string) (createdon : timestamp_t) : unit =
-      let db_mkup = ml2str markup in 
+    method write_colored_markup (page_id: int) (rev_id : int) (markup : string) (createdon : timestamp_t) : unit =
+      let db_mkup = match colored_base_path with
+	  Some _ -> ""
+	| None -> ml2str markup
+      in 
       let s = Printf.sprintf "INSERT INTO %swikitrust_colored_markup (revision_id, revision_text, revision_createdon) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE revision_text = %s, revision_createdon = %s"
 	db_prefix
 	(ml2int rev_id) db_mkup (ml2timestamp createdon) db_mkup (ml2timestamp createdon) in 
-      ignore (self#db_exec wikitrust_dbh s)
+      ignore (self#db_exec wikitrust_dbh s);
+      begin
+	match colored_base_path with
+	  Some b -> Filesystem_store.write_revision b page_id rev_id markup 
+	| None -> ()
+      end
 
 
     (** [read_colored_markup rev_id] reads the text markup of a revision with id
 	[rev_id].  The markup is the text of the revision, annontated with trust
 	and origin information. *)
-    method read_colored_markup (rev_id : int) : string =
-      let s = Printf.sprintf  "SELECT revision_text FROM %swikitrust_colored_markup WHERE revision_id = %s"  db_prefix (ml2int rev_id) in 
-      let result = self#db_exec wikitrust_dbh s in
-      match Mysql.fetch result with
-        None -> raise DB_Not_Found
-      | Some x -> not_null str2ml x.(0)
-
-    (** [read_colored_markup_and_median rev_id] reads the text markup of a revision with id
-	[rev_id].  The markup is the text of the revision, annontated with trust
-	and origin information. This method also returns the median value *)
-    method read_colored_markup_with_median (rev_id : int) : string * float =
-      let s = Printf.sprintf  "SELECT revision_text,median FROM %swikitrust_colored_markup JOIN %swikitrust_global WHERE revision_id = %s" db_prefix db_prefix 
-	(ml2int rev_id) in 
-      let result = self#db_exec wikitrust_dbh s in
-	match Mysql.fetch result with
+    method read_colored_markup (page_id: int) (rev_id : int) : string =
+      match colored_base_path with 
+	None -> begin 
+	  let s = Printf.sprintf  "SELECT revision_text FROM %swikitrust_colored_markup WHERE revision_id = %s"
+	    db_prefix (ml2int rev_id) in 
+	  let result = self#db_exec wikitrust_dbh s in
+	  match Mysql.fetch result with
             None -> raise DB_Not_Found
-	  | Some x -> (not_null str2ml x.(0), not_null float2ml x.(1))
+	  | Some x -> not_null str2ml x.(0)
+	end
+      | Some b -> begin
+	  let result = Filesystem_store.read_revision b page_id rev_id in 
+	  match result with
+	    None -> raise DB_Not_Found
+	  | Some r -> r
+	end
 
-    (** [write_trust_origin_sigs rev_id words trust origin sigs] writes that the 
+
+    (** [write_trust_origin_sigs page_id rev_id words trust origin sigs] writes that the 
 	revision [rev_id] is associated with [words], [trust], [origin], and [sigs]. *)
-    method write_words_trust_origin_sigs (rev_id: int) 
+    method write_words_trust_origin_sigs (page_id: int) (rev_id: int) 
       (words: string array)
       (trust: float array)
       (origin: int array)
@@ -537,27 +556,47 @@ class db
 	author_a = author;
 	sig_a = sigs;
       } in 
-      let signature_string = ml2str (string_of__of__sexp_of sexp_of_sig_t signature) in 
-      let sdb = Printf.sprintf "INSERT INTO %swikitrust_sigs (revision_id, revision_data) VALUES (%s, %s) ON DUPLICATE KEY UPDATE revision_data  = %s" db_prefix (ml2int rev_id) signature_string signature_string in 
-      ignore (self#db_exec wikitrust_dbh sdb)
-
-      (** [read_words_trust_origin_sigs rev_id] reads the words, trust, 
-	  origin, and author sigs for the revision [rev_id] from the [wikitrust_sigs] table. *)
-    method read_words_trust_origin_sigs (rev_id: int) 
-      : (string array * float array * int array * string array * Author_sig.packed_author_signature_t array) = 
-      let s = Printf.sprintf  "SELECT revision_data FROM %swikitrust_sigs WHERE revision_id = %s" db_prefix (ml2int rev_id) in 
-      let result = self#db_exec wikitrust_dbh s in 
-      match Mysql.fetch result with 
-	None -> raise DB_Not_Found
-      | Some x -> begin
-	  let signature = of_string__of__of_sexp sig_t_of_sexp (not_null str2ml x.(0)) in 
-	  (signature.words_a, signature.trust_a, signature.origin_a, signature.author_a, signature.sig_a)
+      let signature_string = string_of__of__sexp_of sexp_of_sig_t signature in
+      match sig_base_path with 
+	None -> begin
+	  let mysql_signature_string = ml2str signature_string in 
+	  let sdb = Printf.sprintf "INSERT INTO %swikitrust_sigs (revision_id, revision_data) VALUES (%s, %s) ON DUPLICATE KEY UPDATE revision_data  = %s" db_prefix (ml2int rev_id) mysql_signature_string mysql_signature_string in 
+	  ignore (self#db_exec wikitrust_dbh sdb)
 	end
+      | Some b -> Filesystem_store.write_revision b page_id rev_id
 
-   (** [delete_author_sigs rev_id] removes from the db the author signatures for [rev_id]. *)
-    method delete_author_sigs (rev_id: int) : unit =
-      let s = Printf.sprintf  "DELETE FROM %swikitrust_sigs WHERE revision_id = %s" db_prefix (ml2int rev_id) in  
-      ignore (self#db_exec wikitrust_dbh s)
+
+      (** [read_words_trust_origin_sigs page_id rev_id] reads the words, trust, 
+	  origin, and author sigs for the revision [rev_id] from the [wikitrust_sigs] table. *)
+    method read_words_trust_origin_sigs (page_id: int) (rev_id: int) 
+      : (string array * float array * int array * string array * Author_sig.packed_author_signature_t array) = 
+      let signature = 
+	match sig_base_path with
+	  None -> begin
+	    let s = Printf.sprintf  "SELECT revision_data FROM %swikitrust_sigs WHERE revision_id = %s" db_prefix (ml2int rev_id) in 
+	    let result = self#db_exec wikitrust_dbh s in 
+	    match Mysql.fetch result with 
+	      None -> raise DB_Not_Found
+	    | Some x -> of_string__of__of_sexp sig_t_of_sexp (not_null str2ml x.(0))
+	  end
+	| Some b -> begin
+	    let result = Filesystem_store.read_revision b page_id rev_id in 
+	    match result with
+	      None -> raise DB_Not_Found
+	    | Some r -> of_string__of__of_sexp sig_t_of_sexp r
+	  end
+      in (signature.words_a, signature.trust_a, signature.origin_a, signature.author_a, signature.sig_a)
+
+
+   (** [delete_author_sigs page_id rev_id] removes from the db the author signatures for [rev_id]. *)
+    method delete_author_sigs (page_id: int) (rev_id: int) : unit =
+      match sig_base_path with
+	None -> begin 
+	  let s = Printf.sprintf  "DELETE FROM %swikitrust_sigs WHERE revision_id = %s" db_prefix (ml2int rev_id) in  
+	  ignore (self#db_exec wikitrust_dbh s)
+	end
+      | Some b -> Filesystem_store.delete_revision b rev_id page_id
+
 
     (* ================================================================ *)
     (* User methods. *)
@@ -650,7 +689,8 @@ class db
 	List.iter mark_as_processing results;
 	results
 
-    (** Adds a revision to the database.  This is normally taken care of by Mediawiki, except when
+
+    (** Adds a page to the database.  This is normally taken care of by Mediawiki, except when
         WikiTrust is used in remote mode. *)
     method write_page (page : wiki_page_t) =
       let s = Printf.sprintf "INSERT INTO %spage (page_id, page_namespace, page_title, page_restrictions, page_counter, page_is_redirect, page_is_new, page_random, page_touched, page_latest, page_len) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE page_latest = %s" 
@@ -670,29 +710,39 @@ class db
       in
       ignore (self#db_exec wikitrust_dbh s)
 
+
     (** Adds a revision to the database.  This is normally taken care by Mediawiki,
 	but not in the case of remote use of WikiTrust. *)
     method write_revision (rev : wiki_revision_t) = 
       (* Add the content. *)
-      let s = Printf.sprintf "INSERT INTO %stext (old_id, old_text, old_flags) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE old_flags = %s" db_prefix (ml2int rev.revision_id) (ml2str rev.revision_content) (ml2str "utf8") (ml2str "utf8") in
-	ignore (self#db_exec wikitrust_dbh s);
-	  (* And then the revision metadata. *)
-	let s = Printf.sprintf "INSERT INTO %srevision (rev_id, rev_page, rev_text_id, rev_comment, rev_user, rev_user_text, rev_timestamp, rev_minor_edit, rev_deleted, rev_len, rev_parent_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE rev_len = %s" 
-	  db_prefix 
-	  (ml2int rev.revision_id) 
-	  (ml2int rev.revision_page) 
-	  (ml2int rev.revision_id) 
-	  (ml2str rev.revision_comment) 
-	  (ml2int rev.revision_user) 
-	  (ml2str rev.revision_user_text) 
-	  (ml2str rev.revision_timestamp) 
-	  (if rev.revision_minor_edit then "true" else "false") 
-	  (if rev.revision_deleted then "true" else "false") 
-	  (ml2int rev.revision_len) 
-	  (ml2int rev.revision_parent_id) 
-	  (ml2int rev.revision_len) 
-	in
-	ignore (self#db_exec wikitrust_dbh s)
+      (* Ian: here you are trusting the old_id information.  Don't you risk over-writing stuff?
+	 I thought you had to insert here with old_id in auto_increment, then use the obtained
+	 old_id to write the metadata... *)
+      match rev_base_path with
+	None -> begin
+	  let s = Printf.sprintf "INSERT INTO %stext (old_id, old_text, old_flags) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE old_flags = %s" db_prefix (ml2int rev.revision_id) (ml2str rev.revision_content) (ml2str "utf8") (ml2str "utf8") in
+	  ignore (self#db_exec wikitrust_dbh s)
+	end
+      | Some b -> begin
+	  Filesystem_store.write_revision b rev.revision_page rev.revision_id
+	end;
+      (* And then the revision metadata. *)
+      let s = Printf.sprintf "INSERT INTO %srevision (rev_id, rev_page, rev_text_id, rev_comment, rev_user, rev_user_text, rev_timestamp, rev_minor_edit, rev_deleted, rev_len, rev_parent_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE rev_len = %s" 
+	db_prefix 
+	(ml2int rev.revision_id) 
+	(ml2int rev.revision_page) 
+	(ml2int rev.revision_id) 
+	(ml2str rev.revision_comment) 
+	(ml2int rev.revision_user) 
+	(ml2str rev.revision_user_text) 
+	(ml2str rev.revision_timestamp) 
+	(if rev.revision_minor_edit then "true" else "false") 
+	(if rev.revision_deleted then "true" else "false") 
+	(ml2int rev.revision_len) 
+	(ml2int rev.revision_parent_id) 
+	(ml2int rev.revision_len) 
+      in
+      ignore (self#db_exec wikitrust_dbh s)
 
     (* ================================================================ *)
 
