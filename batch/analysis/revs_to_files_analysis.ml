@@ -1,6 +1,6 @@
 (*
 
-Copyright (c) 2007-2008 The Regents of the University of California
+Copyright (c) 2007-2009 The Regents of the University of California
 All rights reserved.
 
 Authors: Luca de Alfaro, Ian Pye
@@ -43,26 +43,6 @@ POSSIBILITY OF SUCH DAMAGE.
 type word = string 
 open Eval_defs
 
-(* This creates the directory name, and the directory *)
-let make_dir_name (id: int) (base_name: string) : string = 
-  (* Computes the directory name *)
-  let s = Printf.sprintf "%012d" id in 
-  let dir_name = base_name ^ "/" ^ (String.sub s 0 3) ^ "/" ^ (String.sub s 3 3) ^ "/" ^ 
-    (String.sub s 6 3) ^ "/" ^ (String.sub s 9 3) ^ "/" in 
-  (* And makes the directory *)
-  let d = ref base_name in 
-  begin try 
-      Unix.mkdir !d 0o755
-    with Unix.Unix_error (Unix.EEXIST, _, _) -> () end; 
-  for i = 0 to 3 do begin 
-    d := !d ^ "/" ^ (String.sub s (i * 3) 3); 
-    begin try 
-	Unix.mkdir !d 0o755
-      with Unix.Unix_error (Unix.EEXIST, _, _) -> () end
-  end done; 
-  dir_name
-	  
-
 (** [page id title base_name digits_per_dir dir_depth]
     writes each revision individually out to disk, in a directory 
     named [base_name]/[part1]/[part2]/.../[part4]/[revision_id.xml], 
@@ -80,9 +60,6 @@ class page
     (* At the first revision, it has to write the beginning of the page out. 
        This flag is used to recognize the first revision *)
     val mutable is_first : bool = true 
-
-    (* Prefix for revision file *)
-    val file_prefix : string = make_dir_name id base_name
 
     (* No titles in the xml file! *)
     method print_id_title = ()
@@ -112,13 +89,12 @@ class page
 	ip_addr username is_minor comment Vec.empty in
       r#output_revision out_file;
       (* Now we need to write the text of the revision in its own file *)
-      let s = Printf.sprintf "%012d.txt" rev_id in 
-      let f = Fileinfo.open_info_out (file_prefix ^ s) in 
-      let print_l (b: unit) (d: string) : unit = 
-	output_string f d in 
-      let print_r (c: unit) (b: unit) : unit = () in 
-      Vec.visit_in () print_l print_r text_init;
-      Fileinfo.close_info_out f
+      (* First, generates the text. *)
+      let buf = Buffer.create 10000 in
+      Vec.iter (Buffer.add_string buf) text_init;
+      (* Then writes it. *)
+      Filesystem_store.write_revision base_name page_id rev_id (Buffer.contents buf)
+
 
     (** This method is called when there are no more revisions to evaluate. 
 	All it does is write that the page is closed. *)
