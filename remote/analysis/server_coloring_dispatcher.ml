@@ -94,7 +94,9 @@ let mediawiki_db = {
 }
 
 (* Here begins the sequential code *)
-let db = new Online_db.db !db_prefix mediawiki_db None !dump_db_calls in
+let db = new Online_db.db !db_prefix mediawiki_db None 
+  !wt_db_rev_base_path !wt_db_sig_base_path !wt_db_colored_base_path 
+  !dump_db_calls in
 let logger = new Online_log.logger !log_name !synch_log in
 let trust_coeff = Online_types.get_default_coeff in
 
@@ -217,12 +219,6 @@ in
    50 revisions, see the Wikimedia API) from the Wikimedia API,
    stores them to disk, and returns the list of revision ids. 
 *)
-(* Ian: is it here, or elsewhere, that you try to read them from the dump? 
-   luca: elsewhere. This method call:
-   (db # get_revisions_present_not_colored page_id) in the function 
-   process_revs, returns a list of those revisions which are present in 
-   the db but not yet colored.
-*)
 let rec get_revs_from_api page_title page_id last_timestamp child_db times_through : int list =
   try
     logger#log (Printf.sprintf "Getting revs from api for page %d\n" page_id);
@@ -267,7 +263,6 @@ in
   
 (** [process_revs page_id rev_ids page_title rev_timestamp user_id] 
     Returns unit.
-
     This is given a page and a list of revisions to work on.
     It sucessivly calls either evaluate_vote or evaluate_revsion 
     for each revision.

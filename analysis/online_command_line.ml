@@ -1,6 +1,6 @@
 (*
 
-Copyright (c) 2007-2008 The Regents of the University of California
+Copyright (c) 2007-2009 The Regents of the University of California
 All rights reserved.
 
 Authors: Luca de Alfaro, Ian Pye
@@ -74,6 +74,15 @@ let wt_db_host = ref "localhost"
 let set_wt_db_host d = wt_db_host := d; use_separate_dbs := true
 let wt_db_port = ref 3306
 let set_wt_db_port d = wt_db_port := d; use_separate_dbs := true
+(* Base path for filesystem storage of revisions. *)
+let wt_db_rev_base_path = ref None
+let set_wt_db_rev_base_path s = wt_db_rev_base_path := Some s
+(* Base path for filesystem storage of signatures. *)
+let wt_db_sig_base_path = ref None
+let set_wt_db_sig_base_path s = wt_db_sig_base_path := Some s
+(* Base path for filesystem storage of colored revisions. *)
+let wt_db_colored_base_path = ref None
+let set_wt_db_colored_base_path s = wt_db_colored_base_path := Some s
 
 (* Other paramiters *)
 let noop s = ()
@@ -126,7 +135,10 @@ let command_line_format =
    ("-wt_db_pass", Arg.String set_wt_db_pass, "<string>: Wikitrust DB password (specify only if the wikitrust db is different from the mediawiki db)");
    ("-wt_db_host", Arg.String set_wt_db_host, "<string>: Wikitrust DB host (specify only if the wikitrust db is different from the mediawiki db) (default: localhost)");
    ("-wt_db_port", Arg.Int set_wt_db_port, "<int>: Wikitrust DB port (specify only if the wikitrust db is different from the mediawiki db) (default: 3306)");
- ("-rev_id",  Arg.Int set_requested_rev_id, "<int>: (optional) revision ID that we want to ensure it is colored");
+   ("-wt_db_rev_base_path", Arg.String set_wt_db_rev_base_path, "<string>: Filesystem base path for filesystem storage of revisions (default: revisions are stored in the db)");
+   ("-wt_db_sig_base_path", Arg.String set_wt_db_sig_base_path, "<string>: Filesystem base path for filesystem storage of signatures (default: revisions are stored in the db)");
+   ("-wt_db_colored_base_path", Arg.String set_wt_db_colored_base_path, "<string>: Filesystem base path for filesystem storage of colored revisions (default: revisions are stored in the db)");
+   ("-rev_id",  Arg.Int set_requested_rev_id, "<int>: (optional) revision ID that we want to ensure it is colored");
    ("-log_file", Arg.String set_log_name, "<filename>: Logger output file (default: /dev/null)");
    ("-sync_log", Arg.Set synch_log, ": Flush writes to the log immidiatly. This is very slow; use only for debugging.");
    ("-eval_vote", Arg.Unit set_vote, ": Just evaluate the given vote");

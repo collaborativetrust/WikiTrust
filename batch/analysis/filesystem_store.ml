@@ -71,6 +71,10 @@ let write_gzipped_file (file_name: string) (s: string) : unit =
     a page id, and a revision id.  It returns a pair, consisting of:
     - The full filename of the revision.
     - the list of directories that may need to be made.
+    We divide the tree so that the page tree has branching factor of at most 1000.
+    We divide the revision tree in blocks of 10,000 as it will be rarely the case 
+    that all revisions in a range belong to the same page.
+    The system is good for 10^12 revisions.
  *)
 let get_filename (base_path: string) (page_id: int) (rev_id: int) : (string * string list) =   
   let page_str = Printf.sprintf "%012d" page_id in 
@@ -82,8 +86,8 @@ let get_filename (base_path: string) (page_id: int) (rev_id: int) : (string * st
     file_name := !file_name ^ "/" ^ s;
     list_dirs := !list_dirs @ [!file_name]
   end done;
-  for i = 0 to 3 do begin
-    let s = String.sub rev_str (i * 3) 3 in 
+  for i = 0 to 2 do begin
+    let s = String.sub rev_str (i * 4) 4 in 
     file_name := !file_name ^ "/" ^ s;
     list_dirs := !list_dirs @ [!file_name]
   end done;
@@ -118,6 +122,11 @@ let delete_revision (base_name: string) (page_id: int) (rev_id: int) =
   try
     Unix.unlink f_name
   with Unix.Unix_error (Unix.ENOENT, _, _) -> ()
+
+(** [delete_all base_name] deletes all the tree of revisions rooted
+    at base_path. *)
+let delete_all (base_name: string) : Unix.process_status =
+  Unix.system ("rm -rf " ^ base_name)
 
 (* **************************************************************** *)
 (* Unit tests. *)

@@ -563,7 +563,7 @@ class db
 	  let sdb = Printf.sprintf "INSERT INTO %swikitrust_sigs (revision_id, revision_data) VALUES (%s, %s) ON DUPLICATE KEY UPDATE revision_data  = %s" db_prefix (ml2int rev_id) mysql_signature_string mysql_signature_string in 
 	  ignore (self#db_exec wikitrust_dbh sdb)
 	end
-      | Some b -> Filesystem_store.write_revision b page_id rev_id
+      | Some b -> Filesystem_store.write_revision b page_id rev_id signature_string
 
 
       (** [read_words_trust_origin_sigs page_id rev_id] reads the words, trust, 
@@ -640,11 +640,11 @@ class db
     (* ================================================================ *)
     (* Server System *)
 
-    (** [mark_to_color rev_id page_id page_title rev_time user_id] marks that the revision
+    (** [mark_to_color page_id rev_id page_title rev_time user_id] marks that the revision
 	[rev_id] of page [page_id], with title [page_title], and time [rev_time], 
 	needs to be colored.  I have no idea what [user_id] is, whether it is the user
 	who did the request, or the author of the revision. *)
-    method mark_to_color (rev_id : int) (page_id : int) (page_title : string) 
+    method private mark_to_color (page_id : int) (rev_id : int) (page_title : string) 
       (rev_time : string) (user_id : int) =
       let s = Printf.sprintf "INSERT INTO %swikitrust_missing_revs (revision_id, page_id, page_title, rev_time, user_id) VALUES (%s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE requested_on = now(), processed = false" db_prefix (ml2int rev_id) (ml2int page_id) (ml2str page_title) (ml2str rev_time) (ml2int user_id) in
 	ignore (self#db_exec wikitrust_dbh s)
@@ -724,7 +724,8 @@ class db
 	  ignore (self#db_exec wikitrust_dbh s)
 	end
       | Some b -> begin
-	  Filesystem_store.write_revision b rev.revision_page rev.revision_id
+	  Filesystem_store.write_revision b 
+	    rev.revision_page rev.revision_id rev.revision_content
 	end;
       (* And then the revision metadata. *)
       let s = Printf.sprintf "INSERT INTO %srevision (rev_id, rev_page, rev_text_id, rev_comment, rev_user, rev_user_text, rev_timestamp, rev_minor_edit, rev_deleted, rev_len, rev_parent_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE rev_len = %s" 
@@ -752,7 +753,7 @@ class db
 	Careful!  The recomputation may take a very long time for large wikis. *)
     method delete_all (really : bool) =
       match really with
-        true -> (
+        true -> begin
 	  ignore (self#db_exec wikitrust_dbh "DELETE FROM wikitrust_global");
 	  ignore (self#db_exec wikitrust_dbh "INSERT INTO wikitrust_global VALUES (0,0,0,0,0,0,0,0,0,0,0)");
           ignore (self#db_exec wikitrust_dbh "TRUNCATE TABLE wikitrust_page" );
@@ -762,7 +763,20 @@ class db
           ignore (self#db_exec wikitrust_dbh "TRUNCATE TABLE wikitrust_user" ); 
 	  ignore (self#db_exec wikitrust_dbh "UPDATE wikitrust_vote SET processed = FALSE" ); 
           (* Note that we do NOT delete the votes!! *)
-          ignore (self#db_exec wikitrust_dbh "COMMIT"))
+          ignore (self#db_exec wikitrust_dbh "COMMIT");
+	  (* We also delete the filesystem storage of signatures and
+	     colored revisions. *)
+	  begin
+	    match sig_base_path with
+	      Some b -> ignore (Filesystem_store.delete_all b)
+	    | None -> ()
+	  end;
+	  begin
+	    match colored_base_path with
+	      Some b -> ignore (Filesystem_store.delete_all b)
+	    | None -> ()
+	  end
+	end
 	| false -> ignore (self#db_exec wikitrust_dbh "COMMIT")
 	    
   end;; (* online_db *)

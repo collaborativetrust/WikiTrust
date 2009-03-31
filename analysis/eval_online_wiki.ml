@@ -1,6 +1,6 @@
 (*
 
-Copyright (c) 2007-2008 The Regents of the University of California
+Copyright (c) 2007-2009 The Regents of the University of California
 All rights reserved.
 
 Authors: Luca de Alfaro, Ian Pye
@@ -98,9 +98,10 @@ let wikitrust_db_opt =
 
 (* Here begins the sequential code *)
 
-let db = new Online_db.db !db_prefix mediawiki_db wikitrust_db_opt !dump_db_calls in 
+let db = new Online_db.db !db_prefix mediawiki_db wikitrust_db_opt 
+  !wt_db_rev_base_path !wt_db_sig_base_path !wt_db_colored_base_path 
+  !dump_db_calls in 
 
- 
 (* If requested, we erase all coloring, and we recompute it from scratch. *)
 if !delete_all then begin 
   db#delete_all true; 

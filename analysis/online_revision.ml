@@ -1,6 +1,6 @@
 (*
 
-Copyright (c) 2007-2008 The Regents of the University of California
+Copyright (c) 2007-2009 The Regents of the University of California
 All rights reserved.
 
 Authors: Luca de Alfaro
@@ -110,7 +110,7 @@ class revision
       try 
 	(* We have to use Textbuf here to split text into smaller chunks, 
 	   since otherwise Text chokes on it *)
-	let buf = Textbuf.add (db#read_rev_text text_id) Textbuf.empty in 
+	let buf = Textbuf.add (db#read_rev_text page_id rev_id text_id) Textbuf.empty in 
         let (w, t, o, a, s_idx, s) = Text.split_into_words_seps_and_info false (Textbuf.get buf) in 
         words <- w; 
         seps <- s; 
@@ -125,7 +125,7 @@ class revision
 	 Second, the information is consistent. 
 	 If this is not found, then we parse the colored text. *)
       try begin 
-	let (w, t, o, a, s) = db#read_words_trust_origin_sigs rev_id in 
+	let (w, t, o, a, s) = db#read_words_trust_origin_sigs page_id rev_id in 
 	words <- w; 
 	trust <- t; 
 	origin <- o; 
@@ -137,7 +137,7 @@ class revision
 	   needs to be colored. *)
 	(* We have to use Textbuf here to split text into smaller chunks, 
 	   since otherwise Text chokes on it *)
-	let buf = Textbuf.add (db#read_colored_markup rev_id) Textbuf.empty in 
+	let buf = Textbuf.add (db#read_colored_markup page_id rev_id) Textbuf.empty in 
         let (w, t, o, a, s_idx, s) = Text.split_into_words_seps_and_info false (Textbuf.get buf) in 
 	words <- w; 
 	trust <- t; 
@@ -174,7 +174,7 @@ class revision
 
     (** Writes the trust, origin, and sigs to the db *)
     method write_words_trust_origin_sigs : unit = 
-      db#write_words_trust_origin_sigs rev_id words trust origin author sigs
+      db#write_words_trust_origin_sigs page_id rev_id words trust origin author sigs
 
     method get_words : word array = words
     method get_seps : Text.sep_t array = seps

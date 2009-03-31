@@ -1,4 +1,4 @@
-# Copyright (c) 2007-2008 The Regents of the University of California
+# Copyright (c) 2007-2009 The Regents of the University of California
 # All rights reserved.
 #
 # Authors: Luca de Alfaro, B. Thomas Adler, Ian Pye
@@ -30,7 +30,7 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 # Vars we use in our rules to build ocaml programs
-PACKAGES = unix,str,vec,mapmin,hashtbl_bounded,fileinfo,intvmap,extlib,mysql,sexplib.syntax 
+PACKAGES = unix,str,vec,mapmin,hashtbl_bounded,fileinfo,intvmap,extlib,mysql,sexplib.syntax,camlzip
 SYNTAX = camlp4o
 OUR_LIBS = evalwiki.cma
 OUR_LIBS_OPT = evalwiki.cmxa

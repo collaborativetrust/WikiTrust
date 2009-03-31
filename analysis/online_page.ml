@@ -430,7 +430,7 @@ class page
 	  (Vec.exists (same_id r) recent_not_thrown_out))
       in 
       let not_in_any_list = Vec.filter test_not_in_list !thrown_out in 
-      let delete_sigs_of_rev (r: rev_t) = db#delete_author_sigs r#get_id in 
+      let delete_sigs_of_rev (r: rev_t) = db#delete_author_sigs r#get_page_id r#get_id in 
       Vec.iter delete_sigs_of_rev not_in_any_list;
 
       (* Finally, update the page info *)
@@ -703,7 +703,7 @@ class page
         let buf = Revision.produce_annotated_markup rev0_seps chunk_0_trust chunk_0_origin chunk_0_author
 	  false true true in 
         (* And writes it out to the db *)
-        db#write_colored_markup rev0_id (Buffer.contents buf) rev0_timestamp; 
+        db#write_colored_markup page_id rev0_id (Buffer.contents buf) rev0_timestamp; 
 	rev0#set_trust  chunk_0_trust;
 	rev0#set_origin chunk_0_origin;
 	rev0#set_author chunk_0_author;
@@ -855,7 +855,7 @@ class page
         (* Writes the annotated markup, trust, origin, sigs to disk *)
         let buf = Revision.produce_annotated_markup rev0_seps new_trust_10_a.(0) 
 	  new_origin_10_a.(0) new_author_10_a.(0) false true true in 
-        db#write_colored_markup rev0_id (Buffer.contents buf) rev0_timestamp;
+        db#write_colored_markup page_id rev0_id (Buffer.contents buf) rev0_timestamp;
 	rev0#set_trust  new_trust_10_a.(0);
 	rev0#set_origin new_origin_10_a.(0);
 	rev0#set_author new_author_10_a.(0);
@@ -907,7 +907,7 @@ class page
       (* Writes the new colored markup *)
       let buf = Revision.produce_annotated_markup rev0_seps new_trust_a.(0) 
 	rev0#get_origin rev0#get_author false true true in 
-      db#write_colored_markup rev0_id (Buffer.contents buf) rev0_timestamp;
+      db#write_colored_markup page_id rev0_id (Buffer.contents buf) rev0_timestamp;
       (* Writes the trust information to the revision *)
       rev0#set_trust new_trust_a.(0); 
       rev0#set_sigs  new_sigs_a.(0);
