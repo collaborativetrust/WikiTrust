@@ -301,6 +301,10 @@ class db :
     (** [get_user_id name] gets the user id for the user with the given user name *)
     method get_user_id : string -> int
 
+    (** [write_user_id uid user_name] writes that the user with id [uid] 
+	has name [user_name]. *) 
+    method write_user_id : int -> string -> unit
+
     (* ================================================================ *)
     (* Debugging. *)
 

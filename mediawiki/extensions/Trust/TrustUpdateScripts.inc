@@ -2,7 +2,7 @@
 
 global $wgDBprefix, $wgDBuser;
 
-// These scripts hold the SQL to create and remove tables.
+// These scripts tell the SQL to create and remove tables.
 $create_scripts[$wgDBprefix.'wikitrust_global'] = 
   array("
 CREATE TABLE ".$wgDBprefix."wikitrust_global (
@@ -81,9 +81,11 @@ GRANT ALL ON ".$wgDBprefix."wikitrust_sigs TO $wgDBuser
 $create_scripts[$wgDBprefix.'wikitrust_user'] = array("
 CREATE TABLE ".$wgDBprefix."wikitrust_user (
        user_id     int PRIMARY KEY   ,
+       username   varchar(255),
        user_rep    float DEFAULT 0.0
 ) ENGINE=InnoDB","
 GRANT ALL ON ".$wgDBprefix."wikitrust_user TO $wgDBuser;
+CREATE INDEX ".$wgDBprefix."wikitrust_usernames_idx ON ".$wgDBprefix."wikitrust_user (user_name)
 ");
 
 $create_scripts[$wgDBprefix.'wikitrust_missing_revs'] = array("

@@ -76,14 +76,6 @@ let _ = Arg.parse custom_line_format noop "Usage: dispatcher";;
 (* Store the active sub-processes *)
 let working_children = Hashtbl.create max_concurrent_procs
 
-(* Keep an in-memory cache of user-ids, because these are not accessible via 
-   the mediawiki api *)
-let max_id_cache_size = 1000
-
-(* Two hash tables lets us do a rough version of LRU replacement. *)
-let user_id_cache_front = Hashtbl.create max_id_cache_size
-let user_id_cache_back = ref (Hashtbl.create max_id_cache_size)
-
 (* Prepares the database connection information *)
 let mediawiki_db = {
   Mysql.dbhost = Some !mw_db_host;
@@ -110,27 +102,28 @@ let every_n_events_delay =
     else None
 in
 
-(* 
-   [clean_kids page_id proccess_id]
-
+(**
+   [wait_for_subprocesses page_id process_id]
    Wait for the processes to stop before accepting more.
    This function cleans out the hashtable working_children, removing all of the 
    entries which correspond to child processes which have stopped working.
-
 *)
-let clean_kids k v = (
-  let stat = Unix.waitpid [Unix.WNOHANG] v in
+let wait_for_subprocesses (page_id: int) (process_id: int) = 
+  let stat = Unix.waitpid [Unix.WNOHANG] process_id in
+  begin
     match (stat) with
-      | (0,_) -> () (* Process not yet done. *)
-      | (_, Unix.WEXITED s) -> Hashtbl.remove working_children k (* Otherwise, remove the process. *)
-      | (_, Unix.WSIGNALED s) -> Hashtbl.remove working_children k
-      | (_, Unix.WSTOPPED s) -> Hashtbl.remove working_children k
-) in
+      (* Process not yet done. *)
+    | (0,_) -> () 
+	(* Otherwise, remove the process. *)
+	(* TODO(luca): release the db lock! *)
+    | (_, Unix.WEXITED s) -> Hashtbl.remove working_children page_id 
+    | (_, Unix.WSIGNALED s) -> Hashtbl.remove working_children page_id
+    | (_, Unix.WSTOPPED s) -> Hashtbl.remove working_children page_id
+  end
 
-(* 
+(**
    [evaluate_revision page_id rev_id child_db n_processed_events]
-
-   This is the function that evaluates a revision. 
+   is the function that evaluates a revision. 
    The function is recursive, because if some past revision of the same page 
    that falls within the analysis horizon is not yet evaluated and colored
    for trust, it evaluates and colors it first. 
@@ -142,25 +135,25 @@ let rec evaluate_revision (page_id: int) (rev_id: int) (child_db : Online_db.db)
     try 
       logger#log (Printf.sprintf "Evaluating revision %d of page %d\n" 
 		    rev_id page_id);
-      let page = new Online_page.page child_db logger page_id rev_id trust_coeff !times_to_retry_trans in
-	if page#eval then begin 
-	  logger#log (Printf.sprintf "Done revision %d of page %d\n" 
-			rev_id page_id);
-	end else begin 
-	  logger#log (
-	    Printf.sprintf "Revision %d of page %d was already done\n" 
-	      rev_id page_id);
-	end;
-	(* Waits, if so requested to throttle the computation. *)
-	if each_event_delay > 0 then Unix.sleep (each_event_delay); 
-	begin 
-	  match every_n_events_delay with 
-	    | Some d -> begin 
-		if (n_processed_events mod d) = 0 then Unix.sleep (1);
-	      end
-	    | None -> ()
-	end; 
-	
+      let page = new Online_page.page child_db logger 
+	page_id rev_id trust_coeff !times_to_retry_trans in
+      if page#eval then begin 
+	logger#log (Printf.sprintf "Done revision %d of page %d\n" 
+	  rev_id page_id);
+      end else begin 
+	logger#log (
+	  Printf.sprintf "Revision %d of page %d was already done\n" 
+	    rev_id page_id);
+      end;
+      (* Waits, if so requested to throttle the computation. *)
+      if each_event_delay > 0 then Unix.sleep (each_event_delay); 
+      begin 
+	match every_n_events_delay with 
+	| Some d -> begin 
+	    if (n_processed_events mod d) = 0 then Unix.sleep (1);
+	  end
+	| None -> ()
+      end       
     with Online_page.Missing_trust (page_id', rev_id') -> 
       begin
 	(* We need to evaluate page_id', rev_id' first *)
@@ -190,27 +183,18 @@ let evaluate_vote (page_id: int) (revision_id: int) (voter_id: int) (child_db : 
     else ()
 in 
 
-(* 
-   [get_user_id user_name child_db]
-   
+(**
+   [get_user_id user_name child_db]   
    Returns the user id of the user name if we have it, 
    or asks a web service for it if we do not. 
 *)
 let get_user_id u_name child_db =
-  try Hashtbl.find user_id_cache_front u_name with Not_found -> (
-    try Hashtbl.find !user_id_cache_back u_name with Not_found -> (
-      let u_id = try child_db # get_user_id u_name with Online_db.DB_Not_Found -> 
-	Wikipedia_api.get_user_id u_name logger
-      in
-	if Hashtbl.length user_id_cache_front >= max_id_cache_size then (
-	  Hashtbl.clear !user_id_cache_back;
-	  user_id_cache_back := (Hashtbl.copy user_id_cache_front);
-	  Hashtbl.clear user_id_cache_front 
-	);
-	Hashtbl.add user_id_cache_front u_name u_id;
-	u_id
-    )
-  )
+  try child_db#get_user_id u_name 
+  with Online_db.DB_Not_Found -> begin
+    let uid' = Wikipedia_api.get_user_id u_name logger in 
+    child_db#write_user_id uid u_name;
+    uid'
+  end
 in
 
 (**
@@ -256,7 +240,8 @@ let rec get_revs_from_api page_title page_id last_timestamp child_db times_throu
 	if (times_through < times_to_retry) then (
 	  logger#log (Printf.sprintf "Page load error. Trying again\n");
 	  Unix.sleep retry_delay_sec;
-	  get_revs_from_api page_title page_id last_timestamp child_db (times_through+1)
+	  get_revs_from_api page_title page_id last_timestamp child_db 
+	    (times_through + 1)
 	) else raise Wikipedia_api.Http_client_error
       )
 in		
@@ -310,29 +295,29 @@ let process_revs (page_id : int) (page_title : string)
 		 revisions for trust,reputation. *)
 	    let f rev = 
 	      (* if rev <= req.req_revision_id then *)
-	      (* If the above line is used, stop when we have reached the target revision.
-		 Otherwise, we color all the revisions from the list we got above.
-	      *)
-		evaluate_revision page_id rev child_db 0
+	      (* If the above line is used, stop when we have reached
+		 the target revision.  Otherwise, we color all the
+		 revisions from the list we got above.  *)
+	      evaluate_revision page_id rev child_db 0
 	    in
-	      List.iter f revs_to_color;
-	      (* Sleep for a bit so that we don't get confused. *)
+	    List.iter f revs_to_color;
+	    (* Sleep for a bit so that we don't get confused. *)
 	      Unix.sleep sleep_time_sec;
 	      if !synch_log then flush Pervasives.stdout;
 	      (* We color 50 revs at a time. If the target revision_id 
 		 still isn't colored, keep going. *)
-	      (* 
-		 The timestamp check is to ensure we are making progress -- if the last present
-		 timestamp is not changing, we are not getting anywhere, and so might as well give up.
-		 1 Reason this can occur is if the target revision id is not actually a revision 
-		 of the given page title.
-	      *)
+	      (* The timestamp check is to ensure we are making
+		 progress -- if the last present timestamp is not
+		 changing, we are not getting anywhere, and so might
+		 as well give up.  1 Reason this can occur is if the
+		 target revision id is not actually a revision of the
+		 given page title.  *)
 	      logger#log (Printf.sprintf 
-			    "Last timestamp: %s, new timestamp: %s\n" 
-			    !prev_last_timestamp last_present_timestamp);
+		"Last timestamp: %s, new timestamp: %s\n" 
+		!prev_last_timestamp last_present_timestamp);
 	      if ((child_db#revision_needs_coloring req.req_revision_id) && 
-		    (not (last_present_timestamp = !prev_last_timestamp))
-		 ) then (
+		(not (last_present_timestamp = !prev_last_timestamp))
+	      ) then (
 		prev_last_timestamp := last_present_timestamp;
 		do_processing req
 	      ) else (
@@ -408,7 +393,7 @@ let dispatch_page (rev_pages : revision_processing_request_t list) =
     (* Remove any finished processes from the list of active child
        processes
     *)
-    Hashtbl.iter clean_kids working_children;
+    Hashtbl.iter wait_for_subprocesses working_children;
 
     (* Order the revs by page. *)
     List.iter set_revs_to_get rev_pages;
@@ -425,7 +410,7 @@ in
 let main_loop () =
   while true do
     if (Hashtbl.length working_children) >= max_concurrent_procs then (
-      Hashtbl.iter clean_kids working_children
+      Hashtbl.iter wait_for_subprocesses working_children
     ) else (
       let revs_to_process = db#fetch_next_revisions_to_color 
 	(max (max_concurrent_procs - Hashtbl.length working_children) 0) in
