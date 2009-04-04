@@ -1,6 +1,6 @@
 (*
 
-Copyright (c) 2008-2009 The Regents of the University of California
+Copyright (c) 2009 The Regents of the University of California
 All rights reserved.
 
 Authors: Luca de Alfaro, Ian Pye
@@ -66,9 +66,6 @@ open Online_command_line
 open Online_types
 
 let max_concurrent_procs = 10
-let sleep_time_sec = 1
-let times_to_retry = 3
-let retry_delay_sec = 60
 let custom_line_format = [] @ command_line_format
 
 let _ = Arg.parse custom_line_format noop "Usage: dispatcher";;
@@ -104,12 +101,12 @@ let every_n_events_delay =
 in
 
 (**
-   [wait_for_subprocess page_id process_id]
+   [check_subprocess_termination page_id process_id]
    Wait for the process to stop before accepting more.
    This function cleans out the hashtable working_children, removing all of the 
    entries which correspond to child processes which have stopped working.
 *)
-let wait_for_subprocess (page_id: int) (process_id: int) = 
+let check_subprocess_termination (page_id: int) (process_id: int) = 
   let stat = Unix.waitpid [Unix.WNOHANG] process_id in
   begin
     match (stat) with
@@ -183,71 +180,8 @@ let evaluate_vote (page_id: int) (revision_id: int) (voter_id: int) (child_db : 
 	voter_id revision_id page_id)
 in 
 
-(**
-   [get_user_id user_name child_db]   
-   Returns the user id of the user name if we have it, 
-   or asks a web service for it if we do not. 
-*)
-let get_user_id u_name child_db =
-  try child_db#get_user_id u_name 
-  with Online_db.DB_Not_Found -> begin
-    let uid' = Wikipedia_api.get_user_id u_name logger in 
-    child_db#write_user_id uid u_name;
-    uid'
-  end
-in
+(* ---qui--- *)
 
-(**
-   [get_revs_from_api page_title page_id last_timestamp] reads 
-   a group of revisions of the given page (usually something like
-   50 revisions, see the Wikimedia API) from the Wikimedia API,
-   stores them to disk, and returns the list of revision ids. 
-*)
-let rec get_revs_from_api 
-    (page_title: string) (page_id: int) 
-    (last_timestamp: string) (child_db: Online_db.db) times_through : int list =
-  try
-    logger#log (Printf.sprintf "Getting revs from api for page %d\n" page_id);
-    let (wiki_page, wiki_revs) = 
-      (* Retrieve a page and revision list from mediawiki. *)
-      Wikipedia_api.fetch_page_and_revs_after page_title last_timestamp 
-	logger in  
-    let page_latest = match wiki_page with 
-      | None -> ( 	
-	  raise Wikipedia_api.Http_client_error
-	)
-      | Some pp -> (
-	  logger#log (Printf.sprintf "Got page titled %s\n" pp.page_title);
-	  (* Write the new page to the page table. *)
-	  child_db#write_page pp;
-	  pp.page_latest
-	)
-    in
-      logger#log (Printf.sprintf "Got page latest rev %d\n" page_latest);
-      (* Add the revision to the revision table of the db. *)
-      let update_and_write_rev rev =
-	rev.revision_page <- page_id;
-	(* User ids are not given by the api, so we have to use the 
-	   toolserver. *)
-	rev.revision_user <- (get_user_id rev.revision_user_text child_db);
-	child_db#write_revision rev
-      in
-	(* Write the list of revisions to the db. *)
-	List.iter update_and_write_rev wiki_revs;
-	(* Finaly, retun a list of simple rev_ids *)
-	let get_id rev = rev.revision_id in
-	  List.map get_id wiki_revs
-  with
-    | Wikipedia_api.Http_client_error -> (
-	if (times_through < times_to_retry) then (
-	  logger#log (Printf.sprintf "Page load error. Trying again\n");
-	  Unix.sleep retry_delay_sec;
-	  get_revs_from_api page_title page_id last_timestamp child_db 
-	    (times_through + 1)
-	) else raise Wikipedia_api.Http_client_error
-      )
-in		
-  
 (** [process_revs page_id rev_ids page_title rev_timestamp user_id] 
     Returns unit.
     This is given a page and a list of revisions to work on.
@@ -395,7 +329,7 @@ let dispatch_page (rev_pages : revision_processing_request_t list) =
     (* Remove any finished processes from the list of active child
        processes
     *)
-    Hashtbl.iter wait_for_subprocess working_children;
+    Hashtbl.iter check_subprocess_termination working_children;
 
     (* Order the revs by page. *)
     List.iter set_revs_to_get rev_pages;
@@ -412,7 +346,7 @@ in
 let main_loop () =
   while true do
     if (Hashtbl.length working_children) >= max_concurrent_procs then (
-      Hashtbl.iter wait_for_subprocesses working_children
+      Hashtbl.iter check_subprocess_termination working_children
     ) else (
       let revs_to_process = db#fetch_next_revisions_to_color 
 	(max (max_concurrent_procs - Hashtbl.length working_children) 0) in

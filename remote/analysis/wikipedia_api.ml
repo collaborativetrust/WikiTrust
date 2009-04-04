@@ -37,9 +37,13 @@ POSSIBILITY OF SUCH DAMAGE.
 
 open Online_types;;
 
-exception Http_client_error
+exception API_error
 
 Random.self_init ()
+
+let sleep_time_sec = 1
+let times_to_retry = 3
+let retry_delay_sec = 60
 
 let pipeline = new Http_client.pipeline
 let buf_len = 8192
@@ -84,7 +88,7 @@ let get_url (url: string) : string =
 	end
       | _ -> body
     end
-  | _ -> raise Http_client_error
+  | _ -> raise API_error
 ;;
 
 (** [get_xml_child node tag] returns the first child on [node] that has
@@ -178,7 +182,7 @@ let process_page (page : Xml.xml) : (wiki_page_t * wiki_revision_t list) =
      there are no more revisions.
    See http://en.wikipedia.org/w/api.php for more details.
 *)
-let fetch_page_and_revs_after (page_title : string) (rev_date : string) 
+let fetch_page_and_revs_after (page_title : string) (rev_start_id : string) 
     (logger : Online_log.logger) 
     : (wiki_page_t option * wiki_revision_t list * int option) =
   let url = !Online_command_line.target_wikimedia 
@@ -200,18 +204,62 @@ let fetch_page_and_revs_after (page_title : string) (rev_date : string)
 	  (Some page_info, rev_info, Some next_rev_id)
 	end
     end;;
-      
-    
-(** [get_user_id user_name logger] returns the user_id of user with name [user_name]. 
-    This involves querying the toolserver, which is usually heavily loaded,
-    resulting in long response times.
- *)
-let get_user_id (user_name : string) (logger : Online_log.logger) : int =
-  let safe_user_name = Netencoding.Url.encode user_name in
-  let url = !Online_command_line.user_id_server ^ "?n=" ^ safe_user_name in
-  if !Online_command_line.dump_db_calls then 
-    logger#log (Printf.sprintf "%s\n" url);
-  let uids = ExtString.String.nsplit (get_url url) "`" in
-  let uid = List.nth uids 1 in
-  try int_of_string uid with int_of_string -> 0
-;;
+
+
+(** [get_user_id user_name db]   
+    Returns the user id of the user name if we have it, 
+    or asks a web service for it if we do not. 
+*)
+let get_user_id (user_name: string) (db: Online_db.db) : int =
+  try db#get_user_id u_name 
+  with Online_db.DB_Not_Found -> begin
+    let safe_user_name = Netencoding.Url.encode user_name in
+    let url = !Online_command_line.user_id_server ^ "?n=" ^ safe_user_name in
+    let uids = ExtString.String.nsplit (get_url url) "`" in
+    let uid = List.nth uids 1 in
+    try int_of_string uid with int_of_string -> 0
+  end;;
+
+
+(**
+   [get_revs_from_api page_title page_id last_timestamp] reads 
+   a group of revisions of the given page (usually something like
+   50 revisions, see the Wikimedia API) from the Wikimedia API,
+   stores them to disk, and returns:
+   - the list of revision ids. 
+   - an optional id of the net revision to read.  Is None, then
+     all revisions of the page have been read.
+   Raises API_error if the API is unreachable.
+*)
+let rec get_revs_from_api (page_title: string) (page_id: int) (last_id: int) 
+    (db: Online_db.db) (n_retries: int) : (int list * int option) =
+  try begin
+    logger#log (Printf.sprintf "Getting revs from api for page %d\n" page_id);
+    (* Retrieve a page and revision list from mediawiki. *)
+    let (wiki_page', wiki_revs, next_id) = 
+      Wikipedia_api.fetch_page_and_revs_after page_title last_id logger in  
+    match wiki_page' with
+      None -> ([], None)
+    | Some wiki_page -> begin
+	(* Write the updated or new page info to the page table. *)
+	logger#log (Printf.sprintf "Got page titled %S\n" wiki_page.page_title);
+	(* Write the new page to the page table. *)
+	db#write_page page_table;
+	(* Writes te revisions to the db. *)
+	let update_and_write_rev rev =
+	  rev.revision_page <- page_id;
+	  (* User ids are not given by the api, so we have to use the toolserver. *)
+	  rev.revision_user <- (get_user_id rev.revision_user_text child_db);
+	  logger#log (Printf.sprintf "Writing to db revision %d.\n" rev.revision_id);
+	  db#write_revision rev
+      in List.iter update_and_write_rev wiki_revs;
+	(* Finally, returns a list of simple rev_ids, and the next id to read *)
+	let get_id rev = rev.revision_id in
+	(List.map get_id wiki_revs, next_id)
+  end with API_error -> begin
+    if times_through < times_to_retry then begin
+      logger#log (Printf.sprintf "Page load error for page %S. Trying again\n" page_title);
+      Unix.sleep retry_delay_sec;
+      get_revs_from_api page_title page_id last_id db (n_retries + 1)
+    end else raise API_error
+  end;;
