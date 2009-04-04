@@ -152,10 +152,11 @@ let process_page (page : Xml.xml) :
 *)
 let fetch_page_and_revs_after (page_title : string) (rev_date : string) 
     (logger : Online_log.logger) : (wiki_page_t option * wiki_revision_t list) =
+  (* TODO(Luca): page by revision id *)
   let url = !Online_command_line.target_wikimedia 
     ^ "?action=query&prop=revisions|"
     ^ "info&format=xml&inprop=&rvprop=ids|flags|timestamp|user|size|comment|"
-    ^ "content&rvexpandtemplates=1&rvstart=" ^ rev_date ^ "&rvlimit=" ^ rev_lim
+    ^ "content&rvstart=" ^ rev_date ^ "&rvlimit=" ^ rev_lim
     ^ "&rvdir=newer&titles=" ^ (Netencoding.Url.encode page_title) in
     
     logger#log (Printf.sprintf "getting url: %s\n" url);

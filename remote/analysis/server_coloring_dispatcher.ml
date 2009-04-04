@@ -168,19 +168,18 @@ let rec evaluate_revision (page_id: int) (rev_id: int) (child_db : Online_db.db)
   end (* End of try ... with ... *)
 in
 
-(* 
+(**
    [evaluate_vote page_id revision_id voter_id child_db]
    This is the code that evaluates a vote 
 *)
 let evaluate_vote (page_id: int) (revision_id: int) (voter_id: int) (child_db : Online_db.db) = 
-  logger#log (Printf.sprintf "Evaluating vote by %d on revision %d of page %d\n" voter_id 
-		revision_id page_id); 
+  logger#log (Printf.sprintf "Evaluating vote by %d on revision %d of page %d\n" 
+    voter_id revision_id page_id); 
   let page = new Online_page.page child_db logger page_id revision_id trust_coeff 
     !times_to_retry_trans in 
     if page#vote voter_id then 
-      logger#log (Printf.sprintf "Done revision %d of page %d\n" 
-		    revision_id page_id)
-    else ()
+      logger#log (Printf.sprintf "User %d voted for revision %d of page %d.\n" 
+	voter_id revision_id page_id)
 in 
 
 (**
