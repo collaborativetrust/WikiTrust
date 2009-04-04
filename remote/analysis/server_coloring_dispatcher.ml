@@ -85,14 +85,15 @@ let mediawiki_db = {
   Mysql.dbuser = Some !mw_db_user;
 }
 
-(* Here begins the sequential code *)
+(* Sets up the db *)
 let db = new Online_db.db !db_prefix mediawiki_db None 
   !wt_db_rev_base_path !wt_db_sig_base_path !wt_db_colored_base_path 
   !dump_db_calls in
 let logger = new Online_log.logger !log_name !synch_log in
 let trust_coeff = Online_types.get_default_coeff in
 
-(* There are two types of throttle delay: a second each time we are multiples 
+(* Delay throttling code.
+   There are two types of throttle delay: a second each time we are multiples 
    of an int, or a number of seconds before each revision. *)
 let each_event_delay = int_of_float !color_delay in
 let every_n_events_delay = 
@@ -103,21 +104,21 @@ let every_n_events_delay =
 in
 
 (**
-   [wait_for_subprocesses page_id process_id]
-   Wait for the processes to stop before accepting more.
+   [wait_for_subprocess page_id process_id]
+   Wait for the process to stop before accepting more.
    This function cleans out the hashtable working_children, removing all of the 
    entries which correspond to child processes which have stopped working.
 *)
-let wait_for_subprocesses (page_id: int) (process_id: int) = 
+let wait_for_subprocess (page_id: int) (process_id: int) = 
   let stat = Unix.waitpid [Unix.WNOHANG] process_id in
   begin
     match (stat) with
       (* Process not yet done. *)
     | (0,_) -> () 
 	(* Otherwise, remove the process. *)
-	(* TODO(luca): release the db lock! *)
-    | (_, Unix.WEXITED s) -> Hashtbl.remove working_children page_id 
-    | (_, Unix.WSIGNALED s) -> Hashtbl.remove working_children page_id
+	(* TODO(Luca): release the db lock! *)
+    | (_, Unix.WEXITED s) 
+    | (_, Unix.WSIGNALED s) 
     | (_, Unix.WSTOPPED s) -> Hashtbl.remove working_children page_id
   end
 
@@ -202,7 +203,9 @@ in
    50 revisions, see the Wikimedia API) from the Wikimedia API,
    stores them to disk, and returns the list of revision ids. 
 *)
-let rec get_revs_from_api page_title page_id last_timestamp child_db times_through : int list =
+let rec get_revs_from_api 
+    (page_title: string) (page_id: int) 
+    (last_timestamp: string) (child_db: Online_db.db) times_through : int list =
   try
     logger#log (Printf.sprintf "Getting revs from api for page %d\n" page_id);
     let (wiki_page, wiki_revs) = 
@@ -392,7 +395,7 @@ let dispatch_page (rev_pages : revision_processing_request_t list) =
     (* Remove any finished processes from the list of active child
        processes
     *)
-    Hashtbl.iter wait_for_subprocesses working_children;
+    Hashtbl.iter wait_for_subprocess working_children;
 
     (* Order the revs by page. *)
     List.iter set_revs_to_get rev_pages;

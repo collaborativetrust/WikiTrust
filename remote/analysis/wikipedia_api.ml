@@ -62,8 +62,8 @@ let api_ts2mw_ts s =
   else default_timestamp in
   ts
 
-(** [run_call url] makes a get call to [url] and returns the result as a string. *)      
-let run_call url = 
+(** [get_url url] makes a get call to [url] and returns the result as a string. *)      
+let get_url (url: string) : string = 
   let call = new Http_client.get url in
   let request_header = call#request_header `Base in
   (* Accept gziped format *)
@@ -86,6 +86,35 @@ let run_call url =
     end
   | _ -> raise Http_client_error
 ;;
+
+(** [get_xml_child node tag] returns the first child on [node] that has
+    [tag], if there is one, or None if there is none. *)
+let get_xml_child (node: Xml.xml) (tag: string) : Xml.xml option = 
+  let l = Xml.children node in
+  let rec find_first = function
+      [] -> None
+    | el :: rest -> if (Xml.tag el = tag) then Some el else find_first rest 
+  in find_first l;;
+
+
+(** [get_xml_heir node tag_list] returns the (leftmost) node reachable from
+    [node] by [tag_list], if there is one, and None otherwise. *)
+let rec get_xml_heir (node: Xml.xml) (tag_list: string list) : Xml.xml option =
+  match tag_list with
+    [] -> node
+  | t :: tl -> begin
+      match get_xml_child node t with
+	None -> None
+      | Some n -> get_xml_heir n tl
+    end;;
+
+
+(** [get_xml_children node tag] returns the list of children of [node] 
+    that have [tag]. *)
+let get_xml_children (node: Xml.xml) (tag: string) : Xml.xml string = 
+  let f n t = (t = Xml.tag n) in
+  List.filter f (Xml.children node)
+
 
 (** [process_rev rev] takes as input a xml tag [rev], and returns 
     a wiki_revision_t stucture. *)
@@ -112,17 +141,12 @@ let process_rev (rev : Xml.xml) : wiki_revision_t =
   } 
   in r
 
-(** [process_page page] takes as input an xml tag representing an optional
-    page, and returns a pair consisting of a wiki_page_t structure, and a 
-    list of corresponding wiki_revision_t. 
 
-    The Some/None wiki_page_t return type is an error handling mechanisam.
-    If there are no pages found, this is an error.
-    None is set in fetch_page_and_revs_after.
-    Some is set only after a page is found.
+(** [process_page page] takes as input an xml tag representing a page,
+    and returns a pair consisting of a wiki_page_t structure, and a 
+    list of corresponding wiki_revision_t. 
    *)
-let process_page (page : Xml.xml) : 
-    (wiki_page_t option * wiki_revision_t list) =
+let process_page (page : Xml.xml) : (wiki_page_t * wiki_revision_t list) =
   let w_page = {
     page_id = int_of_string (Xml.attrib page "pageid");
     page_namespace = (int_of_string (Xml.attrib page "ns"));
@@ -132,45 +156,51 @@ let process_page (page : Xml.xml) :
     page_is_redirect = (try ignore(Xml.attrib page "redirect"); true 
                         with Xml.No_attribute e -> false);
     page_is_new = false;
+    (* For random page extraction.  The idea is just broken, of course. *) 
     page_random = (Random.float 1.0);
     page_touched = api_ts2mw_ts (Xml.attrib page "touched"); 
     page_latest = int_of_string (Xml.attrib page "lastrevid");
     page_len = int_of_string (Xml.attrib page "length")
   } in
-  let revs = Xml.children page in
-  let new_revs = (Xml.map process_rev (List.hd revs)) in
-  if List.length new_revs > 1 then
-    (Some w_page, List.tl new_revs)
-  else 
-    (Some w_page, [])
+  let rev_container = get_xml_child page "revisions" in
+  let new_revs = Xml.map process_rev rev_container in
+  (w_page, new_revs)
+
 
 (**
-   [fetch_page_and_revs after page_title rev_date logger], given a [page_title] 
-   and a [rev_date], returns all the revisions of [page_title] after [rev_date]. 
-   [logger] is, well, a logger. 
+   [fetch_page_and_revs after page_title rev_start_id logger], given a [page_title] 
+   and a [rev_start_id], returns all the revisions of [page_title] after 
+   [rev_start_id].  [logger] is, well, a logger. 
+   It returns a triple, consisting of:
+   - optional page info (if nothing is returned, then there is nothing to return)
+   - list of revisions
+   - revision id from which to start the next request; if None, 
+     there are no more revisions.
    See http://en.wikipedia.org/w/api.php for more details.
 *)
 let fetch_page_and_revs_after (page_title : string) (rev_date : string) 
-    (logger : Online_log.logger) : (wiki_page_t option * wiki_revision_t list) =
-  (* TODO(Luca): page by revision id *)
+    (logger : Online_log.logger) 
+    : (wiki_page_t option * wiki_revision_t list * int option) =
   let url = !Online_command_line.target_wikimedia 
     ^ "?action=query&prop=revisions|"
     ^ "info&format=xml&inprop=&rvprop=ids|flags|timestamp|user|size|comment|"
-    ^ "content&rvstart=" ^ rev_date ^ "&rvlimit=" ^ rev_lim
+    ^ "content&rvstartid=" ^ rev_start_id ^ "&rvlimit=" ^ rev_lim
     ^ "&rvdir=newer&titles=" ^ (Netencoding.Url.encode page_title) in
-    
-    logger#log (Printf.sprintf "getting url: %s\n" url);
-    let res = run_call url in
-    let api = Xml.parse_string res in
-    let query = Xml.children (api) in
-    let poss_pages = Xml.children (List.hd query) in
-    let pick_page acc page =
-      if (Xml.tag page = "pages") then 
-	process_page (List.hd (Xml.children page))
-      else acc 
-    in
-    List.fold_left pick_page (None,[]) poss_pages
-;;
+  logger#log (Printf.sprintf "getting url: %s\n" url);
+  let res = get_url url in
+  let api = Xml.parse_string res in
+  match get_xml_heir api ["query", "pages", "page"] with
+    None -> (None, [], None)
+  | Some page -> begin
+      let (page_info, rev_info) = process_page page in
+      match get_xml_child api "query-continue" with
+	None -> (Some page_info, rev_info, None)
+      | Some rev_cont -> begin
+	  let next_rev_id = int_of_string (Xml.attrib rev_cont "rvstartid") in
+	  (Some page_info, rev_info, Some next_rev_id)
+	end
+    end;;
+      
     
 (** [get_user_id user_name logger] returns the user_id of user with name [user_name]. 
     This involves querying the toolserver, which is usually heavily loaded,
@@ -181,7 +211,7 @@ let get_user_id (user_name : string) (logger : Online_log.logger) : int =
   let url = !Online_command_line.user_id_server ^ "?n=" ^ safe_user_name in
   if !Online_command_line.dump_db_calls then 
     logger#log (Printf.sprintf "%s\n" url);
-  let uids = ExtString.String.nsplit (run_call url) "`" in
+  let uids = ExtString.String.nsplit (get_url url) "`" in
   let uid = List.nth uids 1 in
   try int_of_string uid with int_of_string -> 0
 ;;
