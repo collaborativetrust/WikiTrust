@@ -24,14 +24,18 @@ The main developers are:
 
 - Luca de Alfaro (lda@dealfaro.com)
 - Ian Pye (ipye@gmail.com)
+- Bo Adler (thumper@soe.ucsc.edu)
+
+Other contributors:
+
+- Krishnendu Chatterjee (krish.chat@gmail.com)
 
 
 REMOTE INSTALLATION
 
 We describe in this README file the use of WikiTrust as a MediaWiki
-extension.  It is also possible to have WikiTrust run on a different
-server than the servers that run MediaWiki.  This setup is described
-in the remote/README file.
+extension.  
+Installation instructions for the MWF are given in README-WMF.
 
 
 PREREQUISITES: 
@@ -63,30 +67,14 @@ eval_online_wiki from source.
 2) Take a deep breath. 
 
 3) Next, you need to install the trust coloring extension in
-   mediawiki.  There are two ways to do this:
-
-  3a) Leaving the files in place, and using symbolic links.  This is
-      the preferred course of action: in this way, when we release bug
-      fixes via git, you can simply update your version of WikiTrust,
-      recompile the code if needed (most likely), and be done with it.
-      In alternative 3b) below, you would need to then copy the new
-      files to appropriate places.
-
-      To build symbolic links in Ubuntu you can proceed as follows
-      (the process is similar for other distributions; only the
-      destination directory path may be different):
-
-        $ cd /var/lib/mediawiki/extensions 
-        $ sudo ln -s /home/username/wikitrust/mediawiki/extensions/Trust .
-
-  3b) Alternatively, use 'cp' statements rather than symbolic links: 
-
-        $ cd /var/lib/mediawiki/extensions 
-        $ sudo cp -r /home/username/wikitrust/mediawiki/extensions/Trust .
+   mediawiki.  You can install it in
+   /var/lib/mediawiki/extensions/wikitrust
 
 4) You should activate the extension by editing
    LocalSettings.php (part of the MediaWiki installation), adding the
    following lines: 
+
+   TODO(Luca): make $wgTrustCmd obsolete.
 
 ----start of configuration lines----
 # Trust extension
@@ -97,7 +85,7 @@ $wgCreateRevisionIndex = true;
 $wgShowVoteButton = true; // If true, the vote button is shown.
 $wgVoteText = "I believe this information is correct";
 $wgThankYouForVoting = "Thank you for your vote."; 
-$wgTrustCmd = "/home/username/wikitrust/eval_online_wiki"; 
+$wgTrustCmd = "/var/lib/mediawiki/extensions/wikitrust/eval_online_wiki"; 
 $wgTrustLog = "/somedir/{$wgDBname}-trust.log";
 $wgTrustDebugLog = "/somedir/{$wgDBname}-trust-debug.log";
 $wgRepSpeed = 1.0;
@@ -106,15 +94,15 @@ $wgTrustExplanation = '{| border="1" cellpadding="5" cellspacing="0" style="back
 |-
 | The above text is colored according to how much it has been revised.  An orange background indicates new, unrevised, text;  white is for text that has been revised by many reputed authors.  If you click on a word, you will be redirected to the diff corresponding to the edit where the word was introduced.  If you hover over a word with the mouse pointer, a pop-up displays the name of the author of the word.
 |-
-| The text color and origin are computed by [http://trust.cse.ucsc.edu/WikiTrust WikiTrust]; if you notice problems, you can submit a bug report [http://code.google.com/p/wikitrust/issues here].
+| The text color and origin are computed by [http://wikitrust.soe.ucsc.edu/ WikiTrust]; if you notice problems, you can submit a bug report [http://code.google.com/p/wikitrust/issues here].
 |}';
 $wgNoTrustExplanation = '{| border="1" cellpadding="5" cellspacing="0" style="background:lightgreen; color:black"
 |-
 | There is no trust information available for this text yet.
 |}';
 
-require_once( $IP . "/extensions/Trust/TrustBase.php");
-require_once( $IP . "/extensions/Trust/Trust.php" );
+require_once( $IP . "/extensions/wikitrust/TrustBase.php");
+require_once( $IP . "/extensions/wikitrust/Trust.php" );
 ----end of configuration lines----
 
    Above, we are requesting that two logs be created: 
@@ -141,16 +129,15 @@ require_once( $IP . "/extensions/Trust/Trust.php" );
 
 5) You need to make the installation readable from the web server. 
 
-  5a) If you used method 3a), you can do: 
+        $ chmod a+rX /var/lib/mediawiki/extensions/wikitrust/*.php
+        $ chmod a+rX /var/lib/mediawiki/extensions/wikitrust/*.inc
+        $ chmod -R a+rX /var/lib/mediawiki/extensions/wikitrust/css
+        $ chmod -R a+rX /var/lib/mediawiki/extensions/wikitrust/js
 
-        $ chmod -R a+rX /home/username/wikitrust
-
-  5b) If you used method 3b), you can do:
-
-      	$ cd /var/lib/mediawiki/extensions 
-        $ sudo chown -R www-data:www-data Trust
-	$ cp /home/user/wikitrust/eval_online_wiki /usr/local/bin/
-	$ sudo chmod a+rx /usr/local/bin/eval_online_wiki
+   Be careful not to give access to the web server to the other files,
+   as there may be obscure security issues associated with, for
+   instance, your web server having access to the .git directory (if
+   you got wikitrust via git).
 
 6) You need to create the database tables that the trust coloring
    extension will use.  Assuming that the mediawiki database is called

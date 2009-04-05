@@ -41,6 +41,9 @@ open Mysql;;
 (** This class contains methods to read consecutive revisions belonging
     to a page from the database. *)
 
+(* TODO(Luca): The logic of fetching revisions prior to the current one must 
+   change during wmf integration. *)
+
 class page 
   (db : Online_db.db)  (* Online database containing the pages and revisions *)
   (page_id : int)  (* page id to which the revisions belong *)

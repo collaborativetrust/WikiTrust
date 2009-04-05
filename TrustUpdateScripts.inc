@@ -59,10 +59,12 @@ CREATE TABLE ".$wgDBprefix."wikitrust_revision (
 ) ENGINE=InnoDB","
 GRANT ALL ON ".$wgDBprefix."wikitrust_revision TO $wgDBuser
 ");
+$create_index_scripts[$wgDBprefix . "wikitrust_revision"]['wikitrust_col_revision_id_timestamp_idx'] = "CREATE INDEX wikitrust_revision_id_timestamp_idx ON " . $wgDBprefix . "wikitrust_revision (revision_id, time_string)";
 
 $create_scripts[$wgDBprefix.'wikitrust_colored_markup'] = array("
 CREATE TABLE ".$wgDBprefix."wikitrust_colored_markup (
         revision_id     int PRIMARY KEY,
+	page_id         int,
         revision_text   longtext NOT NULL,
 	revision_createdon varchar(32) NOT NULL
 ) ENGINE=InnoDB","
@@ -88,20 +90,6 @@ GRANT ALL ON ".$wgDBprefix."wikitrust_user TO $wgDBuser;
 CREATE INDEX ".$wgDBprefix."wikitrust_usernames_idx ON ".$wgDBprefix."wikitrust_user (user_name)
 ");
 
-$create_scripts[$wgDBprefix.'wikitrust_missing_revs'] = array("
-CREATE TABLE ".$wgDBprefix."wikitrust_missing_revs (
-       revision_id     int PRIMARY KEY,
-       page_id         int NOT NULL,
-       page_title      varchar(255) NOT NULL,
-       rev_time        varchar(255) NOT NULL,
-       user_id         int NOT NULL,
-       requested_on    timestamp DEFAULT now(),
-       type            ENUM('coloring', 'vote') NOT NULL,
-       processed       ENUM('unprocessed', 'processing', 'processed') NOT NULL DEFAULT 'unprocessed'
-) ENGINE=InnoDB","
-GRANT ALL ON ".$wgDBprefix."wikitrust_missing_revs TO $wgDBuser;
-");
-
 $create_index_scripts[$wgDBprefix . "revision"]['wikitrust_revision_id_timestamp_idx'] = "CREATE INDEX wikitrust_revision_id_timestamp_idx ON " . $wgDBprefix . "revision (rev_id, rev_timestamp)";
 
 $remove_scripts[$wgDBprefix.'wikitrust_vote'] = array("DROP TABLE ".$wgDBprefix."wikitrust_vote");
@@ -112,8 +100,6 @@ $remove_scripts[$wgDBprefix.'wikitrust_colored_markup'] = array("DROP TABLE ".$w
 $remove_scripts[$wgDBprefix.'wikitrust_sigs'] = array("DROP TABLE ".$wgDBprefix."wikitrust_sigs");
 $remove_scripts[$wgDBprefix.'wikitrust_user'] = array("DROP TABLE
 ".$wgDBprefix."wikitrust_user");
-$remove_scripts[$wgDBprefix.'wikitrust_missing_revs'] = array("DROP TABLE
-".$wgDBprefix."wikitrust_missing_revs");
 
 $remove_index_scripts[$wgDBprefix . "revision"]['wikitrust_revision_id_timestamp_idx'] = "DROP INDEX wikitrust_revision_id_timestamp_idx ON ".$wgDBprefix."revision";
 

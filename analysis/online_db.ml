@@ -294,14 +294,15 @@ class db
 	(ml2timestamp timestamp) (ml2int rev_id) (ml2int rev_id_incl) (ml2int max_revs_to_return) in
       	Mysql.map (self#db_exec mediawiki_dbh s) rev_row2revision_t
 
-    (** [fetch_all_revs] returns a cursor that points to all revisions in the database, 
-	in ascending order of timestamp. *)
+    (** [fetch_all_revs] returns a cursor that points to all revisions
+	in the database, in ascending order of timestamp. *)
     method fetch_all_revs (max_revs_to_return: int) : revision_t list = 
       let s = Printf.sprintf  "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM %srevision ORDER BY rev_timestamp ASC, rev_id ASC LIMIT %s" db_prefix (ml2int max_revs_to_return) in
-	Mysql.map (self#db_exec mediawiki_dbh s) rev_row2revision_t
-	    
-    (** [fetch_unprocessed_votes n_events] returns at most [n_events] unprocessed votes, 
-	starting from the oldest unprocessed vote. *)
+      Mysql.map (self#db_exec mediawiki_dbh s) rev_row2revision_t
+	
+    (** [fetch_unprocessed_votes n_events] returns at most [n_events]
+	unprocessed votes, starting from the oldest unprocessed
+	vote. *)
     method fetch_unprocessed_votes (n_events: int) : vote_t list = 
       let s = Printf.sprintf  "SELECT voted_on, page_id, revision_id, voter_id FROM %swikitrust_vote WHERE NOT processed ORDER BY voted_on ASC LIMIT %s" db_prefix (ml2int n_events) in
       let vote_row2vote_t row =
@@ -363,13 +364,13 @@ class db
 
     (** [get_latest_rev_id page_id] returns the revision id of the most 
 	recent revision of page [page_id]. *)
-    method get_latest_rev_id (page_id: int) : int = 
-      let s = Printf.sprintf "SELECT rev_id FROM %srevision WHERE rev_page = %s ORDER BY rev_timestamp DESC, rev_id DESC LIMIT 1" db_prefix (ml2int page_id) in 
-      match fetch (self#db_exec mediawiki_dbh s) with 
+    method get_latest_col_rev_id (page_id: int) : int = 
+      let s = Printf.sprintf "SELECT revision_id FROM %swikitrust_revision WHERE page_id = %s ORDER BY rev_timestamp DESC, rev_id DESC LIMIT 1" db_prefix (ml2int page_id) in 
+      match fetch (self#db_exec wikitrust_dbh s) with 
 	None -> raise DB_Not_Found
       | Some x -> not_null int2ml x.(0)
 
-    (** [get_latest_colored_rev_id page_id] returns the timestamp of the most 
+ard    (** [get_latest_colored_rev_id page_id] returns the timestamp of the most 
 	recent revision of page [page_id]. *)
     method get_latest_colored_rev_timestamp (page_id : int) : string =
       let s = Printf.sprintf "SELECT time_string FROM %swikitrust_revision WHERE page_id = %s ORDER BY time_string DESC, revision_id DESC LIMIT 1" db_prefix (ml2int page_id) in 
@@ -377,29 +378,6 @@ class db
 	    None -> raise DB_Not_Found
 	  | Some x -> not_null str2ml x.(0)      
 
-    (** [get_latest_colored_rev_id page title] returns the timestamp of 
-	the most recent revision of page [page-title]. *)
-    method get_latest_colored_rev_timestamp_by_title (page_title : string) : string =
-      let s = Printf.sprintf "SELECT time_string FROM %swikitrust_revision AS A join page AS B on (A.page_id = B.page_id) WHERE B.page_title = %s ORDER BY time_string DESC, revision_id DESC LIMIT 1" db_prefix (ml2str page_title) in 
-	match fetch (self#db_exec mediawiki_dbh s) with 
-	    None -> raise DB_Not_Found
-	  | Some x -> not_null str2ml x.(0)  
-
-    (** [get_latest_present_rev_id page_id] returns the timestamp of the most 
-	recent revision of page [page_id] which is present, colored or not. *)
-    method get_latest_present_rev_timestamp (page_id : int) : string =
-      let s = Printf.sprintf "SELECT rev_timestamp FROM %srevision WHERE rev_page = %s ORDER BY rev_timestamp DESC, rev_id DESC LIMIT 1" db_prefix (ml2int page_id) in 
-	match fetch (self#db_exec mediawiki_dbh s) with 
-	    None -> raise DB_Not_Found
-	  | Some x -> not_null str2ml x.(0)    
-
-    (** [get_revisions_present_not_colored page] returns a list of revisions 
-	which are present in the revision table locally but not colored.
-    *)
-    method get_revisions_present_not_colored (page_id: int) : int list =
-      let s = Printf.sprintf "SELECT rev_id FROM %srevision WHERE rev_page = %s AND  rev_id NOT IN (SELECT revision_id FROM %swikitrust_colored_markup)" db_prefix (ml2int page_id) db_prefix in 
-      let rev_row2rev row = not_null int2ml row.(0) in
-	Mysql.map (self#db_exec wikitrust_dbh s) rev_row2rev
 	  
     (* ================================================================ *)
     (* Revision methods. *) 

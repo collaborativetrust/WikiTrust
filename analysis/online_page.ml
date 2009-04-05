@@ -1315,17 +1315,18 @@ class page
 	    db#start_transaction Online_db.Both;
 	    if debug then print_string "Start vote for revision...\n"; flush stdout;
 	    
-	    (* First, checks that rev_id is the latest one for the page. 
+	    (* First, checks that rev_id is the latest colored one for 
+	       the page. 
 	       We do not implement voting for older revisions. *)
-	    let latest_rev_id = db#get_latest_rev_id page_id in 
+	    let latest_rev_id = db#get_latest_col_rev_id page_id in 
 	    if revision_id = latest_rev_id then begin 
 	      (* Reads the page information and the revision *)
 	      self#read_page_revisions true; 
 	      (* Increases the trust of the revision, and writes the 
 		 results back to disk *)
 	      self#vote_for_trust voter_id; 
-	      (* Inserts the revision in the list of high rep or high trust revisions, 
-		 and deletes old signatures *)
+	      (* Inserts the revision in the list of high rep or high
+		 trust revisions, and deletes old signatures *)
 	      self#insert_revision_in_lists;
 	      (* We write to disk the page information *)
 	      db#write_page_info page_id page_info;
