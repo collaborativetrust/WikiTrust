@@ -255,3 +255,14 @@ type wiki_revision_t = {
   revision_parent_id : int;
   revision_content : string;
 }
+
+(** This is the type of an event that needs to be processed. *)
+type event_t = 
+    Revision_event of int (* revision_id *)
+  | Vote_event of int * int (* revision_id, voter_id *)
+
+(** This is a time, a page_id, and an event.  The reason the page_id is 
+    factored apart is that we need the page id for all types of events, 
+    in order to grab the right locks. *)
+type event_occurrence_t = float * int * event_t 
+

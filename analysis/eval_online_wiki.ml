@@ -36,6 +36,7 @@ POSSIBILITY OF SUCH DAMAGE.
 open Printf
 open Mysql
 open Online_command_line
+open Online_types
 
 (** MissingInformation is raised if any of 
     page_id, revision_id, or voter_uid is not specified. *)
@@ -242,8 +243,8 @@ while !n_processed_events < !max_events_to_process do
 	  if already_tried then Hashtbl.remove tried page_id; 
 	  begin 
 	    match event with 
-	      Event_feed.Revision_event revision_id -> evaluate_revision page_id revision_id
-	    | Event_feed.Vote_event (revision_id, voter_id) -> evaluate_vote page_id revision_id voter_id
+	      Revision_event revision_id -> evaluate_revision page_id revision_id
+	    | Vote_event (revision_id, voter_id) -> evaluate_vote page_id revision_id voter_id
 	  end;
 	  db#release_page_lock page_id;
 	end else begin 

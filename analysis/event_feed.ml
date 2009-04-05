@@ -44,16 +44,6 @@ let debug = true
    Too small a number lowers efficiency; around 100 is a good compromise. *)
 let n_events_to_read = 100
 
-(** This is the type of an event that needs to be processed. *)
-type event_t = 
-    Revision_event of int (* revision_id *)
-  | Vote_event of int * int (* revision_id, voter_id *)
-
-(** This is a time, a page_id, and an event.  The reason the page_id is 
-    factored apart is that we need the page id for all types of events, 
-    in order to grab the right locks. *)
-type event_occurrence_t = float * int * event_t 
-
 (** This class is used to build a feed of events that need to be processed
     in chronological order. 
     In [event_feed db requested_rev_id n_retries], [db] is the db handle used for access, 
