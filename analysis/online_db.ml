@@ -370,15 +370,7 @@ class db
 	None -> raise DB_Not_Found
       | Some x -> not_null int2ml x.(0)
 
-ard    (** [get_latest_colored_rev_id page_id] returns the timestamp of the most 
-	recent revision of page [page_id]. *)
-    method get_latest_colored_rev_timestamp (page_id : int) : string =
-      let s = Printf.sprintf "SELECT time_string FROM %swikitrust_revision WHERE page_id = %s ORDER BY time_string DESC, revision_id DESC LIMIT 1" db_prefix (ml2int page_id) in 
-	match fetch (self#db_exec mediawiki_dbh s) with 
-	    None -> raise DB_Not_Found
-	  | Some x -> not_null str2ml x.(0)      
 
-	  
     (* ================================================================ *)
     (* Revision methods. *) 
 
@@ -597,8 +589,8 @@ ard    (** [get_latest_colored_rev_id page_id] returns the timestamp of the most
       match Mysql.fetch result with 
         None -> raise DB_Not_Found
       | Some x -> not_null float2ml x.(0)
-      
-	  
+
+
     (** [get_user_id name] gets the user id for the user with the given user name *)
     method get_user_id (user_name : string) : int =
       let s = Printf.sprintf "SELECT user_id FROM %swikitrust_user WHERE username = %s" db_prefix (ml2str user_name) in
@@ -611,11 +603,11 @@ ard    (** [get_latest_colored_rev_id page_id] returns the timestamp of the most
 
     (** [write_user_id uid user_name] writes that the user with id [uid] 
 	has name [user_name]. *) 
-    method write_user_id (uid: int) (user_name: string) : void = 
-      let s = Ptintf.sprintf "INSERT INTO %swikitrust_user (user_id, username) VALUES (%s, %s) ON DUPLICATE KEY UPDATE username = %s" db_prefix (ml2int uid) (ml2str user_name) (ml2str user_name) in
+    method write_user_id (uid: int) (user_name: string) : unit = 
+      let s = Printf.sprintf "INSERT INTO %swikitrust_user (user_id, username) VALUES (%s, %s) ON DUPLICATE KEY UPDATE username = %s" db_prefix (ml2int uid) (ml2str user_name) (ml2str user_name) in
       ignore (self#db_exec wikitrust_dbh s)
-	
-	      
+
+
     (* ================================================================ *)
     (* Votes. *)
 

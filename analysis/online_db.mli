@@ -194,24 +194,7 @@ class db :
       
     (** [get_latest_rev_id page_id] returns the revision id of the most 
 	recent revision of page [page_id]. *)
-    method get_latest_rev_id : int -> int
-
-    (** [get_latest_colored_rev_id page_id] returns the timestamp of the most 
-     recent revision of page [page_id]. *)
-    method get_latest_colored_rev_timestamp : int -> string
-
-    (** [get_latest_colored_rev_id page title] returns the timestamp of 
-	the most recent revision of page [page-title]. *)
-    method get_latest_colored_rev_timestamp_by_title : string -> string
-      
-    (** [get_latest_present_rev_id page_id] returns the timestamp of the most 
-	recent revision of page [page_id] which is present, colored or not. *)
-    method get_latest_present_rev_timestamp : int -> string
-      
-    (** [get_revisions_present_not_colored page] returns a list of revisions 
-	which are present in the revision table locally but not colored.
-    *)
-    method get_revisions_present_not_colored : int -> int list
+    method get_latest_col_rev_id : int -> int
 
     (* ================================================================ *)
     (* Revision methods.  We assume we have a lock on the page to which 
@@ -220,6 +203,7 @@ class db :
     (** [revision_needs_coloring rev_id] checks whether a revision has already been 
 	colored for trust. *)
     method revision_needs_coloring : int -> bool
+
 
     (** [read_revision rev_id] reads a revision by id, returning the row *)
     method read_revision : int -> string option array option 
