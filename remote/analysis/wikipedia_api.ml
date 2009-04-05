@@ -231,8 +231,8 @@ let get_user_id (user_name: string) (db: Online_db.db) : int =
      all revisions of the page have been read.
    Raises API_error if the API is unreachable.
 *)
-let rec get_revs_from_api (page_title: string) (page_id: int) (last_id: int) 
-    (db: Online_db.db) (n_retries: int) : (int list * int option) =
+let rec get_revs_from_api (page_id: int) (page_title: string) (last_id: int) 
+    (db: Online_db.db) : (int list * int option) =
   try begin
     logger#log (Printf.sprintf "Getting revs from api for page %d\n" page_id);
     (* Retrieve a page and revision list from mediawiki. *)

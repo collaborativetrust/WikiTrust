@@ -65,6 +65,8 @@ POSSIBILITY OF SUCH DAMAGE.
 open Online_command_line
 open Online_types
 
+(* evry batch corresponds to 50 revisions, so this will do 1000 at most. *)
+let max_batches_to_do = 20
 let max_concurrent_procs = 10
 let custom_line_format = [] @ command_line_format
 
@@ -180,112 +182,75 @@ let evaluate_vote (page_id: int) (revision_id: int) (voter_id: int) (child_db : 
 	voter_id revision_id page_id)
 in 
 
-(* ---qui--- *)
 
 (** [process_revs page_id rev_ids page_title rev_timestamp user_id] 
     Returns unit.
     This is given a page and a list of revisions to work on.
-    It sucessivly calls either evaluate_vote or evaluate_revsion 
+    It successivly calls either evaluate_vote or evaluate_revision 
     for each revision.
 *)
-let process_revs (page_id : int) (page_title : string)
+let process_revs (page_id: int) (page_title : string)
     (requests : revision_processing_request_t list) =
   
   (* Each child has its own database. *)
   let child_db = new Online_db.db !db_prefix mediawiki_db None !dump_db_calls in
-  let prev_last_timestamp = ref Wikipedia_api.default_timestamp in
-
   (* This recursive inner function actually does the processing *)
   let rec do_processing (req : revision_processing_request_t) = 
     match req.req_request_type with
-      | Coloring -> (
-	  logger#log (Printf.sprintf "Working on coloring: %d\n" 
-	     req.req_revision_id);
-	  let last_present_timestamp = 
-	    try 
-	      child_db#get_latest_present_rev_timestamp page_id 
-	    with Online_db.DB_Not_Found -> Wikipedia_api.default_timestamp 
+      Coloring -> begin
+	try (* to recover from API errors *)
+	  logger#log (Printf.sprintf "Working on coloring page %S\n" page_title);
+	  (* Fetches all new revisions. *)
+	  let last_rev_id = ref (
+	    try child_db#get_latest_present_rev_id page_id 
+	    with Online_db.DB_Not_Found -> 0)
 	  in
-	    
-	  (* List of revs present but not colored. 
-	     This is calculated by first getting the list of all revs currently 
-	     present not colored, then requesting from the mediawiki
-	     api any remaining revs for the given page.
-	  *) 
-	  let present_reps = child_db # get_revisions_present_not_colored 
-	    page_id in
-	    logger # log (Printf.sprintf "Fetching revs from api from %s\n" 
-			    last_present_timestamp);
-	    let revs_to_color = try present_reps @
-	      (get_revs_from_api page_title page_id last_present_timestamp 
-		 child_db 0) 
-	    with 
-	      | Wikipedia_api.Http_client_error -> (
-		  logger#log (Printf.sprintf "Unrecoverable error page %d\n"
-				page_id);
-		  child_db # mark_rev_as_processed req.req_revision_id;
-		  raise Wikipedia_api.Http_client_error
-		)
-	    in
-	      (* Now that the data we need is present locally, evaluate the 
-		 revisions for trust,reputation. *)
-	    let f rev = 
-	      (* if rev <= req.req_revision_id then *)
-	      (* If the above line is used, stop when we have reached
-		 the target revision.  Otherwise, we color all the
-		 revisions from the list we got above.  *)
-	      evaluate_revision page_id rev child_db 0
-	    in
-	    List.iter f revs_to_color;
-	    (* Sleep for a bit so that we don't get confused. *)
-	      Unix.sleep sleep_time_sec;
-	      if !synch_log then flush Pervasives.stdout;
-	      (* We color 50 revs at a time. If the target revision_id 
-		 still isn't colored, keep going. *)
-	      (* The timestamp check is to ensure we are making
-		 progress -- if the last present timestamp is not
-		 changing, we are not getting anywhere, and so might
-		 as well give up.  1 Reason this can occur is if the
-		 target revision id is not actually a revision of the
-		 given page title.  *)
-	      logger#log (Printf.sprintf 
-		"Last timestamp: %s, new timestamp: %s\n" 
-		!prev_last_timestamp last_present_timestamp);
-	      if ((child_db#revision_needs_coloring req.req_revision_id) && 
-		(not (last_present_timestamp = !prev_last_timestamp))
-	      ) then (
-		prev_last_timestamp := last_present_timestamp;
-		do_processing req
-	      ) else (
-		(* End evaluate revision part. *)
-		child_db # mark_rev_as_processed req.req_revision_id
-	      )
-	) 
-      | Vote -> ( (* Vote! *)
-	  logger#log (Printf.sprintf "Working on vote for %d\n" 
-			req.req_revision_id);
-	  evaluate_vote page_id req.req_revision_id req.req_requesting_user_id child_db;
-	  child_db # mark_rev_as_processed req.req_revision_id
-	)
+	  let n_batches = ref 0 in
+	  let do_more = ref true in
+	  let new_rev_id_l = ref [] in
+	  while do_more do begin
+	    let (rev_id_l, next_rev') = Wikipedia_api.get_revs_from_api 
+	      page_id page_title !last_rev_id child_db in
+	    new_rev_id_l := !new_rev_id_l @ rev_id_l;
+	    n_batches := !n_batches + 1;
+	    match next_rev' with
+	      None -> do_more := false
+	    | Some i -> begin
+		do_more := (n_batches < max_batches_to_do);
+		last_rev_id := i
+	      end
+	  end done;
+	  (* Evaluate the revisions. *)
+	  let f rev = evaluate_revision page_id rev child_db 0 in
+	  List.iter f revs_to_color;
+	  if !synch_log then flush Pervasives.stdout;
+	with wikipedia_api.API_error -> ()
+      end
+    | Vote -> begin
+	logger#log (Printf.sprintf "Working on vote for revision %d of page %S\n" 
+	  req.req_revision_id page_title);
+	evaluate_vote page_id req.req_revision_id req.req_requesting_user_id child_db;
+	child_db#mark_rev_as_processed req.req_revision_id
+      end
   in
-    (* Process each revision in turn. *)
-    List.iter do_processing requests;
-    logger#log (Printf.sprintf
-		  "Finished processing page %s\n" page_title);	      
-    exit 0 (* No more work to do, stop this process. *)
+  (* Process each revision in turn. *)
+  List.iter do_processing requests;
+  logger#log (Printf.sprintf
+    "Finished processing page %s\n" page_title);	      
+  exit 0 (* No more work to do, stop this process. *)
 in
 
-(* 
-   [dispatch_page rev_pages] -> unit.
 
-   Given a list of revisions to process 
-   (of type revision_processing_request_t), 
-   this function starts a new process
-   going which either colores the revision text or else handles a vote.
+(* ---qui--- *)
 
-   It groups the raw list of revs by page, and then forks a new 
-   process to handle each page, up to the concurrant proc. limit.
-*)
+
+(** [dispatch_page rev_pages] -> unit.  Given a list [rev_pages] of
+    revisions to process (of type revision_processing_request_t), this
+    function starts a new process going which either colores the
+    revision text or else handles a vote.
+    It groups the raw list of revs by page, and then forks a new 
+    process to handle each page, up to the concurrant proc. limit.
+ *)
 let dispatch_page (rev_pages : revision_processing_request_t list) = 
   let new_pages = Hashtbl.create (List.length rev_pages) in
   let is_old_page p = Hashtbl.mem working_children p in
