@@ -67,8 +67,8 @@ class page
     val mutable hi_rep_revs: rev_t Vec.t = Vec.empty 
     (** This is the Vec of high-trust revisions *)
     val mutable hi_trust_revs: rev_t Vec.t = Vec.empty 
-    (** This is the Vec of revisions for the page to which the last revision (included) is compared,
-	obtained by union of the above. *)
+      (** This is the Vec of revisions for the page to which the last
+	  revision (included) is compared, obtained by union of the above. *)
     val mutable revs: rev_t Vec.t = Vec.empty 
 
     (** These are the edit lists.  The position (i, j) is the edit list 
@@ -700,8 +700,8 @@ class page
 	in 
         (* Produces the live chunk, consisting of the text of the revision, annotated
            with trust and origin information *)
-        let buf = Revision.produce_annotated_markup rev0_seps chunk_0_trust chunk_0_origin chunk_0_author
-	  false true true in 
+        let buf = Revision.produce_annotated_markup 
+	  rev0_seps chunk_0_trust chunk_0_origin chunk_0_author false true true in 
         (* And writes it out to the db *)
         db#write_colored_markup page_id rev0_id (Buffer.contents buf) rev0_timestamp; 
 	rev0#set_trust  chunk_0_trust;
@@ -735,9 +735,10 @@ class page
           let revi = Vec.get i revs in 
           let revi_id = revi#get_id in 
           let d = Hashtbl.find edit_dist (revi_id, rev0_id) in  
-          (* We consider a revision to be a better candidate than the immediately preceding 
-             revision as the source of the most recent revision if it is less than 3 times 
-             closer than the current one. *) 
+          (* We consider a revision to be a better candidate than the
+             immediately preceding revision as the source of the most
+             recent revision if it is less than 3 times closer than
+             the current one. *)
           if d < d_prev /. 3. && d < !closest_d then begin
             close_idx := i; 
             closest_d := d
@@ -758,7 +759,8 @@ class page
         let (new_chunks_10_a, medit_10_l) = Chdiff.text_tracking chunks_a rev0_t in 
 	(* Computes origin *)
 	let (new_origin_10_a, new_author_10_a) = 
-	  Compute_robust_trust.compute_origin origin_a author_a new_chunks_10_a medit_10_l rev0_id rev0_uname in 
+	  Compute_robust_trust.compute_origin 
+	    origin_a author_a new_chunks_10_a medit_10_l rev0_id rev0_uname in 
 	(* Computes trust *)
         (* If the author is the same, we do not increase the reputation 
 	   of exisiting text, to thwart a trivial attack. *)
@@ -772,24 +774,27 @@ class page
           weight_user rev0_uid trust_coeff.lends_rep trust_coeff.kill_decrease 
           trust_coeff.cut_rep_radius c_read_all c_read_part trust_coeff.local_decay
         in 
-	(* Now we have an estimate of trust, sigs, origin, author from the latest revision, 
-	   and the chunk lists already computed.  If the most similar revision to the current
-	   one is not the immediately preceding revision, we try to improve the estimate
-	   for the "live" chunk (chunk 0) by considering the following chunks: 
-	     closest revision -> live chunk
+	(* Now we have an estimate of trust, sigs, origin, author from
+	   the latest revision, and the chunk lists already computed.
+	   If the most similar revision to the current one is not the
+	   immediately preceding revision, we try to improve the
+	   estimate for the "live" chunk (chunk 0) by considering the
+	   following chunks:
+  	     closest revision -> live chunk
 	     preceding revision -> dead chunk 1
 	     dead chunks        -> dead chunks 2 ... n 
 	   The origin will be due to this directly. 
-	   For the trust, it computes the trust that would result from that edit, 
-           and assigns to each word the maximum trust that either this edit, or the edit 1 --> 0, 
-           would have computed. *)
+	   For the trust, it computes the trust that would result from
+           that edit, and assigns to each word the maximum trust that
+           either this edit, or the edit 1 --> 0, would have
+           computed. *)
         if !close_idx > 1 then begin 
           let rev2 = Vec.get !close_idx revs in 
 	  (* Prepares the chunks of the previous revisions *)
 	  let n_chunks_dual = (Array.length chunks_a) + 1 in 
 	  let chunks_dual_a = Array.make n_chunks_dual [| |] in 
 	  let trust_dual_a  = Array.make n_chunks_dual [| |] in 
-	  let sig_dual_a   = Array.make n_chunks_dual [| |] in 
+	  let sig_dual_a   = Array.make n_chunks_dual  [| |] in 
 	  let origin_dual_a = Array.make n_chunks_dual [| |] in 
 	  let author_dual_a = Array.make n_chunks_dual [| |] in 
 	  for i = 1 to n_chunks_dual - 2 do begin 
@@ -848,8 +853,9 @@ class page
 	   _10 variables that contain the correct values of trust and author 
 	   signatures. *)
 
-        (* Computes the list of deleted chunks with extended information (also age, timestamp), 
-           and the information for the live text *)
+        (* Computes the list of deleted chunks with extended
+           information (also age, timestamp), and the information for
+           the live text *)
         del_chunks_list <- self#compute_dead_chunk_list new_chunks_10_a new_trust_10_a 
 	  new_sigs_10_a new_origin_10_a new_author_10_a del_chunks_list medit_10_l rev1_time rev0_time;
         (* Writes the annotated markup, trust, origin, sigs to disk *)
@@ -1009,9 +1015,10 @@ class page
 	  histogram_updated <- true;
 	end;
 
-	  (* We compute the reputation scaling dynamically taking care of the size of the 
-	     recent_revision list and the union of the recent revision list, high reputation 
-	     list and high trust list. *)
+	(* We compute the reputation scaling dynamically taking care
+	   of the size of the recent_revision list and the union of
+	   the recent revision list, high reputation list and high
+	   trust list. *)
 	let dynamic_rep_scaling_factor = trust_coeff.dynamic_rep_scaling n_recent_revs 
 	  trust_coeff.n_revs_to_consider in
 
@@ -1040,11 +1047,13 @@ class page
 		(0,  (* The id is 0, so we track it in the log output *)
 		0,   (* The uid is 0 (what else?) *)
 		"Virtual_empty_initial_revision",  (* username *)
-		(* The empty revision is empty with very high reputation!  This means that, for the 
-		   reputation cap formulas, the only reputations that matter are those for the revisions
-		   that follow it. *)
+		(* The empty revision is empty with very high
+		   reputation!  This means that, for the reputation
+		   cap formulas, the only reputations that matter are
+		   those for the revisions that follow it. *)
 		trust_coeff.max_rep,
-		(* The distance between the empty revision, and rev1, is the length of rev1... *)
+		(* The distance between the empty revision, and rev1,
+		   is the length of rev1... *)
 		float_of_int len1, 
 		(* and similarly for the distance to rev2. *)
 		float_of_int (Array.length (rev2#get_words)),
@@ -1112,14 +1121,19 @@ class page
 	      end
 	    end;
 
-            (* We compute the reputation increment by the local feedback for rev1, where rev1_prev is the 
-              immediate previous revision of rev1. In this case, we always apply the repuation cap, where
-	      the cap is the minimum of the repuation of the judging revision rev2 and the rev1_prev (this 
-	      is because the previous version rev1_prev can be under control of the author of rev1). 
-              The reputation after local feedback is obtained as rev1_local, and we take the maximum of 
-              the local feedback and the reputation computation by improve-the-past algorithm. Since 
-              both are robust, the robust of the algorithm is ensured *)
-             (* Computes reputation after local feedback*) 
+            (* We compute the reputation increment by the local
+               feedback for rev1, where rev1_prev is the immediate
+               previous revision of rev1. In this case, we always apply
+               the repuation cap, where the cap is the minimum of the
+               repuation of the judging revision rev2 and the rev1_prev
+               (this is because the previous version rev1_prev can be
+               under control of the author of rev1).  The reputation
+               after local feedback is obtained as rev1_local, and we
+               take the maximum of the local feedback and the
+               reputation computation by improve-the-past
+               algorithm. Since both are robust, the robust of the
+               algorithm is ensured *)
+            (* Computes reputation after local feedback*) 
 	    let rev1_local = 
 	      if rev1_is_first_page_revision then begin
 		(* This is basically a no-op *)
@@ -1144,10 +1158,12 @@ class page
 	       
 	    (* Applies the reputation increment according to reputation cap *)
 	    let new_rep = 
-	      if (!rev1_nix || rev2_time -. rev1_time < trust_coeff.nix_interval) && rep_inc > 0. then begin 
+	      if (!rev1_nix || rev2_time -. rev1_time < trust_coeff.nix_interval) 
+		 && rep_inc > 0. then begin 
 		(* Short term or nixed: caps the reputation increment. 
 		   The reputation of rev2 is always used as a cap. 
-		   The reputation of r_c2 is used as a cap only if it is more recent than the nixing interval. *)
+		   The reputation of r_c2 is used as a cap only if it is 
+		   more recent than the nixing interval. *)
 		let r_c2_cap_rep = 
 		  if rev2_time -. oldest_of_recent_revs_time < trust_coeff.nix_interval
 		  then r_c2_rep
@@ -1189,22 +1205,25 @@ class page
       end (* if oldest_judged_idx > 0 , and method compute_edit_inc *)
 
 
-    (** This method computes the trust of the revision 0, given that the edit distances from 
-        previous revisions are known. 
-        The method is as follows: it compares the newest revision 0 with both the preceding one, 
-        1, and with the closest to 0 in edit distance, if different from 1. 
-        The trust is then computed as the maximum of the two figures. 
-        The method computes also the effects on author reputation as a result of the new revision.
-        It returns a flag indicating whether anything has been done. *)
+    (** This method computes the trust of the revision 0, given that
+        the edit distances from previous revisions are known.  The
+        method is as follows: it compares the newest revision 0 with
+        both the preceding one, 1, and with the closest to 0 in edit
+        distance, if different from 1.  The trust is then computed as
+        the maximum of the two figures.  The method computes also the
+        effects on author reputation as a result of the new revision.
+        It returns a flag indicating whether anything has been
+        done. *)
     method eval : bool = 
 
-      (* Keep track of whether the revision needs coloring, on how many tries we have made *)
+      (* Keep track of whether the revision needs coloring, on how
+	 many tries we have made *)
       let needs_coloring = ref false in 
       let done_something = ref true in 
       let n_attempts = ref 0 in 
 
-      (* This is the main transaction body.  
-	 We do in this body the computation that needs to be consistent for a page. *)
+      (* This is the main transaction body.  We do in this body the
+	 computation that needs to be consistent for a page. *)
       while !n_attempts < n_retries do 
 	begin 
 	  try begin 
@@ -1334,14 +1353,17 @@ class page
 	      db#mark_vote_as_processed revision_id voter_id;
 
 	      (* We write back to disk the information of all revisions *)
-	      if debug then print_string "   Voted; writing the quality information...\n"; flush stdout;
+	      if debug then print_string 
+		"   Voted; writing the quality information...\n"; flush stdout;
 	      let rev0 = Vec.get 0 revs in 
 	      rev0#write_quality_to_db;
 	      
 	      db#commit Online_db.Both;
 	      n_attempts := n_retries;
 	      done_something := true;
-	      logger#log (Printf.sprintf "\n\nUser %d voted for revision %d of page %d" voter_id revision_id page_id);
+	      logger#log (Printf.sprintf 
+		"\n\nUser %d voted for revision %d of page %d" 
+		voter_id revision_id page_id);
 	      logger#flush; 
 	    end else begin 
 	      (* This is not the latest revision of the page *)

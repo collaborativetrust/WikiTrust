@@ -176,98 +176,109 @@ let evaluate_vote (page_id: int) (revision_id: int) (voter_id: int) =
 in 
 
 match !eval_type with
-  | VOTE -> (
-      let page_id = match !requested_page_id with 
-	  None -> raise MissingInformation
-	| Some d -> d
-      in
-      let revision_id = match !requested_rev_id with 
-	  None -> raise MissingInformation
-	| Some d -> d
-      in
-      let voter_id = match !requested_voter_id with 
-	  None -> raise MissingInformation
-	| Some d -> d
-      in
-	evaluate_vote page_id revision_id voter_id
-    )
-  | EVENT -> (
+  VOTE -> begin
+    let page_id = match !requested_page_id with 
+	None -> raise MissingInformation
+      | Some d -> d
+    in
+    let revision_id = match !requested_rev_id with 
+	None -> raise MissingInformation
+      | Some d -> d
+    in
+    let voter_id = match !requested_voter_id with 
+	None -> raise MissingInformation
+      | Some d -> d
+    in
+    evaluate_vote page_id revision_id voter_id
+  end
 
-(* Creates the event feed for the work we wish to do *)
-let feed  = new Event_feed.event_feed db !requested_rev_id !times_to_retry_trans in 
-(* This hashtable is used to implement the load-sharing algorithm. *)
-let tried : (int, unit) Hashtbl.t = Hashtbl.create 10 in 
-while !n_processed_events < !max_events_to_process do 
-  begin 
-    (* This is the main loop *)
-    match feed#next_event with 
-      None -> 
-	(* We are done *)
-	n_processed_events := !max_events_to_process
-    | Some (event_timestamp, page_id, event) -> begin 
-	(* We have an event to process *)
-	(* Tracks execution time *)
-	let t_start = Unix.gettimeofday () in 
-	
-	(* Tries to acquire the page lock. 
-	   If it succeeds, colors the page. 
-	   
-	   The page lock is not used for correctness: rather, it is used to limit 
-	   transaction parallelism, and to allow revisions to be analyzed in parallel: 
-	   otherwise, all processes would be trying to analyze them in the same order, 
-	   and they would just queue one behind the next. 
-	   The use of these locks, along with the [tried] hashtable, enforces bounded 
-	   overtaking, allowing some degree of out-of-order parallelism, while ensuring
-	   that the revisions of the same page are tried in the correct order. 
-	   
-	   We set the timeout for waiting as follows. 
-	   - If the page has already been tried, we need to wait on it, so we choose a long timeout. 
-	   If we don't get the page by the long timeout, this means that there is too much db 
-	   lock contention (too many simultaneously active coloring processes), and we terminate. 
-	   - If the page has not been tried yet, we set a short timeout, and if we don't get the lock,
-	   we move on to the next revision. 
-	   This algorithm ensures an "overtake by at most 1" property: if there are many coloring
-	   processes active simultaneously, and r_k, r_{k+1} are two revisions of a page p, it is 
-	   possible that a process is coloring r_k while another is coloring a revision r' after r_k 
-	   belonging to a different page p', but this revision r' cannot be past r_{k+1}. 
-	 *)
-	let already_tried = Hashtbl.mem tried page_id in 
-	let got_it = 
-	  if already_tried 
-	  then db#get_page_lock page_id lock_timeout 
-	  else db#get_page_lock page_id 0 in 
-	(* If we got it, we can process the event *)
-	if got_it then begin 
-	  (* Processes page *)
-	  if already_tried then Hashtbl.remove tried page_id; 
-	  begin 
-	    match event with 
-	      Event_feed.Revision_event revision_id -> evaluate_revision page_id revision_id
-	    | Event_feed.Vote_event (revision_id, voter_id) -> evaluate_vote page_id revision_id voter_id
-	  end;
-	  db#release_page_lock page_id;
-	end else begin 
-	  (* We could not get the lock.  
-	     If we have already tried the page, this means we waited LONG time; 
-	     we quit everything, as it means there is some problem. *)
-	  if already_tried 
-	  then begin
-	    n_processed_events := !max_events_to_process;
-	    Printf.printf "Waited too long for lock of page %d; terminating.\n" page_id;
-	    flush stdout;
-	  end
-	  else Hashtbl.add tried page_id ();
-	end; (* not got it *)
-	let t_end = Unix.gettimeofday () in 
-	Printf.printf "Analysis took %f seconds.\n" (t_end -. t_start);
-	flush stdout
-      end (* event that needs processing *)
-  end done; (* Loop as long as we need to do events *)
+| EVENT -> begin
+    (* Creates the event feed for the work we wish to do *)
+    let feed  = new Event_feed.event_feed db !requested_rev_id !times_to_retry_trans in 
+    (* This hashtable is used to implement the load-sharing algorithm. *)
+    let tried : (int, unit) Hashtbl.t = Hashtbl.create 10 in 
+    while !n_processed_events < !max_events_to_process do 
+      begin 
+	(* This is the main loop *)
+	match feed#next_event with 
+	  None -> 
+	    (* We are done *)
+	    n_processed_events := !max_events_to_process
+	| Some (event_timestamp, page_id, event) -> begin 
+	    (* We have an event to process *)
+	    (* Tracks execution time *)
+	    let t_start = Unix.gettimeofday () in 
+	    
+	    (* Tries to acquire the page lock. 
+	       If it succeeds, colors the page. 
+	       
+	       The page lock is not used for correctness: rather, it
+	       is used to limit transaction parallelism, and to allow
+	       revisions to be analyzed in parallel: otherwise, all
+	       processes would be trying to analyze them in the same
+	       order, and they would just queue one behind the next.
+	       The use of these locks, along with the [tried]
+	       hashtable, enforces bounded overtaking, allowing some
+	       degree of out-of-order parallelism, while ensuring that
+	       the revisions of the same page are tried in the correct
+	       order.
+	       
+	       We set the timeout for waiting as follows. 
+	       - If the page has already been tried, we need to wait on it, 
+	         so we choose a long timeout. 
+	         If we don't get the page by the long timeout, this means that 
+	         there is too much db lock contention (too many simultaneously 
+	         active coloring processes), and we terminate. 
+	       - If the page has not been tried yet, we set a short timeout, 
+	         and if we don't get the lock, we move on to the next revision. 
 
-    );
-
-(* Closes the db connection *)
-db#close;
-
-(* Close the logger *)
-logger#close
+	       This algorithm ensures an "overtake by at most 1"
+	       property: if there are many coloring processes active
+	       simultaneously, and r_k, r_{k+1} are two revisions of a
+	       page p, it is possible that a process is coloring r_k
+	       while another is coloring a revision r' after r_k
+	       belonging to a different page p', but this revision r'
+	       cannot be past r_{k+1}.  *)
+	    let already_tried = Hashtbl.mem tried page_id in 
+	    let got_it = 
+	      if already_tried 
+	      then db#get_page_lock page_id lock_timeout 
+	      else db#get_page_lock page_id 0 in 
+	    (* If we got it, we can process the event *)
+	    if got_it then begin 
+	      (* Processes page *)
+	      if already_tried then Hashtbl.remove tried page_id; 
+	      begin 
+		match event with 
+		  Event_feed.Revision_event revision_id -> 
+		    evaluate_revision page_id revision_id
+		| Event_feed.Vote_event (revision_id, voter_id) -> 
+		    evaluate_vote page_id revision_id voter_id
+	      end;
+	      db#release_page_lock page_id;
+	    end else begin 
+	      (* We could not get the lock.  
+		 If we have already tried the page, this means we waited LONG time; 
+		 we quit everything, as it means there is some problem. *)
+	      if already_tried 
+	      then begin
+		n_processed_events := !max_events_to_process;
+		Printf.printf "Waited too long for lock of page %d; terminating.\n" page_id;
+		flush stdout;
+	      end
+	      else Hashtbl.add tried page_id ();
+	    end; (* not got it *)
+	    let t_end = Unix.gettimeofday () in 
+	    Printf.printf "Analysis took %f seconds.\n" (t_end -. t_start);
+	    flush stdout
+	  end (* event that needs processing *)
+      end done; (* Loop as long as we need to do events *)
+    
+  end;
+    
+    (* Closes the db connection *)
+    db#close;
+    
+    (* Close the logger *)
+    logger#close
+      

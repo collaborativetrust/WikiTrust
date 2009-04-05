@@ -100,8 +100,10 @@ class event_feed
 		    match last_colored with 
 		      Some (last_timestamp, last_id) -> begin
 			match requested_rev_id with 
-			  None -> db#fetch_all_revs_after last_timestamp last_id n_events_to_read
-			| Some rid -> db#fetch_all_revs_including_after rid last_timestamp last_id n_events_to_read
+			  None -> db#fetch_all_revs_after 
+			    last_timestamp last_id n_events_to_read
+			| Some rid -> db#fetch_all_revs_including_after 
+			    rid last_timestamp last_id n_events_to_read
 		      end
 		    | None -> db#fetch_all_revs n_events_to_read
 		  end
@@ -111,7 +113,8 @@ class event_feed
 	      (* Sets the flag that indicates whether there may be more revisions *)
 	      there_are_more_revs <- (List.length rev_list) >= n_events_to_read; 
 	      (* The function f makes event_occurrence_t out of the revision list *)
-	      let f r = ((Timeconv.time_string_to_float r.rev_timestamp), r.rev_page, Revision_event r.rev_id) in 
+	      let f r = ((Timeconv.time_string_to_float r.rev_timestamp), r.rev_page, 
+	                 Revision_event r.rev_id) in 
 	      revs <- Vec.concat revs (Vec.of_list (List.map f rev_list)); 
 	      db#commit Online_db.Both;
 	      times_tried := n_retries; 
