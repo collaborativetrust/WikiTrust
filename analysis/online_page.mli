@@ -50,6 +50,7 @@ POSSIBILITY OF SUCH DAMAGE.
  *)
 
 exception Missing_trust of int * int
+exception Missing_work_revision
 
 class page :
   (** Database handle *)
@@ -61,6 +62,9 @@ class page :
   (** revision id of the revision to analyze. All previous revisions should
       have been already evaluated. *)
   (* revision_id *) int -> 
+  (** Optional revision to work on.
+      It must be initialized for edits, but not for votes. *)
+  (* work_revision_opt_init *) Online_revision.revision option ->
   (** Coefficients to be used for the evaluation *)
   (* trust_coeff *) Online_types.trust_coeff_t ->
   (** Number of retries in the use of transactions *)

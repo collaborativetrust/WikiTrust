@@ -200,10 +200,11 @@ type edit_lists_of_rev_t = edit_list_t list with sexp
 
 (** This is the information associated with a page *)
 type page_info_t = { 
-  (** List of revision ids by hi rep authors *)
-  mutable past_hi_rep_revs : int list;
-  (** List of revision ids with high trust *)
-  mutable past_hi_trust_revs : int list; 
+  (** List of revision by hi rep authors: 
+      list of (rev_id, user_id, author_rep) triples *)
+  mutable past_hi_rep_revs : (int * int * float) list;
+  (** List of revision with high trust: list of (rev_id, rev_trust) pairs *)
+  mutable past_hi_trust_revs : (int * float) list; 
 } with sexp 
 
 let page_info_default = { 

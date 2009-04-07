@@ -46,7 +46,7 @@ let n_events_to_read = 100
 
 (** This is the type of an event that needs to be processed. *)
 type event_t = 
-    Revision_event of int (* revision_id *)
+    Revision_event of Online_revision.revision
   | Vote_event of int * int (* revision_id, voter_id *)
 
 (** This is a time, a page_id, and an event.  The reason the page_id is 
@@ -56,19 +56,27 @@ type event_occurrence_t = float * int * event_t
 
 (** This class is used to build a feed of events that need to be processed
     in chronological order. 
-    In [event_feed db requested_rev_id n_retries], [db] is the db handle used for access, 
-    and [n_retries] is the number of times one should retry a database transaction.
-    The optional parameter requested_rev_id mentions a revision that should be included 
-    in the feed; this is used to close holes in the processing. *)
+    
+    In [event_feed db requested_page_id requested_rev_id n_retries],
+    [db] is the db handle used for access, and [n_retries] is the
+    number of times one should retry a database transaction.  
+
+    If a [requested_page_id] is specified, then all events belong to
+    the same page.
+
+    The optional parameter [requested_rev_id] mentions a revision that
+    should be included in the feed; this is used to close holes in the
+    processing, albeit in an approximate way. *)
 class event_feed
   (db: Online_db.db) 
+  (requested_page_id: int option)
   (requested_rev_id: int option) 
   (n_retries: int) 
-=
-  object (self) 
+  =
+object (self) 
 
-    (** This is a Vec of revisions to analyze.  When this is or gets empty,
-	we need to get some more from the db *)
+  (** This is a Vec of revisions to analyze.  When this is or gets empty,
+      we need to get some more from the db *)
     val mutable revs : event_occurrence_t Vec.t = Vec.empty 
     (** This is a Vec of votes to analyze.  When this is or gets empty,
 	we need to get some more from the db. *)
@@ -114,7 +122,7 @@ class event_feed
 	      there_are_more_revs <- (List.length rev_list) >= n_events_to_read; 
 	      (* The function f makes event_occurrence_t out of the revision list *)
 	      let f r = ((Timeconv.time_string_to_float r.rev_timestamp), r.rev_page, 
-	                 Revision_event r.rev_id) in 
+	                 Revision_event (Online_revision.make_revision r db)) in 
 	      revs <- Vec.concat revs (Vec.of_list (List.map f rev_list)); 
 	      db#commit Online_db.Both;
 	      times_tried := n_retries; 

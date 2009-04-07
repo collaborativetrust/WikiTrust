@@ -105,50 +105,37 @@ let db = new Online_db.db !db_prefix mediawiki_db wikitrust_db_opt
 (* If requested, we erase all coloring, and we recompute it from scratch. *)
 if !delete_all then begin 
   db#delete_all true; 
-  Printf.printf "Cleared the db.\n"
+  logger#log "\n  Cleared the db."
 end;
 
 
-(* This is the function that evaluates a revision. 
-   The function is recursive, because if some past revision of the same page 
-   that falls within the analysis horizon is not yet evaluated and colored
-   for trust, it evaluates and colors it first. 
- *)
-let rec evaluate_revision (page_id: int) (rev_id: int): unit = 
+(* This is the function that evaluates a revision. *)
+let evaluate_revision (page_id: int) (r: Online_revision.revision): unit = 
+  let rev_id = r#get_id in 
   if !n_processed_events < !max_events_to_process then 
     begin 
-      begin (* try ... with ... *)
-	try 
-	  Printf.printf "Evaluating revision %d of page %d\n" rev_id page_id;
-	  let page = new Online_page.page db logger page_id rev_id trust_coeff !times_to_retry_trans in
-	  n_processed_events := !n_processed_events + 1;
-	  if page#eval then begin 
-	    Printf.printf "Done revision %d of page %d\n" rev_id page_id;
-	  end else begin 
-	    Printf.printf "Revision %d of page %d was already done\n" rev_id page_id;
-	  end;
-	  (* Waits, if so requested to throttle the computation. *)
-	  if each_event_delay > 0 then Unix.sleep (each_event_delay); 
-	  begin 
-	    match every_n_events_delay with 
-	      Some d -> begin 
-		if (!n_processed_events mod d) = 0 then Unix.sleep (1);
-	      end
-	    | None -> ()
-	  end; 
-
-	with Online_page.Missing_trust (page_id', rev_id') -> 
-	  begin
-	    (* We need to evaluate page_id', rev_id' first *)
-	    (* This if is a basic sanity check only. It should always be true *)
-	    if rev_id' <> rev_id then 
-	      begin 
-		Printf.printf "Missing trust info: we need first to evaluate revision %d of page %d\n" rev_id' page_id';
-		evaluate_revision page_id' rev_id';
-		evaluate_revision page_id rev_id
-	      end (* rev_id' <> rev_id *)
-	  end (* with: Was missing trust of a previous revision *)
-      end (* End of try ... with ... *)
+      logger#log (Printf.sprintf "\nEvaluating revision %d of page %d" rev_id page_id);
+      let page = new Online_page.page db logger 
+	page_id r#get_id (Some r) trust_coeff !times_to_retry_trans in
+      n_processed_events := !n_processed_events + 1;
+      try
+	if page#eval 
+	then logger#log (Printf.sprintf "\nDone revision %d of page %d" rev_id page_id)
+	else logger#log (Printf.sprintf "\nRevision %d of page %d was already done" 
+	  rev_id page_id);
+      with Online_page.Missing_trust (p_id, r_id) -> begin
+	logger#log (Printf.sprintf "\nMissing trust while processing an edit! Page %d rev %d"
+	  p_id r_id)
+      end;
+      (* Waits, if so requested to throttle the computation. *)
+      if each_event_delay > 0 then Unix.sleep (each_event_delay); 
+      begin 
+	match every_n_events_delay with 
+	  Some d -> begin 
+	    if (!n_processed_events mod d) = 0 then Unix.sleep (1);
+	  end
+	| None -> ()
+      end; 
     end
 in
 
@@ -157,11 +144,36 @@ in
 let evaluate_vote (page_id: int) (revision_id: int) (voter_id: int) = 
   if !n_processed_events < !max_events_to_process then 
     begin 
-      Printf.printf "Evaluating vote by %d on revision %d of page %d\n" voter_id revision_id page_id; 
-      let page = new Online_page.page db logger page_id revision_id trust_coeff !times_to_retry_trans in 
-      if page#vote voter_id then begin 
-	n_processed_events := !n_processed_events + 1;
-	Printf.printf "Done revision %d of page %d\n" revision_id page_id;
+      logger#log (Printf.sprintf "\nEvaluating vote by %d on revision %d of page %d" 
+	voter_id revision_id page_id); 
+      let page = new Online_page.page db logger 
+	page_id revision_id None trust_coeff !times_to_retry_trans in
+      begin
+	try
+	  if page#vote voter_id then begin 
+	    (* We mark the vote as processed. *)
+	    db#mark_vote_as_processed revision_id voter_id;
+	    n_processed_events := !n_processed_events + 1;
+	    logger#log (Printf.sprintf "\nDone processing vote by %d on revision %d of page %d"
+	      voter_id revision_id page_id)
+	  end
+	with 
+	  Online_page.Missing_trust (_, _) -> begin
+	    (* We mark the vote as processed. *)
+	    db#mark_vote_as_processed revision_id voter_id;
+	    (* The trust information for the revision voted on is missing,
+	       so the vote is discarded. *)
+	    logger#log (Printf.sprintf 
+	      "\nVote by %d on revision %d of page %d not processed: missing trust info"
+	      voter_id revision_id page_id)
+	  end
+	| Online_page.Missing_work_revision -> begin
+	    (* We mark the vote as processed. *)
+	    db#mark_vote_as_processed revision_id voter_id;
+	    logger#log (Printf.sprintf 
+	      "\nVote by %d on revision %d of page %d not processed: internal error: mising work revision"
+	      voter_id revision_id page_id)
+	  end
       end;
       (* Waits, if so requested to throttle the computation. *)
       if each_event_delay > 0 then Unix.sleep (each_event_delay); 
@@ -194,7 +206,7 @@ match !eval_type with
 
 | EVENT -> begin
     (* Creates the event feed for the work we wish to do *)
-    let feed  = new Event_feed.event_feed db !requested_rev_id !times_to_retry_trans in 
+    let feed  = new Event_feed.event_feed db None !requested_rev_id !times_to_retry_trans in 
     (* This hashtable is used to implement the load-sharing algorithm. *)
     let tried : (int, unit) Hashtbl.t = Hashtbl.create 10 in 
     while !n_processed_events < !max_events_to_process do 
@@ -250,8 +262,8 @@ match !eval_type with
 	      if already_tried then Hashtbl.remove tried page_id; 
 	      begin 
 		match event with 
-		  Event_feed.Revision_event revision_id -> 
-		    evaluate_revision page_id revision_id
+		  Event_feed.Revision_event r -> 
+		    evaluate_revision page_id r
 		| Event_feed.Vote_event (revision_id, voter_id) -> 
 		    evaluate_vote page_id revision_id voter_id
 	      end;
@@ -263,13 +275,14 @@ match !eval_type with
 	      if already_tried 
 	      then begin
 		n_processed_events := !max_events_to_process;
-		Printf.printf "Waited too long for lock of page %d; terminating.\n" page_id;
+		logger#log (Printf.sprintf 
+		  "\nWaited too long for lock of page %d; terminating." page_id);
 		flush stdout;
 	      end
 	      else Hashtbl.add tried page_id ();
 	    end; (* not got it *)
 	    let t_end = Unix.gettimeofday () in 
-	    Printf.printf "Analysis took %f seconds.\n" (t_end -. t_start);
+	    logger#log (Printf.sprintf "\nAnalysis took %f seconds." (t_end -. t_start));
 	    flush stdout
 	  end (* event that needs processing *)
       end done; (* Loop as long as we need to do events *)
