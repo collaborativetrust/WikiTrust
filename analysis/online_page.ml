@@ -38,11 +38,11 @@ open Online_types;;
 type word = string
 type rev_t = Online_revision.revision 
 
-(** This exception is raised if:
+(** [Missing_trust (page_id, rev)] is raised if:
     - in a vote, the trust information for a revision voted on 
       is missing.  The vote should then most likely be discarded.
     - in an edit, this should never happen, and would be an indication of a bug. *)
-exception Missing_trust of int * int
+exception Missing_trust of int * rev_t
 (** This exception signals an internal error. *)
 exception Missing_work_revision
 
@@ -121,7 +121,7 @@ class page
       begin 
 	try
 	  work_revision_opt <- Some (Online_revision.read_wikitrust_revision db revision_id)
-	with Online_db.DB_Not_Found -> raise (Missing_trust (page_id, revision_id))
+	with Online_db.DB_Not_Found -> raise Missing_work_revision
       end
 
     (** This method reads the past revisions from the online database, and
@@ -250,7 +250,7 @@ class page
 	  r#read_text
 	end else begin
 	  try r#read_words_trust_origin_sigs
-          with Online_db.DB_Not_Found -> raise (Missing_trust (r#get_page_id, r#get_id))
+          with Online_db.DB_Not_Found -> raise (Missing_trust (r#get_page_id, r))
 	end
       end done
 

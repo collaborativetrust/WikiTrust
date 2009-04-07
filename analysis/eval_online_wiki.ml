@@ -109,33 +109,50 @@ if !delete_all then begin
 end;
 
 
-(* This is the function that evaluates a revision. *)
-let evaluate_revision (page_id: int) (r: Online_revision.revision): unit = 
+
+(* This is the function that evaluates a revision. 
+   The function is recursive, because if some past revision of the same page 
+   that falls within the analysis horizon is not yet evaluated and colored
+   for trust, it evaluates and colors it first. 
+ *)
+let rec evaluate_revision (page_id: int) (r: Online_revision.revision): unit = 
   let rev_id = r#get_id in 
   if !n_processed_events < !max_events_to_process then 
     begin 
-      logger#log (Printf.sprintf "\nEvaluating revision %d of page %d" rev_id page_id);
-      let page = new Online_page.page db logger 
-	page_id r#get_id (Some r) trust_coeff !times_to_retry_trans in
-      n_processed_events := !n_processed_events + 1;
-      try
-	if page#eval 
-	then logger#log (Printf.sprintf "\nDone revision %d of page %d" rev_id page_id)
-	else logger#log (Printf.sprintf "\nRevision %d of page %d was already done" 
-	  rev_id page_id);
-      with Online_page.Missing_trust (p_id, r_id) -> begin
-	logger#log (Printf.sprintf "\nMissing trust while processing an edit! Page %d rev %d"
-	  p_id r_id)
-      end;
-      (* Waits, if so requested to throttle the computation. *)
-      if each_event_delay > 0 then Unix.sleep (each_event_delay); 
-      begin 
-	match every_n_events_delay with 
-	  Some d -> begin 
-	    if (!n_processed_events mod d) = 0 then Unix.sleep (1);
-	  end
-	| None -> ()
-      end; 
+      begin (* try ... with ... *)
+	try 
+	  logger#log (Printf.sprintf "Evaluating revision %d of page %d\n" rev_id page_id);
+	  let page = new Online_page.page db logger 
+	    page_id rev_id (Some r) trust_coeff !times_to_retry_trans in
+	  n_processed_events := !n_processed_events + 1;
+	  if page#eval 
+	  then logger#log (Printf.sprintf "\nDone revision %d of page %d" rev_id page_id)
+	  else logger#log (Printf.sprintf "\nRevision %d of page %d was already done" 
+	    rev_id page_id);
+	  (* Waits, if so requested to throttle the computation. *)
+	  if each_event_delay > 0 then Unix.sleep (each_event_delay); 
+	  begin 
+	    match every_n_events_delay with 
+	      Some d -> begin 
+		if (!n_processed_events mod d) = 0 then Unix.sleep (1);
+	      end
+	    | None -> ()
+	  end; 
+
+	with Online_page.Missing_trust (page_id', r') -> 
+	  begin
+	    (* We need to evaluate page_id', r' first *)
+	    (* This if is a basic sanity check only. It should always be true *)
+	    if r'#get_id <> rev_id then 
+	      begin 
+		logger#log (Printf.sprintf 
+		  "Missing trust info: we need first to evaluate revision %d of page %d\n" 
+		  r'#get_id page_id');
+		evaluate_revision page_id' r';
+		evaluate_revision page_id r
+	      end (* rev_id' <> rev_id *)
+	  end (* with: Was missing trust of a previous revision *)
+      end (* End of try ... with ... *)
     end
 in
 
@@ -157,23 +174,13 @@ let evaluate_vote (page_id: int) (revision_id: int) (voter_id: int) =
 	    logger#log (Printf.sprintf "\nDone processing vote by %d on revision %d of page %d"
 	      voter_id revision_id page_id)
 	  end
-	with 
-	  Online_page.Missing_trust (_, _) -> begin
-	    (* We mark the vote as processed. *)
-	    db#mark_vote_as_processed revision_id voter_id;
-	    (* The trust information for the revision voted on is missing,
-	       so the vote is discarded. *)
-	    logger#log (Printf.sprintf 
-	      "\nVote by %d on revision %d of page %d not processed: missing trust info"
-	      voter_id revision_id page_id)
-	  end
-	| Online_page.Missing_work_revision -> begin
-	    (* We mark the vote as processed. *)
-	    db#mark_vote_as_processed revision_id voter_id;
-	    logger#log (Printf.sprintf 
-	      "\nVote by %d on revision %d of page %d not processed: internal error: mising work revision"
-	      voter_id revision_id page_id)
-	  end
+	with Online_page.Missing_work_revision -> begin
+	  (* We mark the vote as processed. *)
+	  db#mark_vote_as_processed revision_id voter_id;
+	  logger#log (Printf.sprintf 
+	    "\nVote by %d on revision %d of page %d not processed: no trust for page"
+	    voter_id revision_id page_id)
+	end
       end;
       (* Waits, if so requested to throttle the computation. *)
       if each_event_delay > 0 then Unix.sleep (each_event_delay); 

@@ -73,6 +73,9 @@ class event_feed
   (requested_rev_id: int option) 
   (n_retries: int) 
   =
+
+(* ---qui--- adapt the code to the case in which a page_id is specified *)
+
 object (self) 
 
   (** This is a Vec of revisions to analyze.  When this is or gets empty,
