@@ -264,47 +264,65 @@ class db
       ignore (self#db_exec wikitrust_dbh s)
 
 
-    (** [fetch_last_colored_rev_time_string] returns the timestamp and the 
-	revision id of the most recent revision that has been colored. 
+    (** [fetch_last_colored_rev_time req_page_id] returns the timestamp and the 
+	revision id of the most recent revision that has been colored.
+	If [req_page_id] specifies a page, then only that page is considered.
         Raises DB_Not_Found if no revisions have been colored. *)    
-    method fetch_last_colored_rev_time : (timestamp_t * int) = 
-    let s = Printf.sprintf "SELECT revision_createdon, revision_id FROM %swikitrust_colored_markup ORDER BY revision_createdon DESC, revision_id DESC LIMIT 1" db_prefix in
+    method fetch_last_colored_rev_time (req_page_id: int option) : (string * int) = 
+      let wr = match req_page_id with
+	  None -> ""
+	| Some p_id ->  Printf.sprintf "WHERE page_id = %s" (ml2int p_id) 
+      in 
+      let s = Printf.sprintf "SELECT time_string, revision_id FROM %swikitrust_revision %s ORDER BY time_string DESC, revision_id DESC LIMIT 1" db_prefix wr in
       match fetch (self#db_exec wikitrust_dbh s) with
         None -> raise DB_Not_Found
-        | Some row -> (not_null timestamp2ml row.(0), not_null int2ml row.(1)) 
+        | Some row -> (not_null str2ml row.(0), not_null int2ml row.(1)) 
 	    
   
-    (** [sth_select_all_revs_after (int * int * int * int * int * int) rev_id limit] returns all 
-        revs created after the given timestamp, or at the same timestamp, with revision id at least [rev_id], 
-	up to the maximim number [limit]. *)
-    method fetch_all_revs_after (timestamp : timestamp_t) (rev_id: int) (max_revs_to_return: int) : revision_t list =  
-      let s = Printf. sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM %srevision WHERE (rev_timestamp, rev_id) > (%s, %s) ORDER BY rev_timestamp ASC, rev_id ASC LIMIT %s" 
+    (** [fetch_all_revs_after req_page_id req_rev_id timestamp rev_id limit] returns all 
+        revs created after the given [timestamp], or at the same [timestamp], 
+	with revision id at least [rev_id], up to the maximim number [limit]. 
+	If [req_page_id] specifies a page, then only that page is considered.
+	If [req_rev_id] specifies a revision, then that revision is included in the result. *)
+    method fetch_all_revs_after (req_page_id: int option) (req_rev_id: int option) 
+      (timestamp : string) (rev_id: int) (max_revs_to_return: int) : revision_t list =  
+      let wr = match req_page_id with
+	  None -> ""
+	| Some p_id -> Printf.sprintf "AND page_id = %s" (ml2int p_id) 
+      in
+      let rr = match req_rev_id with
+	  None -> ""
+	| Some r_id -> Printf.sprintf "rev_id = %s OR" (ml2int r_id)
+      in
+      let s = Printf. sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM %srevision WHERE %s (rev_timestamp, rev_id) > (%s, %s) %s ORDER BY rev_timestamp ASC, rev_id ASC LIMIT %s" 
 	db_prefix
-	(ml2timestamp timestamp) (ml2int rev_id) (ml2int max_revs_to_return) in
+	rr (ml2str timestamp) (ml2int rev_id) wr (ml2int max_revs_to_return) in
       	Mysql.map (self#db_exec mediawiki_dbh s) rev_row2revision_t
 
-    (** [sth_select_all_revs_including_after rev_id_incl (int * int * int * int * int * int) rev_id limit] returns all 
-        revs created after the given ([timestamp],[rev_id]), or that have revision id [rev_id_incl],
-	up to the maximum number [limit]. *)
-    method fetch_all_revs_including_after (rev_id_incl: int) (timestamp : timestamp_t) (rev_id: int) (max_revs_to_return: int): revision_t list =  
-      (* Note: the >= is very important in the following query, to correctly handle the case
-	 of revisions with the same timestamp. *)
-      let s = Printf. sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text,rev_minor_edit, rev_comment FROM %srevision WHERE (rev_timestamp, rev_id) >= (%s, %s) OR rev_id = %s ORDER BY rev_timestamp ASC, rev_id ASC LIMIT %s" 
-	db_prefix
-	(ml2timestamp timestamp) (ml2int rev_id) (ml2int rev_id_incl) (ml2int max_revs_to_return) in
-      	Mysql.map (self#db_exec mediawiki_dbh s) rev_row2revision_t
 
-    (** [fetch_all_revs] returns a cursor that points to all revisions
-	in the database, in ascending order of timestamp. *)
-    method fetch_all_revs (max_revs_to_return: int) : revision_t list = 
-      let s = Printf.sprintf  "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM %srevision ORDER BY rev_timestamp ASC, rev_id ASC LIMIT %s" db_prefix (ml2int max_revs_to_return) in
+    (** [fetch_all_revs req_page_id max_revs_to_return] returns a list
+	of revisions in the database, in ascending order of timestamp,
+	of length at most [max_revs_to_return].  If [req_page_id]
+	specifies a page, then only that page is considered. *)
+    method fetch_all_revs (req_page_id: int option) (max_revs_to_return: int) : revision_t list = 
+      let wr = match req_page_id with
+	  None -> ""
+	| Some p_id -> Printf.sprintf "WHERE page_id = %s" (ml2int p_id) 
+      in
+      let s = Printf.sprintf  "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM %srevision %s ORDER BY rev_timestamp ASC, rev_id ASC LIMIT %s" 
+	db_prefix wr (ml2int max_revs_to_return) in
       Mysql.map (self#db_exec mediawiki_dbh s) rev_row2revision_t
 	
-    (** [fetch_unprocessed_votes n_events] returns at most [n_events]
+    (** [fetch_unprocessed_votes req_page_id n_events] returns at most [n_events]
 	unprocessed votes, starting from the oldest unprocessed
-	vote. *)
-    method fetch_unprocessed_votes (n_events: int) : vote_t list = 
-      let s = Printf.sprintf  "SELECT voted_on, page_id, revision_id, voter_id FROM %swikitrust_vote WHERE NOT processed ORDER BY voted_on ASC LIMIT %s" db_prefix (ml2int n_events) in
+	vote.
+	If [req_page_id] specifies a page, then only that page is considered. *)
+    method fetch_unprocessed_votes (req_page_id: int option) (n_events: int) : vote_t list = 
+      let wr = match req_page_id with
+	  None -> ""
+	| Some p_id -> Printf.sprintf "page_id = %s AND" (ml2int p_id) 
+      in
+      let s = Printf.sprintf  "SELECT voted_on, page_id, revision_id, voter_id FROM %swikitrust_vote WHERE %s NOT processed ORDER BY voted_on ASC LIMIT %s" db_prefix wr (ml2int n_events) in
       let vote_row2vote_t row =
 	{
 	  vote_time = (not_null str2ml row.(0));
@@ -474,14 +492,14 @@ class db
 	easy and efficient to read.  A filesystem implementation, for small wikis, 
 	may be highly advisable. *)
     (* This is currently a first cut, which will be hopefully optimized later *)
-    method write_colored_markup (page_id: int) (rev_id : int) (markup : string) (createdon : timestamp_t) : unit =
+    method write_colored_markup (page_id: int) (rev_id : int) (markup : string) : unit =
       let db_mkup = match colored_base_path with
 	  Some _ -> ""
 	| None -> ml2str markup
       in 
-      let s = Printf.sprintf "INSERT INTO %swikitrust_colored_markup (revision_id, revision_text, revision_createdon) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE revision_text = %s, revision_createdon = %s"
+      let s = Printf.sprintf "INSERT INTO %swikitrust_colored_markup (revision_id, revision_text) VALUES (%s, %s) ON DUPLICATE KEY UPDATE revision_text = %s"
 	db_prefix
-	(ml2int rev_id) db_mkup (ml2timestamp createdon) db_mkup (ml2timestamp createdon) in 
+	(ml2int rev_id) db_mkup db_mkup in 
       ignore (self#db_exec wikitrust_dbh s);
       begin
 	match colored_base_path with
@@ -618,56 +636,7 @@ class db
 
     (* ================================================================ *)
     (* Server System *)
-
-    (** [mark_to_color page_id rev_id page_title rev_time user_id] marks that the revision
-	[rev_id] of page [page_id], with title [page_title], and time [rev_time], 
-	needs to be colored.  I have no idea what [user_id] is, whether it is the user
-	who did the request, or the author of the revision. *)
-    method private mark_to_color (page_id : int) (rev_id : int) (page_title : string) 
-      (rev_time : string) (user_id : int) =
-      let s = Printf.sprintf "INSERT INTO %swikitrust_missing_revs (revision_id, page_id, page_title, rev_time, user_id) VALUES (%s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE requested_on = now(), processed = false" db_prefix (ml2int rev_id) (ml2int page_id) (ml2str page_title) (ml2str rev_time) (ml2int user_id) in
-	ignore (self#db_exec wikitrust_dbh s)
-
-	  
-    (** [mark_rev_as_processed rev_id] marks that the revision [rev_id] has ben processed. *)
-    method mark_rev_as_processed (rev_id : int) =
-    let s = Printf.sprintf "UPDATE %swikitrust_missing_revs SET processed = 'processed' WHERE revision_id = %s" db_prefix (ml2int rev_id) in
-      ignore (self#db_exec wikitrust_dbh s)
-
-    (** [mark_rev_as_processed rev_id] marks that the revision [rev_id] has not been processed. *)
-    method mark_rev_as_unprocessed (rev_id : int) =
-    let s = Printf.sprintf "UPDATE %swikitrust_missing_revs SET processed = 'unprocessed' WHERE revision_id = %s" db_prefix (ml2int rev_id) in
-      ignore (self#db_exec wikitrust_dbh s)
-
-    (** [fetch_next_revisions_to_process] fetches the next revisions that have to be 
-	possibly downloaded, and then colored. 
-	It also marks those revisions as "processing", so that subsequent requests do not return the 
-	same revisions.
-        This code is SINGLE-THREADED: it assumes that there is a single reader. *)
-    method fetch_next_revisions_to_color (max_to_get : int) : 
-      revision_processing_request_t list =
-      let s = Printf.sprintf "SELECT revision_id, page_id, page_title, rev_time, user_id, type FROM %swikitrust_missing_revs WHERE processed = 'unprocessed' ORDER BY requested_on ASC LIMIT %s" 
-	db_prefix (ml2int max_to_get) in
-      let db2color_row row : revision_processing_request_t =
-	{
-	  req_revision_id = (not_null int2ml row.(0));
-	  req_page_id = (not_null int2ml row.(1));
-	  req_page_title = (not_null str2ml row.(2));
-	  req_revision_timestamp = (not_null str2ml row.(3));
-	  req_requesting_user_id = (not_null int2ml row.(4));
-	  req_request_type = (match (not_null str2ml row.(5)) with
-				| "vote" -> Vote
-				| _ -> Coloring) 
-	}
-      in
-      let results = Mysql.map (self#db_exec wikitrust_dbh s) db2color_row in
-      let mark_as_processing req = 
-	let s = Printf.sprintf "UPDATE %swikitrust_missing_revs SET processed = 'processing' WHERE revision_id = %s" db_prefix (ml2int req.req_revision_id) in
-	  ignore (self#db_exec wikitrust_dbh s)
-      in
-	List.iter mark_as_processing results;
-	results
-
+    (* The following methods are only useful  in the remote use of WikiTrust. *)
 
     (** Adds a page to the database.  This is normally taken care of by Mediawiki, except when
         WikiTrust is used in remote mode. *)
@@ -687,20 +656,15 @@ class db
 	(ml2int page.page_len) 
 	(ml2int page.page_latest)
       in
-      ignore (self#db_exec wikitrust_dbh s)
+      ignore (self#db_exec mediawiki_dbh s)
 
-
-    (** Adds a revision to the database.  This is normally taken care by Mediawiki,
-	but not in the case of remote use of WikiTrust. *)
+    (** This method writes a revision to the database. 
+	It is only useful for the remote use of WikiTrust. *) 
     method write_revision (rev : wiki_revision_t) = 
-      (* Add the content. *)
-      (* Ian: here you are trusting the old_id information.  Don't you risk over-writing stuff?
-	 I thought you had to insert here with old_id in auto_increment, then use the obtained
-	 old_id to write the metadata... *)
       match rev_base_path with
 	None -> begin
 	  let s = Printf.sprintf "INSERT INTO %stext (old_id, old_text, old_flags) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE old_flags = %s" db_prefix (ml2int rev.revision_id) (ml2str rev.revision_content) (ml2str "utf8") (ml2str "utf8") in
-	  ignore (self#db_exec wikitrust_dbh s)
+	  ignore (self#db_exec mediawiki_dbh s)
 	end
       | Some b -> begin
 	  Filesystem_store.write_revision b 
@@ -722,7 +686,7 @@ class db
 	(ml2int rev.revision_parent_id) 
 	(ml2int rev.revision_len) 
       in
-      ignore (self#db_exec wikitrust_dbh s)
+      ignore (self#db_exec mediawiki_dbh s)
 
     (* ================================================================ *)
 

@@ -73,9 +73,6 @@ class event_feed
   (requested_rev_id: int option) 
   (n_retries: int) 
   =
-
-(* ---qui--- adapt the code to the case in which a page_id is specified *)
-
 object (self) 
 
   (** This is a Vec of revisions to analyze.  When this is or gets empty,
@@ -103,20 +100,16 @@ object (self)
 		begin 
 		  let last_colored = 
 		    begin 
-		      try Some db#fetch_last_colored_rev_time
+		      try Some (db#fetch_last_colored_rev_time requested_page_id)
 		      with Online_db.DB_Not_Found -> None 
 		    end
 		  in
 		  begin 
 		    match last_colored with 
-		      Some (last_timestamp, last_id) -> begin
-			match requested_rev_id with 
-			  None -> db#fetch_all_revs_after 
-			    last_timestamp last_id n_events_to_read
-			| Some rid -> db#fetch_all_revs_including_after 
-			    rid last_timestamp last_id n_events_to_read
-		      end
-		    | None -> db#fetch_all_revs n_events_to_read
+		      Some (last_timestamp, last_id) ->
+			db#fetch_all_revs_after requested_page_id requested_rev_id
+			  last_timestamp last_id n_events_to_read
+		    | None -> db#fetch_all_revs requested_page_id n_events_to_read
 		  end
 		end
 	      in 
@@ -147,7 +140,9 @@ object (self)
 	  db#start_transaction Online_db.WikiTrust;
 	  begin (* try ... with ... *)
 	    try
-	      let votes_list = db#fetch_unprocessed_votes n_events_to_read in 
+	      let votes_list = 
+		db#fetch_unprocessed_votes requested_page_id n_events_to_read 
+	      in 
 	      there_are_more_votes <- (List.length votes_list) >= n_events_to_read; 
 	      (* f makes a vote into an event_occurrence_t *)
 	      let f v = (Timeconv.time_string_to_float v.vote_time), v.vote_page_id, Vote_event (v.vote_revision_id, v.vote_voter_id) in 

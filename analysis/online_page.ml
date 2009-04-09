@@ -713,7 +713,6 @@ class page
       let rev0_time = rev0#get_time in 
       let rev0_l = Array.length rev0_t in 
       let rev0_seps = rev0#get_seps in 
-      let rev0_timestamp = rev0#get_timestamp in
 
       (* Gets the author reputation *)
       let rep_user = self#get_rep rev0_uid in 
@@ -742,7 +741,7 @@ class page
         let buf = Revision.produce_annotated_markup 
 	  rev0_seps chunk_0_trust chunk_0_origin chunk_0_author false true true in 
         (* And writes it out to the db *)
-        db#write_colored_markup page_id rev0_id (Buffer.contents buf) rev0_timestamp; 
+        db#write_colored_markup page_id rev0_id (Buffer.contents buf); 
 	rev0#set_trust  chunk_0_trust;
 	rev0#set_origin chunk_0_origin;
 	rev0#set_author chunk_0_author;
@@ -900,7 +899,7 @@ class page
         (* Writes the annotated markup, trust, origin, sigs to disk *)
         let buf = Revision.produce_annotated_markup rev0_seps new_trust_10_a.(0) 
 	  new_origin_10_a.(0) new_author_10_a.(0) false true true in 
-        db#write_colored_markup page_id rev0_id (Buffer.contents buf) rev0_timestamp;
+        db#write_colored_markup page_id rev0_id (Buffer.contents buf);
 	rev0#set_trust  new_trust_10_a.(0);
 	rev0#set_origin new_origin_10_a.(0);
 	rev0#set_author new_author_10_a.(0);
@@ -922,7 +921,6 @@ class page
 	  let rev0_t = rev0#get_words in 
 	  let rev0_l = Array.length rev0_t in 
 	  let rev0_seps = rev0#get_seps in 
-	  let rev0_timestamp = rev0#get_timestamp in
 	  (* Gets the voter reputation *)
 	  let voter_rep = self#get_rep voter_uid in 
 	  let voter_weight = self#weight (voter_rep) in 
@@ -954,7 +952,7 @@ class page
 	  (* Writes the new colored markup *)
 	  let buf = Revision.produce_annotated_markup rev0_seps new_trust_a.(0) 
 	    rev0#get_origin rev0#get_author false true true in 
-	  db#write_colored_markup page_id rev0_id (Buffer.contents buf) rev0_timestamp;
+	  db#write_colored_markup page_id rev0_id (Buffer.contents buf);
 	  (* Writes the trust information to the revision *)
 	  rev0#set_trust new_trust_a.(0); 
 	  rev0#set_sigs  new_sigs_a.(0);

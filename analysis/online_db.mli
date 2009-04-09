@@ -134,31 +134,32 @@ class db :
 	writes that the new median is [median]. *)
     method write_histogram : float array -> float -> unit 
 
-    (** [fetch_last_colored_rev_time_string] returns the timestamp and the 
-	revision id of the most recent revision that has been colored. 
+    (** [fetch_last_colored_rev_time req_page_id] returns the timestamp and the 
+	revision id of the most recent revision that has been colored.
+	If [req_page_id] specifies a page, then only that page is considered.
         Raises DB_Not_Found if no revisions have been colored. *)    
-    method fetch_last_colored_rev_time : timestamp_t * int
+    method fetch_last_colored_rev_time : int option -> string * int
     
-    (** [sth_select_all_revs_after (int * int * int * int * int * int)
-        rev_id limit] returns all revs created after the given
-        timestamp, or at the same timestamp, with revision id at least
-        [rev_id], up to the maximum number [limit]. *)
-    method fetch_all_revs_after : timestamp_t -> int -> int -> revision_t list
+    (** [fetch_all_revs_after req_page_id req_rev_id timestamp rev_id
+        limit] returns all revs created after the given [timestamp],
+        or at the same [timestamp], with revision id at least
+        [rev_id], up to the maximim number [limit].  If [req_page_id]
+        specifies a page, then only that page is considered.  If
+        [req_rev_id] specifies a revision, then that revision is
+        included in the result. *)
+    method fetch_all_revs_after : int option -> int option -> string -> int -> int -> revision_t list
 
-    (** [sth_select_all_revs_including_after rev_id_incl (int * int *
-        int * int * int * int) rev_id limit] returns all revs created
-        after the given ([timestamp],[rev_id]), or that have revision
-        id [rev_id_incl], up to the maximum number [limit]. *)
-    method fetch_all_revs_including_after : int -> timestamp_t ->  int -> int -> revision_t list
+    (** [fetch_all_revs req_page_id max_revs_to_return] returns a list
+	of revisions in the database, in ascending order of timestamp,
+	of length at most [max_revs_to_return].  If [req_page_id]
+	specifies a page, then only that page is considered. *)
+    method fetch_all_revs : int option -> int -> revision_t list
 
-    (** [fetch_all_revs lim] Returns a pointer to a result set
-	consisting in all the revisions of the database, in ascending
-	temporal order, with a limit of [lim] revisions. *)
-    method fetch_all_revs : int -> revision_t list
-
-    (** [fetch_unprocessed_votes n_events] returns at most [n_events]
-	unprocessed votes, starting from the oldest unprocessed vote. *)
-    method fetch_unprocessed_votes : int -> vote_t list
+    (** [fetch_unprocessed_votes req_page_id n_events] returns at most [n_events]
+	unprocessed votes, starting from the oldest unprocessed
+	vote.
+	If [req_page_id] specifies a page, then only that page is considered. *)
+    method fetch_unprocessed_votes : int option -> int -> vote_t list
 
     (** [mark_vote_as_processed (revision_id: int) (voter_id : int)]
 	marks a vote as processed. *)
@@ -228,7 +229,7 @@ class db :
         are needed in case the filesystem interface is used. *)
     method read_rev_text : int -> int -> int -> string 
 
-    (** [write_colored_markup page_id rev_id markup timestamp] writes,
+    (** [write_colored_markup page_id rev_id markup] writes,
 	in a table with columns by (revision id, string), that the
 	string [markup] is associated with the revision with id
 	[rev_id] of page [page_id].  The [markup] represents the main
@@ -238,10 +239,8 @@ class db :
 	page, it is this chunk they want to see.  Therefore, it is
 	very important that this chunk is easy and efficient to read.
 	A filesystem implementation, for very large wikis, may be
-	used.  [timestamp] is the timestamp of the reputation
-	information with respect to which the coloring has been
-	computed.  *)
-    method write_colored_markup : int -> int -> string -> timestamp_t -> unit 
+	used.  *)
+    method write_colored_markup : int -> int -> string -> unit 
 
     (** [read_colored_markup page_id rev_id] reads the text markup of
 	a revision with id [rev_id] for page [page_id].  The markup is
@@ -305,54 +304,14 @@ class db :
     (* ================================================================ *)
     (* Server System. *)
 
-    (** [mark_to_color page_id rev_id page_title rev_time user_id] marks that 
-	the revision [rev_id] of page [page_id], with title [page_title], 
-	and time [rev_time], needs to be colored.  
-	
-	user_id is the id of the user who requested to coloring, NOT the id
-	of the author of the revision.
-
-	page_title is needed because this is what the mediawiki api
-	is keyed off of. To make a request, we need the page_title and
-	a timestamp to start from.
-    
-	The method does not seem to be used, so is commented out. 
-	If it used and it needs uncommenting, note that
-
-	PAGE_ID AND REV_ID HAVE BEEN SWAPPED IN THE CALL!
-
-    method mark_to_color : int -> int -> string -> string -> int -> unit
-     *)
-
-    (** [mark_rev_as_processed rev_id] marks that the revision
-	[rev_id] has been processed. *)
-    method mark_rev_as_processed : int -> unit
-
-    (** [mark_rev_as_unprocessed rev_id] marks that the revision
-	[rev_id] has not been processed. *)
-    method mark_rev_as_unprocessed : int -> unit
-
-    (** Get the next revs to color.
-	[fetch_next_revisions_to_color number_to_fetch]
-     *)
-    method fetch_next_revisions_to_color : int -> revision_processing_request_t list
-
-    (** Add the page data to the db 
-	This adds the given data to the page table of the database. 
-	In this manor, we can import data from the mediawiki api and
-	store it locally.
-
-	[write_page page_to_add]
-    *)
+    (** [write_page page_to_add] adds adds the given data to the page
+	table of the database.  It can be used to import data from the
+	mediawiki api and store it locally.  *)
     method write_page : wiki_page_t -> unit
 
-    (** Add the revision data to the db 
-	This adds the given data to the revision and text tables of the 
-	database. 
-	In this manor, we can import data (including page content) from the 
-	mediawiki api and store it locally.
-	[write_revision revision_to_add]
-    *)
+    (** [write_revision revision_to_add] adds the given data to the
+	revision and text tables of the database.  It can be used to
+	import data from the mediawiki api and store it locally.  *)
     method write_revision : wiki_revision_t -> unit
 
   end

@@ -65,11 +65,9 @@ $create_scripts[$wgDBprefix.'wikitrust_colored_markup'] = array("
 CREATE TABLE ".$wgDBprefix."wikitrust_colored_markup (
         revision_id     int PRIMARY KEY,
 	page_id         int,
-        revision_text   longtext NOT NULL,
-	revision_createdon varchar(32) NOT NULL
+        revision_text   longtext NOT NULL
 ) ENGINE=InnoDB","
-GRANT ALL ON ".$wgDBprefix."wikitrust_colored_markup TO ".$wgDBuser,"
-CREATE INDEX ".$wgDBprefix."wikitrust_colored_markup_createdon_idx ON ".$wgDBprefix."wikitrust_colored_markup (revision_createdon)
+GRANT ALL ON ".$wgDBprefix."wikitrust_colored_markup TO $wgDBuser
 ");
 
 $create_scripts[$wgDBprefix.'wikitrust_sigs'] = array("
