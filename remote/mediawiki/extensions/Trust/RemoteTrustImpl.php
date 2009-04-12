@@ -188,14 +188,6 @@ class TextTrustImpl {
 																			urlencode(wfTimestampNow())."&user="
 																			.urlencode(0)."", 0, $ctx));
     
-		print ($wgContentServerURL . "rev=" . 
-					 urlencode($rev_id) . 
-					 "&page=".urlencode($page_id).
-					 "&page_title=".
-					 urlencode($page_title)."&time=".
-					 urlencode(wfTimestampNow())."&user="
-					 .urlencode(0)."");
-
     if ($colored_raw && $colored_raw != self::NOT_FOUND_TEXT_TOKEN){
 
       // Inflate. Pick off the first 10 bytes for python-php conversion.
