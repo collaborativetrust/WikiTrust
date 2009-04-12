@@ -202,6 +202,7 @@ def handle_text_request (req, rev_id, page_id, user_id, rev_time, page_title):
     # No: we will have to wait until it gets colored.  For now, we report not found.
     req.write(not_found_text_token)
   else:
+    #req.write("found")  
     # Found: we compress it and return it.
     compressed = compressBuf(res)
     req.content_type = "application/x-gzip"
