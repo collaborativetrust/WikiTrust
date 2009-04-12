@@ -216,9 +216,6 @@ class TextTrustImpl {
 																	 $colored_text, -1);
       $colored_text = preg_replace("/&gt;/", self::TRUST_CLOSE_TOKEN, 
 																	 $colored_text, -1);
-			$colored_text .= wfMsgNoTrans("wgTrustExplanation");
-
-			//print $colored_text."ddd";
 			
       $parsed = $wgParser->parse($colored_text, $title, $options);
       $text = $parsed->getText();
@@ -241,6 +238,11 @@ class TextTrustImpl {
 			$text = '<script type="text/javascript" src="'
 				.$wgScriptPath
 				.'/extensions/Trust/js/wz_tooltip.js"></script>' . $text;
+
+      $msg = $wgParser->parse(wfMsgNoTrans("wgTrustExplanation"), 
+															$title, 
+															$options);
+			$text = $text . $msg->getText();
 
     } else {
       // text not found.
