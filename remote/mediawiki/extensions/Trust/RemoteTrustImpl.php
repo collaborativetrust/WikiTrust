@@ -134,19 +134,28 @@ class TextTrustImpl {
   */
   static function ucscOutputBeforeHTML(&$out, &$text){
 		
-    global $wgParser, $wgContentServerURL, $wgUser;
+    global $wgParser, $wgContentServerURL, $wgUser, $wgScriptPath;
 		
 		// Load the i18n strings
 		wfLoadExtensionMessages('RemoteTrust');
 
+		// Add the css and js
+		$out->addScript("<script type=\"text/javascript\" src=\""
+										.$wgScriptPath
+										."/extensions/Trust/js/trust.js\"></script>");
+		$out->addScript("<link rel=\"stylesheet\" type=\"text/css\" href=\""
+										.$wgScriptPath."/extensions/Trust/css/trust.css\">"); 
+	
     $dbr =& wfGetDB( DB_SLAVE );
     
 		$rev_id = $out->mRevisionId;
 		$page_id = NULL;
 		$page_title = NULL;
-
+		
 		// First, look up the info for the page id and title.
-		$res = $dbr->safeQuery('SELECT A.rev_id,A.rev_page,B.page_title FROM revision AS A JOIN page AS B ON A.rev_page = B.page_id WHERE A.rev_id = ?'
+		$res = $dbr->safeQuery('SELECT A.rev_id,A.rev_page,B.page_title' 
+													 . ' FROM revision AS A JOIN page AS B ON' 
+													 . ' A.rev_page = B.page_id WHERE A.rev_id = ?'
 													 , $rev_id);
 		if ($res){
 			$row = $dbr->fetchRow($res);
@@ -179,8 +188,16 @@ class TextTrustImpl {
 																			urlencode(wfTimestampNow())."&user="
 																			.urlencode(0)."", 0, $ctx));
     
+		print ($wgContentServerURL . "rev=" . 
+					 urlencode($rev_id) . 
+					 "&page=".urlencode($page_id).
+					 "&page_title=".
+					 urlencode($page_title)."&time=".
+					 urlencode(wfTimestampNow())."&user="
+					 .urlencode(0)."");
+
     if ($colored_raw && $colored_raw != self::NOT_FOUND_TEXT_TOKEN){
-			
+
       // Inflate. Pick off the first 10 bytes for python-php conversion.
       $colored_raw = gzinflate(substr($colored_raw, 10));
       
@@ -208,6 +225,8 @@ class TextTrustImpl {
       $colored_text = preg_replace("/&gt;/", self::TRUST_CLOSE_TOKEN, 
 																	 $colored_text, -1);
 			$colored_text .= wfMsgNoTrans("wgTrustExplanation");
+
+			//print $colored_text."ddd";
 			
       $parsed = $wgParser->parse($colored_text, $title, $options);
       $text = $parsed->getText();
@@ -227,13 +246,17 @@ class TextTrustImpl {
       $text = preg_replace('/<\/p>/', "</span></p>", $text, -1, $count);
       $text = preg_replace('/<p><\/span>/', "<p>", $text, -1, $count);
       $text = preg_replace('/<li><\/span>/', "<li>", $text, -1, $count);
+			$text = '<script type="text/javascript" src="'
+				.$wgScriptPath
+				.'/extensions/Trust/js/wz_tooltip.js"></script>' . $text;
+
     } else {
       // text not found.
       $msg = $wgParser->parse(wfMsgNoTrans("wgNoTrustExplanation"), 
 															$title, 
 															$options);
 			$text = $msg->getText() . $text;
-    } 
+    }
     
     return true;
   }
