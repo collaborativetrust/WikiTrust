@@ -230,8 +230,10 @@ class TextTrustImpl {
 																		);
       
       // Update open, close, images, and links.
-      $text = preg_replace('/' . self::TRUST_OPEN_TOKEN . '/', "<", $text, -1, $count);  
-      $text = preg_replace('/' . self::TRUST_CLOSE_TOKEN .'/', ">", $text, -1, $count);
+      $text = preg_replace('/' . self::TRUST_OPEN_TOKEN . '/', 
+													 "<", $text, -1, $count);  
+      $text = preg_replace('/' . self::TRUST_CLOSE_TOKEN .'/', 
+													 ">", $text, -1, $count);
       $text = preg_replace('/<\/p>/', "</span></p>", $text, -1, $count);
       $text = preg_replace('/<p><\/span>/', "<p>", $text, -1, $count);
       $text = preg_replace('/<li><\/span>/', "<li>", $text, -1, $count);
@@ -243,6 +245,13 @@ class TextTrustImpl {
 															$title, 
 															$options);
 			$text = $text . $msg->getText();
+
+			$text = "<div id='vote-button'><input type='button' name='vote' value='" 
+				. wfMsgNoTrans("wgTrustVote")
+				. "' onclick='startVote()' /></div><div id='vote-button-done'>"
+				. wfMsgNoTrans("wgTrustVoteDone") 
+				. "</div>"
+				. $text;
 
     } else {
       // text not found.
@@ -264,6 +273,9 @@ class TextTrustImpl {
 																								 &$sectionanchor, 
 																								 &$flags, 
 																								 $revision){
+
+		
+
 		return true;
 	}
 

@@ -84,6 +84,7 @@ class TextTrust {
 
 # Code which takes the "I vote" action. 
     if($wgUseAjax && $wgShowVoteButton){
+			print "ddd";
       $wgAjaxExportList[] = "TextTrustImpl::handleVote";
     }
     
