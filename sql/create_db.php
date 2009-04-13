@@ -76,7 +76,7 @@ include($mw_root."/maintenance/commandLine.inc");
 global $wgDBserver, $wgDBname, $wgDBuser, $wgDBprefix, $wgCreateRevisionIndex;
 
 // Source the update scripts
-require($mw_root."/extensions/Trust/TrustUpdateScripts.inc");
+require($mw_root."/extensions/Trust/includes/TrustUpdateScripts.inc");
 
 // If this is set, create an index on the revision table.
 if ($wgCreateRevisionIndex){
