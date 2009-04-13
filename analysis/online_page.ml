@@ -42,7 +42,7 @@ type rev_t = Online_revision.revision
     - in a vote, the trust information for a revision voted on 
       is missing.  The vote should then most likely be discarded.
     - in an edit, this should never happen, and would be an indication of a bug. *)
-exception Missing_trust of int * rev_t
+exception Missing_trust of rev_t
 (** This exception signals an internal error. *)
 exception Missing_work_revision
 
@@ -250,7 +250,7 @@ class page
 	  r#read_text
 	end else begin
 	  try r#read_words_trust_origin_sigs
-          with Online_db.DB_Not_Found -> raise (Missing_trust (r#get_page_id, r))
+          with Online_db.DB_Not_Found -> raise (Missing_trust r)
 	end
       end done
 
@@ -320,7 +320,8 @@ class page
 
     (** Write all new reputations to the db.  We write to the db reputation increments,
         so that we do not need to acquire locks: the writes from different 
-        processes will merge without problems. *)
+        processes will merge without problems.
+        TODO(Luca): Check that the use of a transaction is needed. *)
     method private write_all_reps : unit = 
       let f uid = function 
 	  (old_r, Some r) ->  if abs_float (r -. old_r) > 0.001 then begin 
@@ -1267,7 +1268,7 @@ class page
 	begin 
 	  try begin 
 	    
-	    db#start_transaction Online_db.Both;
+	    db#start_transaction Online_db.MediaWiki;
 	    
 	    (* We do something only if the revision needs coloring *)
 	    needs_coloring := db#revision_needs_coloring revision_id;
@@ -1298,12 +1299,12 @@ class page
 	      let f r = r#write_quality_to_db in 
 	      Vec.iter f revs;
 
-	      db#commit Online_db.Both;
+	      db#commit Online_db.MediaWiki;
 	      n_attempts := n_retries
 
 	    end else begin
 	      (* The revision is already colored; there is nothing to do *)
-	      db#commit Online_db.Both;
+	      db#commit Online_db.MediaWiki;
 	      done_something := false;
 	      n_attempts := n_retries
 	    end
@@ -1311,7 +1312,7 @@ class page
 	  end (* try: this is the end of the main transaction *)
 	  with Online_db.DB_TXN_Bad -> begin 
 	    (* Roll back *)
-	    db#rollback_transaction Online_db.Both;
+	    db#rollback_transaction Online_db.MediaWiki;
 	    n_attempts := !n_attempts + 1
 	  end
 	end done; (* End of the multiple attempts at the transaction *)
@@ -1334,15 +1335,15 @@ class page
 	  begin 
 	    try 
 	      begin 
-		db#start_transaction Online_db.WikiTrust;
+		db#start_transaction Online_db.MediaWiki;
 		db#write_histogram delta_hist new_hi_median;
-		db#commit Online_db.WikiTrust;
+		db#commit Online_db.MediaWiki;
 		n_attempts := n_retries
 	      end 
 	    with Online_db.DB_TXN_Bad -> 
 	      begin 
 		(* Roll back *)
-		db#rollback_transaction Online_db.WikiTrust;
+		db#rollback_transaction Online_db.MediaWiki;
 		n_attempts := !n_attempts + 1
 	      end
 	  end done
@@ -1370,7 +1371,7 @@ class page
       while !n_attempts < n_retries do 
 	begin 
 	  try 
-	    db#start_transaction Online_db.WikiTrust;
+	    db#start_transaction Online_db.MediaWiki;
 	    if debug then print_string "Start vote for revision...\n"; flush stdout;
 	    (* Reads the page information and the revision *)
 	    self#read_page_revisions_vote; 
@@ -1383,7 +1384,7 @@ class page
 	    (* We write to disk the page information *)
 	    db#write_page_info page_id page_info;
 	    (* Commits *)
-	    db#commit Online_db.Both;
+	    db#commit Online_db.MediaWiki;
 	    n_attempts := n_retries;
 	    done_something := true;
 	    logger#log (Printf.sprintf 
@@ -1392,7 +1393,7 @@ class page
 	    logger#flush; 
 	    
 	  with Online_db.DB_TXN_Bad | Online_db.DB_Not_Found -> begin 
-	    db#rollback_transaction Online_db.WikiTrust;
+	    db#rollback_transaction Online_db.MediaWiki;
 	    n_attempts := !n_attempts + 1
 	  end 
 	end done; (* End of the multiple attempts at the transaction *)

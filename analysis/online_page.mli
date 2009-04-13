@@ -49,7 +49,7 @@ POSSIBILITY OF SUCH DAMAGE.
     called NO MORE THAN ONCE. 
  *)
 
-exception Missing_trust of int * Online_revision.revision
+exception Missing_trust of Online_revision.revision
 exception Missing_work_revision
 
 class page :

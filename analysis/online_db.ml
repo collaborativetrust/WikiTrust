@@ -170,7 +170,7 @@ class db
     method get_page_lock (page_id: int) (timeout: int) : bool = 
       let lock_name = Printf.sprintf "%s.%swikitrust_page.%d" wikitrust_database db_prefix page_id in 
       let s = Printf.sprintf "SELECT GET_LOCK(%s,%s)" (ml2str lock_name) (ml2int timeout) in 
-      match fetch (self#db_exec wikitrust_dbh s) with 
+      match fetch (self#db_exec mediawiki_dbh s) with 
 	None -> raise DB_Internal_Error
       | Some row -> ((not_null int2ml row.(0)) = 1)
 
@@ -180,7 +180,7 @@ class db
     method is_page_lock_free (page_id: int) : bool = 
       let lock_name = Printf.sprintf "%s.%swikitrust_page.%d" wikitrust_database db_prefix page_id in 
       let s = Printf.sprintf "SELECT IS_FREE_LOCK(%s)" (ml2str lock_name) in 
-      match fetch (self#db_exec wikitrust_dbh s) with 
+      match fetch (self#db_exec mediawiki_dbh s) with 
 	None -> raise DB_Internal_Error
       | Some row -> ((not_null int2ml row.(0)) = 1)
 
@@ -189,7 +189,7 @@ class db
     method release_page_lock (page_id: int) : unit = 
       let lock_name = Printf.sprintf "%s.%swikitrust_page.%d" wikitrust_database db_prefix page_id in 
       let s = Printf.sprintf "SELECT RELEASE_LOCK(%s)" (ml2str lock_name) in 
-      ignore (self#db_exec wikitrust_dbh s)
+      ignore (self#db_exec mediawiki_dbh s)
 
     (** Start a transaction. *)
     method start_transaction (cdb : current_db_t) : unit =
@@ -244,7 +244,7 @@ class db
 	at each reputation level, and the median. *)
     method get_histogram : float array * float =
     let s = Printf.sprintf "SELECT * FROM %swikitrust_global" db_prefix in
-      match fetch (self#db_exec wikitrust_dbh s) with
+      match fetch (self#db_exec mediawiki_dbh s) with
         None -> raise DB_Not_Found
       | Some row -> ([| not_null float2ml row.(1); not_null float2ml row.(2); not_null float2ml row.(3); 
 	                not_null float2ml row.(4);  not_null float2ml row.(5);
@@ -261,7 +261,7 @@ class db
 	(ml2float delta_hist.(0)) (ml2float delta_hist.(1)) (ml2float delta_hist.(2)) (ml2float delta_hist.(3)) 
 	(ml2float delta_hist.(4)) (ml2float delta_hist.(5)) (ml2float delta_hist.(6)) (ml2float delta_hist.(7)) 
 	(ml2float delta_hist.(8)) (ml2float delta_hist.(9)) in 
-      ignore (self#db_exec wikitrust_dbh s)
+      ignore (self#db_exec mediawiki_dbh s)
 
 
     (** [fetch_last_colored_rev_time req_page_id] returns the timestamp and the 
@@ -274,7 +274,7 @@ class db
 	| Some p_id ->  Printf.sprintf "WHERE page_id = %s" (ml2int p_id) 
       in 
       let s = Printf.sprintf "SELECT time_string, revision_id FROM %swikitrust_revision %s ORDER BY time_string DESC, revision_id DESC LIMIT 1" db_prefix wr in
-      match fetch (self#db_exec wikitrust_dbh s) with
+      match fetch (self#db_exec mediawiki_dbh s) with
         None -> raise DB_Not_Found
         | Some row -> (not_null str2ml row.(0), not_null int2ml row.(1)) 
 	    
@@ -331,13 +331,13 @@ class db
 	  vote_voter_id = (not_null int2ml row.(3));
 	}
       in
-      Mysql.map (self#db_exec wikitrust_dbh s) vote_row2vote_t
+      Mysql.map (self#db_exec mediawiki_dbh s) vote_row2vote_t
 
     (** [mark_vote_as_processed (revision_id: int) (voter_id : int)] marks a vote as processed. *)
     method mark_vote_as_processed (revision_id: int) (voter_id : int) : unit = 
       let s = Printf.sprintf "UPDATE %swikitrust_vote SET processed = TRUE WHERE revision_id = %s AND voter_id = %s" 
 	db_prefix (ml2int revision_id) (ml2int voter_id) in
-      ignore (self#db_exec wikitrust_dbh s)
+      ignore (self#db_exec mediawiki_dbh s)
 
 
     (* ================================================================ *)
@@ -355,19 +355,19 @@ class db
       let s = Printf.sprintf "INSERT INTO %swikitrust_page (page_id, deleted_chunks, page_info) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE deleted_chunks = %s, page_info = %s" 
 	db_prefix
 	(ml2int page_id) chunks_string info_string chunks_string info_string in  
-      ignore (self#db_exec wikitrust_dbh s)
+      ignore (self#db_exec mediawiki_dbh s)
 
     method write_page_info (page_id : int) (p_info: page_info_t) : unit = 
       let info_string = ml2str (string_of__of__sexp_of sexp_of_page_info_t p_info) in 
       let s = Printf.sprintf "UPDATE %swikitrust_page SET page_info = %s WHERE page_id = %s"
 	db_prefix info_string (ml2int page_id) in 
-      ignore (self#db_exec wikitrust_dbh s)
+      ignore (self#db_exec mediawiki_dbh s)
 
     (** [read_page_info page_id] returns the list of dead chunks associated
 	with the page [page_id]. *)
     method read_page_info (page_id : int) : (chunk_t list) * page_info_t =
       let s = Printf.sprintf "SELECT deleted_chunks, page_info FROM %swikitrust_page WHERE page_id = %s" db_prefix (ml2int page_id ) in
-      let result = self#db_exec wikitrust_dbh s in 
+      let result = self#db_exec mediawiki_dbh s in 
       match Mysql.fetch result with 
 	None -> raise DB_Not_Found
       | Some x -> (
@@ -384,7 +384,7 @@ class db
 	recent revision of page [page_id]. *)
     method get_latest_col_rev_id (page_id: int) : int = 
       let s = Printf.sprintf "SELECT revision_id FROM %swikitrust_revision WHERE page_id = %s ORDER BY rev_timestamp DESC, rev_id DESC LIMIT 1" db_prefix (ml2int page_id) in 
-      match fetch (self#db_exec wikitrust_dbh s) with 
+      match fetch (self#db_exec mediawiki_dbh s) with 
 	None -> raise DB_Not_Found
       | Some x -> not_null int2ml x.(0)
 
@@ -396,7 +396,7 @@ class db
 	colored for trust. *)
     method revision_needs_coloring (rev_id: int) : bool = 
       let s = Printf.sprintf "SELECT revision_createdon FROM %swikitrust_colored_markup WHERE revision_id = %s" db_prefix (ml2int rev_id) in 
-      match fetch (self#db_exec wikitrust_dbh s) with
+      match fetch (self#db_exec mediawiki_dbh s) with
 	None -> true
       | Some _ -> false
 
@@ -409,7 +409,7 @@ class db
 	wikitrust_revision table. *)
     method read_wikitrust_revision (revision_id: int) : (revision_t * qual_info_t) = 
       let s = Printf.sprintf "SELECT revision_id, page_id, text_id, time_string, user_id, username, is_minor, comment, quality_info FROM %swikitrust_revision WHERE revision_id = %s" db_prefix (ml2int revision_id) in 
-      let result = self#db_exec wikitrust_dbh s in 
+      let result = self#db_exec mediawiki_dbh s in 
       match fetch result with 
 	None -> raise DB_Not_Found
       | Some x -> begin 
@@ -447,12 +447,12 @@ class db
       (* Db write access *)
       let s2 =  Printf.sprintf "INSERT INTO %swikitrust_revision (revision_id, page_id, text_id, time_string, user_id, username, is_minor, comment, quality_info, reputation_delta, overall_trust) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE quality_info = %s, reputation_delta = %s, overall_trust = %s"
 	db_prefix rev_id page_id text_id time_string user_id username is_minor comment q1 aq2 q3 q1 aq2 q3 in 
-      ignore (self#db_exec wikitrust_dbh s2)
+      ignore (self#db_exec mediawiki_dbh s2)
 
     (** [read_revision_info rev_id] reads the wikitrust information of revision_id *)
     method read_revision_quality (rev_id: int) : qual_info_t = 
       let s = Printf.sprintf "SELECT quality_info FROM %swikitrust_revision WHERE revision_id = %s" db_prefix (ml2int rev_id) in 
-      let result = self#db_exec wikitrust_dbh s in
+      let result = self#db_exec mediawiki_dbh s in
       match fetch result with
         None -> raise DB_Not_Found
       | Some x -> of_string__of__of_sexp qual_info_t_of_sexp (not_null str2ml x.(0))
@@ -500,7 +500,7 @@ class db
       let s = Printf.sprintf "INSERT INTO %swikitrust_colored_markup (revision_id, revision_text) VALUES (%s, %s) ON DUPLICATE KEY UPDATE revision_text = %s"
 	db_prefix
 	(ml2int rev_id) db_mkup db_mkup in 
-      ignore (self#db_exec wikitrust_dbh s);
+      ignore (self#db_exec mediawiki_dbh s);
       begin
 	match colored_base_path with
 	  Some b -> Filesystem_store.write_revision b page_id rev_id markup 
@@ -516,7 +516,7 @@ class db
 	None -> begin 
 	  let s = Printf.sprintf  "SELECT revision_text FROM %swikitrust_colored_markup WHERE revision_id = %s"
 	    db_prefix (ml2int rev_id) in 
-	  let result = self#db_exec wikitrust_dbh s in
+	  let result = self#db_exec mediawiki_dbh s in
 	  match Mysql.fetch result with
             None -> raise DB_Not_Found
 	  | Some x -> not_null str2ml x.(0)
@@ -549,7 +549,7 @@ class db
 	None -> begin
 	  let mysql_signature_string = ml2str signature_string in 
 	  let sdb = Printf.sprintf "INSERT INTO %swikitrust_sigs (revision_id, revision_data) VALUES (%s, %s) ON DUPLICATE KEY UPDATE revision_data  = %s" db_prefix (ml2int rev_id) mysql_signature_string mysql_signature_string in 
-	  ignore (self#db_exec wikitrust_dbh sdb)
+	  ignore (self#db_exec mediawiki_dbh sdb)
 	end
       | Some b -> Filesystem_store.write_revision b page_id rev_id signature_string
 
@@ -562,7 +562,7 @@ class db
 	match sig_base_path with
 	  None -> begin
 	    let s = Printf.sprintf  "SELECT revision_data FROM %swikitrust_sigs WHERE revision_id = %s" db_prefix (ml2int rev_id) in 
-	    let result = self#db_exec wikitrust_dbh s in 
+	    let result = self#db_exec mediawiki_dbh s in 
 	    match Mysql.fetch result with 
 	      None -> raise DB_Not_Found
 	    | Some x -> of_string__of__of_sexp sig_t_of_sexp (not_null str2ml x.(0))
@@ -581,7 +581,7 @@ class db
       match sig_base_path with
 	None -> begin 
 	  let s = Printf.sprintf  "DELETE FROM %swikitrust_sigs WHERE revision_id = %s" db_prefix (ml2int rev_id) in  
-	  ignore (self#db_exec wikitrust_dbh s)
+	  ignore (self#db_exec mediawiki_dbh s)
 	end
       | Some b -> Filesystem_store.delete_revision b rev_id page_id
 
@@ -632,7 +632,7 @@ class db
     (** Add the vote to the db *)
     method vote (vote : vote_t) =
       let s = Printf.sprintf "INSERT INTO %swikitrust_vote (revision_id, page_id, voter_id, voted_on) VALUES (%s, %s, %s, %s)" db_prefix (ml2int vote.vote_revision_id) (ml2int vote.vote_page_id) (ml2int vote.vote_voter_id) (ml2str vote.vote_time) in
-	ignore (self#db_exec wikitrust_dbh s)
+	ignore (self#db_exec mediawiki_dbh s)
 
     (* ================================================================ *)
     (* Server System *)
@@ -697,16 +697,16 @@ class db
     method delete_all (really : bool) =
       match really with
         true -> begin
-	  ignore (self#db_exec wikitrust_dbh "DELETE FROM wikitrust_global");
-	  ignore (self#db_exec wikitrust_dbh "INSERT INTO wikitrust_global VALUES (0,0,0,0,0,0,0,0,0,0,0)");
-          ignore (self#db_exec wikitrust_dbh "TRUNCATE TABLE wikitrust_page" );
-          ignore (self#db_exec wikitrust_dbh "TRUNCATE TABLE wikitrust_revision" );
-          ignore (self#db_exec wikitrust_dbh "TRUNCATE TABLE wikitrust_colored_markup" );
-          ignore (self#db_exec wikitrust_dbh "TRUNCATE TABLE wikitrust_sigs" );
+	  ignore (self#db_exec mediawiki_dbh "DELETE FROM wikitrust_global");
+	  ignore (self#db_exec mediawiki_dbh "INSERT INTO wikitrust_global VALUES (0,0,0,0,0,0,0,0,0,0,0)");
+          ignore (self#db_exec mediawiki_dbh "TRUNCATE TABLE wikitrust_page" );
+          ignore (self#db_exec mediawiki_dbh "TRUNCATE TABLE wikitrust_revision" );
+          ignore (self#db_exec mediawiki_dbh "TRUNCATE TABLE wikitrust_colored_markup" );
+          ignore (self#db_exec mediawiki_dbh "TRUNCATE TABLE wikitrust_sigs" );
           ignore (self#db_exec wikitrust_dbh "TRUNCATE TABLE wikitrust_user" ); 
-	  ignore (self#db_exec wikitrust_dbh "UPDATE wikitrust_vote SET processed = FALSE" ); 
+	  ignore (self#db_exec mediawiki_dbh "UPDATE wikitrust_vote SET processed = FALSE" ); 
           (* Note that we do NOT delete the votes!! *)
-          ignore (self#db_exec wikitrust_dbh "COMMIT");
+          ignore (self#db_exec mediawiki_dbh "COMMIT");
 	  (* We also delete the filesystem storage of signatures and
 	     colored revisions. *)
 	  begin
@@ -720,7 +720,7 @@ class db
 	    | None -> ()
 	  end
 	end
-	| false -> ignore (self#db_exec wikitrust_dbh "COMMIT")
+	| false -> ignore (self#db_exec mediawiki_dbh "COMMIT")
 	    
   end;; (* online_db *)
 
