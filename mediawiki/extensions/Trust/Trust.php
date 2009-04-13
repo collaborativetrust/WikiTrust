@@ -19,7 +19,7 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307
 # USA
 
-require_once("$IP/extensions/Trust/RemoteTrust.php");
+require_once("$IP/extensions/Trust/includes/RemoteTrust.php");
 
 $wgWikiTrustGadget = "gadget-WikiTrust";
 $wgWikiTrustShowVoteButton = true; // If true, the vote button is shown.
