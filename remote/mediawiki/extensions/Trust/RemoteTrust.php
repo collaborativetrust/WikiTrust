@@ -56,7 +56,7 @@ class TextTrust {
   public static function init() {
     global $wgHooks, $wgParser, $wgRequest, $wgUseAjax, $wgAjaxExportList, 
       $wgUser, $wgOut, $wgScriptPath, $wgExtensionMessagesFiles, 
-      $wgShowVoteButton, $wgWikiTrustGadget;
+      $wgWikiTrustShowVoteButton, $wgWikiTrustGadget;
     
     // ParserFirstCallInit was introduced in modern (1.12+) MW versions 
 		// so as to avoid unstubbing $wgParser on setHook() too early, as 

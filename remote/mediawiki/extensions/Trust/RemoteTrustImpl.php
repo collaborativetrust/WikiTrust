@@ -65,7 +65,7 @@ class TextTrustImpl {
   static function handleVote($user_name_raw, $page_id_raw = 0, 
 			     $rev_id_raw = 0, $page_title_raw = ""){
     
-    global $wgContentServerURL;
+    global $wgWikiTrustContentServerURL;
     $response = new AjaxResponse("0");
     
     $dbr =& wfGetDB( DB_SLAVE );
@@ -96,8 +96,19 @@ class TextTrustImpl {
 																				 )
 																	 );
       
-      $vote_str = ("Voting at " . $wgContentServerURL . "vote=1&rev=$rev_id&page=$page_id&user=$user_id&page_title=$page_title&time=" . wfTimestampNow());
-      $colored_text = file_get_contents($wgContentServerURL . "vote=1&rev=".urlencode($rev_id)."&page=".urlencode($page_id)."&user=".urlencode($user_id)."&page_title=".urlencode($page_title)."&time=" . urlencode(wfTimestampNow()), 0, $ctx);
+      $vote_str = ("Voting at " 
+									 . $wgWikiTrustContentServerURL 
+									 . "vote=1&rev=$rev_id&page=$page_id&user=$user_id"
+									 . "&page_title=$page_title&time=" . wfTimestampNow());
+      $colored_text = file_get_contents($wgWikiTrustContentServerURL 
+																				. "vote=1&rev=".urlencode($rev_id)
+																				."&page=".urlencode($page_id)
+																				."&user=".urlencode($user_id)
+																				."&page_title="
+																				.urlencode($page_title)
+																				."&time=" 
+																				. urlencode(wfTimestampNow()), 0
+																				, $ctx);
       $response = new AjaxResponse($vote_str);	   
     }
     return $response;
@@ -134,7 +145,7 @@ class TextTrustImpl {
   */
   static function ucscOutputBeforeHTML(&$out, &$text){
 		
-    global $wgParser, $wgContentServerURL, $wgUser, $wgScriptPath;
+    global $wgParser, $wgWikiTrustContentServerURL, $wgUser, $wgScriptPath;
 		
 		// Load the i18n strings
 		wfLoadExtensionMessages('RemoteTrust');
@@ -180,7 +191,7 @@ class TextTrustImpl {
 																 );
     
     // Should we do doing this via HTTPS?
-    $colored_raw = (file_get_contents($wgContentServerURL . "rev=" . 
+    $colored_raw = (file_get_contents($wgWikiTrustContentServerURL . "rev=" . 
 																			urlencode($rev_id) . 
 																			"&page=".urlencode($page_id).
 																			"&page_title=".

@@ -8,7 +8,7 @@ class TextTrustUpdate{
    */
   public static function updateDB(){
 		global $IP;
-
+		
     require_once($IP . "/extensions/Trust/TrustUpdateScripts.inc");
     $db =& wfGetDB( DB_MASTER );
     
@@ -17,14 +17,16 @@ class TextTrustUpdate{
     while ($row = $db->fetchRow($res)){
       $db_tables[$row[0]] = True;
     }
-  
+		
     foreach ($create_scripts as $table => $scripts) {
       if (!$db_tables[$table]){
-	foreach ($scripts as $script){
-	  $db->query($script);
-	}
+				foreach ($scripts as $script){
+					$db->query($script);
+				}
       }
-    }
-  }
+    }	
+		return true;
+	}
 }
+
 ?>
