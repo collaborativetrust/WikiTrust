@@ -56,10 +56,11 @@ class TextTrust {
   public static function init() {
     global $wgHooks, $wgParser, $wgRequest, $wgUseAjax, $wgAjaxExportList, 
       $wgUser, $wgOut, $wgScriptPath, $wgExtensionMessagesFiles, 
-      $wgShowVoteButton;
+      $wgShowVoteButton, $wgWikiTrustGadget;
     
-    // ParserFirstCallInit was introduced in modern (1.12+) MW versions so as to
-    // avoid unstubbing $wgParser on setHook() too early, as per r35980
+    // ParserFirstCallInit was introduced in modern (1.12+) MW versions 
+		// so as to avoid unstubbing $wgParser on setHook() too early, as 
+		// per r35980.
     if (!defined( 'MW_SUPPORTS_PARSERFIRSTCALLINIT' )) {
       global $wgParser;
       wfRunHooks( 'ParserFirstCallInit', $wgParser );
@@ -69,8 +70,7 @@ class TextTrust {
     $wgHooks['LoadExtensionSchemaUpdates'][] = 'TextTrustUpdate::updateDB';
       
 # Is the user opting to use wikitrust?
-    $tname = "gadget-WikiTrust";
-    if (!$wgUser->getOption( $tname ) ) {
+    if (!$wgUser->getOption( $wgWikiTrustGadget ) ) {
 			//      return;
     }
  
@@ -84,25 +84,15 @@ class TextTrust {
 
 # Code which takes the "I vote" action. 
     if($wgUseAjax && $wgShowVoteButton){
-			print "ddd";
       $wgAjaxExportList[] = "TextTrustImpl::handleVote";
     }
     
 # Add colored text if availible.
     $wgHooks['OutputPageBeforeHTML'][] = 'TextTrust::ucscOutputBeforeHTML';
-
+		
 # Edit hook.
 		$wgHooks['ArticleSaveComplete'][] = 'TextTrust::ucscArticleSaveComplete';
-    
-# Add a hook to initialise the magic words
-#    $wgHooks['LanguageGetMagic'][] = 'TextTrust::ucscColorTrust_Magic';
-    
-# Set a function hook associating the blame and trust words with a callback function
-#    $wgParser->setFunctionHook( 't', 'TextTrust::ucscColorTrust_Render');
-    
-# After everything, make the blame info work
-#    $wgHooks['ParserAfterTidy'][] = 'TextTrust::ucscOrigin_Finalize';
-  }
+	}
 
   private static function getTrustObj(){
     if (!self::$trust){
@@ -169,23 +159,6 @@ class TextTrust {
 																								 $flags, 
 																								 $revision);
 	}
-
-
-  public static function ucscColorTrust_Magic(&$magicWords, $langCode){
-    self::getTrustObj();
-    return self::$trust->ucscColorTrust_Magic($magicWords, $langCode);
-  }
-
-  public static function ucscColorTrust_Render(&$parser, 
-					       $combinedValue = "0,0,0"){
-    self::getTrustObj();
-    return self::$trust->ucscColorTrust_Render($parser, $combinedValue);
-  }
-
-  public static function ucscOrigin_Finalize(&$parser, &$text){
-    self::getTrustObj();
-    return self::$trust->ucscOrigin_Finalize($parser, $text);
-  }
 }    
 
 ?>
