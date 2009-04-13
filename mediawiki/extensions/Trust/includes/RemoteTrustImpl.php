@@ -57,6 +57,43 @@ class TextTrustImpl {
 		  "trust9",
 		  "trust10",
 		  );
+
+	/**
+	 Does a POST HTTP request
+	*/
+	static function file_post_contents($url,$headers=false) {
+    $url = parse_url($url);
+		
+    if (!isset($url['port'])) {
+      if ($url['scheme'] == 'http') { $url['port']=80; }
+      elseif ($url['scheme'] == 'https') { $url['port']=443; }
+    }
+    $url['query']=isset($url['query'])?$url['query']:'';
+		
+    $url['protocol']=$url['scheme'].'://';
+    $eol="\r\n";
+		
+    $headers =  "POST "
+			.$url['protocol'].$url['host'].$url['path']." HTTP/1.0".$eol.
+			"Host: ".$url['host'].$eol.
+			"Referer: ".$url['protocol'].$url['host'].$url['path'].$eol.
+			"Content-Type: application/x-www-form-urlencoded".$eol.
+			"Content-Length: ".strlen($url['query']).$eol.
+			$eol.$url['query'];
+    $fp = fsockopen($url['host'], $url['port'], $errno, $errstr, 30);
+    if($fp) {
+      fputs($fp, $headers);
+      $result = '';
+      while(!feof($fp)) { $result .= fgets($fp, 128); }
+      fclose($fp);
+      if (!$headers) {
+        //removes headers
+        $pattern="/^.*\r\n\r\n/s";
+        $result=preg_replace($pattern,'',$result);
+      }
+      return $result;
+    }
+	}
   
   /**
    Records the vote.
@@ -126,9 +163,9 @@ class TextTrustImpl {
 				/ self::$median));
     $class = self::$COLORS[$normalized_value];
     $output = self::TRUST_OPEN_TOKEN . "span class=\"$class\"" 
-      . "onmouseover=\"Tip('".str_replace("&#39;","\\'",$matches[3])
+      . " onmouseover=\"Tip('".str_replace("&#39;","\\'",$matches[3])
       ."')\" onmouseout=\"UnTip()\""
-      . "onclick=\"showOrigin(" 
+      . " onclick=\"showOrigin(" 
       . $matches[2] . ")\"" . self::TRUST_CLOSE_TOKEN;
     if (self::$first_span){
       self::$first_span = false;
@@ -145,7 +182,8 @@ class TextTrustImpl {
   */
   static function ucscOutputBeforeHTML(&$out, &$text){
 		
-    global $wgParser, $wgWikiTrustContentServerURL, $wgUser, $wgScriptPath;
+    global $wgParser, $wgWikiTrustContentServerURL, $wgUser
+			, $wgScriptPath, $wgWikiTrustShowVoteButton, $wgUseAjax;
 		
 		// Load the i18n strings
 		wfLoadExtensionMessages('RemoteTrust');
@@ -257,12 +295,15 @@ class TextTrustImpl {
 															$options);
 			$text = $text . $msg->getText();
 
-			$text = "<div id='vote-button'><input type='button' name='vote' value='" 
-				. wfMsgNoTrans("wgTrustVote")
-				. "' onclick='startVote()' /></div><div id='vote-button-done'>"
-				. wfMsgNoTrans("wgTrustVoteDone") 
-				. "</div>"
-				. $text;
+			if ($wgWikiTrustShowVoteButton && $wgUseAjax){
+				$text = "<div id='vote-button'><input type='button' name='vote' "
+					. "value='" 
+					. wfMsgNoTrans("wgTrustVote")
+					. "' onclick='startVote()' /></div><div id='vote-button-done'>"
+					. wfMsgNoTrans("wgTrustVoteDone") 
+					. "</div>"
+					. $text;
+			}
 
     } else {
       // text not found.
@@ -283,13 +324,30 @@ class TextTrustImpl {
 																								 &$watchthis, 
 																								 &$sectionanchor, 
 																								 &$flags, 
-																								 $revision){
+																								 &$revision){
 
+		global $wgWikiTrustContentServerURL;
 		
-
+    $userName = $user->getName();
+    $page_id = $article->getTitle()->getArticleID();
+    $rev_id = $revision->getID();
+		$page_title = $article->getTitle()->getDBkey();
+		$user_id = $user->getID();
+		$parentId = $revision->getParentId();
+		
+		$colored_text = self::file_post_contents($wgWikiTrustContentServerURL 
+																						 . "edit=1&rev=".urlencode($rev_id)
+																						 ."&page=".urlencode($page_id)
+																						 ."&user=".urlencode($user_id)
+																						 ."&parentId".urlencode($parentId)
+																						 ."&text=".urlencode($text)
+																						 ."&page_title="
+																						 .urlencode($page_title)
+																						 ."&time=" 
+																						 . urlencode(wfTimestampNow()));
+		
 		return true;
 	}
-
 }
 
 ?>

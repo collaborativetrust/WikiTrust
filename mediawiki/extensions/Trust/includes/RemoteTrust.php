@@ -45,6 +45,9 @@ $wgAutoloadClasses['TextTrustImpl'] = $dir . 'RemoteTrustImpl.php';
 $wgAutoloadClasses['TextTrustUpdate'] = $dir . 'RemoteTrustUpdate.php';
 $wgExtensionFunctions[] = 'TextTrust::init';
 
+// Vote handleing
+$wgAjaxExportList[] = "TextTrustImpl::handleVote";
+
 class TextTrust {
   
   // Instance of our TrustImpl class
@@ -71,33 +74,30 @@ class TextTrust {
       
 # Is the user opting to use wikitrust?
     if (!$wgUser->getOption( $wgWikiTrustGadget ) ) {
-			//      return;
+			return;
     }
  
 # And add an extra tab.
     $wgHooks['SkinTemplateTabs'][] = 'TextTrust::ucscTrustTemplate';
   
+# Edit hook.
+		$wgHooks['ArticleSaveComplete'][] = 'TextTrust::ucscArticleSaveComplete';
+
 # Return if trust is not selected.
     if(!$wgRequest->getVal('trust') || $wgRequest->getVal('action')){
       return;
     }
-
-# Code which takes the "I vote" action. 
-    if($wgUseAjax && $wgShowVoteButton){
-      $wgAjaxExportList[] = "TextTrustImpl::handleVote";
-    }
     
 # Add colored text if availible.
-    $wgHooks['OutputPageBeforeHTML'][] = 'TextTrust::ucscOutputBeforeHTML';
-		
-# Edit hook.
-		$wgHooks['ArticleSaveComplete'][] = 'TextTrust::ucscArticleSaveComplete';
+    $wgHooks['OutputPageBeforeHTML'][] = 'TextTrust::ucscOutputBeforeHTML';	
 	}
 
   private static function getTrustObj(){
     if (!self::$trust){
       self::$trust = new TextTrustImpl();
     }
+
+		return;
   }
 
   // Handle trust tab.
@@ -147,7 +147,7 @@ class TextTrust {
 																								 &$watchthis, 
 																								 &$sectionanchor, 
 																								 &$flags, 
-																								 $revision){
+																								 &$revision){
 		self::getTrustObj();
     return self::$trust->ucscArticleSaveComplete($article, 
 																								 $user, 
