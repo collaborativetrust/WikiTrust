@@ -42,7 +42,7 @@ type rev_t = Online_revision.revision
     - in a vote, the trust information for a revision voted on 
       is missing.  The vote should then most likely be discarded.
     - in an edit, this should never happen, and would be an indication of a bug. *)
-exception Missing_trust of int * rev_t
+exception Missing_trust of rev_t
 (** This exception signals an internal error. *)
 exception Missing_work_revision
 
@@ -250,7 +250,7 @@ class page
 	  r#read_text
 	end else begin
 	  try r#read_words_trust_origin_sigs
-          with Online_db.DB_Not_Found -> raise (Missing_trust (r#get_page_id, r))
+          with Online_db.DB_Not_Found -> raise (Missing_trust r)
 	end
       end done
 
