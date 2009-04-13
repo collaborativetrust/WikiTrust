@@ -77,7 +77,7 @@ OUR_EVALWIKI_OBJS = textbuf.cmo text.cmo prioq.cmo filesystem_store.cmo \
 	trust_origin_analysis.cmo revs_to_files_analysis.cmo word_frequency.cmo \
 	page_factory.cmo do_eval.cmo evalwiki.cmo
 
-OUR_OPT_EVALWIKI_OBJS = textbuf.cmx text.cmx prioq.cmx filesystem_store.cmo \
+OUR_OPT_EVALWIKI_OBJS = textbuf.cmx text.cmx prioq.cmx filesystem_store.cmx \
 	coda.cmx editlist.cmx chdiff.cmx compute_edlist.cmx timeconv.cmx \
 	eval_defs.cmx author_sig.cmx revision.cmx rephist.cmx prune_analysis.cmx \
 	linear_analysis.cmx circbuf_analysis.cmx reputation_analysis.cmx \

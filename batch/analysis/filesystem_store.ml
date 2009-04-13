@@ -131,12 +131,15 @@ let delete_all (base_name: string) : Unix.process_status =
 (* **************************************************************** *)
 (* Unit tests. *)
 
-let not_null = function
-    None -> "Error: revision not found."
-  | Some x -> x;;
-write_revision "/tmp/alpha" 23 54 "Ho voglia di sushi";
-print_string (not_null (read_revision "/tmp/alpha" 23 54));
-print_string (not_null (read_revision "/tmp/alpha" 23 55));
-delete_revision "/tmp/alpha" 23 54;
-print_string (not_null (read_revision "/tmp/alpha" 23 54));
-delete_revision "/tmp/alpha" 23 54;
+if false then begin
+  let not_null = function
+      None -> "Error: revision not found."
+    | Some x -> x
+  in 
+  write_revision "/tmp/alpha" 23 54 "Ho voglia di sushi";
+  print_string (not_null (read_revision "/tmp/alpha" 23 54));
+  print_string (not_null (read_revision "/tmp/alpha" 23 55));
+  delete_revision "/tmp/alpha" 23 54;
+  print_string (not_null (read_revision "/tmp/alpha" 23 54));
+  delete_revision "/tmp/alpha" 23 54
+end
