@@ -182,7 +182,7 @@ class TextTrustImpl {
   */
   static function ucscOutputBeforeHTML(&$out, &$text){
 		
-    global $wgParser, $wgWikiTrustContentServerURL, $wgUser
+    global $wgParser, $wgWikiTrustContentServerURL, $wgUser, $wgTitle
 			, $wgScriptPath, $wgWikiTrustShowVoteButton, $wgUseAjax;
 		
 		// Load the i18n strings
@@ -198,26 +198,11 @@ class TextTrustImpl {
     $dbr =& wfGetDB( DB_SLAVE );
     
 		$rev_id = $out->mRevisionId;
-		$page_id = NULL;
-		$page_title = NULL;
-		
-		// First, look up the info for the page id and title.
-		$res = $dbr->safeQuery('SELECT A.rev_id,A.rev_page,B.page_title' 
-													 . ' FROM revision AS A JOIN page AS B ON' 
-													 . ' A.rev_page = B.page_id WHERE A.rev_id = ?'
-													 , $rev_id);
-		if ($res){
-			$row = $dbr->fetchRow($res);
-			$page_id = $row[1];
-			$page_title = $row[2];
-			if (!$user_id) {
-				$user_id = 0;
-			}
-		}
-		$dbr->freeResult( $res ); 
+		$page_id = $wgTitle->getArticleID();
+		$page_title = $wgTitle->getDBkey();
+    $user_id = $wgUser->getID();
     
 		// Set this up so we can parse things later.
-		$title = Title::newFromText($page_title);
 		$options = ParserOptions::newFromUser($wgUser);
 
     $ctx = stream_context_create(
@@ -235,9 +220,10 @@ class TextTrustImpl {
 																			"&page_title=".
 																			urlencode($page_title)."&time=".
 																			urlencode(wfTimestampNow())."&user="
-																			.urlencode(0)."", 0, $ctx));
-    
-    if ($colored_raw && $colored_raw != self::NOT_FOUND_TEXT_TOKEN){
+																			.urlencode($user_id)."", 0, $ctx));
+
+    if ($colored_raw && $colored_raw != self::NOT_FOUND_TEXT_TOKEN
+        && $colored_raw != "bad"){
 
       // Inflate. Pick off the first 10 bytes for python-php conversion.
       $colored_raw = gzinflate(substr($colored_raw, 10));
@@ -266,7 +252,7 @@ class TextTrustImpl {
       $colored_text = preg_replace("/&gt;/", self::TRUST_CLOSE_TOKEN, 
 																	 $colored_text, -1);
 			
-      $parsed = $wgParser->parse($colored_text, $title, $options);
+      $parsed = $wgParser->parse($colored_text, $wgTitle, $options);
       $text = $parsed->getText();
       
       $count = 0;
@@ -308,7 +294,7 @@ class TextTrustImpl {
     } else {
       // text not found.
       $msg = $wgParser->parse(wfMsgNoTrans("wgNoTrustExplanation"), 
-															$title, 
+															$wgTitle, 
 															$options);
 			$text = $msg->getText() . $text;
     }

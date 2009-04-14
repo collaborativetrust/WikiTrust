@@ -23,6 +23,6 @@ require_once("$IP/extensions/Trust/includes/RemoteTrust.php");
 
 $wgWikiTrustGadget = "gadget-WikiTrust";
 $wgWikiTrustShowVoteButton = true; // If true, the vote button is shown.
-$wgWikiTrustContentServerURL = "http://localhost:10301/?";
+$wgWikiTrustContentServerURL = "http://localhost:10303/?";
 
 ?>
