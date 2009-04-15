@@ -33,7 +33,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
-exception Http_client_error
+exception API_error
 
 (* 19700201000000 *) 
 val default_timestamp : string
@@ -50,10 +50,24 @@ val default_timestamp : string
 *)
 val fetch_page_and_revs_after : string -> string ->
   Online_log.logger -> (Online_types.wiki_page_t option * 
-			  Online_types.wiki_revision_t list) 
+			  Online_types.wiki_revision_t list * int option) 
 
 (** [get_user_id user_name logger] returns the user_id of user with name [user_name]. 
     This involves querying the toolserver, which is usaually heavilly loaded,
     resulting in long responce times.
  *)
-val get_user_id : string -> Online_log.logger -> int
+val get_user_id : string -> Online_db.db -> int
+
+(**
+   [get_revs_from_api page_id page_title last_timestamp db logger 0] reads 
+   a group of revisions of the given page (usually something like
+   50 revisions, see the Wikimedia API) from the Wikimedia API,
+   stores them to disk, and returns:
+   - the list of revision ids. 
+   - an optional id of the next revision to read.  Is None, then
+     all revisions of the page have been read.
+   Raises API_error if the API is unreachable.
+*)
+val get_revs_from_api : int -> string -> int -> 
+    Online_db.db -> Online_log.logger -> int ->
+    int list * int option

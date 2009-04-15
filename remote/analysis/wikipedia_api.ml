@@ -84,7 +84,9 @@ let get_url (url: string) : string =
 	  Std.output_file ~filename:tmp_file ~text:body;
 	  let decoded_body = Filesystem_store.read_gzipped_file tmp_file in
 	  Tmpfile.remove_tmp_file tmp_file;
-	  decoded_body
+	  match decoded_body with
+	      Some str -> str
+	    | None -> raise API_error
 	end
       | _ -> body
     end
@@ -105,7 +107,7 @@ let get_xml_child (node: Xml.xml) (tag: string) : Xml.xml option =
     [node] by [tag_list], if there is one, and None otherwise. *)
 let rec get_xml_heir (node: Xml.xml) (tag_list: string list) : Xml.xml option =
   match tag_list with
-    [] -> node
+    [] -> Some node
   | t :: tl -> begin
       match get_xml_child node t with
 	None -> None
@@ -115,8 +117,8 @@ let rec get_xml_heir (node: Xml.xml) (tag_list: string list) : Xml.xml option =
 
 (** [get_xml_children node tag] returns the list of children of [node] 
     that have [tag]. *)
-let get_xml_children (node: Xml.xml) (tag: string) : Xml.xml string = 
-  let f n t = (t = Xml.tag n) in
+let get_xml_children (node: Xml.xml) (tag: string) : Xml.xml list = 
+  let f n = (tag == Xml.tag n) in
   List.filter f (Xml.children node)
 
 
@@ -167,8 +169,12 @@ let process_page (page : Xml.xml) : (wiki_page_t * wiki_revision_t list) =
     page_len = int_of_string (Xml.attrib page "length")
   } in
   let rev_container = get_xml_child page "revisions" in
-  let new_revs = Xml.map process_rev rev_container in
-  (w_page, new_revs)
+  match rev_container with
+      None -> (w_page, [])
+    | Some rev_node -> 
+	let new_revs = Xml.map process_rev rev_node in
+	(w_page, new_revs)
+  ;;
 
 
 (**
@@ -193,7 +199,7 @@ let fetch_page_and_revs_after (page_title : string) (rev_start_id : string)
   logger#log (Printf.sprintf "getting url: %s\n" url);
   let res = get_url url in
   let api = Xml.parse_string res in
-  match get_xml_heir api ["query", "pages", "page"] with
+  match get_xml_heir api ["query"; "pages"; "page"] with
     None -> (None, [], None)
   | Some page -> begin
       let (page_info, rev_info) = process_page page in
@@ -211,7 +217,7 @@ let fetch_page_and_revs_after (page_title : string) (rev_start_id : string)
     or asks a web service for it if we do not. 
 *)
 let get_user_id (user_name: string) (db: Online_db.db) : int =
-  try db#get_user_id u_name 
+  try db#get_user_id user_name 
   with Online_db.DB_Not_Found -> begin
     let safe_user_name = Netencoding.Url.encode user_name in
     let url = !Online_command_line.user_id_server ^ "?n=" ^ safe_user_name in
@@ -222,44 +228,46 @@ let get_user_id (user_name: string) (db: Online_db.db) : int =
 
 
 (**
-   [get_revs_from_api page_title page_id last_timestamp] reads 
+   [get_revs_from_api page_id page_title last_id db logger 0] reads 
    a group of revisions of the given page (usually something like
    50 revisions, see the Wikimedia API) from the Wikimedia API,
    stores them to disk, and returns:
    - the list of revision ids. 
-   - an optional id of the net revision to read.  Is None, then
+   - an optional id of the next revision to read.  Is None, then
      all revisions of the page have been read.
    Raises API_error if the API is unreachable.
 *)
 let rec get_revs_from_api (page_id: int) (page_title: string) (last_id: int) 
-    (db: Online_db.db) : (int list * int option) =
+    (db: Online_db.db) (logger : Online_log.logger)
+    (times_through: int) : (int list * int option) =
   try begin
     logger#log (Printf.sprintf "Getting revs from api for page %d\n" page_id);
     (* Retrieve a page and revision list from mediawiki. *)
     let (wiki_page', wiki_revs, next_id) = 
-      Wikipedia_api.fetch_page_and_revs_after page_title last_id logger in  
+      fetch_page_and_revs_after page_title (string_of_int last_id) logger in  
     match wiki_page' with
       None -> ([], None)
     | Some wiki_page -> begin
 	(* Write the updated or new page info to the page table. *)
 	logger#log (Printf.sprintf "Got page titled %S\n" wiki_page.page_title);
 	(* Write the new page to the page table. *)
-	db#write_page page_table;
-	(* Writes te revisions to the db. *)
+	db#write_page wiki_page;
+	(* Writes the revisions to the db. *)
 	let update_and_write_rev rev =
 	  rev.revision_page <- page_id;
 	  (* User ids are not given by the api, so we have to use the toolserver. *)
-	  rev.revision_user <- (get_user_id rev.revision_user_text child_db);
+	  rev.revision_user <- (get_user_id rev.revision_user_text db);
 	  logger#log (Printf.sprintf "Writing to db revision %d.\n" rev.revision_id);
 	  db#write_revision rev
       in List.iter update_and_write_rev wiki_revs;
 	(* Finally, returns a list of simple rev_ids, and the next id to read *)
 	let get_id rev = rev.revision_id in
 	(List.map get_id wiki_revs, next_id)
+      end
   end with API_error -> begin
     if times_through < times_to_retry then begin
       logger#log (Printf.sprintf "Page load error for page %S. Trying again\n" page_title);
       Unix.sleep retry_delay_sec;
-      get_revs_from_api page_title page_id last_id db (n_retries + 1)
+      get_revs_from_api page_id page_title last_id db logger (times_through + 1)
     end else raise API_error
   end;;
