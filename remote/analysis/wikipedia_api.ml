@@ -228,7 +228,7 @@ let get_user_id (user_name: string) (db: Online_db.db) : int =
 
 
 (**
-   [get_revs_from_api page_id page_title last_id db logger 0] reads 
+   [get_revs_from_api page_title last_id db logger 0] reads 
    a group of revisions of the given page (usually something like
    50 revisions, see the Wikimedia API) from the Wikimedia API,
    stores them to disk, and returns:
@@ -237,11 +237,11 @@ let get_user_id (user_name: string) (db: Online_db.db) : int =
      all revisions of the page have been read.
    Raises API_error if the API is unreachable.
 *)
-let rec get_revs_from_api (page_id: int) (page_title: string) (last_id: int) 
+let rec get_revs_from_api (page_title: string) (last_id: int) 
     (db: Online_db.db) (logger : Online_log.logger)
     (times_through: int) : (int list * int option) =
   try begin
-    logger#log (Printf.sprintf "Getting revs from api for page %d\n" page_id);
+    logger#log (Printf.sprintf "Getting revs from api for page '%s'\n" page_title);
     (* Retrieve a page and revision list from mediawiki. *)
     let (wiki_page', wiki_revs, next_id) = 
       fetch_page_and_revs_after page_title (string_of_int last_id) logger in  
@@ -254,7 +254,7 @@ let rec get_revs_from_api (page_id: int) (page_title: string) (last_id: int)
 	db#write_page wiki_page;
 	(* Writes the revisions to the db. *)
 	let update_and_write_rev rev =
-	  rev.revision_page <- page_id;
+	  rev.revision_page <- wiki_page.page_id;
 	  (* User ids are not given by the api, so we have to use the toolserver. *)
 	  rev.revision_user <- (get_user_id rev.revision_user_text db);
 	  logger#log (Printf.sprintf "Writing to db revision %d.\n" rev.revision_id);
@@ -268,6 +268,6 @@ let rec get_revs_from_api (page_id: int) (page_title: string) (last_id: int)
     if times_through < times_to_retry then begin
       logger#log (Printf.sprintf "Page load error for page %S. Trying again\n" page_title);
       Unix.sleep retry_delay_sec;
-      get_revs_from_api page_id page_title last_id db logger (times_through + 1)
+      get_revs_from_api page_title last_id db logger (times_through + 1)
     end else raise API_error
   end;;

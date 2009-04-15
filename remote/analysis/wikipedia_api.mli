@@ -59,7 +59,7 @@ val fetch_page_and_revs_after : string -> string ->
 val get_user_id : string -> Online_db.db -> int
 
 (**
-   [get_revs_from_api page_id page_title last_timestamp db logger 0] reads 
+   [get_revs_from_api page_title last_timestamp db logger 0] reads 
    a group of revisions of the given page (usually something like
    50 revisions, see the Wikimedia API) from the Wikimedia API,
    stores them to disk, and returns:
@@ -68,6 +68,6 @@ val get_user_id : string -> Online_db.db -> int
      all revisions of the page have been read.
    Raises API_error if the API is unreachable.
 *)
-val get_revs_from_api : int -> string -> int -> 
+val get_revs_from_api : string -> int -> 
     Online_db.db -> Online_log.logger -> int ->
     int list * int option

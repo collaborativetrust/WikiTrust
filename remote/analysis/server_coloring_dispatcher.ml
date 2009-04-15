@@ -213,7 +213,7 @@ let process_revs (page_id: int) (page_title : string)
 	  let new_rev_id_l = ref [] in
 	  while !do_more do begin
 	    let (rev_id_l, next_rev') = Wikipedia_api.get_revs_from_api 
-	      page_id page_title !last_rev_id child_db logger 0 in
+	      page_title !last_rev_id child_db logger 0 in
 	    new_rev_id_l := !new_rev_id_l @ rev_id_l;
 	    n_batches := !n_batches + 1;
 	    match next_rev' with
