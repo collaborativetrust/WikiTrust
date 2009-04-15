@@ -138,7 +138,7 @@ let rec evaluate_revision (page_id: int) (rev_id: int) (child_db : Online_db.db)
       logger#log (Printf.sprintf "Evaluating revision %d of page %d\n" 
 		    rev_id page_id);
       let page = new Online_page.page child_db logger 
-	page_id rev_id trust_coeff !times_to_retry_trans in
+	page_id rev_id None trust_coeff !times_to_retry_trans in
       if page#eval then begin 
 	logger#log (Printf.sprintf "Done revision %d of page %d\n" 
 	  rev_id page_id);
@@ -156,14 +156,14 @@ let rec evaluate_revision (page_id: int) (rev_id: int) (child_db : Online_db.db)
 	  end
 	| None -> ()
       end       
-    with Online_page.Missing_trust (page_id', rev_id') -> 
+    with Online_page.Missing_trust (page_id', r') -> 
       begin
 	(* We need to evaluate page_id', rev_id' first *)
 	(* This if is a basic sanity check only. It should always be true *)
-	if rev_id' <> rev_id then 
+	if r'#get_id <> rev_id then 
 	  begin 
-	    logger#log (Printf.sprintf "Missing trust info: we need first to evaluate revision %d of page %d\n" rev_id' page_id');
-	    evaluate_revision page_id' rev_id' child_db (n_processed_events + 1);
+	    logger#log (Printf.sprintf "Missing trust info: we need first to evaluate revision %d of page %d\n" r'#get_id page_id');
+	    evaluate_revision page_id' r'#get_id child_db (n_processed_events + 1);
 	    evaluate_revision page_id rev_id child_db (n_processed_events + 2)
 	  end (* rev_id' <> rev_id *)
       end (* with: Was missing trust of a previous revision *)
@@ -177,7 +177,7 @@ in
 let evaluate_vote (page_id: int) (revision_id: int) (voter_id: int) (child_db : Online_db.db) = 
   logger#log (Printf.sprintf "Evaluating vote by %d on revision %d of page %d\n" 
     voter_id revision_id page_id); 
-  let page = new Online_page.page child_db logger page_id revision_id trust_coeff 
+  let page = new Online_page.page child_db logger page_id revision_id None trust_coeff 
     !times_to_retry_trans in 
     if page#vote voter_id then 
       logger#log (Printf.sprintf "User %d voted for revision %d of page %d.\n" 
@@ -233,7 +233,7 @@ let process_revs (page_id: int) (page_title : string)
 	logger#log (Printf.sprintf "Working on vote for revision %d of page %S\n" 
 	  req.req_revision_id page_title);
 	evaluate_vote page_id req.req_revision_id req.req_requesting_user_id child_db;
-	child_db#mark_rev_as_processed req.req_revision_id
+	child_db#mark_vote_as_processed req.req_revision_id req.req_requesting_user_id
       end
   in
   (* Process each revision in turn. *)
@@ -273,7 +273,9 @@ let dispatch_page (rev_pages : revision_processing_request_t list) =
 	  Not_found -> [] in
 	Hashtbl.replace new_pages req.req_page_id (req :: current_revs)
     ) else (
-      db#mark_rev_as_unprocessed req.req_revision_id
+      (* TODO: need to update this to new api
+	 db#mark_rev_as_unprocessed req.req_revision_id
+      *)
     )
   in 
     (* 
@@ -316,9 +318,11 @@ let main_loop () =
     if (Hashtbl.length working_children) >= max_concurrent_procs then (
       Hashtbl.iter check_subprocess_termination working_children
     ) else (
+      (* TODO: update to new API
       let revs_to_process = db#fetch_next_revisions_to_color 
 	(max (max_concurrent_procs - Hashtbl.length working_children) 0) in
 	dispatch_page revs_to_process
+      *)
     );
     Unix.sleep sleep_time_sec;
     if !synch_log then flush Pervasives.stdout;
