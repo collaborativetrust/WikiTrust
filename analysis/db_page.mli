@@ -41,10 +41,8 @@ open Online_types;;
 
 class page : 
   Online_db.db -> (* Online database containing the pages and revisions *)
-  int -> (* page id to which the revisions belong *)
-  int -> (* revision id.  This is the first revision to read; after this, 
-	    each read operation returns the previous revision (so the
-	    read is backwards. *)
+  Online_revision.revision -> (* We need to read from the database
+            colored revisions that immediately precede this revision. *)
   int -> (* number of revisions to fetch, used to limit the query to 
 	    the database.  Note that this class can return more (as there 
 	    is some slack in the query, see inside the class for details) 

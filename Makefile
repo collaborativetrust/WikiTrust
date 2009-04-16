@@ -30,7 +30,7 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 all: 
-	cd analysis; make all
+	cd analysis; make all; cp eval_online_wiki .. ; cp vote_revision ..
 
 allopt: 
 	cd analysis; make allopt; cp eval_online_wiki .. ; cp vote_revision ..

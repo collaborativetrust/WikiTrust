@@ -187,11 +187,11 @@ class db :
 	with the page [page_id], along with the page info. *)
     method read_page_info : int -> (Online_types.chunk_t list) * Online_types.page_info_t
 
-    (** [fetch_revs page_id timestamp rev_id fetch_limit] returns a
-	cursor that points to at most [fetch_limit] revisions of page
-	[page_id] with time prior or equal to [timestamp], and
-	revision id at most [rev_id]. *)
-    method fetch_revs : int -> timestamp_t -> int -> int -> Mysql.result
+    (** [fetch_col_revs page_id timestamp rev_id fetch_limit] returns a
+	cursor that points to at most [fetch_limit] colored revisions of page
+	[page_id] with time and revision immediately preceding 
+        [timestamp], and [rev_id]. *)
+    method fetch_col_revs : int -> timestamp_t -> int -> int -> Mysql.result
       
     (** [get_latest_rev_id page_id] returns the revision id of the most 
 	recent revision of page [page_id]. *)
