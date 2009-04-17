@@ -166,9 +166,11 @@ def fetch_colored_markup (rev_id, page_id, user_id, rev_time, page_title):
   global connection
 
   curs = connection.cursor()
-  sql = """SELECT revision_text FROM """ + DB_PREFIX + \
-      """wikitrust_colored_markup  """ + \
-      """ WHERE revision_id = %s"""
+  sql = ''.join(["SELECT revision_text FROM "
+      ,  DB_PREFIX ,
+      "wikitrust_colored_markup  " ,
+      " WHERE revision_id = %s"])
+
   args = (rev_id)
   curs.execute(sql, args)
   numRows = int(curs.rowcount)

@@ -197,10 +197,21 @@ class TextTrustImpl {
 	
     $dbr =& wfGetDB( DB_SLAVE );
     
-		$rev_id = $out->mRevisionId;
+		$rev_id = $out->getRevisionId();
 		$page_id = $wgTitle->getArticleID();
 		$page_title = $wgTitle->getDBkey();
     $user_id = $wgUser->getID();
+
+    // If there is not a revId, assume it is the most recent one.
+    if(!$rev_id){
+      $res = $dbr->select('page', array('page_latest'), 
+                          array('page_id' => $page_id), array());
+      if ($res){
+        $row = $dbr->fetchRow($res);
+        $rev_id = $row['page_latest'];
+      }
+      $dbr->freeResult( $res ); 
+    }
     
 		// Set this up so we can parse things later.
 		$options = ParserOptions::newFromUser($wgUser);
@@ -238,7 +249,7 @@ class TextTrustImpl {
 					self::$median = self::TRUST_DEFAULT_MEDIAN;
 				}
       }
-			
+
       // First, make sure that there are not any instances of our tokens in the colored_text
       $colored_text = str_replace(self::TRUST_OPEN_TOKEN, "", $colored_text);
       $colored_text = str_replace(self::TRUST_CLOSE_TOKEN, "", 
@@ -277,7 +288,7 @@ class TextTrustImpl {
 				.'/extensions/Trust/js/wz_tooltip.js"></script>' . $text;
 
       $msg = $wgParser->parse(wfMsgNoTrans("wgTrustExplanation"), 
-															$title, 
+															$wgTitle, 
 															$options);
 			$text = $text . $msg->getText();
 
