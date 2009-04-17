@@ -63,11 +63,10 @@ val get_user_id : string -> Online_db.db -> int
    a group of revisions of the given page (usually something like
    50 revisions, see the Wikimedia API) from the Wikimedia API,
    stores them to disk, and returns:
-   - the list of revision ids. 
    - an optional id of the next revision to read.  Is None, then
      all revisions of the page have been read.
    Raises API_error if the API is unreachable.
 *)
 val get_revs_from_api : string -> int -> 
     Online_db.db -> Online_log.logger -> int ->
-    int list * int option
+    int option

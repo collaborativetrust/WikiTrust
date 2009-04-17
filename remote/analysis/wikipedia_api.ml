@@ -232,21 +232,20 @@ let get_user_id (user_name: string) (db: Online_db.db) : int =
    a group of revisions of the given page (usually something like
    50 revisions, see the Wikimedia API) from the Wikimedia API,
    stores them to disk, and returns:
-   - the list of revision ids. 
    - an optional id of the next revision to read.  Is None, then
      all revisions of the page have been read.
    Raises API_error if the API is unreachable.
 *)
 let rec get_revs_from_api (page_title: string) (last_id: int) 
     (db: Online_db.db) (logger : Online_log.logger)
-    (times_through: int) : (int list * int option) =
+    (times_through: int) : (int option) =
   try begin
     logger#log (Printf.sprintf "Getting revs from api for page '%s'\n" page_title);
     (* Retrieve a page and revision list from mediawiki. *)
     let (wiki_page', wiki_revs, next_id) = 
       fetch_page_and_revs_after page_title (string_of_int last_id) logger in  
     match wiki_page' with
-      None -> ([], None)
+      None -> None
     | Some wiki_page -> begin
 	(* Write the updated or new page info to the page table. *)
 	logger#log (Printf.sprintf "Got page titled %S\n" wiki_page.page_title);
@@ -259,10 +258,9 @@ let rec get_revs_from_api (page_title: string) (last_id: int)
 	  rev.revision_user <- (get_user_id rev.revision_user_text db);
 	  logger#log (Printf.sprintf "Writing to db revision %d.\n" rev.revision_id);
 	  db#write_revision rev
-      in List.iter update_and_write_rev wiki_revs;
-	(* Finally, returns a list of simple rev_ids, and the next id to read *)
-	let get_id rev = rev.revision_id in
-	(List.map get_id wiki_revs, next_id)
+	in List.iter update_and_write_rev wiki_revs;
+	(* Finally, return the next id to read *)
+	next_id
       end
   end with API_error -> begin
     if times_through < times_to_retry then begin
