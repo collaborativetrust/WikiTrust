@@ -104,7 +104,7 @@ class updater
 	  begin 
 	    begin (* try ... with ... *)
 	      try 
-		logger#log (Printf.sprintf "Evaluating revision %d of page %d\n" rev_id page_id);
+		logger#log (Printf.sprintf "\nEvaluating revision %d of page %d\n" rev_id page_id);
 		let page = new Online_page.page db logger 
 		  page_id rev_id (Some r) trust_coeff n_retries in
 		n_processed_events <- n_processed_events + 1;
@@ -119,7 +119,7 @@ class updater
 		  if r'#get_id <> rev_id then 
 		    begin 
 		      logger#log (Printf.sprintf 
-			"Missing trust info: we need first to evaluate revision %d of page %d\n" 
+			"\nMissing trust info: we need first to evaluate revision %d of page %d\n" 
 			r'#get_id r'#get_page_id);
 		      evaluate_revision_helper r';
 		      self#wait_a_bit;

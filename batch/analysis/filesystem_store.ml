@@ -72,25 +72,25 @@ let write_gzipped_file (file_name: string) (s: string) : unit =
     - The full filename of the revision.
     - the list of directories that may need to be made.
     We divide the tree so that the page tree has branching factor of at most 1000.
-    We divide the revision tree in blocks of 10,000 as it will be rarely the case 
-    that all revisions in a range belong to the same page.
-    The system is good for 10^12 revisions.
+    We divide the revision tree in at most 1000 directories, based on the digits
+    345 of the revision id. 
  *)
 let get_filename (base_path: string) (page_id: int) (rev_id: int) : (string * string list) =   
   let page_str = Printf.sprintf "%012d" page_id in 
   let rev_str  = Printf.sprintf "%012d" rev_id  in 
   let list_dirs = ref [base_path] in
   let file_name = ref base_path in 
+  (* First, the page directories. *)
   for i = 0 to 3 do begin
     let s = String.sub page_str (i * 3) 3 in 
     file_name := !file_name ^ "/" ^ s;
     list_dirs := !list_dirs @ [!file_name]
   end done;
-  for i = 0 to 2 do begin
-    let s = String.sub rev_str (i * 4) 4 in 
-    file_name := !file_name ^ "/" ^ s;
-    list_dirs := !list_dirs @ [!file_name]
-  end done;
+  (* Then, the revision directory *)
+  let s = String.sub rev_str 6 3 in 
+  file_name := !file_name ^ "/" ^ s;
+  list_dirs := !list_dirs @ [!file_name];
+  (* Now all together *)
   file_name := !file_name ^ "/" ^ page_str ^ "_" ^ rev_str ^ ".gz";
   (!file_name, !list_dirs)
 
@@ -131,12 +131,16 @@ let delete_all (base_name: string) : Unix.process_status =
 (* **************************************************************** *)
 (* Unit tests. *)
 
-let not_null = function
-    None -> "Error: revision not found."
-  | Some x -> x;;
-write_revision "/tmp/alpha" 23 54 "Ho voglia di sushi";
-print_string (not_null (read_revision "/tmp/alpha" 23 54));
-print_string (not_null (read_revision "/tmp/alpha" 23 55));
-delete_revision "/tmp/alpha" 23 54;
-print_string (not_null (read_revision "/tmp/alpha" 23 54));
-delete_revision "/tmp/alpha" 23 54;
+if false then begin
+  let not_null = function
+      None -> "Error: revision not found."
+    | Some x -> x
+  in 
+  write_revision "/tmp/alpha" 43 54 "Ho voglia di sushi";
+  print_string (not_null (read_revision "/tmp/alpha" 43 54));
+  print_string (not_null (read_revision "/tmp/alpha" 43 55));
+  print_string (not_null (read_revision "/tmp/alpha" 43 54));
+  delete_revision "/tmp/alpha" 43 54;
+  print_string (not_null (read_revision "/tmp/alpha" 43 54));
+  write_revision "/tmp/alpha" 43 54 "Ho voglia di sushi";
+end
