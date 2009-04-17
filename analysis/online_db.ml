@@ -397,7 +397,7 @@ class db
     (** [revision_needs_coloring rev_id] checks whether a revision has already been 
 	colored for trust. *)
     method revision_needs_coloring (rev_id: int) : bool = 
-      let s = Printf.sprintf "SELECT revision_createdon FROM %swikitrust_colored_markup WHERE revision_id = %s" db_prefix (ml2int rev_id) in 
+      let s = Printf.sprintf "SELECT quality_info FROM %swikitrust_revision WHERE revision_id = %s" db_prefix (ml2int rev_id) in 
       match fetch (self#db_exec mediawiki_dbh s) with
 	None -> true
       | Some _ -> false

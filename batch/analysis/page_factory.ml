@@ -253,7 +253,7 @@ class page_factory
        ("-do_origin", Arg.Set do_origin, "While doing the evaluation of trust, also generates word origin information");
        ("-keep_rev_after", Arg.String self#set_keep_rev_after, "<date>: Keep Revisions after date (date is in Wiki format, e.g., 2006-11-22T14:25:19Z )");
        ("-revisions_to_text", Arg.Unit self#set_revs_to_text, "Writes each revision out as a separate file."); 
-       ("-rev_base_name", Arg.String self#set_base_name, "Prefix for writing out each revision as a separate file. Files will be named prefix/000/001/123/456/revision_id.txt ."); 
+       ("-rev_base_name", Arg.String self#set_base_name, "Prefix for writing out each revision as a separate file."); 
       ]		   
 
     (** Makes a page for the primary name space, where analysis must occur. *)
