@@ -59,7 +59,7 @@ CREATE TABLE ".$wgDBprefix."wikitrust_revision (
 ) ENGINE=InnoDB","
 GRANT ALL ON ".$wgDBprefix."wikitrust_revision TO $wgDBuser","
 CREATE INDEX ".$wgDBprefix."wikitrust_revision_id_timestamp_idx ON "
-. $wgDBprefix . "wikitrust_revision (revision_id, time_string)"
+. $wgDBprefix . "wikitrust_revision (page_id, time_string, revision_id)"
 );
 
 $create_scripts[$wgDBprefix.'wikitrust_colored_markup'] = array("
