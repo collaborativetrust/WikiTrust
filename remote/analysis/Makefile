@@ -81,10 +81,10 @@ OUR_ONLINE_OBJS = tmpfile.cmo wikipedia_api.cmo \
 
 OUR_OPT_ONLINE_OBJS = tmpfile.cmx wikipedia_api.cmx \
 
-downloadwp: $(OUR_ONLINE_OBJS)
+downloadwp: $(OUR_ONLINE_OBJS) downloadwp.ml
 	$(OCAMLC) -linkpkg -o downloadwp $(OCAML_CFLAGS) $(OUR_LIBS) $(OUR_ONLINE_OBJS) downloadwp.ml 
 
-downloadwpopt: $(OUR_OPT_ONLINE_OBJS)
+downloadwpopt: $(OUR_OPT_ONLINE_OBJS) downloadwp.ml
 	$(OCAMLOPT) -linkpkg -o downloadwp $(OCAMLOPT_FLAGS) $(OUR_LIBS_OPT) $(OUR_OPT_ONLINE_OBJS) downloadwp.ml
 
 dispatcher: $(OUR_ONLINE_OBJS) 	
