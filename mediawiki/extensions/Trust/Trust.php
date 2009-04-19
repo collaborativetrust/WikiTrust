@@ -19,10 +19,31 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307
 # USA
 
-require_once("$IP/extensions/Trust/includes/RemoteTrust.php");
+# There isn't a built in enum for php
+$wgWikiTrustVersion = "mwf"; ## This needs to be one of local, remote, wmf.
 
 $wgWikiTrustGadget = "gadget-WikiTrust";
 $wgWikiTrustShowVoteButton = true; // If true, the vote button is shown.
 $wgWikiTrustContentServerURL = "http://localhost:10303/?";
+
+$wgTrustCmd = $IP . "/eval_online_wiki";
+$wgTrustLog = "/tmp/{$wgDBname}-trust.log";
+$wgTrustDebugLog = "/tmp/{$wgDBname}-trust-debug.log";
+$wgRepSpeed = 1.0;
+$wgWikiApiURL = "http://en.wikipedia.org/w/api.php?";
+
+switch ($wgWikiTrustVersion) {
+  case "local":
+	  require_once("$IP/extensions/Trust/includes/LocalTrust.php");
+	  break;
+  case "remote":
+	  require_once("$IP/extensions/Trust/includes/RemoteTrustAjax.php");
+	  break;
+  case "wmf":
+	  require_once("$IP/extensions/Trust/includes/RemoteTrust.php");
+	  break;
+  default:
+    die "Set \$wgWikiTrustVersion to one of 'local', 'remote', 'wmf'\n";
+}
 
 ?>

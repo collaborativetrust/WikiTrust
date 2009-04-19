@@ -69,7 +69,7 @@ class TextTrustImpl {
   static function handleVote($user_name_raw, $page_id_raw = 0, 
 			     $rev_id_raw = 0, $page_title_raw = ""){
     
-    global $wgContentServerURL;
+    global $wgWikiTrustContentServerURL;
     $response = new AjaxResponse("0");
     
     $dbr =& wfGetDB( DB_SLAVE );
@@ -100,8 +100,8 @@ class TextTrustImpl {
 					 )
 				   );
       
-      $vote_str = ("Voting at " . $wgContentServerURL . "vote=1&rev=$rev_id&page=$page_id&user=$user_id&page_title=$page_title&time=" . wfTimestampNow());
-      $colored_text = file_get_contents($wgContentServerURL . "vote=1&rev=".urlencode($rev_id)."&page=".urlencode($page_id)."&user=".urlencode($user_id)."&page_title=".urlencode($page_title)."&time=" . urlencode(wfTimestampNow()), 0, $ctx);
+      $vote_str = ("Voting at " . $wgWikiTrustContentServerURL . "vote=1&rev=$rev_id&page=$page_id&user=$user_id&page_title=$page_title&time=" . wfTimestampNow());
+      $colored_text = file_get_contents($wgWikiTrustContentServerURL . "vote=1&rev=".urlencode($rev_id)."&page=".urlencode($page_id)."&user=".urlencode($user_id)."&page_title=".urlencode($page_title)."&time=" . urlencode(wfTimestampNow()), 0, $ctx);
       $response = new AjaxResponse($vote_str);	   
     }
     return $response;
@@ -156,38 +156,15 @@ class TextTrustImpl {
 
   }
 
-  /**
-   Method to use the wiki API to parse the markup.
-   This allows templates to be resolved, as well as images and other good 
-   things.
-  */
-  static function parseWikiText($text){
-    global $wgWikiApiURL;
-
-    $data = array('action'=>'parse',
-		  'text'=>htmlspecialchars($text),
-		  'format' => 'json'
-		  );
-
-     file_put_contents("/tmp/test", $wgWikiApiURL
-				    .http_build_query($data));
-    
-    $parsed_raw = file_get_contents($wgWikiApiURL
-				    .http_build_query($data));
-    $parsed_json = json_decode($parsed_raw, true);
-    $parsed_text = $parsed_json["parse"]["text"];
-    return $parsed_text;
-  }
-
-   /**
+	/**
    Returns colored markup.
-
+	 
    @return colored markup.
   */
   static function getColoredText($page_title_raw,
 				 $page_id_raw = NULL, 
 				 $rev_id_raw = NULL){
-    global $wgParser, $wgContentServerURL, $wgWikiApiURL, $wgUser;
+    global $wgParser, $wgWikiTrustContentServerURL, $wgWikiApiURL, $wgUser;
     global $wgMemc;
 
     $response = new AjaxResponse("");
@@ -273,7 +250,7 @@ class TextTrustImpl {
 				 );
     
     // Should we do doing this via HTTPS?
-    $colored_raw = (file_get_contents($wgContentServerURL . "rev=" . 
+    $colored_raw = (file_get_contents($wgWikiTrustContentServerURL . "rev=" . 
 				      urlencode($rev_id) . 
 				      "&page=".urlencode($page_id).
 				      "&page_title=".

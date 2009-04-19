@@ -53,7 +53,7 @@ class TextTrust {
   public static function init() {
     global $wgHooks, $wgParser, $wgRequest, $wgUseAjax, $wgAjaxExportList, 
       $wgUser, $wgOut, $wgScriptPath, $wgExtensionMessagesFiles, 
-      $wgShowVoteButton;
+      $wgWikiTrustShowVoteButton;
     
     // ParserFirstCallInit was introduced in modern (1.12+) MW versions so as to
     // avoid unstubbing $wgParser on setHook() too early, as per r35980
@@ -71,7 +71,7 @@ class TextTrust {
     $wgHooks['LoadExtensionSchemaUpdates'][] = 'TextTrustUpdate::updateDB';
 
 # Code which takes the "I vote" action. 
-    if($wgUseAjax && $wgShowVoteButton){
+    if($wgUseAjax && $wgWikiTrustShowVoteButton){
       $wgAjaxExportList[] = "TextTrustImpl::handleVote";
     }
     
