@@ -374,10 +374,12 @@ class db
 	  of_string__of__of_sexp (list_of_sexp chunk_t_of_sexp) (not_null str2ml x.(0)), 
 	  of_string__of__of_sexp page_info_t_of_sexp (not_null str2ml x.(1)))
 
-    (** [fetch_revs page_id timestamp rev_id fetch_limit] returns a cursor that points to at most [fetch_limit]
-	revisions of page [page_id] with time prior or equal to [timestamp], and revision id at most [rev_id]. *)
-    method fetch_revs (page_id : int) (timestamp: timestamp_t) (rev_id: int) (fetch_limit: int): Mysql.result =
-      let s = Printf.sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM %srevision WHERE rev_page = %s AND (rev_timestamp, rev_id) <= (%s, %s) ORDER BY rev_timestamp DESC, rev_id DESC LIMIT %s" db_prefix (ml2int page_id) (ml2timestamp timestamp) (ml2int rev_id) (ml2int fetch_limit) in 
+    (** [fetch_col_revs page_id timestamp rev_id fetch_limit] returns
+	a cursor that points to at most [fetch_limit] revisions of
+	page [page_id] with time prior or equal to [timestamp], and
+	revision id at most [rev_id]. *)
+    method fetch_col_revs (page_id : int) (timestamp: timestamp_t) (rev_id: int) (fetch_limit: int): Mysql.result =
+      let s = Printf.sprintf "SELECT revision_id, page_id, text_id, time_string, user_id, username, is_minor, comment FROM %swikitrust_revision WHERE page_id = %s AND (time_string, revision_id) < (%s, %s) ORDER BY time_string DESC, revision_id DESC LIMIT %s" db_prefix (ml2int page_id) (ml2timestamp timestamp) (ml2int rev_id) (ml2int fetch_limit) in 
       self#db_exec mediawiki_dbh s
 
     (** [get_latest_rev_id page_id] returns the revision id of the most 
@@ -395,7 +397,7 @@ class db
     (** [revision_needs_coloring rev_id] checks whether a revision has already been 
 	colored for trust. *)
     method revision_needs_coloring (rev_id: int) : bool = 
-      let s = Printf.sprintf "SELECT revision_createdon FROM %swikitrust_colored_markup WHERE revision_id = %s" db_prefix (ml2int rev_id) in 
+      let s = Printf.sprintf "SELECT quality_info FROM %swikitrust_revision WHERE revision_id = %s" db_prefix (ml2int rev_id) in 
       match fetch (self#db_exec mediawiki_dbh s) with
 	None -> true
       | Some _ -> false

@@ -46,20 +46,19 @@ open Mysql;;
 
 class page 
   (db : Online_db.db)  (* Online database containing the pages and revisions *)
-  (page_id : int)  (* page id to which the revisions belong *)
-  (rev_id : int)  (* revision id.  This is the first revision to read; after this, 
-	    each read operation returns the previous revision (so the
-	    read is backwards. *)
+  (r : Online_revision.revision)  (* Revision whose predecessors we need to return. *)
   (n_revs_to_fetch: int) (* N. of revisions to fetch. *)
 
   = 
-
-  (* First, I need to get the timestamp of the current revision_id. *)
-  let timestamp = db#fetch_rev_timestamp rev_id in 
-  (* Then, I read all revisions of the page prior or equal to that timestamp *)
-  let revs_init = db#fetch_revs page_id timestamp rev_id n_revs_to_fetch in
+  
+  (* I read all colored revisions of the page prior or equal to the timestamp *)
+  let rev_id = r#get_id in
+  let page_id = r#get_page_id in
+  let timestamp = r#get_timestamp in
+  let revs_init = db#fetch_col_revs page_id timestamp rev_id n_revs_to_fetch in
 
   object (self)
+
     (* This is the next revision that will be returned; None = we are done *)
     val mutable next_rev = None 
     val mutable revs = revs_init 

@@ -32,7 +32,7 @@ GRANT ALL ON ".$wgDBprefix."wikitrust_page TO $wgDBuser
 
 $create_scripts[$wgDBprefix.'wikitrust_vote'] = array("
 CREATE TABLE ".$wgDBprefix."wikitrust_vote (
-       revision_id              int NOT NULL,
+       revision_id         int NOT NULL,
        page_id             int NOT NULL,   
        voter_id            int NOT NULL,
        voted_on            varchar(32) NOT NULL,
@@ -57,12 +57,15 @@ CREATE TABLE ".$wgDBprefix."wikitrust_revision (
 	reputation_delta        float DEFAULT 0.0,
 	overall_trust           float DEFAULT 0.0
 ) ENGINE=InnoDB","
-GRANT ALL ON ".$wgDBprefix."wikitrust_revision TO $wgDBuser
-");
+GRANT ALL ON ".$wgDBprefix."wikitrust_revision TO $wgDBuser","
+CREATE INDEX ".$wgDBprefix."wikitrust_revision_id_timestamp_idx ON "
+. $wgDBprefix . "wikitrust_revision (page_id, time_string, revision_id)"
+);
+
 
 $create_scripts[$wgDBprefix.'wikitrust_colored_markup'] = array("
 CREATE TABLE ".$wgDBprefix."wikitrust_colored_markup (
-        revision_id     int PRIMARY KEY,
+        revision_id     int PRIMARY KEY, 
         revision_text   longtext NOT NULL,
 	revision_createdon varchar(32) NOT NULL
 ) ENGINE=InnoDB","
@@ -80,10 +83,13 @@ GRANT ALL ON ".$wgDBprefix."wikitrust_sigs TO $wgDBuser
 
 $create_scripts[$wgDBprefix.'wikitrust_user'] = array("
 CREATE TABLE ".$wgDBprefix."wikitrust_user (
-       user_id     int PRIMARY KEY   ,
+       user_id     int PRIMARY KEY,
+       username    varchar(255),
        user_rep    float DEFAULT 0.0
 ) ENGINE=InnoDB","
-GRANT ALL ON ".$wgDBprefix."wikitrust_user TO $wgDBuser;
+GRANT ALL ON ".$wgDBprefix."wikitrust_user TO $wgDBuser", "
+CREATE INDEX " . $wgDBprefix . "wikitrust_usernames_idx ON "
+			 . $wgDBprefix . "wikitrust_user (username)
 ");
 
 $create_scripts[$wgDBprefix.'wikitrust_missing_revs'] = array("

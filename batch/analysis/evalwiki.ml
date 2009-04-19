@@ -35,15 +35,11 @@ POSSIBILITY OF SUCH DAMAGE.
 
 (* First, I want to figure out which version I am. *)
 
-let get_version_str () : string =
-  let p = Unix.open_process_in "git show --pretty=format:\"%H\" @{0}" in
-  let version_str = input_line p in
-  ignore (Unix.close_process_in p);
-  version_str
+let get_version_str () : string = "Unknown version"
 
 let version_str = 
   try get_version_str ()
-  with End_of_file -> "Version not availible"
+  with _ -> "Version not available"
 ;;
 
 Fileinfo.make_info_obj version_str "";;

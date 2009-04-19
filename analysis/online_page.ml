@@ -143,17 +143,17 @@ class page
       let revid_to_rev: (int, rev_t) Hashtbl.t = 
 	Hashtbl.create trust_coeff.n_revs_to_consider in
       (* First, puts in the latest revision. *)
-      begin
+      let rev_to_analyze = begin
 	match work_revision_opt with 
 	  None -> raise Missing_work_revision
 	| Some r -> begin
 	    Hashtbl.add revid_to_rev r#get_id r;
 	    recent_revs <- Vec.singleton r;
-	    revs        <- Vec.singleton r;
+	    r
 	  end
-      end;
+      end in
       (* This is a feed of colored revisions previous from the current one. TODO *)
-      let db_p = new Db_page.page db page_id revision_id trust_coeff.n_revs_to_consider in 
+      let db_p = new Db_page.page db rev_to_analyze trust_coeff.n_revs_to_consider in 
       let i = ref (trust_coeff.n_revs_to_consider - 1) in 
       while (!i > 0) do begin 
         match db_p#get_rev with
@@ -1203,23 +1203,29 @@ class page
 	       
 	    (* Applies the reputation increment according to reputation cap *)
 	    let new_rep = 
-	      if (!rev1_nix || rev2_time -. rev1_time < trust_coeff.nix_interval) 
-		 && rep_inc > 0. then begin 
-		(* Short term or nixed: caps the reputation increment. 
-		   The reputation of rev2 is always used as a cap. 
-		   The reputation of r_c2 is used as a cap only if it is 
-		   more recent than the nixing interval. *)
-		let r_c2_cap_rep = 
-		  if rev2_time -. oldest_of_recent_revs_time < trust_coeff.nix_interval
-		  then r_c2_rep
-		  else rev2_rep
-		in
-		let cap_rep = min rev2_rep r_c2_cap_rep in
-		let capped_rep = min cap_rep (rev1_rep +. rep_inc) in 
-		max (max rev1_rep rev1_local) capped_rep    
-	      end else begin 
-		(* uncapped reputation increment *)
-		max rev1_local (rev1_rep +. rep_inc)      
+	      if rep_inc < 0. then begin
+		(* Negative increment.  Reputation cannot become negative *)
+		max 0. (rev1_rep +. rep_inc)
+	      end else begin
+		(* Positive increment. *)
+		if (!rev1_nix || rev2_time -. rev1_time < trust_coeff.nix_interval) 
+		  && rep_inc > 0. then begin 
+		    (* Short term or nixed: caps the reputation increment. 
+		       The reputation of rev2 is always used as a cap. 
+		       The reputation of r_c2 is used as a cap only if it is 
+		       more recent than the nixing interval. *)
+		    let r_c2_cap_rep = 
+		      if rev2_time -. oldest_of_recent_revs_time < trust_coeff.nix_interval
+		      then r_c2_rep
+		      else rev2_rep
+		    in
+		    let cap_rep = min rev2_rep r_c2_cap_rep in
+		    let capped_rep = min cap_rep (rev1_rep +. rep_inc) in 
+		    max (max rev1_rep rev1_local) capped_rep    
+		  end else begin 
+		    (* uncapped reputation increment *)
+		    max rev1_local (rev1_rep +. rep_inc)      
+		  end
 	      end
 	    in 
 	    self#set_rep rev1_uid new_rep;
@@ -1238,7 +1244,7 @@ class page
 	      rev1_id rev1_uid rev1_uname rev1_rep rev1#get_nix); 
 	    logger#log (Printf.sprintf "\n  rev2: %d uid2: %d uname2: %S r2_rep: %.3f w2_renorm: %.3f" 
 	      rev2_id rev2_uid rev2_uname rev2_rep renorm_w); 
-	    logger#log (Printf.sprintf "\n  d_c1_1: %.2f d_c2_1: %.2f d_c2_2: %.2f d12: %.2f rev_1_to_2_time: %.3f"
+	    logger#log (Printf.sprintf "\n  d_c1_1: %.2f d_c2_1: %.2f d_c2_2: %.2f d12: %.2f rev_1_to_2_time: %.3f\n"
 	      delta d_c2_1 d_c2_2 d12 ((rev2_time -. rev1_time) /. (3600. *. 24.))); 
 	  end (* rev1 is by non_anonymous *)
 	end done (* for rev1_idx *)

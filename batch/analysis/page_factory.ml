@@ -33,12 +33,6 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
-(**
-   Ian : Analysis for the poster:
-   1) Top k users by text contribution
-   2) Word usage histiogram
-*)
-
 
 (** page_factory.ml.  The wiki dumps are analyzed by a class of type page. 
     Page is a virtual class; the various classes that implement it provide
@@ -259,7 +253,7 @@ class page_factory
        ("-do_origin", Arg.Set do_origin, "While doing the evaluation of trust, also generates word origin information");
        ("-keep_rev_after", Arg.String self#set_keep_rev_after, "<date>: Keep Revisions after date (date is in Wiki format, e.g., 2006-11-22T14:25:19Z )");
        ("-revisions_to_text", Arg.Unit self#set_revs_to_text, "Writes each revision out as a separate file."); 
-       ("-rev_base_name", Arg.String self#set_base_name, "Prefix for writing out each revision as a separate file. Files will be named prefix/000/001/123/456/revision_id.txt ."); 
+       ("-rev_base_name", Arg.String self#set_base_name, "Prefix for writing out each revision as a separate file."); 
       ]		   
 
     (** Makes a page for the primary name space, where analysis must occur. *)
@@ -306,32 +300,10 @@ class page_factory
       | Revisions_to_text -> new Revs_to_files_analysis.page id title base_name xml_file
       | Do_nothing -> new page
 
-    (** Makes a page for secondary name spaces.  *)
-    method make_colon_page (id: int) (title: string) : page = 
-      match mode with 
-        Linear_analysis 
-      | Circular_analysis 
-      | Reputation_analysis 
-      | Contribution_analysis 
-      | Intertime_analysis
-      | Do_nothing
-      | AuthorText
-      | WordFequency
-	-> new page
 
-      | Prune_revisions -> new Prune_analysis.page id title xml_file n_rev_to_output keep_rev_after false true 
-
-      | Trust_and_origin 
-      | Trust_syntactregion_color 
-      | Trust_color -> new Prune_analysis.page id title xml_file n_rev_to_output keep_rev_after true !equate_anons
-
-      | Revcount_analysis -> begin 
-	  let n = page_seq_number in 
-	  page_seq_number <- n + 1; 
-	  new page
-	end 
-
-      | Revisions_to_text -> new Revs_to_files_analysis.page id title base_name xml_file
+    (** Makes a page for secondary name spaces.  
+        In this case, we don't do anything. *)
+    method make_colon_page (id: int) (title: string) : page = new page
 
 
     (* Opens the files, given a basename.  Returns a Vec.t of the names opened. *)
