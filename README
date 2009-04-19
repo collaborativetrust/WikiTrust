@@ -8,7 +8,7 @@ was first inserted.  When clicking on a word, the user is sent to the
 revision diff where the word was added.  When hovering with the mouse
 over a word, a pop-up displays the name of the word's author.
 
-The WikiTrustextension can be added to an existing wiki, or to a new
+The WikiTrust extension can be added to an existing wiki, or to a new
 one.  If the extension is added to a new wiki, it will start computing
 reputations and trusts as soon as someone makes an edit, or requests
 to view a trust-colored revision.  The reputation and trust
@@ -24,7 +24,7 @@ The main developers are:
 
 - Luca de Alfaro (lda@dealfaro.com)
 - Ian Pye (ipye@gmail.com)
-- Bo Adler (thumper@soe.ucsc.edu)
+- Bo Adler (thumper@alumni.caltech.edu)
 
 Other contributors:
 
