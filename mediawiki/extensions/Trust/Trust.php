@@ -39,11 +39,11 @@ switch ($wgWikiTrustVersion) {
   case "remote":
 	  require_once("$IP/extensions/Trust/includes/RemoteTrustAjax.php");
 	  break;
-  case "wmf":
+  case "mwf":
 	  require_once("$IP/extensions/Trust/includes/RemoteTrust.php");
 	  break;
   default:
-    die "Set \$wgWikiTrustVersion to one of 'local', 'remote', 'wmf'\n";
+    die("Set \$wgWikiTrustVersion to one of 'local', 'remote', 'mwf'\n");
 }
 
 ?>

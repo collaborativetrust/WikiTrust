@@ -57,42 +57,53 @@ class TextTrustImpl {
 		  "trust9",
 		  "trust10",
 		  );
-
-	/**
-	 Does a POST HTTP request
+	
+	/** 
+	 * Actually run the eval edit program.
+	 * Returns -1 on error, the process id of the launched eval process 
+	 otherwise.
 	*/
-	static function file_post_contents($url,$headers=false) {
-    $url = parse_url($url);
+	private static function runEvalEdit($eval_type = self::TRUST_EVAL_EDIT, $rev_id = -1, $page_id = -1, $voter_id = -1){
 		
-    if (!isset($url['port'])) {
-      if ($url['scheme'] == 'http') { $url['port']=80; }
-      elseif ($url['scheme'] == 'https') { $url['port']=443; }
-    }
-    $url['query']=isset($url['query'])?$url['query']:'';
+		global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgTrustCmd, $wgTrustLog, $wgTrustDebugLog, $wgRepSpeed, $wgDBprefix, $wgThrift_host, $wgThrift_port, $wgThrift_uri, $wgThrift_protocol;
 		
-    $url['protocol']=$url['scheme'].'://';
-    $eol="\r\n";
+		$process = -1;
+		$command = "";
+		// Get the db.
+		$dbr =& wfGetDB( DB_SLAVE );
 		
-    $headers =  "POST "
-			.$url['protocol'].$url['host'].$url['path']." HTTP/1.0".$eol.
-			"Host: ".$url['host'].$eol.
-			"Referer: ".$url['protocol'].$url['host'].$url['path'].$eol.
-			"Content-Type: application/x-www-form-urlencoded".$eol.
-			"Content-Length: ".strlen($url['query']).$eol.
-			$eol.$url['query'];
-    $fp = fsockopen($url['host'], $url['port'], $errno, $errstr, 30);
-    if($fp) {
-      fputs($fp, $headers);
-      $result = '';
-      while(!feof($fp)) { $result .= fgets($fp, 128); }
-      fclose($fp);
-      if (!$headers) {
-        //removes headers
-        $pattern="/^.*\r\n\r\n/s";
-        $result=preg_replace($pattern,'',$result);
-      }
-      return $result;
-    }
+		// Do we use a DB prefix?
+		$prefix = ($wgDBprefix)? "-db_prefix " . $dbr->strencode($wgDBprefix): "";
+		
+		switch ($eval_type) {
+		case self::TRUST_EVAL_EDIT:
+			$command = escapeshellcmd("$wgTrustCmd -rep_speed $wgRepSpeed -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname -thrift_host $wgThrift_host -thrift_port $wgThrift_port -thrift_uri $wgThrift_uri -thrift_protocol $wgThrift_protocol $prefix") . " &";
+			break;
+		case self::TRUST_EVAL_VOTE:
+			if ($rev_id == -1 || $page_id == -1 || $voter_id == -1)
+				return -1;
+			$command = escapeshellcmd("$wgTrustCmd -eval_vote -rev_id " . $dbr->strencode($rev_id) . " -voter_id " . $dbr->strencode($voter_id) . " -page_id " . $dbr->strencode($page_id) . " -rep_speed $wgRepSpeed -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname -thrift_host $wgThrift_host -thrift_port $wgThrift_port -thrift_uri $wgThrift_uri -thrift_protocol $wgThrift_protocol $prefix") . " &";
+			break;
+		case self::TRUST_EVAL_MISSING:
+			$command = escapeshellcmd("$wgTrustCmd -rev_id " . $dbr->strencode($rev_id) . " -rep_speed $wgRepSpeed -log_file $wgTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname -thrift_host $wgThrift_host -thrift_port $wgThrift_port -thrift_uri $wgThrift_uri -thrift_protocol $wgThrift_protocol $prefix") . " &";
+			break;  
+		}
+		
+		$descriptorspec = array(
+														0 => array("pipe", "r"),  
+														// stdin is a pipe that the child will read from
+														1 => array("file", 
+																			 escapeshellcmd($wgTrustDebugLog), "a")
+														,  // stdout is a pipe that the child will write to
+														2 => array("file", 
+																			 escapeshellcmd($wgTrustDebugLog), "a")
+														// stderr is a file to write to
+														);
+		$cwd = '/tmp';
+		$env = array();
+		$process = proc_open($command, $descriptorspec, $pipes, $cwd, $env);
+		
+		return $process; 
 	}
   
   /**
@@ -124,30 +135,33 @@ class TextTrustImpl {
 				}
       }
       $dbr->freeResult( $res ); 
-      
-      $ctx = stream_context_create(
-																	 array('http' => array(
-																												 'timeout' => 
-																												 self::TRUST_TIMEOUT
-																												 )
-																				 )
-																	 );
-      
-      $vote_str = ("Voting at " 
-									 . $wgWikiTrustContentServerURL 
-									 . "vote=1&rev=$rev_id&page=$page_id&user=$user_id"
-									 . "&page_title=$page_title&time=" . wfTimestampNow());
-      $colored_text = file_get_contents($wgWikiTrustContentServerURL 
-																				. "vote=1&rev=".urlencode($rev_id)
-																				."&page=".urlencode($page_id)
-																				."&user=".urlencode($user_id)
-																				."&page_title="
-																				.urlencode($page_title)
-																				."&time=" 
-																				. urlencode(wfTimestampNow()), 0
-																				, $ctx);
-      $response = new AjaxResponse($vote_str);	   
-    }
+
+			// Now see if this user has not already voted, 
+			// and count the vote if its the first time though.
+      $res = $dbr->select('wikitrust_vote', array('revision_id'), array('revision_id' => $rev_id, 'voter_id' => $user_id), array());
+      if ($res){
+				$row = $dbr->fetchRow($res);
+				if(!$row['revision_id']){
+	
+					$insert_vals = array("revision_id" => $rev_id,
+															 "page_id" => $page_id ,
+															 "voter_id" => $user_id,
+															 "voted_on" => wfTimestampNow()
+															 );
+					$dbw =& wfGetDB( DB_MASTER );
+					if ($dbw->insert( 'wikitrust_vote', $insert_vals)){
+						$dbw->commit();
+						$response = new AjaxResponse(implode  ( ",", $insert_vals));
+						self::runEvalEdit(self::TRUST_EVAL_VOTE, $rev_id, 
+															$page_id, $user_id); 
+						// Launch the evaluation of the vote.
+					}
+				} else {
+					$response = new AjaxResponse("Already Voted");
+				}
+				$dbr->freeResult( $res ); 	   
+			}
+		}
     return $response;
   }
   
@@ -215,42 +229,32 @@ class TextTrustImpl {
     
 		// Set this up so we can parse things later.
 		$options = ParserOptions::newFromUser($wgUser);
+		$colored_text = "";
 
-    $ctx = stream_context_create(
-																 array('http' => array(
-																											 'timeout' => 
-																											 self::TRUST_TIMEOUT
-																											 )
-																			 )
-																 );
-    
-    // Should we do doing this via HTTPS?
-    $colored_raw = (file_get_contents($wgWikiTrustContentServerURL . "rev=" . 
-																			urlencode($rev_id) . 
-																			"&page=".urlencode($page_id).
-																			"&page_title=".
-																			urlencode($page_title)."&time=".
-																			urlencode(wfTimestampNow())."&user="
-																			.urlencode($user_id)."", 0, $ctx));
+		$res = $dbr->select('wikitrust_colored_markup', 'revision_text',
+												array( 'revision_id' => $rev_id ), 
+												array());
+		if ($res){
+			$row = $dbr->fetchRow($res);
+			$colored_text = $row[0];
+		}
+		$dbr->freeResult( $res ); 
 
-    if ($colored_raw && $colored_raw != self::NOT_FOUND_TEXT_TOKEN
-        && $colored_raw != "bad"){
+		$res = $dbr->select('wikitrust_global', 'median',
+												array(), 
+												array());
+		if ($res){
+			$row = $dbr->fetchRow($res);
+			self::$median = $row[0];
+			if ($row[0] == 0){
+				self::$median = self::TRUST_DEFAULT_MEDIAN;
+			}
+		}
+		$dbr->freeResult( $res ); 
 
-      // Inflate. Pick off the first 10 bytes for python-php conversion.
-      $colored_raw = gzinflate(substr($colored_raw, 10));
-      
-      // Pick off the median value first.
-      $colored_data = explode(",", $colored_raw, 2);
-      $colored_text = $colored_data[1];
-      if (preg_match("/^[+-]?(([0-9]+)|([0-9]*\.[0-9]+|[0-9]+\.[0-9]*)|
-			    (([0-9]+|([0-9]*\.[0-9]+|[0-9]+\.[0-9]*))[eE][+-]?[0-9]+))$/", $colored_data[0])){
-				self::$median = $colored_data[0];
-				if ($colored_data[0] == 0){
-					self::$median = self::TRUST_DEFAULT_MEDIAN;
-				}
-      }
-
-      // First, make sure that there are not any instances of our tokens in the colored_text
+    if ($colored_text){
+      // First, make sure that there are not any instances of our tokens in 
+			// the colored_text
       $colored_text = str_replace(self::TRUST_OPEN_TOKEN, "", $colored_text);
       $colored_text = str_replace(self::TRUST_CLOSE_TOKEN, "", 
 																	$colored_text);
@@ -322,8 +326,6 @@ class TextTrustImpl {
 																								 &$sectionanchor, 
 																								 &$flags, 
 																								 &$revision){
-
-		global $wgWikiTrustContentServerURL;
 		
     $userName = $user->getName();
     $page_id = $article->getTitle()->getArticleID();
@@ -332,18 +334,12 @@ class TextTrustImpl {
 		$user_id = $user->getID();
 		$parentId = $revision->getParentId();
 		
-		$colored_text = self::file_post_contents($wgWikiTrustContentServerURL 
-																						 . "edit=1&rev=".urlencode($rev_id)
-																						 ."&page=".urlencode($page_id)
-																						 ."&user=".urlencode($user_id)
-																						 ."&parentId".urlencode($parentId)
-																						 ."&text=".urlencode($text)
-																						 ."&page_title="
-																						 .urlencode($page_title)
-																						 ."&time=" 
-																						 . urlencode(wfTimestampNow()));
-		
-		return true;
+		if (self::runEvalEdit(self::TRUST_EVAL_EDIT, 
+													$rev_id, 
+													$page_id,
+													$user_id) >= 0)
+			return true;
+		return false;
 	}
 }
 
