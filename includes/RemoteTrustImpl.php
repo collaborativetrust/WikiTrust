@@ -175,6 +175,13 @@ class TextTrustImpl {
     return $output;
   }
 
+  static function handleFixSection($matches){
+		return "<span class=\"editsection\">[" .
+			$matches[1].
+			"Edit section: \">" .
+			"edit</a>]</span>";
+	}
+
 	/**
    Returns colored markup.
 	 
@@ -267,6 +274,7 @@ class TextTrustImpl {
       $text = $parsed->getText();
       
       $count = 0;
+      
       // Update the trust tags
       $text = preg_replace_callback("/\{\{#t:(\d+),(\d+),(.*?)\}\}/",
 																		"TextTrustImpl::handleParserRe",
@@ -283,6 +291,15 @@ class TextTrustImpl {
       $text = preg_replace('/<\/p>/', "</span></p>", $text, -1, $count);
       $text = preg_replace('/<p><\/span>/', "<p>", $text, -1, $count);
       $text = preg_replace('/<li><\/span>/', "<li>", $text, -1, $count);
+
+			// Fix edit section links
+      $text = preg_replace_callback("/<span class=\"editsection\">\[(.*?)Edit section: <\/span>(.*?)\">edit<\/a>\]<\/span>/",
+																		"TextTrustImpl::handleFixSection",
+																		$text,
+																		-1,
+																		$count
+																		);
+
 			$text = '<script type="text/javascript" src="'
 				.$wgScriptPath
 				.'/extensions/Trust/js/wz_tooltip.js"></script>' . $text;
