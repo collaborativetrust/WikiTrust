@@ -42,7 +42,7 @@ let max_concurrent_procs = 10
 let sleep_time_sec = 1
 let custom_line_format = [] @ command_line_format
 
-let _ = Arg.parse custom_line_format noop "Usage: dispatcher";;
+let _ = Arg.parse custom_line_format noop "Usage: downloadwp [options]";;
 
 
 (* Prepares the database connection information *)

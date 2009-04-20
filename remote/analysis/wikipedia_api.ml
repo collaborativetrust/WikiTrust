@@ -103,15 +103,15 @@ let get_xml_child (node: Xml.xml) (tag: string) : Xml.xml option =
   in find_first l;;
 
 
-(** [get_xml_heir node tag_list] returns the (leftmost) node reachable from
+(** [get_xml_hier node tag_list] returns the (leftmost) node reachable from
     [node] by [tag_list], if there is one, and None otherwise. *)
-let rec get_xml_heir (node: Xml.xml) (tag_list: string list) : Xml.xml option =
+let rec get_xml_hier (node: Xml.xml) (tag_list: string list) : Xml.xml option =
   match tag_list with
     [] -> Some node
   | t :: tl -> begin
       match get_xml_child node t with
 	None -> None
-      | Some n -> get_xml_heir n tl
+      | Some n -> get_xml_hier n tl
     end;;
 
 
@@ -199,16 +199,21 @@ let fetch_page_and_revs_after (page_title : string) (rev_start_id : string)
   logger#log (Printf.sprintf "getting url: %s\n" url);
   let res = get_url url in
   let api = Xml.parse_string res in
-  match get_xml_heir api ["query"; "pages"; "page"] with
+  match get_xml_hier api ["query"; "pages"; "page"] with
     None -> (None, [], None)
   | Some page -> begin
-      let (page_info, rev_info) = process_page page in
-      match get_xml_child api "query-continue" with
-	None -> (Some page_info, rev_info, None)
-      | Some rev_cont -> begin
-	  let next_rev_id = int_of_string (Xml.attrib rev_cont "rvstartid") in
-	  (Some page_info, rev_info, Some next_rev_id)
-	end
+      logger#log (Printf.sprintf "got page: %s\n" res);
+      try
+	let (page_info, rev_info) = process_page page in
+	match get_xml_hier api ["query-continue"; "revisions"] with
+	    None -> (Some page_info, rev_info, None)
+	  | Some rev_cont ->
+	      let next_rev_id = int_of_string (Xml.attrib rev_cont "rvstartid") in
+	      (Some page_info, rev_info, Some next_rev_id)
+      with Xml.No_attribute attr -> begin
+	logger#log (Printf.sprintf "error in page data; no attribute '%s'\n" attr);
+	(None, [], None)
+      end
     end;;
 
 
