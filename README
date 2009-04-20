@@ -69,43 +69,36 @@ eval_online_wiki from source.
 3) Next, you need to install the trust coloring extension in
    mediawiki.  You can install it in
    /var/lib/mediawiki/extensions/wikitrust
+   with
+   cp -r wikitrust /var/lib/mediawiki/extensions/wikitrust/Trust
+   Note that all of wikitrust needs to be in the directory 
+   extensions/Trust. 
 
 4) You should activate the extension by editing
    LocalSettings.php (part of the MediaWiki installation), adding the
    following lines: 
 
-   TODO(Luca): make $wgTrustCmd obsolete.
+$wgUseTidy = true;       // Enable Tidy
+$wgUseAjax = true;       // Enable Ajax (needed for voting)
+require_once( $IP . "/extensions/wikitrust/Trust/Trust.php" );
 
-----start of configuration lines----
-# Trust extension
-$wgUseTidy = true;
-$wgUseAjax = true;
- // If true, create an index on revision(rev_id, rev_timestamp)
-$wgCreateRevisionIndex = true;
-$wgShowVoteButton = true; // If true, the vote button is shown.
-$wgVoteText = "I believe this information is correct";
-$wgThankYouForVoting = "Thank you for your vote."; 
-$wgTrustCmd = "/var/lib/mediawiki/extensions/wikitrust/eval_online_wiki"; 
-$wgTrustLog = "/somedir/{$wgDBname}-trust.log";
-$wgTrustDebugLog = "/somedir/{$wgDBname}-trust-debug.log";
-$wgRepSpeed = 1.0;
-$wgTrustTabText = "check text";
-$wgTrustExplanation = '{| border="1" cellpadding="5" cellspacing="0" style="background:lightgreen; color:black"
-|-
-| The above text is colored according to how much it has been revised.  An orange background indicates new, unrevised, text;  white is for text that has been revised by many reputed authors.  If you click on a word, you will be redirected to the diff corresponding to the edit where the word was introduced.  If you hover over a word with the mouse pointer, a pop-up displays the name of the author of the word.
-|-
-| The text color and origin are computed by [http://wikitrust.soe.ucsc.edu/ WikiTrust]; if you notice problems, you can submit a bug report [http://code.google.com/p/wikitrust/issues here].
-|}';
-$wgNoTrustExplanation = '{| border="1" cellpadding="5" cellspacing="0" style="background:lightgreen; color:black"
-|-
-| There is no trust information available for this text yet.
-|}';
+   Edit Trust/Trust.php, and set the following variables: 
 
-require_once( $IP . "/extensions/wikitrust/TrustBase.php");
-require_once( $IP . "/extensions/wikitrust/Trust.php" );
-----end of configuration lines----
+     $wgWikiTrustVersion = "local"; 
+  
+   This needs to be one of local, remote, wmf.
+   Leave it as local, unless you know what you are doing.
 
-   Above, we are requesting that two logs be created: 
+     $wgWikiTrustGadget = "gadget-WikiTrust";
+
+   By default the trust tab is selected only by a user opting in.
+	 Set this to NULL to make the tab always availible.
+   
+     $wgWikiTrustShowVoteButton = true; 
+
+   If true, the vote option is enabled. 
+
+   We are requesting that two logs be created: 
 
      $wgTrustLog = "/somedir/{$wgDBname}-trust.log";
 
@@ -129,10 +122,10 @@ require_once( $IP . "/extensions/wikitrust/Trust.php" );
 
 5) You need to make the installation readable from the web server. 
 
-        $ chmod a+rX /var/lib/mediawiki/extensions/wikitrust/*.php
-        $ chmod a+rX /var/lib/mediawiki/extensions/wikitrust/*.inc
-        $ chmod -R a+rX /var/lib/mediawiki/extensions/wikitrust/css
-        $ chmod -R a+rX /var/lib/mediawiki/extensions/wikitrust/js
+        $ chmod a+rX /var/lib/mediawiki/extensions/wikitrust/Trust/*.php
+        $ chmod -R a+rX /var/lib/mediawiki/extensions/wikitrust/Trust/include
+        $ chmod -R a+rX /var/lib/mediawiki/extensions/wikitrust/Trust/css
+        $ chmod -R a+rX /var/lib/mediawiki/extensions/wikitrust/Trust/js
 
    Be careful not to give access to the web server to the other files,
    as there may be obscure security issues associated with, for

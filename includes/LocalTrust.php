@@ -73,7 +73,7 @@ class TextTrust {
     $wgHooks['LoadExtensionSchemaUpdates'][] = 'TextTrustUpdate::updateDB';
       
 # Is the user opting to use wikitrust?
-    if (!$wgUser->getOption( $wgWikiTrustGadget ) ) {
+    if ($wgWikiTrustGadget && !$wgUser->getOption( $wgWikiTrustGadget)){
 			return;
     }
  
