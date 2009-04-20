@@ -619,8 +619,9 @@ class db
     (** [write_user_id uid user_name] writes that the user with id [uid] 
 	has name [user_name]. *) 
     method write_user_id (uid: int) (user_name: string) : unit = 
-      let s = Printf.sprintf "INSERT INTO %swikitrust_user (user_id, username) VALUES (%s, %s) ON DUPLICATE KEY UPDATE username = %s" db_prefix (ml2int uid) (ml2str user_name) (ml2str user_name) in
-      ignore (self#db_exec wikitrust_dbh s)
+      if uid <> 0 then
+	let s = Printf.sprintf "INSERT INTO %swikitrust_user (user_id, username) VALUES (%s, %s) ON DUPLICATE KEY UPDATE username = %s" db_prefix (ml2int uid) (ml2str user_name) (ml2str user_name) in
+	ignore (self#db_exec wikitrust_dbh s)
 
 
     (* ================================================================ *)
