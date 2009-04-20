@@ -215,7 +215,7 @@ Follow these instructions in place of step 2) above.
           godi-ocaml-mysql
 	  godi-sexplib
 	  godi-type-conv
-	  godi-zip	  
+	  godi-zip
 
    2a2) If you do not wish to use godi, you can get the above packages
         either from their source, or from the linux distribution you

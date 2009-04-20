@@ -68,6 +68,7 @@ open Online_types
 (* evry batch corresponds to 50 revisions, so this will do 1000 at most. *)
 let max_batches_to_do = 20
 let max_concurrent_procs = 10
+let sleep_time_sec = 1
 let custom_line_format = [] @ command_line_format
 
 let _ = Arg.parse custom_line_format noop "Usage: dispatcher";;
@@ -120,6 +121,7 @@ let check_subprocess_termination (page_id: int) (process_id: int) =
     | (_, Unix.WSIGNALED s) 
     | (_, Unix.WSTOPPED s) -> Hashtbl.remove working_children page_id
   end
+in
 
 (**
    [evaluate_revision page_id rev_id child_db n_processed_events]
@@ -136,7 +138,7 @@ let rec evaluate_revision (page_id: int) (rev_id: int) (child_db : Online_db.db)
       logger#log (Printf.sprintf "Evaluating revision %d of page %d\n" 
 		    rev_id page_id);
       let page = new Online_page.page child_db logger 
-	page_id rev_id trust_coeff !times_to_retry_trans in
+	page_id rev_id None trust_coeff !times_to_retry_trans in
       if page#eval then begin 
 	logger#log (Printf.sprintf "Done revision %d of page %d\n" 
 	  rev_id page_id);
@@ -154,14 +156,14 @@ let rec evaluate_revision (page_id: int) (rev_id: int) (child_db : Online_db.db)
 	  end
 	| None -> ()
       end       
-    with Online_page.Missing_trust (page_id', rev_id') -> 
+    with Online_page.Missing_trust (page_id', r') -> 
       begin
 	(* We need to evaluate page_id', rev_id' first *)
 	(* This if is a basic sanity check only. It should always be true *)
-	if rev_id' <> rev_id then 
+	if r'#get_id <> rev_id then 
 	  begin 
-	    logger#log (Printf.sprintf "Missing trust info: we need first to evaluate revision %d of page %d\n" rev_id' page_id');
-	    evaluate_revision page_id' rev_id' child_db (n_processed_events + 1);
+	    logger#log (Printf.sprintf "Missing trust info: we need first to evaluate revision %d of page %d\n" r'#get_id page_id');
+	    evaluate_revision page_id' r'#get_id child_db (n_processed_events + 1);
 	    evaluate_revision page_id rev_id child_db (n_processed_events + 2)
 	  end (* rev_id' <> rev_id *)
       end (* with: Was missing trust of a previous revision *)
@@ -175,7 +177,7 @@ in
 let evaluate_vote (page_id: int) (revision_id: int) (voter_id: int) (child_db : Online_db.db) = 
   logger#log (Printf.sprintf "Evaluating vote by %d on revision %d of page %d\n" 
     voter_id revision_id page_id); 
-  let page = new Online_page.page child_db logger page_id revision_id trust_coeff 
+  let page = new Online_page.page child_db logger page_id revision_id None trust_coeff 
     !times_to_retry_trans in 
     if page#vote voter_id then 
       logger#log (Printf.sprintf "User %d voted for revision %d of page %d.\n" 
@@ -193,7 +195,8 @@ let process_revs (page_id: int) (page_title : string)
     (requests : revision_processing_request_t list) =
   
   (* Each child has its own database. *)
-  let child_db = new Online_db.db !db_prefix mediawiki_db None !dump_db_calls in
+  (* TODO: need to fix paths for child_db *)
+  let child_db = new Online_db.db !db_prefix mediawiki_db None None None None !dump_db_calls in
   (* This recursive inner function actually does the processing *)
   let rec do_processing (req : revision_processing_request_t) = 
     match req.req_request_type with
@@ -202,35 +205,35 @@ let process_revs (page_id: int) (page_title : string)
 	  logger#log (Printf.sprintf "Working on coloring page %S\n" page_title);
 	  (* Fetches all new revisions. *)
 	  let last_rev_id = ref (
-	    try child_db#get_latest_present_rev_id page_id 
+	    try child_db#get_latest_col_rev_id page_id 
 	    with Online_db.DB_Not_Found -> 0)
 	  in
 	  let n_batches = ref 0 in
 	  let do_more = ref true in
 	  let new_rev_id_l = ref [] in
-	  while do_more do begin
+	  while !do_more do begin
 	    let (rev_id_l, next_rev') = Wikipedia_api.get_revs_from_api 
-	      page_id page_title !last_rev_id child_db in
+	      page_title !last_rev_id child_db logger 0 in
 	    new_rev_id_l := !new_rev_id_l @ rev_id_l;
 	    n_batches := !n_batches + 1;
 	    match next_rev' with
 	      None -> do_more := false
 	    | Some i -> begin
-		do_more := (n_batches < max_batches_to_do);
+		do_more := (!n_batches < max_batches_to_do);
 		last_rev_id := i
 	      end
 	  end done;
 	  (* Evaluate the revisions. *)
 	  let f rev = evaluate_revision page_id rev child_db 0 in
-	  List.iter f revs_to_color;
+	  List.iter f !new_rev_id_l;
 	  if !synch_log then flush Pervasives.stdout;
-	with wikipedia_api.API_error -> ()
+	with Wikipedia_api.API_error -> ()
       end
     | Vote -> begin
 	logger#log (Printf.sprintf "Working on vote for revision %d of page %S\n" 
 	  req.req_revision_id page_title);
 	evaluate_vote page_id req.req_revision_id req.req_requesting_user_id child_db;
-	child_db#mark_rev_as_processed req.req_revision_id
+	child_db#mark_vote_as_processed req.req_revision_id req.req_requesting_user_id
       end
   in
   (* Process each revision in turn. *)
@@ -270,7 +273,9 @@ let dispatch_page (rev_pages : revision_processing_request_t list) =
 	  Not_found -> [] in
 	Hashtbl.replace new_pages req.req_page_id (req :: current_revs)
     ) else (
-      db#mark_rev_as_unprocessed req.req_revision_id
+      (* TODO: need to update this to new api
+	 db#mark_rev_as_unprocessed req.req_revision_id
+      *)
     )
   in 
     (* 
@@ -313,9 +318,11 @@ let main_loop () =
     if (Hashtbl.length working_children) >= max_concurrent_procs then (
       Hashtbl.iter check_subprocess_termination working_children
     ) else (
+      (* TODO: update to new API
       let revs_to_process = db#fetch_next_revisions_to_color 
 	(max (max_concurrent_procs - Hashtbl.length working_children) 0) in
 	dispatch_page revs_to_process
+      *)
     );
     Unix.sleep sleep_time_sec;
     if !synch_log then flush Pervasives.stdout;

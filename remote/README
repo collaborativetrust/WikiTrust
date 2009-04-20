@@ -70,7 +70,15 @@ You should see the text "bad".
 Now, you need to install these ocaml packages:
 netsys,netclient,camlzip
 
+If you are using godi for Ocaml package management:
+	godi-zip
+	godi-ocamlnet
+	godi-xml-light
+
+Otherwise, Ubuntu users can do the following:
+
 apt-get install libzip-ocaml-dev
+apt-get install libxml-light-ocaml-dev
 
 For netsys and netclient however, it is needed to install from source
 (this one source tarball does both packages):
@@ -82,6 +90,9 @@ cd ocamlnet-2.2.9/
 make all
 make opt
 make install
+
+
+
 
 Now, try compiling the ocaml files.
 

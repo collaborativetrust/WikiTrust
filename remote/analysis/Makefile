@@ -1,4 +1,4 @@
-# Copyright (c) 2007-2008 The Regents of the University of California
+# Copyright (c) 2007-2009 The Regents of the University of California
 # All rights reserved.
 #
 # Authors: Luca de Alfaro, B. Thomas Adler, Ian Pye
@@ -81,17 +81,21 @@ OUR_ONLINE_OBJS = tmpfile.cmo wikipedia_api.cmo \
 
 OUR_OPT_ONLINE_OBJS = tmpfile.cmx wikipedia_api.cmx \
 
+downloadwp: $(OUR_ONLINE_OBJS)
+	$(OCAMLC) -linkpkg -o downloadwp $(OCAML_CFLAGS) $(OUR_LIBS) $(OUR_ONLINE_OBJS) downloadwp.ml 
+
+downloadwpopt: $(OUR_OPT_ONLINE_OBJS)
+	$(OCAMLOPT) -linkpkg -o downloadwp $(OCAMLOPT_FLAGS) $(OUR_LIBS_OPT) $(OUR_OPT_ONLINE_OBJS) downloadwp.ml
+
 dispatcher: $(OUR_ONLINE_OBJS) 	
 	$(OCAMLC) -linkpkg -o dispatcher $(OCAML_CFLAGS) $(OUR_LIBS) $(OUR_ONLINE_OBJS) server_coloring_dispatcher.ml 
 
 dispatcheropt: $(OUR_OPT_ONLINE_OBJS)
 	$(OCAMLOPT) -linkpkg -o dispatcher $(OCAMLOPT_FLAGS) $(OUR_LIBS_OPT) $(OUR_OPT_ONLINE_OBJS) server_coloring_dispatcher.ml
 
-all:
-	make dispatcher
+all: downloadwp dispatcher
 
-allopt:
-	make dispatcheropt
+allopt: downloadwpopt dispatcheropt
 
 universe: all allopt
 
