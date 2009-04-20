@@ -227,8 +227,12 @@ let get_user_id (user_name: string) (db: Online_db.db) : int =
     let safe_user_name = Netencoding.Url.encode user_name in
     let url = !Online_command_line.user_id_server ^ "?n=" ^ safe_user_name in
     let uids = ExtString.String.nsplit (get_url url) "`" in
-    let uid = List.nth uids 1 in
-    try int_of_string uid with int_of_string -> 0
+    let str_uid = List.nth uids 1 in
+    try begin
+      let int_uid = int_of_string str_uid in
+      db#write_user_id int_uid user_name;
+      int_uid;
+    end with int_of_string -> 0
   end;;
 
 
