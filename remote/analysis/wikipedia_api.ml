@@ -56,7 +56,7 @@ let default_timestamp = "19700201000000"
  *)
 let api_tz_re = Str.regexp "\\([0-9][0-9][0-9][0-9]\\)-\\([0-9][0-9]\\)-\\([0-9][0-9]\\)T\\([0-9][0-9]\\):\\([0-9][0-9]\\):\\([0-9][0-9]\\)Z"
 
-(** [api_ts2mw_ts timestamp] maps the Wikipedias api timestamp to our internal one. 
+(** [api_ts2mw_ts timestamp] maps the Wikipedias api timestamp to our internal one.
 *)
 let api_ts2mw_ts s =
   let ts = if Str.string_match api_tz_re s 0 then 
@@ -77,20 +77,22 @@ let get_url (url: string) : string =
   pipeline#run();
   match call#status with
     `Successful -> begin
-      let body = call#response_body#value in
-      match (call#response_header#content_type ()) with
-      | ("text/xml",_) -> begin
+	try
+	  let encoding = call#response_header#field "Content-encoding" in
 	  let tmp_file = Tmpfile.new_tmp_file_name tmp_prefix in
-	  Std.output_file ~filename:tmp_file ~text:body;
-	  let decoded_body = Filesystem_store.read_gzipped_file tmp_file in
-	  Tmpfile.remove_tmp_file tmp_file;
-	  match decoded_body with
-	      Some str -> str
-	    | None -> raise API_error
-	end
-      | _ -> body
-    end
-  | _ -> raise API_error
+	  Std.output_file ~filename:tmp_file ~text:call#response_body#value;
+	  match encoding with
+	      "gzip" -> begin
+		let decoded_body = Filesystem_store.read_gzipped_file tmp_file in
+		Tmpfile.remove_tmp_file tmp_file;
+		match decoded_body with
+		    Some str -> str
+		  | None -> raise API_error
+	      end
+	    | _ -> raise API_error
+	with Not_found -> call#response_body#value
+      end
+    | _ -> raise API_error
 ;;
 
 (** [get_xml_child node tag] returns the first child on [node] that has
@@ -188,7 +190,7 @@ let process_page (page : Xml.xml) : (wiki_page_t * wiki_revision_t list) =
      there are no more revisions.
    See http://en.wikipedia.org/w/api.php for more details.
 *)
-let fetch_page_and_revs_after (page_title : string) (rev_start_id : string) 
+let fetch_page_and_revs_after_xml (page_title : string) (rev_start_id : string) 
     (logger : Online_log.logger) 
     : (wiki_page_t option * wiki_revision_t list * int option) =
   let url = !Online_command_line.target_wikimedia 
@@ -215,6 +217,12 @@ let fetch_page_and_revs_after (page_title : string) (rev_start_id : string)
 	(None, [], None)
       end
     end;;
+
+let fetch_page_and_revs_after (page_title : string) (rev_start_id : string) 
+    (logger : Online_log.logger) 
+    : (wiki_page_t option * wiki_revision_t list * int option) =
+  fetch_page_and_revs_after_xml page_title rev_start_id logger
+  ;;
 
 
 (** [get_user_id user_name db]   
