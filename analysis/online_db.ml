@@ -659,15 +659,14 @@ class db
     (** This method writes a revision to the database. 
 	It is only useful for the remote use of WikiTrust. *) 
     method write_revision (rev : wiki_revision_t) = begin
-      match rev_base_path with
-	None -> begin
+      (match rev_base_path with
+	None ->
 	  let s = Printf.sprintf "INSERT INTO %stext (old_id, old_text, old_flags) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE old_flags = %s" db_prefix (ml2int rev.revision_id) (ml2str rev.revision_content) (ml2str "utf8") (ml2str "utf8") in
 	  ignore (self#db_exec mediawiki_dbh s)
-	end
-      | Some b -> begin
+      | Some b ->
 	  Filesystem_store.write_revision b 
-	    rev.revision_page rev.revision_id rev.revision_content
-	end;
+	    rev.revision_page rev.revision_id rev.revision_content;
+      );
       (* And then the revision metadata. *)
       let s = Printf.sprintf "INSERT INTO %srevision (rev_id, rev_page, rev_text_id, rev_comment, rev_user, rev_user_text, rev_timestamp, rev_minor_edit, rev_deleted, rev_len, rev_parent_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE rev_len = %s" 
 	db_prefix 
