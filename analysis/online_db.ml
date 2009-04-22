@@ -402,11 +402,6 @@ class db
 	None -> true
       | Some _ -> false
 
-    (** [read_revision page_id rev_id] reads a revision by id, returning the row *)
-    method read_revision (rev_id: int) : string option array option = 
-      let s = Printf.sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM %srevision WHERE rev_id = %s" db_prefix (ml2int rev_id) in
-      fetch (self#db_exec mediawiki_dbh s)
-
     (** [read_wikitrust_revision rev_id] reads a revision from the 
 	wikitrust_revision table. *)
     method read_wikitrust_revision (revision_id: int) : (revision_t * qual_info_t) = 

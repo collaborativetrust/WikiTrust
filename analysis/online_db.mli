@@ -205,10 +205,6 @@ class db :
 	colored for trust. *)
     method revision_needs_coloring : int -> bool
 
-
-    (** [read_revision rev_id] reads a revision by id, returning the row *)
-    method read_revision : int -> string option array option 
-
     (** [read_wikitrust_revision rev_id] reads a revision from the 
 	wikitrust_revision table. *)
     method read_wikitrust_revision : int -> (revision_t * qual_info_t)

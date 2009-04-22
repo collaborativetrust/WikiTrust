@@ -275,28 +275,6 @@ let make_revision_from_cursor row db: revision =
     (set_is_minor (not_null int2ml row.(6))) (* is_minor *)
     (not_null str2ml row.(7)) (* comment *)
 
-(** Reads a revision from the main database given its revision id *)
-let read_revision (db: Online_db.db) (id: int) : revision option = 
-  let set_is_minor ism = match ism with
-    | 0 -> false
-    | 1 -> true
-    | _ -> assert false in
-  begin 
-    match db#read_revision id with 
-      None -> None 
-    | Some row -> 
-	Some (new revision db 
-	  (not_null int2ml row.(0)) (* rev id *)
-	  (not_null int2ml row.(1)) (* page id *)        
-	  (not_null int2ml row.(2)) (* text id *)
-	  (not_null str2ml row.(3)) (* timestamp *)
-	  (not_null int2ml row.(4)) (* user id *)
-	  (not_null str2ml row.(5)) (* user name *)
-	  (set_is_minor (not_null int2ml row.(6))) (* is_minor *)
-	  (not_null str2ml row.(7)) (* comment *)
-	)
-  end
-
 (** Reads a revision from the wikitrust_revision table given its 
     revision id.  This reads also the quality data. *)
 let read_wikitrust_revision (db: Online_db.db) (id: int) : revision = 
