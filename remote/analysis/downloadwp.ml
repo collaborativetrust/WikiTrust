@@ -61,7 +61,7 @@ let db = new Online_db.db !db_prefix mediawiki_db None
 let logger = new Online_log.logger !log_name !synch_log in
 
 
-let page_titles = [ "Absinthe" ] in
+let page_titles = [ "Olwen" ] in
 
 let rec download_page title last_rev =
   let next_rev = Wikipedia_api.get_revs_from_api title last_rev db logger 0 in 
