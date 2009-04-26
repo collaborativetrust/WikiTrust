@@ -164,11 +164,11 @@ class revision
 	!online_logger#log (Printf.sprintf "Warning: reconstructed trust for revision %d\n" rev_id);
       end;
       if origin_len <> text_len then begin
-	origin <- Array.create text_len 0;
+	origin <- Array.create text_len rev_id;
 	!online_logger#log (Printf.sprintf "Warning: reconstructed origin for revision %d\n" rev_id);
       end;
       if author_len <> text_len then begin
-	author <- Array.create text_len "";
+	author <- Array.create text_len username;
 	!online_logger#log (Printf.sprintf "Warning: reconstructed authors for revision %d\n" rev_id);
       end
 
