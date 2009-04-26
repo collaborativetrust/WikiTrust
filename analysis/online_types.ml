@@ -215,6 +215,11 @@ let page_info_default = {
 (* Timestamp in the DB *)
 type timestamp_t = int * int * int * int * int * int;;
 
+(* Logfile *)
+let online_logger = ref (new Online_log.logger stdout true);;
+
+(* Things for the WMF implementation *)
+
 type request_type_t = Vote | Coloring
 
 (* A request for processing a revision *)

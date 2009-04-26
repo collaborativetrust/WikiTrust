@@ -203,7 +203,7 @@ class db
 
     (** rollback a transaction. *)
     method rollback_transaction (cdb : current_db_t) : unit =
-      Printf.printf "ROLLBACK\n";
+      !online_logger#log "ROLLBACK\n";
       begin 
 	match cdb with
 	| MediaWiki -> ignore (self#db_exec mediawiki_dbh "ROLLBACK")

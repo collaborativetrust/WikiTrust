@@ -33,8 +33,9 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
-open Mysql
-open Online_command_line
+open Mysql;;
+open Online_command_line;;
+open Online_types;;
 
 (** MissingInformation is raised if any of 
     page_id, revision_id, or voter_uid is not specified. *)
@@ -61,7 +62,6 @@ according to trust, and it will update user reputations accordingly.
 Usage: eval_online_wiki";;
 
 let n_processed_events = ref 0;;
-let logger = new Online_log.logger !log_name !synch_log;;
 let trust_coeff = Online_types.get_default_coeff;;
 let f m n = !reputation_speed *. (Online_types.default_dynamic_rep_scaling n m) in 
 trust_coeff.Online_types.dynamic_rep_scaling <- f;;
@@ -104,12 +104,12 @@ let db = new Online_db.db !db_prefix mediawiki_db wikitrust_db_opt
 (* If requested, we erase all coloring, and we recompute it from scratch. *)
 if !delete_all then begin 
   db#delete_all true; 
-  logger#log "\n  Cleared the db."
+  !online_logger#log "\n  Cleared the db."
 end;
 
 (* Creates an event processor *)
 let processor = new Updater.updater 
-  db logger trust_coeff !times_to_retry_trans each_event_delay every_n_events_delay in
+  db trust_coeff !times_to_retry_trans each_event_delay every_n_events_delay in
 
 (* Processes the event, as requested. *)
 begin
@@ -139,5 +139,5 @@ end;
 db#close;
     
 (* Close the logger *)
-logger#close
+!online_logger#close
 

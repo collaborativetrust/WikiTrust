@@ -177,7 +177,7 @@ object (self)
 	end
       end else begin 
 	(* revs not empty *)
-	if Vec.length (votes) == 0 then begin 
+	if votes = Vec.empty then begin 
 	  (* revs not empty, votes empty *)
 	  let (event, more_events) = Vec.pop 0 revs in 
 	  revs <- more_events; 

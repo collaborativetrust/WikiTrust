@@ -146,7 +146,8 @@ class revision
 	sigs <- [| |];
 	seps <- s; 
 	sep_word_idx <- s_idx;
-	Printf.printf "Warning: pre-parsed text of revision %d not found, reconstructed.\n" rev_id
+	!online_logger#log 
+	  (Printf.sprintf "Warning: pre-parsed text of revision %d not found, reconstructed.\n" rev_id)
       end; 
       (* Checks that the text and trust, sigs information have the same length *)
       let sigs_len = Array.length sigs in 
@@ -156,19 +157,19 @@ class revision
       let text_len = Array.length words in 
       if sigs_len <> text_len then begin
 	sigs <- Array.create text_len Author_sig.empty_sigs;
-	Printf.printf "Warning: reconstructed sigs for revision %d\n" rev_id;
+	!online_logger#log (Printf.sprintf "Warning: reconstructed sigs for revision %d\n" rev_id);
       end;
       if trust_len <> text_len then begin
 	trust <- Array.create text_len 0.;
-	Printf.printf "Warning: reconstructed trust for revision %d\n" rev_id;
+	!online_logger#log (Printf.sprintf "Warning: reconstructed trust for revision %d\n" rev_id);
       end;
       if origin_len <> text_len then begin
 	origin <- Array.create text_len 0;
-	Printf.printf "Warning: reconstructed origin for revision %d\n" rev_id;
+	!online_logger#log (Printf.sprintf "Warning: reconstructed origin for revision %d\n" rev_id);
       end;
       if author_len <> text_len then begin
 	author <- Array.create text_len "";
-	Printf.printf "Warning: reconstructed authors for revision %d\n" rev_id;
+	!online_logger#log (Printf.sprintf "Warning: reconstructed authors for revision %d\n" rev_id);
       end
 
 

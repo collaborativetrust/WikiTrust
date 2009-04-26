@@ -33,9 +33,9 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
-open Printf
-open Mysql
-open Online_command_line
+open Mysql;;
+open Online_command_line;;
+open Online_types;;
 
 (** MissingInformation is raised if any of 
     page_id, revision_id, or voter_uid is not specified. *)
@@ -106,8 +106,6 @@ let vote_time = match !vote_time_opt with
     None -> raise MissingInformation
   | Some d -> d;;
 
-(* Opens the log file *)
-let logger = new Online_log.logger !log_name !synch_log;;
 (* Opens the db connections. *)
 let db = new Online_db.db !db_prefix mediawiki_db wikitrust_db_opt 
   !wt_db_rev_base_path !wt_db_sig_base_path !wt_db_colored_base_path 

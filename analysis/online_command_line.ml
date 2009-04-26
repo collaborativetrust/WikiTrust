@@ -35,6 +35,8 @@ POSSIBILITY OF SUCH DAMAGE.
 
 (* Basic command line options and functions for the online analysis *)
 
+open Online_types;;
+
 (** This is a timeout for how long we wait for database locks. 
     If we wait longer than this, then the db is too busy, and we quit all work. 
     Notice that this provides an auto-throttling mechanism: if there are too many
@@ -46,6 +48,9 @@ let n_revs_color_in_one_connection = 200
 
 (** Type on analysis to perform *)
 type eval_type_t = EVENT | VOTE
+
+let db_prefix = ref ""
+let set_db_prefix d = db_prefix := d
 
 (* Mediawiki DB *)
 let mw_db_user = ref "wikiuser"
@@ -84,13 +89,15 @@ let set_wt_db_sig_base_path s = wt_db_sig_base_path := Some s
 let wt_db_colored_base_path = ref None
 let set_wt_db_colored_base_path s = wt_db_colored_base_path := Some s
 
+(* Logging *)
+let synch_log = ref false
+let set_log_name d = begin
+  let f = open_out_gen [Open_wronly; Open_creat; Open_append; Open_text] 0o640 d in
+  online_logger := new Online_log.logger f !synch_log
+end
+
 (* Other paramiters *)
 let noop s = ()
-let db_prefix = ref ""
-let set_db_prefix d = db_prefix := d
-let log_name = ref "/dev/null"
-let set_log_name d = log_name := d
-let synch_log = ref false
 let delete_all = ref false
 let reputation_speed = ref 1.
 let set_reputation_speed f = reputation_speed := f
@@ -139,8 +146,8 @@ let command_line_format =
    ("-wt_db_sig_base_path", Arg.String set_wt_db_sig_base_path, "<string>: Filesystem base path for filesystem storage of signatures (default: revisions are stored in the db)");
    ("-wt_db_colored_base_path", Arg.String set_wt_db_colored_base_path, "<string>: Filesystem base path for filesystem storage of colored revisions (default: revisions are stored in the db)");
    ("-rev_id",  Arg.Int set_requested_rev_id, "<int>: (optional) revision ID that we want to ensure it is colored");
+   ("-sync_log", Arg.Set synch_log, ": Flush writes to the log immediately. This is very slow; use only for debugging.  This option must be used BEFORE the log_file option is used.");
    ("-log_file", Arg.String set_log_name, "<filename>: Logger output file (default: /dev/null)");
-   ("-sync_log", Arg.Set synch_log, ": Flush writes to the log immidiatly. This is very slow; use only for debugging.");
    ("-eval_vote", Arg.Unit set_vote, ": Just evaluate the given vote");
    ("-voter_id",  Arg.Int set_requested_voter_id, "<int>: (optional) voter ID that we want to evaluate the vote of");
    ("-page_id",  Arg.Int set_requested_page_id, "<int>: (optional) page ID that we want to evaluate the vote on");

@@ -55,8 +55,6 @@ exception Missing_work_revision
 class page :
   (** Database handle *)
   (* db *) Online_db.db ->
-  (** Logger handle *)
-  Online_log.logger ->
   (** page_id of the page to analyze *)
   (* page_id *) int ->
   (** revision id of the revision to analyze. All previous revisions should

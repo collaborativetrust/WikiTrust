@@ -34,15 +34,11 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
-(** [new logger file_name synch] creates an object of this class. 
+(** [new logger channel synch] creates an object of this class. 
     This class implements logging for the on-line implementation. 
-    The logging provides the same EditInc and TextInc lines that are 
-    provided by the batch implementation. 
-    Information about the revision quality can be found in the database. 
-    If [synch] is true, the logger synchs the file at every write; 
-    this is useful for debugging, but is a performance killer. *)
+    If [synch] is true, the logger synchs the file at every write. *)
 class logger : 
-  string -> 
+  out_channel -> 
   bool -> 
   object
 
