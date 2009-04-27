@@ -52,6 +52,7 @@ class page
   (n_text_judging: int)
   (n_edit_judging: int)
   (equate_anons: bool) (* if No, then anon users of different IP are considered different *)
+  (do_text: bool)
   = 
   let max_n_of_revs = 2 + (max n_text_judging n_edit_judging) in
   object (self)
@@ -426,13 +427,13 @@ class page
           if Revision.different_author equate_anons r r' then begin 
             revs <- Vec.append r' revs; 
             (* Evaluates the newest version *)
-            self#online_eval_newest_text; 
+            if do_text then self#online_eval_newest_text; 
             self#online_eval_newest_edit; 
             (* If the buffer is full, evaluates the oldest version and kicks it out *)
             if (Vec.length revs) > max_n_of_revs then begin 
               (* The parameter 0 is the index of what is considered to be the oldest. 
                  It is used, since in no_more_revisions it may be a larger number *)
-              self#online_eval_oldest_text;
+              if do_text then self#online_eval_oldest_text;
               self#online_eval_oldest_edit;
               revs <- Vec.remove 0 revs;
               (* increments the offset of the oldest version *)
@@ -452,11 +453,11 @@ class page
           (* Evaluates r' as new *)
           revs <- Vec.append r' revs; 
           (* Evaluates the newest version *)
-          self#online_eval_newest_text; 
+          if do_text then self#online_eval_newest_text; 
           self#online_eval_newest_edit; 
           (* and evaluates all of the oldest ones, emptying the buffer *)
           for i = 0 to (Vec.length revs) - 1 do begin 
-            self#online_eval_oldest_text;
+            if do_text then self#online_eval_oldest_text;
             self#online_eval_oldest_edit;
             revs <- Vec.remove 0 revs
           end done

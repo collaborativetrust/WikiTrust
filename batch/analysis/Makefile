@@ -71,7 +71,6 @@ OUR_EVALWIKI_OBJS = textbuf.cmo text.cmo prioq.cmo filesystem_store.cmo \
 	coda.cmo editlist.cmo chdiff.cmo compute_edlist.cmo timeconv.cmo \
 	eval_defs.cmo author_sig.cmo rephist.cmo revision.cmo prune_analysis.cmo \
 	linear_analysis.cmo circbuf_analysis.cmo reputation_analysis.cmo \
-	fast_rep_analysis.cmo \
 	compute_trust.cmo compute_robust_trust.cmo trust_analysis.cmo \
 	trust_local_color_analysis.cmo author_text_analysis.cmo \
 	contribution_analysis.cmo revcount_analysis.cmo intertime_analysis.cmo \
@@ -82,7 +81,6 @@ OUR_OPT_EVALWIKI_OBJS = textbuf.cmx text.cmx prioq.cmx filesystem_store.cmx \
 	coda.cmx editlist.cmx chdiff.cmx compute_edlist.cmx timeconv.cmx \
 	eval_defs.cmx author_sig.cmx revision.cmx rephist.cmx prune_analysis.cmx \
 	linear_analysis.cmx circbuf_analysis.cmx reputation_analysis.cmx \
-	fast_rep_analysis.cmx \
 	compute_trust.cmx compute_robust_trust.cmx trust_analysis.cmx \
 	trust_local_color_analysis.cmx author_text_analysis.cmx \
 	contribution_analysis.cmx revcount_analysis.cmx intertime_analysis.cmx \

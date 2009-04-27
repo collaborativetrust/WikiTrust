@@ -51,7 +51,6 @@ type analysis_t =
     Linear_analysis
   | Circular_analysis
   | Reputation_analysis
-  | Fast_rep_analysis
   | Contribution_analysis
   | Trust_color
   | Trust_syntactregion_color
@@ -130,6 +129,8 @@ class page_factory
 	 With this choice, text killed by a rep=9 user has its 
 	 trust halved. *)
     val mutable trust_coeff_kill_decrease = (log 2.0) /. 9.0
+      (* Whether to consider also text in reputation analysis *)
+    val do_text = ref false
       (* N. of revisions to evaluate for text life *)
     val mutable n_text_judging = 12
       (* N. of revisions to evaluate for edit life *)
@@ -170,7 +171,6 @@ class page_factory
         Linear_analysis -> Printf.fprintf stderr "linear\n"; flush stderr
       | Circular_analysis -> Printf.fprintf stderr "circular\n"; flush stderr
       | Reputation_analysis -> Printf.fprintf stderr "reputation\n"; flush stderr
-      | Fast_rep_analysis -> Printf.fprintf stderr "fast_reputation\n"; flush stderr
       | Contribution_analysis -> Printf.fprintf stderr "contrib\n"; flush stderr
       | Trust_color -> Printf.fprintf stderr "color\n"; flush stderr
       | Trust_syntactregion_color -> Printf.fprintf stderr "trustsyncolor\n"; flush stderr
@@ -187,7 +187,6 @@ class page_factory
     method set_linear () = mode <- Linear_analysis
     method set_circular () = mode <- Circular_analysis
     method set_reputation () = mode <- Reputation_analysis
-    method set_fast_rep () = mode <- Fast_rep_analysis
     method set_contribution () = mode <- Contribution_analysis
     method set_trust_color () = mode <- Trust_color
     method set_trust_local_color () = mode <- Trust_syntactregion_color
@@ -229,7 +228,6 @@ class page_factory
 
        ("-circular", Arg.Unit self#set_circular, "Uses the on-the-fly algo based on the circular buffer.");
        ("-compute_stats", Arg.Unit self#set_reputation, "Produces the reduced stats files used to compute author reputation."); 
-       ("-compute_fast_stats", Arg.Unit self#set_fast_rep, "Produces the reduced stats files used to compute author reputation, using only edit reputation to be faster.."); 
        ("-eval_contrib", Arg.Unit self#set_contribution, "Evaluates the contribution given by users of different reputation."); 
        ("-color_trust", Arg.Unit self#set_trust_color, "Outputs text colored by trust."); 
        ("-color_local_trust", Arg.Unit self#set_trust_local_color, "Colors according to the local trust."); 
@@ -249,6 +247,7 @@ class page_factory
        ("-bad_qual_thrs", Arg.Float self#set_bad_value, "<float>: edit quality threshold below which a revision is considered bad.");
        ("-n_text_judging", Arg.Int self#set_n_text_judging, "<int>: n. of revisions to consider for text life."); 
        ("-n_edit_judging", Arg.Int self#set_n_edit_judging, "<int>: n. of revisions to consider for edit life."); 
+       ("-do_text", Arg.Set do_text, "Uses also text longevity to compute reputation increments.");
        ("-n_rev_to_output", Arg.Int self#set_n_rev_to_output, "<int>: max n. of revisions to output per page."); 
        ("-equate_anons", Arg.Set equate_anons, "Equates all anonymous editors, regardless of IP address."); 
        ("-trace_words", Arg.Set trace_words, "Samples words at random, and traces their destiny.");
@@ -275,9 +274,7 @@ class page_factory
 	
 
       | Reputation_analysis -> new Reputation_analysis.page id title out_file eval_zip_error be_precise
-	  n_text_judging n_edit_judging !equate_anons
-      | Fast_rep_analysis -> new Fast_rep_analysis.page id title out_file eval_zip_error be_precise
-	  n_edit_judging !equate_anons
+	  n_text_judging n_edit_judging !equate_anons !do_text
       | Contribution_analysis -> new Contribution_analysis.page id title out_file rep_histories
 	  !equate_anons
       (* Trust_color does not also do the origin *)
@@ -325,8 +322,7 @@ class page_factory
       let names_l = ref Vec.empty in 
       begin 
 	match mode with 
-	  Linear_analysis | Circular_analysis 
-	| Reputation_analysis | Fast_rep_analysis -> begin 
+	  Linear_analysis | Circular_analysis | Reputation_analysis -> begin 
 	    out_file <- Fileinfo.open_info_out stats_name; 
 	    names_l := Vec.singleton stats_name
 	  end

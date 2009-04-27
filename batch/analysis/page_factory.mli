@@ -91,9 +91,6 @@ class page_factory :
 	  (not use edit list zipping), and whether we have to evaluate the error incurred while 
 	  zipping. *)
     method set_reputation : unit -> unit
-      (** As above, but fast reputation based only on edit distance. *)
-    method set_fast_rep : unit -> unit
-
       (** Counts how many revisions each page has. *)
     method set_revcount : unit -> unit
       (** Analysis of how much text was contributed by authors in each reputation range. 
