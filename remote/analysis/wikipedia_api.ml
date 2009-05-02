@@ -248,7 +248,7 @@ let fetch_page_and_revs_after_xml (page_title : string) (rev_start_id : string)
   logger#log (Printf.sprintf "getting url: %s\n" url);
   let res = get_url url in
   let api = Xml.parse_string res in
-  logger#log (Printf.sprintf "result: %s\n" res);
+  (* logger#log (Printf.sprintf "result: %s\n" res); *)
   XML api
 ;;
 
@@ -266,7 +266,7 @@ let fetch_page_and_revs_after_json (page_title : string) (rev_start_id : string)
   logger#log (Printf.sprintf "getting url: %s\n" url);
   let res = get_url url in
   let api = Json_io.json_of_string res in
-  logger#log (Printf.sprintf "result: %s\n" res);
+  (* logger#log (Printf.sprintf "result: %s\n" res); *)
   JSON api
 ;;
 
