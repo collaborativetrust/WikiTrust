@@ -259,7 +259,9 @@ let fetch_page_and_revs_after_json (page_title : string) (rev_start_id : string)
   let url = !Online_command_line.target_wikimedia 
     ^ "?action=query&prop=revisions|"
     ^ "info&format=json&inprop=&rvprop=ids|flags|timestamp|user|size|comment|"
-    ^ "content&rvstartid=" ^ rev_start_id ^ "&rvlimit=" ^ rev_lim
+    ^ "content&"
+    ^ "rvexpandtemplates=1&"
+    ^ "rvstartid=" ^ rev_start_id ^ "&rvlimit=" ^ rev_lim
     ^ "&rvdir=newer&titles=" ^ (Netencoding.Url.encode page_title) in
   logger#log (Printf.sprintf "getting url: %s\n" url);
   let res = get_url url in
