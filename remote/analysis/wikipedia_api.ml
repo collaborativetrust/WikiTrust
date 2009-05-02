@@ -36,6 +36,7 @@ POSSIBILITY OF SUCH DAMAGE.
 (* Using the wikipedia API, retrieves information about pages and revisions. *)
 
 open Online_types;;
+open Json_type;;
 
 exception API_error
 
@@ -66,6 +67,9 @@ let api_ts2mw_ts s =
   else default_timestamp in
   ts
 
+
+
+
 (** [get_url url] makes a get call to [url] and returns the result as a string. *)      
 let get_url (url: string) : string = 
   let call = new Http_client.get url in
@@ -95,88 +99,174 @@ let get_url (url: string) : string =
     | _ -> raise API_error
 ;;
 
-(** [get_xml_child node tag] returns the first child on [node] that has
+type result_tree =
+  | JSON of Json_type.t
+  | XML of Xml.xml
+
+let get_children (node: result_tree): (string * result_tree) list =
+  match node with
+    JSON jnode -> begin
+      let jsonify (k, v) = (k, JSON v) in
+      let jsonify2 v = ("", JSON v) in
+      match jnode with
+	  Object children -> List.map jsonify children
+	| Array children -> List.map jsonify2 children
+	| _ -> raise API_error
+    end
+  | XML xnode -> begin
+      let xmlify n = ((Xml.tag n), XML n) in
+      List.map xmlify (Xml.children xnode)
+    end
+;;
+
+(** [get_child node tag] returns the first child on [node] that has
     [tag], if there is one, or None if there is none. *)
-let get_xml_child (node: Xml.xml) (tag: string) : Xml.xml option = 
-  let l = Xml.children node in
+let get_child (node: result_tree) (tag: string) : result_tree option = 
+  let l = get_children node in
   let rec find_first = function
       [] -> None
-    | el :: rest -> if (Xml.tag el = tag) then Some el else find_first rest 
+    | (k, v) :: rest -> if (k = tag) then Some v else find_first rest 
   in find_first l;;
-
 
 (** [get_xml_hier node tag_list] returns the (leftmost) node reachable from
     [node] by [tag_list], if there is one, and None otherwise. *)
-let rec get_xml_hier (node: Xml.xml) (tag_list: string list) : Xml.xml option =
+let rec get_descendant (node: result_tree) (tag_list: string list) : result_tree option =
   match tag_list with
     [] -> Some node
   | t :: tl -> begin
-      match get_xml_child node t with
+      match get_child node t with
 	None -> None
-      | Some n -> get_xml_hier n tl
+      | Some n -> get_descendant n tl
     end;;
 
+let get_property (node: result_tree) (key: string) (defval: string option): string =
+  let default () : string =
+    match defval with
+	None -> raise API_error
+      | Some str -> str
+  in
+  match node with
+    | XML xnode -> begin
+	try
+	  (Xml.attrib xnode key)
+	with Xml.No_attribute e -> default ()
+      end
+    | JSON jnode -> begin
+	match jnode with
+	  | Object proplist ->
+	      let rec find_first = function
+		  [] -> default ()
+		| (k, v) :: rest -> begin
+		    if k = key then
+		      match v with
+			| Int i -> string_of_int i
+			| String s -> s
+			| _ -> raise API_error
+		    else find_first rest
+		  end
+	      in find_first proplist
+	  | _ -> raise API_error
+      end
+;;
 
-(** [get_xml_children node tag] returns the list of children of [node] 
-    that have [tag]. *)
-let get_xml_children (node: Xml.xml) (tag: string) : Xml.xml list = 
-  let f n = (tag == Xml.tag n) in
-  List.filter f (Xml.children node)
+let get_text (node: result_tree) : string =
+  match node with
+    | XML xnode -> begin
+	try
+	  let xmlstr = Xml.to_string (List.hd (Xml.children xnode)) in
+	    (Netencoding.Html.decode ~in_enc:`Enc_utf8 
+	       ~out_enc:`Enc_utf8 () xmlstr)
+	with Failure f -> ""
+      end
+    | JSON jnode -> (get_property node "*" None)
+;;
+
 
 
 (** [process_rev rev] takes as input a xml tag [rev], and returns 
-    a wiki_revision_t stucture. *)
-let process_rev (rev : Xml.xml) : wiki_revision_t =
+     wiki_revision_t stucture. *)
+let process_rev ((key, rev) : (string * result_tree)) : wiki_revision_t =
+  let revid = int_of_string (get_property rev "revid" None) in
+  let minor_attr = get_property rev "minor" (Some "") in
   let r = {
-    revision_id = int_of_string (Xml.attrib rev "revid");
+    revision_id = revid;
     revision_page = 0;
-    revision_text_id = int_of_string (Xml.attrib rev "revid");
-    revision_comment = (try (Xml.attrib rev "comment") 
-		   with Xml.No_attribute e -> "");
+    revision_text_id = revid;
+    revision_comment = get_property rev "comment" (Some "");
     revision_user = -1;
-    revision_user_text = (Xml.attrib rev "user");
-    revision_timestamp = api_ts2mw_ts (Xml.attrib rev "timestamp");
-    revision_minor_edit = (try ignore(Xml.attrib rev "minor"); true 
-		      with Xml.No_attribute e -> false);
+    revision_user_text = get_property rev "user" None;
+    revision_timestamp = api_ts2mw_ts (get_property rev "timestamp" None);
+    revision_minor_edit = if minor_attr = "" then false else raise API_error;	
     revision_deleted = false;
-    revision_len = (try int_of_string (Xml.attrib rev "size") with Xml.No_attribute e -> 0);
+    revision_len = int_of_string (get_property rev "size" (Some "0"));
     revision_parent_id = 0;
-    revision_content = try 
-      (Netencoding.Html.decode ~in_enc:`Enc_utf8 
-	 ~out_enc:`Enc_utf8 () 
-	 (Xml.to_string (List.hd (Xml.children rev))))
-    with Failure f -> "";
+    revision_content = get_text rev;
   } 
   in r
+;;
+
 
 
 (** [process_page page] takes as input an xml tag representing a page,
     and returns a pair consisting of a wiki_page_t structure, and a 
     list of corresponding wiki_revision_t. 
    *)
-let process_page (page : Xml.xml) : (wiki_page_t * wiki_revision_t list) =
+let process_page ((key, page): (string * result_tree)) : (wiki_page_t * wiki_revision_t list) =
+  let redirect_attr = get_property page "redirect" (Some "") in
   let w_page = {
-    page_id = int_of_string (Xml.attrib page "pageid");
-    page_namespace = (int_of_string (Xml.attrib page "ns"));
-    page_title = (Xml.attrib page "title"); 
+    page_id = int_of_string (get_property page "pageid" None);
+    page_namespace = int_of_string (get_property page "ns" None);
+    page_title = get_property page "title" None; 
     page_restrictions = "";
-    page_counter = int_of_string (Xml.attrib page "counter");
-    page_is_redirect = (try ignore(Xml.attrib page "redirect"); true 
-                        with Xml.No_attribute e -> false);
+    page_counter = int_of_string (get_property page "counter" None);
+    page_is_redirect = if redirect_attr = "" then false
+                       else true;
     page_is_new = false;
     (* For random page extraction.  The idea is just broken, of course. *) 
     page_random = (Random.float 1.0);
-    page_touched = api_ts2mw_ts (Xml.attrib page "touched"); 
-    page_latest = int_of_string (Xml.attrib page "lastrevid");
-    page_len = int_of_string (Xml.attrib page "length")
+    page_touched = api_ts2mw_ts (get_property page "touched" None); 
+    page_latest = int_of_string (get_property page "lastrevid" None);
+    page_len = int_of_string (get_property page "length" None)
   } in
-  let rev_container = get_xml_child page "revisions" in
+  let rev_container = get_child page "revisions" in
   match rev_container with
       None -> (w_page, [])
-    | Some rev_node -> 
-	let new_revs = Xml.map process_rev rev_node in
+    | Some rev_node ->
+	let revlist = get_children rev_node in
+	let new_revs = List.map process_rev revlist in
 	(w_page, new_revs)
   ;;
+
+let fetch_page_and_revs_after_xml (page_title : string) (rev_start_id : string) 
+    (logger : Online_log.logger) 
+    : result_tree =
+  let url = !Online_command_line.target_wikimedia 
+    ^ "?action=query&prop=revisions|"
+    ^ "info&format=xml&inprop=&rvprop=ids|flags|timestamp|user|size|comment|"
+    ^ "content&rvstartid=" ^ rev_start_id ^ "&rvlimit=" ^ rev_lim
+    ^ "&rvdir=newer&titles=" ^ (Netencoding.Url.encode page_title) in
+  logger#log (Printf.sprintf "getting url: %s\n" url);
+  let res = get_url url in
+  let api = Xml.parse_string res in
+  logger#log (Printf.sprintf "result: %s\n" res);
+  XML api
+;;
+
+
+let fetch_page_and_revs_after_json (page_title : string) (rev_start_id : string) 
+    (logger : Online_log.logger) 
+    : result_tree =
+  let url = !Online_command_line.target_wikimedia 
+    ^ "?action=query&prop=revisions|"
+    ^ "info&format=json&inprop=&rvprop=ids|flags|timestamp|user|size|comment|"
+    ^ "content&rvstartid=" ^ rev_start_id ^ "&rvlimit=" ^ rev_lim
+    ^ "&rvdir=newer&titles=" ^ (Netencoding.Url.encode page_title) in
+  logger#log (Printf.sprintf "getting url: %s\n" url);
+  let res = get_url url in
+  let api = Json_io.json_of_string res in
+  logger#log (Printf.sprintf "result: %s\n" res);
+  JSON api
+;;
 
 
 (**
@@ -190,39 +280,24 @@ let process_page (page : Xml.xml) : (wiki_page_t * wiki_revision_t list) =
      there are no more revisions.
    See http://en.wikipedia.org/w/api.php for more details.
 *)
-let fetch_page_and_revs_after_xml (page_title : string) (rev_start_id : string) 
-    (logger : Online_log.logger) 
-    : (wiki_page_t option * wiki_revision_t list * int option) =
-  let url = !Online_command_line.target_wikimedia 
-    ^ "?action=query&prop=revisions|"
-    ^ "info&format=xml&inprop=&rvprop=ids|flags|timestamp|user|size|comment|"
-    ^ "content&rvstartid=" ^ rev_start_id ^ "&rvlimit=" ^ rev_lim
-    ^ "&rvdir=newer&titles=" ^ (Netencoding.Url.encode page_title) in
-  logger#log (Printf.sprintf "getting url: %s\n" url);
-  let res = get_url url in
-  let api = Xml.parse_string res in
-  match get_xml_hier api ["query"; "pages"; "page"] with
-    None -> (None, [], None)
-  | Some page -> begin
-      logger#log (Printf.sprintf "got page: %s\n" res);
-      try
-	let (page_info, rev_info) = process_page page in
-	match get_xml_hier api ["query-continue"; "revisions"] with
-	    None -> (Some page_info, rev_info, None)
-	  | Some rev_cont ->
-	      let next_rev_id = int_of_string (Xml.attrib rev_cont "rvstartid") in
-	      (Some page_info, rev_info, Some next_rev_id)
-      with Xml.No_attribute attr -> begin
-	logger#log (Printf.sprintf "error in page data; no attribute '%s'\n" attr);
-	(None, [], None)
-      end
-    end;;
-
 let fetch_page_and_revs_after (page_title : string) (rev_start_id : string) 
     (logger : Online_log.logger) 
     : (wiki_page_t option * wiki_revision_t list * int option) =
-  fetch_page_and_revs_after_xml page_title rev_start_id logger
-  ;;
+  let api = fetch_page_and_revs_after_json page_title rev_start_id logger in
+  match get_descendant api ["query"; "pages"] with
+    None -> (None, [], None)
+  | Some pages -> begin
+      let pagelist = get_children pages in
+      let first = List.hd pagelist in
+      let (page_info, rev_info) = process_page first in
+      let nextrev = get_descendant api ["query-continue"; "revisions"] in
+      match nextrev with
+	  None -> (Some page_info, rev_info, None)
+	| Some rev_cont ->
+	    let next_rev_id = int_of_string (get_property rev_cont "rvstartid" None) in
+	    (Some page_info, rev_info, Some next_rev_id)
+    end
+;;
 
 
 (** [get_user_id user_name db]   
