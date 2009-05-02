@@ -228,6 +228,7 @@ class page_factory
 
        ("-circular", Arg.Unit self#set_circular, "Uses the on-the-fly algo based on the circular buffer.");
        ("-compute_stats", Arg.Unit self#set_reputation, "Produces the reduced stats files used to compute author reputation."); 
+       ("-do_text", Arg.Set do_text, "Uses also text longevity to compute reputation increments.");
        ("-eval_contrib", Arg.Unit self#set_contribution, "Evaluates the contribution given by users of different reputation."); 
        ("-color_trust", Arg.Unit self#set_trust_color, "Outputs text colored by trust."); 
        ("-color_local_trust", Arg.Unit self#set_trust_local_color, "Colors according to the local trust."); 
@@ -247,7 +248,6 @@ class page_factory
        ("-bad_qual_thrs", Arg.Float self#set_bad_value, "<float>: edit quality threshold below which a revision is considered bad.");
        ("-n_text_judging", Arg.Int self#set_n_text_judging, "<int>: n. of revisions to consider for text life."); 
        ("-n_edit_judging", Arg.Int self#set_n_edit_judging, "<int>: n. of revisions to consider for edit life."); 
-       ("-do_text", Arg.Set do_text, "Uses also text longevity to compute reputation increments.");
        ("-n_rev_to_output", Arg.Int self#set_n_rev_to_output, "<int>: max n. of revisions to output per page."); 
        ("-equate_anons", Arg.Set equate_anons, "Equates all anonymous editors, regardless of IP address."); 
        ("-trace_words", Arg.Set trace_words, "Samples words at random, and traces their destiny.");
