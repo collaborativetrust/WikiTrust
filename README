@@ -149,7 +149,7 @@ require_once( $IP . "/extensions/WikiTrust/Trust.php" );
 7) If there are already revisions in the wiki, you should first
    analyze their trust, via: 
 
-     $ ./eval_online_wiki -n_revs 1000000 -db_user <username> -db_pass <pwd> -db_name <db_name>
+     $ ./eval_online_wiki -n_events 1000000 -db_user <username> -db_pass <pwd> -db_name <db_name>
 
    The '1000000' means that eval_online_wiki will compute the trust of
    at most 1000000 revisions, then stop.  You can repeat the above
@@ -164,7 +164,7 @@ require_once( $IP . "/extensions/WikiTrust/Trust.php" );
    If you wish to redo the analysis from scratch, throwing away the
    results of previous analyses, you can use the option '-delete_all': 
 
-     $ ./eval_online_wiki -delete_all -n_revs 1000000 -db_user <username> -db_pass <pwd>  -db_name <db_name>
+     $ ./eval_online_wiki -delete_all -n_events 1000000 -db_user <username> -db_pass <pwd>  -db_name <db_name>
 
    Warning: the analysis can take a long time on very large wikis, so
    do not use the option '-delete_all' lightly! 
