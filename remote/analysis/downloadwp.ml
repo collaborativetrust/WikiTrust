@@ -62,7 +62,7 @@ let logger = new Online_log.logger !log_name !synch_log in
 
 
 let rec download_page title last_rev =
-  let next_rev = Wikipedia_api.get_revs_from_api title last_rev db logger 0 in 
+  let next_rev = Wikipedia_api.get_revs_from_api title last_rev db logger 50 in 
   let _ = Unix.sleep sleep_time_sec in
   match next_rev with
       Some next_id -> begin
