@@ -68,11 +68,9 @@ eval_online_wiki from source.
 
 3) Next, you need to install the trust coloring extension in
    mediawiki.  You can install it in
-   /var/lib/mediawiki/extensions/wikitrust
+   /var/lib/mediawiki/extensions/WikiTrust
    with
-   cp -r wikitrust /var/lib/mediawiki/extensions/wikitrust/Trust
-   Note that all of wikitrust needs to be in the directory 
-   extensions/Trust. 
+   cp -r wikitrust /var/lib/mediawiki/extensions/WikiTrust
 
 4) You should activate the extension by editing
    LocalSettings.php (part of the MediaWiki installation), adding the
@@ -80,7 +78,7 @@ eval_online_wiki from source.
 
 $wgUseTidy = true;       // Enable Tidy
 $wgUseAjax = true;       // Enable Ajax (needed for voting)
-require_once( $IP . "/extensions/wikitrust/Trust/Trust.php" );
+require_once( $IP . "/extensions/WikiTrust/Trust.php" );
 
    Edit Trust/Trust.php, and set the following variables: 
 
@@ -122,10 +120,10 @@ require_once( $IP . "/extensions/wikitrust/Trust/Trust.php" );
 
 5) You need to make the installation readable from the web server. 
 
-        $ chmod a+rX /var/lib/mediawiki/extensions/wikitrust/Trust/*.php
-        $ chmod -R a+rX /var/lib/mediawiki/extensions/wikitrust/Trust/include
-        $ chmod -R a+rX /var/lib/mediawiki/extensions/wikitrust/Trust/css
-        $ chmod -R a+rX /var/lib/mediawiki/extensions/wikitrust/Trust/js
+        $ chmod a+rX /var/lib/mediawiki/extensions/WikiTrust/*.php
+        $ chmod -R a+rX /var/lib/mediawiki/extensions/WikiTrust/include
+        $ chmod -R a+rX /var/lib/mediawiki/extensions/WikiTrust/css
+        $ chmod -R a+rX /var/lib/mediawiki/extensions/WikiTrust/js
 
    Be careful not to give access to the web server to the other files,
    as there may be obscure security issues associated with, for
