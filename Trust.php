@@ -34,13 +34,13 @@ $wgWikiApiURL = "http://en.wikipedia.org/w/api.php?";
 
 switch ($wgWikiTrustVersion) {
   case "local":
-	  require_once("$IP/extensions/Trust/includes/LocalTrust.php");
+	  require_once("$IP/extensions/WikiTrust/includes/LocalTrust.php");
 	  break;
   case "remote":
-	  require_once("$IP/extensions/Trust/includes/RemoteTrustAjax.php");
+	  require_once("$IP/extensions/WikiTrust/includes/RemoteTrustAjax.php");
 	  break;
   case "mwf":
-	  require_once("$IP/extensions/Trust/includes/RemoteTrust.php");
+	  require_once("$IP/extensions/WikiTrust/includes/RemoteTrust.php");
 	  break;
   default:
     die("Set \$wgWikiTrustVersion to one of 'local', 'remote', 'mwf'\n");
