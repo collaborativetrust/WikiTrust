@@ -50,7 +50,6 @@ let pipeline = new Http_client.pipeline
 let buf_len = 8192
 let requested_encoding_type = "gzip"
 let tmp_prefix = "wiki"
-let rev_lim = "50"
 let default_timestamp = "19700201000000"
 (* Regex to map from a mediawiki api timestamp to a mediawiki timestamp
    YYYY-MM-DDTHH:MM:SS
@@ -237,13 +236,16 @@ let process_page ((key, page): (string * result_tree)) : (wiki_page_t * wiki_rev
 	(w_page, new_revs)
   ;;
 
-let fetch_page_and_revs_after_xml (page_title : string) (rev_start_id : string) 
-    (logger : Online_log.logger) 
+let fetch_page_and_revs_after_xml (page_title : string) (rev_start_id : string)
+    (rev_lim: int) (logger : Online_log.logger) 
     : result_tree =
   let url = !Online_command_line.target_wikimedia 
     ^ "?action=query&prop=revisions|"
     ^ "info&format=xml&inprop=&rvprop=ids|flags|timestamp|user|size|comment|"
-    ^ "content&rvstartid=" ^ rev_start_id ^ "&rvlimit=" ^ rev_lim
+    ^ "content&"
+    ^ "rvexpandtemplates=1&"
+    ^ "rvstartid=" ^ rev_start_id
+    ^ "&rvlimit=" ^ (string_of_int rev_lim)
     ^ "&rvdir=newer&titles=" ^ (Netencoding.Url.encode page_title) in
   logger#log (Printf.sprintf "getting url: %s\n" url);
   let res = get_url url in
@@ -253,7 +255,8 @@ let fetch_page_and_revs_after_xml (page_title : string) (rev_start_id : string)
 ;;
 
 
-let fetch_page_and_revs_after_json (page_title : string) (rev_start_id : string) 
+let fetch_page_and_revs_after_json (page_title : string)
+    (rev_start_id : string) (rev_lim: int)
     (logger : Online_log.logger) 
     : result_tree =
   let url = !Online_command_line.target_wikimedia 
@@ -261,7 +264,8 @@ let fetch_page_and_revs_after_json (page_title : string) (rev_start_id : string)
     ^ "info&format=json&inprop=&rvprop=ids|flags|timestamp|user|size|comment|"
     ^ "content&"
     ^ "rvexpandtemplates=1&"
-    ^ "rvstartid=" ^ rev_start_id ^ "&rvlimit=" ^ rev_lim
+    ^ "rvstartid=" ^ rev_start_id
+    ^ "&rvlimit=" ^ (string_of_int rev_lim)
     ^ "&rvdir=newer&titles=" ^ (Netencoding.Url.encode page_title) in
   logger#log (Printf.sprintf "getting url: %s\n" url);
   let res = get_url url in
@@ -282,10 +286,10 @@ let fetch_page_and_revs_after_json (page_title : string) (rev_start_id : string)
      there are no more revisions.
    See http://en.wikipedia.org/w/api.php for more details.
 *)
-let fetch_page_and_revs_after (page_title : string) (rev_start_id : string) 
-    (logger : Online_log.logger) 
+let fetch_page_and_revs_after (page_title : string) (rev_start_id : string)
+    (rev_lim: int) (logger : Online_log.logger) 
     : (wiki_page_t option * wiki_revision_t list * int option) =
-  let api = fetch_page_and_revs_after_json page_title rev_start_id logger in
+  let api = fetch_page_and_revs_after_json page_title rev_start_id rev_lim logger in
   match get_descendant api ["query"; "pages"] with
     None -> (None, [], None)
   | Some pages -> begin
@@ -332,12 +336,13 @@ let get_user_id (user_name: string) (db: Online_db.db) : int =
 *)
 let rec get_revs_from_api (page_title: string) (last_id: int) 
     (db: Online_db.db) (logger : Online_log.logger)
-    (times_through: int) : (int option) =
+    (rev_lim: int) : (int option) =
   try begin
+    if rev_lim = 0 then raise API_error
     logger#log (Printf.sprintf "Getting revs from api for page '%s'\n" page_title);
     (* Retrieve a page and revision list from mediawiki. *)
     let (wiki_page', wiki_revs, next_id) = 
-      fetch_page_and_revs_after page_title (string_of_int last_id) logger in  
+      fetch_page_and_revs_after page_title (string_of_int last_id) rev_lim logger in  
     match wiki_page' with
       None -> None
     | Some wiki_page -> begin
@@ -357,9 +362,9 @@ let rec get_revs_from_api (page_title: string) (last_id: int)
 	next_id
       end
   end with API_error -> begin
-    if times_through < times_to_retry then begin
+    if rev_lim > 1 then begin
       logger#log (Printf.sprintf "Page load error for page %S. Trying again\n" page_title);
       Unix.sleep retry_delay_sec;
-      get_revs_from_api page_title last_id db logger (times_through + 1)
+      get_revs_from_api page_title last_id db logger (rev_lim / 2);
     end else raise API_error
   end;;
