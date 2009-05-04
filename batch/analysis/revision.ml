@@ -455,6 +455,11 @@ class trust_revision
     method set_word_origin (a: int array) : unit = word_origin <- a
     method get_word_origin : int array = word_origin
 
+    (* This is an array of word authors *)
+    val mutable word_author : string array = [| |]
+    method set_word_author (a: string array) : unit = word_author <- a
+    method get_word_author : string array = word_author
+
     method print_words_and_seps : unit = begin 
       Text.print_words_and_seps words seps;
       print_newline (); 
@@ -486,19 +491,27 @@ class trust_revision
       output_string trust_file "</text>\n</revision>\n"
 
 
-    method output_rev_text (include_origin: bool) trust_file = 
+    method private output_rev_text (include_origin: bool) (include_author: bool) trust_file = 
       (** This method is used to output the colorized version of a 
           revision to an output file. *)
       self#output_rev_preamble trust_file; 
       (* Now we must write the text of the revision.  Note that we do not write the
          author information, as we do not have it.*)
       Buffer.output_buffer trust_file
-        (produce_annotated_markup seps word_trust word_origin [| |] false include_origin false);
+        (produce_annotated_markup seps word_trust word_origin word_author false 
+	  include_origin include_author);
       output_string trust_file "</text>\n</revision>\n"
 
-    method output_trust_revision = self#output_rev_text false
+    method output_trust_revision = self#output_rev_text false false
 
-    method output_trust_origin_revision = self#output_rev_text true 
+    method output_trust_origin_revision = self#output_rev_text true false
+
+    (** This method returns the colored text of a revision, ready to be written to disk
+	as a compressed file.  The text is returned with author, origin, trust information
+	included. *)
+    method get_colored_text : string = 
+      Buffer.contents (produce_annotated_markup seps word_trust word_origin word_author
+	false true true)
 
   end (* revision object *)
 

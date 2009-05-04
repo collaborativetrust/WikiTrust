@@ -55,6 +55,7 @@ type analysis_t =
   | Trust_color
   | Trust_syntactregion_color
   | Trust_and_origin
+  | Trust_for_online
   | Revcount_analysis 
   | Intertime_analysis
   | Do_nothing
@@ -164,6 +165,7 @@ class page_factory
     (* Files for output *)
     val mutable out_file : out_channel = stderr (* also used for eval_file *)
     val mutable xml_file : out_channel = stderr
+    val mutable sql_file : out_channel = stderr
     val mutable words_file : out_channel = stderr
 
     method print_mode = 
@@ -175,6 +177,7 @@ class page_factory
       | Trust_color -> Printf.fprintf stderr "color\n"; flush stderr
       | Trust_syntactregion_color -> Printf.fprintf stderr "trustsyncolor\n"; flush stderr
       | Trust_and_origin -> Printf.fprintf stderr "trust_and_origin\n"; flush stderr
+      | Trust_for_online -> Printf.fprintf stderr "trust_for_online\n"; flush stderr
       | Revcount_analysis -> Printf.fprintf stderr "revcount\n"; flush stderr
       | Intertime_analysis -> Printf.fprintf stderr "intertime\n"; flush stderr
       | Prune_revisions -> Printf.fprintf stderr "prune_revisions\n"; flush stderr
@@ -193,6 +196,7 @@ class page_factory
     method set_revcount () = mode <- Revcount_analysis
     method set_intertime () = mode <- Intertime_analysis
     method set_trust_and_origin () = mode <- Trust_and_origin
+    method set_trust_for_online () = mode <- Trust_for_online
     method set_prune () = mode <- Prune_revisions
     method set_revs_to_text () = mode <- Revisions_to_text
 
@@ -233,6 +237,7 @@ class page_factory
        ("-color_trust", Arg.Unit self#set_trust_color, "Outputs text colored by trust."); 
        ("-color_local_trust", Arg.Unit self#set_trust_local_color, "Colors according to the local trust."); 
        ("-trust_and_origin", Arg.Unit self#set_trust_and_origin, "Colors the text according to trust and adds text origin information."); 
+       ("-trust_for_online", Arg.Unit self#set_trust_for_online, "Text trust, origin, and author in preparation for the online system."); 
        ("-count_revs", Arg.Unit self#set_revcount, "Counts the number of revisions per page."); 
        ("-intertime", Arg.Unit self#set_intertime, "Produces a histogram of inter-page times, up to 1h."); 
        ("-prune_rev", Arg.Unit self#set_prune, ": Prunes revisions.");
@@ -293,6 +298,9 @@ class page_factory
       | Trust_and_origin -> new Trust_origin_analysis.page id title xml_file rep_histories
 	  trust_coeff_lends_rep trust_coeff_read_all trust_coeff_read_part trust_coeff_part_radius 
 	    trust_coeff_cut_rep_radius trust_coeff_kill_decrease n_rev_to_output !equate_anons 
+      | Trust_for_online -> new Trust_for_online.page id title xml_file rep_histories
+	  trust_coeff_lends_rep trust_coeff_read_all trust_coeff_read_part trust_coeff_part_radius 
+	    trust_coeff_cut_rep_radius trust_coeff_kill_decrease n_rev_to_output !equate_anons 
       | Revcount_analysis -> begin 
 	  let n = page_seq_number in 
 	  page_seq_number <- n + 1; 
@@ -313,10 +321,12 @@ class page_factory
     method open_out_files (base_name: string) : string Vec.t = 
       let default_name = base_name ^ ".out" in 
       let xml_name     = base_name ^ ".xml" in 
+      let sql_name     = base_name ^ ".sql" in 
       let stats_name   = base_name ^ ".stats" in 
       (* We init this to stderr so we notice if someone writes where he is not supposed to *)
       out_file <- stderr;
       xml_file <- stderr;
+      sql_file <- stderr;
       words_file <- stderr;
       (* List of file names to be returned *)
       let names_l = ref Vec.empty in 
@@ -337,6 +347,11 @@ class page_factory
 	    xml_file <- Fileinfo.open_info_out xml_name; 
 	    names_l := Vec.singleton xml_name
 	  end
+	| Trust_for_online -> begin
+	    xml_file <- Fileinfo.open_info_out xml_name; 
+	    sql_file <- Fileinfo.open_info_out sql_name; 
+	    names_l := Vec.of_list [xml_name; sql_name]
+	  end
 	| Do_nothing -> ()
       end; 
       !names_l
@@ -345,12 +360,14 @@ class page_factory
     method set_single_file (f_out: out_channel) : unit = 
       out_file <- f_out; 
       xml_file <- f_out; 
+      sql_file <- f_out; 
       words_file <- f_out
 
     (* This method closes the output files *)
     method close_out_files : unit = 
       if out_file <> stderr then begin Fileinfo.close_info_out out_file; out_file <- stderr end;
       if xml_file <> stderr then begin Fileinfo.close_info_out xml_file; xml_file <- stderr end;
+      if sql_file <> stderr then begin Fileinfo.close_info_out xml_file; xml_file <- stderr end;
       if words_file <> stderr then begin Fileinfo.close_info_out words_file; words_file <- stderr end 
 
     (* Writes the output preamble if needed *)

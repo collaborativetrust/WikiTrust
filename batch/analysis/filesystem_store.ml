@@ -98,7 +98,7 @@ let get_filename (base_path: string) (page_id: int) (rev_id: int) : (string * st
     in compressed format, belonging to the revision [rev_id] of page [page_id], 
     given the directory path [base_name].  Directories are created if they do not
     already exist. *)
-let write_revision (base_name: string) (page_id: int) (rev_id: int) (s: string) =
+let write_revision (base_name: string) (page_id: int) (rev_id: int) (s: string) : unit =
   let (f_name, dir_l) = get_filename base_name page_id rev_id in 
   (* Makes the directories *)
   let make_dir (d: string) = 

@@ -1,6 +1,6 @@
 (*
 
-Copyright (c) 2007-2008 The Regents of the University of California
+Copyright (c) 2009 The Regents of the University of California
 All rights reserved.
 
 Authors: Luca de Alfaro
@@ -34,9 +34,11 @@ POSSIBILITY OF SUCH DAMAGE.
  *)
 
 
-(** This class colorizes a wiki dump file according to text trust, 
-    and outputs information about the revision in which each word
-    originates. *)
+(** This class adds to a wiki dump the information on text trust, origin, and author,
+    producing the "colored revisions". 
+    The class also outputs the sql statements that can be used to prime the online
+    system with the proper information.
+ *)
 
 type word = string 
 exception Ins_text_in_deleted_chunk
@@ -46,6 +48,8 @@ class page
   (id: int)
   (title: string)
   (out_file: out_channel)
+  (sql_file: out_channel)
+  (colored_base_path: string)
   (rep_histories: Rephist.rephist)
   (trust_coeff_lends_rep: float)
   (trust_coeff_read_all: float) 
@@ -57,7 +61,9 @@ class page
   (equate_anons: bool) 
   =
 
-  object (self) 
+  (* TODO(Luca): We need a way to specify database table prefixes for the sql code. *)
+
+object(self) 
     inherit Trust_local_color_analysis.page 
       id title out_file rep_histories
       trust_coeff_lends_rep trust_coeff_read_all 
@@ -68,17 +74,16 @@ class page
       (* This array keeps track of the revision id in which each word 
 	 was introduced. *)
     val mutable chunks_origin_a : int array array = [| [| |] |]
-
-    (** Tracks word origin *)
-    method private compute_origin
-      (new_chunks_a: word array array) 
-      (medit_l: Editlist.medit list) 
-      (rev: Revision.trust_revision) : int array array =
-      Compute_trust.compute_origin chunks_origin_a new_chunks_a medit_l rev#get_id
+      (* This array keeps track of the author of each word *)
+    val mutable chunks_author_a : string array array = [| [| |] |]
+      (* This array keeps track of the author sigs *)
+    val mutable chunks_sig_a : Author_sig.packed_author_signature_t array array = [| [| |] |]
 
 
-    (** This method evaluates the trust of the words of a new revision, 
-        as well as their origin. *)
+    (** Processes a new revision, computing trust, author, and origin, and outputting:
+	- The colored revision text, compressed, in the filesystem.
+	- The sql code for the online system metadata.
+	- The revision metadata in an xml file, just in case. *)
     method private eval_newest : unit = 
       let rev_idx = (Vec.length revs) - 1 in 
       let rev = Vec.get rev_idx revs in 
@@ -94,34 +99,31 @@ class page
       (* Constructs new_chunks_attr_a, which contains the reputation range of the 
          author of each word in the text. *)
       let rep_float = float_of_int rep in 
-      let new_chunks_trust_a = self#compute_word_trust new_chunks_a medit_l rep_float rev in 
+
+      (* Computes the trust, and the sigs *)
+      let (new_chunks_trust_a, new_chunks_sig_a) = Compute_robust_trust.compute_robust_trust
+	chunks_trust_a chunks_sig_a new_chunks_a rev#get_seps medit_l rep_float uid 
+	trust_coeff_lends_rep trust_coeff_kill_decrease trust_coeff_cut_rep_radius
+	trust_coeff_read_all trust_coeff_read_part trust_coeff_local_decay in
+
       (* Computes the origin of the words in the new revision. *)
-      let new_chunks_origin_a = self#compute_origin new_chunks_a medit_l rev in 
-      (* Now, replaces chunks_trust_a and chunks_a for the next iteration *)
+      let (new_chunks_origin_a, new_chunks_author_a) = Compute_robust_trust.compute_origin
+	chunks_origin_a chunks_author_a new_chunks_a medit_l rev#get_id rev#get_user_name in 
+
+      (* Replaces the chunks for the next iteration *)
       chunks_trust_a <- new_chunks_trust_a;
       chunks_origin_a <- new_chunks_origin_a; 
+      chunks_author_a <- new_chunks_author_a;
+      chunks_sig_a <- new_chunks_sig_a;
       chunks_a <- new_chunks_a;
       (* Also notes in the revision the reputations and the origins *)
       rev#set_word_trust new_chunks_trust_a.(0);
-      rev#set_word_origin new_chunks_origin_a.(0)
+      rev#set_word_origin new_chunks_origin_a.(0);
+      rev#set_word_author new_chunks_author_a(0);
+      
+      (* Outputs the colored text *)
+      let colored_text = rev#get_colored_text in
+      Filesystem_store.write_revision colored_base_path rev#get_page_id rev#get_id colored_text;
 
-    (** This method is called once a page has been fully analyzed for text trust, 
-        so that we can output the colorized text. *)
-    method private gen_output : unit = 
-      let n_revs = Vec.length revs in 
-      if n_revs > 0 then begin 
-        Printf.fprintf out_file "<page>\n<title>%s</title>\n" title; 
-        Printf.fprintf out_file "<id>%d</id>\n" id;
-        (* Computes the range of revisions to be output *)
-        let start_rev = max 0 (n_revs - n_rev_to_color) in 
-        (* the range is from start_rev to n_revs - 1 *)
-        for rev_idx = start_rev to n_revs - 1 do 
-          (* Ok, here we have to output the colorized revision *)
-          let r = (Vec.get rev_idx revs) in 
-          r#output_trust_origin_revision out_file
-        done;
-        Printf.fprintf out_file "</page>\n"
-      end (* there is some revision *)
-
-  end (* page *)
+      (* Now we have to write the metadata for sql. *)
 
