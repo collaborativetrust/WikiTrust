@@ -211,7 +211,10 @@ class TextTrustImpl {
 	
     $dbr =& wfGetDB( DB_SLAVE );
     
-		$rev_id = $out->getRevisionId();
+		if (method_exists($out, "getRevisionId"))
+		    $rev_id = $out->getRevisionId();
+		else
+		    $rev_id = $out->mRevisionId;
 		$page_id = $wgTitle->getArticleID();
 		$page_title = $wgTitle->getDBkey();
     $user_id = $wgUser->getID();
