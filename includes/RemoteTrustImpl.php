@@ -198,9 +198,9 @@ class TextTrustImpl {
 		// Add the css and js
 		$out->addScript("<script type=\"text/javascript\" src=\""
 										.$wgScriptPath
-										."/extensions/Trust/js/trust.js\"></script>");
+										."/extensions/WikiTrust/js/trust.js\"></script>");
 		$out->addScript("<link rel=\"stylesheet\" type=\"text/css\" href=\""
-										.$wgScriptPath."/extensions/Trust/css/trust.css\">"); 
+										.$wgScriptPath."/extensions/WikiTrust/css/trust.css\">"); 
 	
     $dbr =& wfGetDB( DB_SLAVE );
     
@@ -302,7 +302,7 @@ class TextTrustImpl {
 
 			$text = '<script type="text/javascript" src="'
 				.$wgScriptPath
-				.'/extensions/Trust/js/wz_tooltip.js"></script>' . $text;
+				.'/extensions/WikiTrust/js/wz_tooltip.js"></script>' . $text;
 
       $msg = $wgParser->parse(wfMsgNoTrans("wgTrustExplanation"), 
 															$wgTitle, 

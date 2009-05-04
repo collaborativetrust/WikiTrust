@@ -78,9 +78,9 @@ eval_online_wiki from source.
 
 $wgUseTidy = true;       // Enable Tidy
 $wgUseAjax = true;       // Enable Ajax (needed for voting)
-require_once( $IP . "/extensions/WikiTrust/Trust.php" );
+require_once( $IP . "/extensions/WikiTrust/WikiTrust.php" );
 
-   Edit Trust/Trust.php, and set the following variables: 
+   Edit WikiTrust.php, and set the following variables: 
 
      $wgWikiTrustVersion = "local"; 
   
