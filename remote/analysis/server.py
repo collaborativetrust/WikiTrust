@@ -114,6 +114,12 @@ def mark_for_coloring (rev_id, page_id, user_id, rev_time, page_title, r_type):
      curs.execute(sql, args)
      connection.commit()
 
+# handle_edit(req, rev_id, page_id, user_id, v_time, page_title)
+# Insert a edit to be processed into the db.
+def handle_edit(req, rev_id, page_id, user_id, v_time, page_title):
+   mark_for_coloring(rev_id, page_id, user_id, v_time, page_title, "edit")
+   req.write("good")
+
 # handle_vote(req, rev_id, page_id, user_id, v_time, page_title)
 # Insert a vote to be processed into the db.
 def handle_vote(req, rev_id, page_id, user_id, v_time, page_title):
@@ -121,7 +127,7 @@ def handle_vote(req, rev_id, page_id, user_id, v_time, page_title):
   global connection
 
   curs = connection.cursor()
-  sql = """INSERT INTO """ + DB_PREFIX + """wikitrust_vote (revision_id, page_id, voter_id, voted_on) VALUES (%(rid)s, %(pid)s, %(vid)s, %(time)s)"""
+  sql = """INSERT INTO """ + DB_PREFIX + """wikitrust_vote (revision_id, page_id, voter_id, voted_on) VALUES (%(rid)s, %(pid)s, %(vid)s, %(time)s) ON DUPLICATE KEY UPDATE voted_on = %(time)s"""
   args = {'rid':rev_id, 'pid':page_id, 'vid':user_id, 'time':v_time}
   numRows = curs.execute(sql, args)
   connection.commit()
@@ -160,9 +166,11 @@ def fetch_colored_markup (rev_id, page_id, user_id, rev_time, page_title):
   global connection
 
   curs = connection.cursor()
-  sql = """SELECT revision_text FROM """ + DB_PREFIX + \
-      """wikitrust_colored_markup  """ + \
-      """ WHERE revision_id = %s"""
+  sql = ''.join(["SELECT revision_text FROM "
+      ,  DB_PREFIX ,
+      "wikitrust_colored_markup  " ,
+      " WHERE revision_id = %s"])
+
   args = (rev_id)
   curs.execute(sql, args)
   numRows = int(curs.rowcount)
@@ -171,6 +179,7 @@ def fetch_colored_markup (rev_id, page_id, user_id, rev_time, page_title):
     dbRow = curs.fetchone()
     return "%f,%s" % (median,dbRow[0])
   return not_found_text_token
+
 
 # [handle_text_request (req, rev_id, page_id, user_id, rev_time, page_title)]
 # Return colored text if it exists, compressed via gzip.
@@ -202,6 +211,7 @@ def handle_text_request (req, rev_id, page_id, user_id, rev_time, page_title):
     # No: we will have to wait until it gets colored.  For now, we report not found.
     req.write(not_found_text_token)
   else:
+    #req.write("found")  
     # Found: we compress it and return it.
     compressed = compressBuf(res)
     req.content_type = "application/x-gzip"
@@ -237,6 +247,7 @@ def handler(req):
   time_str = form.getfirst("time", "")
   user_id = form.getfirst("user", -1)
   is_vote = form.getfirst("vote", None)
+  is_edit = form.getfirst("edit", None)
 
   # Sanity check on input parameters.  
   if (page_id < 0) or (rev_id < 0) or (page_title == "") or (time_str == "") \
@@ -245,6 +256,8 @@ def handler(req):
   else:
     if is_vote:
       handle_vote(req, rev_id, page_id, user_id, time_str, page_title)
+    elif is_edit:
+       handle_edit(req, rev_id, page_id, user_id, time_str, page_title);
     else:
       handle_text_request(req, rev_id, page_id, user_id, time_str, page_title)
 

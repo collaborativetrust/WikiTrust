@@ -2,10 +2,10 @@
 
 $messages = array();
 $messages['en'] = array (
-			 'wgVoteText' => 
+			 'wgTrustVote' => 
 			 "I believe this information is correct",
-			 'wgThankYouForVoting' => "Thank you for your vote",
-			 'wgTrustTabText' => "check text",
+			 'wgTrustVoteDone' => "Thank you for your vote",
+			 'wgTrustTabText' => "check text", 
 			 'wgTrustExplanation' => 
 			 '{| border="1" cellpadding="5" cellspacing="0" style="background:lightgreen; color:black"
   |-

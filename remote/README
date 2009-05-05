@@ -38,7 +38,7 @@ Very basic code which create a unique temp file.
 A library which communicates with a mediawiki api. It also talks to a
 user-id mapping program, currently running on the toolserver.
 
-* mediawiki/extensions/Trust/
+* mediawiki/extensions/WikiTrust/
 
 All of the PHP code for the revised remote trust extension.
 
@@ -113,12 +113,12 @@ sql/create_db.php path_to_mw_instalation db_root_user_name [remove]
 Now, setup the php component.
 
 In your mediawiki instalation, link the following files into
-wikitrust/mediawiki/extensions/Trust:
+wikitrust/mediawiki/extensions/WikiTrust:
 
-RemoteTrust.i18n.php -> ../../../remote/mediawiki/extensions/Trust/RemoteTrust.i18n.php
-RemoteTrustImpl.php -> ../../../remote/mediawiki/extensions/Trust/RemoteTrustImpl.php
-RemoteTrust.php -> ../../../remote/mediawiki/extensions/Trust/RemoteTrust.php
-RemoteTrustUpdate.php -> ../../../remote/mediawiki/extensions/Trust/RemoteTrustUpdate.php
+RemoteTrust.i18n.php -> ../../../remote/mediawiki/extensions/WikiTrust/RemoteTrust.i18n.php
+RemoteTrustImpl.php -> ../../../remote/mediawiki/extensions/WikiTrust/RemoteTrustImpl.php
+RemoteTrust.php -> ../../../remote/mediawiki/extensions/WikiTrust/RemoteTrust.php
+RemoteTrustUpdate.php -> ../../../remote/mediawiki/extensions/WikiTrust/RemoteTrustUpdate.php
 
 Update LocalSettings.php, replacing ``all" old trust values with these values:
 
@@ -133,7 +133,7 @@ $wgRepSpeed = 1.0;
 $wgContentServerURL = "http://localhost:10302/?";
 
 require_once( $IP . "/extensions/Gadgets/Gadgets.php" );
-require_once( $IP . "/extensions/Trust/RemoteTrust.php" );
+require_once( $IP . "/extensions/WikiTrust/RemoteTrust.php" );
 
 Update wgContentServerURL to point to the web server you set up for
 mod_python earlier.

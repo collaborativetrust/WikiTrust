@@ -9,6 +9,18 @@ function voteCallback(http_request){
     document.getElementById("vote-button-done").style.visibility = "visible";
     document.getElementById("vote-button").style.visibility = "hidden";
     //alert(http_request.responseText);
+    var trustDiv = document.createElement('div');
+    trustDriv.setAttribute('id', 'trust-div');
+    var bodyContent = document.getElementById('bodyContent');
+    var siteSub = document.getElementById('siteSub');
+    var contentSub = document.getElementById('contentSub');
+    var catlinks = document.getElementById('catlinks');
+    bodyContent.innerHTML = '';
+    bodyContent.appendChild(siteSub);
+    bodyContent.appendChild(contentSub);
+    bodyContent.appendChild(trustDiv);
+    if (catlinks) bodyContent.appendChild(catlinks);
+    trustDiv.innerHTML = http_request.responseText);
     return true;
   } else {
     // Turn off error reporting.
@@ -40,30 +52,4 @@ function startVote(){
   }
 
   return sajax_do_call( "TextTrustImpl::handleVote", [wgUserName, wgArticleId, revID, wgPageName] , voteCallback ); 
-}
-
-function coloredTextCallback(http_request){
-  if ((http_request.readyState == 4) && (http_request.status == 200)) {
-    alert("response: " + http_request.responseText);
-    return true;
-  } else {
-    // Turn off error reporting.
-    alert("error: " + http_request.responseText);
-    return false;
-  }
-}
-
-function startGetColoredText(){
-  var revID = getQueryVariable("oldid");
-  if (revID == ""){
-    revID = getQueryVariable("diff");
-    if (revID == ""){
-      revID = wgCurRevisionId;
-    }
-  }
-  
-  return sajax_do_call("TextTrustImpl::getColoredText", 
-		       // wgArticleId, revID,
-		       [wgPageName, wgArticleId, revID], 
-		       coloredTextCallback); 
 }

@@ -18,6 +18,10 @@ class TextTrustImpl {
   const MAX_TRUST_VALUE = 9;
   const MIN_TRUST_VALUE = 0;
   const TRUST_MULTIPLIER = 10;
+
+  ## Cache time that its valid for.
+  ## Currently 1 day.
+  const TRUST_CACHE_VALID = 31556926;
   
   ## Token to split trust and origin values on
   const TRUST_SPLIT_TOKEN = ',';
@@ -65,7 +69,7 @@ class TextTrustImpl {
   static function handleVote($user_name_raw, $page_id_raw = 0, 
 			     $rev_id_raw = 0, $page_title_raw = ""){
     
-    global $wgContentServerURL;
+    global $wgWikiTrustContentServerURL;
     $response = new AjaxResponse("0");
     
     $dbr =& wfGetDB( DB_SLAVE );
@@ -96,8 +100,8 @@ class TextTrustImpl {
 					 )
 				   );
       
-      $vote_str = ("Voting at " . $wgContentServerURL . "vote=1&rev=$rev_id&page=$page_id&user=$user_id&page_title=$page_title&time=" . wfTimestampNow());
-      $colored_text = file_get_contents($wgContentServerURL . "vote=1&rev=".urlencode($rev_id)."&page=".urlencode($page_id)."&user=".urlencode($user_id)."&page_title=".urlencode($page_title)."&time=" . urlencode(wfTimestampNow()), 0, $ctx);
+      $vote_str = ("Voting at " . $wgWikiTrustContentServerURL . "vote=1&rev=$rev_id&page=$page_id&user=$user_id&page_title=$page_title&time=" . wfTimestampNow());
+      $colored_text = file_get_contents($wgWikiTrustContentServerURL . "vote=1&rev=".urlencode($rev_id)."&page=".urlencode($page_id)."&user=".urlencode($user_id)."&page_title=".urlencode($page_title)."&time=" . urlencode(wfTimestampNow()), 0, $ctx);
       $response = new AjaxResponse($vote_str);	   
     }
     return $response;
@@ -115,9 +119,9 @@ class TextTrustImpl {
 				/ self::$median));
     $class = self::$COLORS[$normalized_value];
     $output = self::TRUST_OPEN_TOKEN . "span class=\"$class\"" 
-      . "onmouseover=\"Tip('".str_replace("&#39;","\\'",$matches[3])
+      . " onmouseover=\"Tip('".str_replace("&#39;","\\'",$matches[3])
       ."')\" onmouseout=\"UnTip()\""
-      . "onclick=\"showOrigin(" 
+      . " onclick=\"showOrigin(" 
       . $matches[2] . ")\"" . self::TRUST_CLOSE_TOKEN;
     if (self::$first_span){
       self::$first_span = false;
@@ -152,39 +156,30 @@ class TextTrustImpl {
 
   }
 
-  /**
-   Method to use the wiki API to parse the markup.
-   This allows templates to be resolved, as well as images and other good 
-   things.
-  */
-  static function parseWikiText($text){
-    global $wgWikiApiURL;
-
-    $data = array('action'=>'parse',
-		  'text'=>htmlspecialchars($text),
-		  'format' => 'json'
-		  );
-
-     file_put_contents("/tmp/test", $wgWikiApiURL
-				    .http_build_query($data));
-    
-    $parsed_raw = file_get_contents($wgWikiApiURL
-				    .http_build_query($data));
-    $parsed_json = json_decode($parsed_raw, true);
-    $parsed_text = $parsed_json["parse"]["text"];
-    return $parsed_text;
-  }
-
-   /**
+	/**
    Returns colored markup.
-
+	 
    @return colored markup.
   */
   static function getColoredText($page_title_raw,
 				 $page_id_raw = NULL, 
 				 $rev_id_raw = NULL){
-    global $wgParser, $wgContentServerURL, $wgWikiApiURL, $wgUser;
-    $response = new AjaxResponse("0");
+    global $wgParser, $wgWikiTrustContentServerURL, $wgWikiApiURL, $wgUser;
+    global $wgMemc;
+
+    $response = new AjaxResponse("");
+    $request_headers = apache_request_headers();
+
+    // Try to use gzip for the content, if possible.
+    // Ian - This isn't working with redherring, for some reason.
+    if (strstr($request_headers["Accept-Encoding"], "gzip")){
+      //  $response->setContentType("gzip");
+    }
+
+    // Can set this to use client side caching, but this can also cause
+    // problems.
+    // Mark that the content can be cached
+    // $response->setCacheDuration(self::TRUST_CACHE_VALID);
     
     if(!$page_id_raw || !$rev_id_raw){
       $data = array('action'=>'query',
@@ -214,8 +209,38 @@ class TextTrustImpl {
     
     $page_id = $dbr->strencode($page_id_raw, $dbr);
     $rev_id = $dbr->strencode($rev_id_raw, $dbr);
-    $page_title = $dbr->strencode($page_title_raw, $dbr);
-    
+    $page_title = $dbr->strencode($page_title_raw, $dbr);    
+
+    // Check the If-Modified-Since header.
+    // If the timestamp of the requested revision is earlier than the IMS 
+    // header, return 304 and do nothing further.
+    $rev_ts = '19700101000000';
+    $res = $dbr->select('wikitrust_colored_markup', 
+			array('revision_createdon'), 
+			array('revision_id' => $rev_id), array());
+    if ($res){
+      $row = $dbr->fetchRow($res);
+      $rev_ts = $row['revision_createdon'];
+
+      if (!$rev_ts) {
+	$rev_ts = '19700101000000';
+      }
+    }
+    $dbr->freeResult($res); 
+    if($response->checkLastModified($rev_ts)){
+      return $response;
+    }
+
+    // See if we have a cached version of the colored text, or if 
+    // we need to generate new text.
+    $memcKey = wfMemcKey( 'revisiontext', 'revid', $rev_id);
+    $cached_text = $wgMemc->get($memcKey);
+    if($cached_text){
+      $response->addText($cached_text);
+      return $response; 
+    }
+
+    // Since we are here, we need to get the colored HTML the hard way.
     $ctx = stream_context_create(
 				 array('http' => array(
 						       'timeout' => 
@@ -225,7 +250,7 @@ class TextTrustImpl {
 				 );
     
     // Should we do doing this via HTTPS?
-    $colored_raw = (file_get_contents($wgContentServerURL . "rev=" . 
+    $colored_raw = (file_get_contents($wgWikiTrustContentServerURL . "rev=" . 
 				      urlencode($rev_id) . 
 				      "&page=".urlencode($page_id).
 				      "&page_title=".
@@ -277,20 +302,48 @@ class TextTrustImpl {
 				    );
       
       // Update open, close, images, and links.
-      $text = preg_replace('/' . self::TRUST_OPEN_TOKEN . '/', "<", $text, -1, $count);
-      $text = preg_replace('/<a href="(.*?)(Image|File):(.*?)" (.*?)>/', self::TRUST_OPEN_TOKEN, $text, -1, $count);
-      $text = preg_replace('/<a href="(.*?)title=(.*?)&amp;action=edit&amp;redlink=1" class="new" title="(.*?) \(not yet written\)">/', '<a href="/wiki/$2" title="$3">', $text, -1, $count);
-      $text = preg_replace_callback(
+      $text = preg_replace('/' . self::TRUST_OPEN_TOKEN . '/', "<"
+			   , $text, -1, $count);
+      // Regex broken for some pages.
+      // Removing for now.
+      /**
+      $text = preg_replace('/<a href="(.*?)(File):(.*?)" (.*?)>/'
+			   , self::TRUST_OPEN_TOKEN, $text, -1, $count);
+      $text = preg_replace('/<a href="(.*?)(Image):(.*?)" (.*?)>/'
+      , self::TRUST_OPEN_TOKEN, $text, -1, $count); */
+      $text = preg_replace('/<a href="(.*?)title=(.*?)&amp;action=edit&amp;redlink=1" class="new" title="(.*?) \(not yet written\)">/'
+			   , '<a href="/wiki/$2" title="$3">'
+			   , $text, -1, $count);
+      /* $text = preg_replace_callback(
 				    '/'.self::TRUST_OPEN_TOKEN
 				    .'(Image|File):(.*?)<\/a>/'
 				    ,"TextTrustImpl::getImageInfo"
 				    ,$text, -1, $count);
-      
-      $text = preg_replace('/' . self::TRUST_CLOSE_TOKEN .'/', ">", $text, -1, $count);
+      */
+      $text = preg_replace('/' . self::TRUST_CLOSE_TOKEN .'/', ">", $text
+			   , -1, $count);
       $text = preg_replace('/<\/p>/', "</span></p>", $text, -1, $count);
       $text = preg_replace('/<p><\/span>/', "<p>", $text, -1, $count);
       $text = preg_replace('/<li><\/span>/', "<li>", $text, -1, $count);
-      $response = new AjaxResponse($text);
+      
+      // Save the finished text in the cache.
+      $wgMemc->set($memcKey, $text, self::TRUST_CACHE_VALID);
+
+      // And finally return the colored HTML.
+      $response->addText($text);
+
+      // And mark that we have the colored version, for cache control.
+      $dbw = wfGetDB( DB_MASTER );
+      $dbw->begin();
+      $dbw->insert( 'wikitrust_colored_markup',
+		    array(
+			  'revision_id' => $rev_id,
+			  'revision_text' => "memcached",
+			  'revision_createdon' => wfTimestampNow()),
+		    'Database::insert',
+		    array('IGNORE'));
+      $dbw->commit();
+      
     } else {
       // text not found.
       $response = new AjaxResponse(self::NOT_FOUND_TEXT_TOKEN);
