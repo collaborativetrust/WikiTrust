@@ -211,11 +211,12 @@ let process_rev ((key, rev) : (string * result_tree)) : wiki_revision_t =
     list of corresponding wiki_revision_t. 
    *)
 let process_page ((key, page): (string * result_tree)) : (wiki_page_t * wiki_revision_t list) =
+  let spaces2underscores str = Str.global_replace (Str.regexp " ") "_" str in
   let redirect_attr = get_property page "redirect" (Some "") in
   let w_page = {
     page_id = int_of_string (get_property page "pageid" None);
     page_namespace = int_of_string (get_property page "ns" None);
-    page_title = get_property page "title" None; 
+    page_title = spaces2underscores (get_property page "title" None); 
     page_restrictions = "";
     page_counter = int_of_string (get_property page "counter" None);
     page_is_redirect = if redirect_attr = "" then false
