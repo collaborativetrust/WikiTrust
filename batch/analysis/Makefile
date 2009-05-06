@@ -69,6 +69,7 @@ OCAMLOPT_FLAGS=
 
 OUR_EVALWIKI_OBJS = textbuf.cmo text.cmo prioq.cmo filesystem_store.cmo \
 	coda.cmo editlist.cmo chdiff.cmo compute_edlist.cmo timeconv.cmo \
+	online_types.cmo \
 	eval_defs.cmo author_sig.cmo rephist.cmo revision.cmo prune_analysis.cmo \
 	linear_analysis.cmo circbuf_analysis.cmo reputation_analysis.cmo \
 	compute_trust.cmo compute_robust_trust.cmo trust_analysis.cmo \
@@ -79,6 +80,7 @@ OUR_EVALWIKI_OBJS = textbuf.cmo text.cmo prioq.cmo filesystem_store.cmo \
 
 OUR_OPT_EVALWIKI_OBJS = textbuf.cmx text.cmx prioq.cmx filesystem_store.cmx \
 	coda.cmx editlist.cmx chdiff.cmx compute_edlist.cmx timeconv.cmx \
+	online_types.cmx \
 	eval_defs.cmx author_sig.cmx revision.cmx rephist.cmx prune_analysis.cmx \
 	linear_analysis.cmx circbuf_analysis.cmx reputation_analysis.cmx \
 	compute_trust.cmx compute_robust_trust.cmx trust_analysis.cmx \

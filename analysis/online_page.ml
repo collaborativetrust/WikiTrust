@@ -151,7 +151,7 @@ class page
 	    r
 	  end
       end in
-      (* This is a feed of colored revisions previous from the current one. TODO *)
+      (* This is a feed of colored revisions previous from the current one. *)
       let db_p = new Db_page.page db rev_to_analyze trust_coeff.n_revs_to_consider in 
       let i = ref (trust_coeff.n_revs_to_consider - 1) in 
       while (!i > 0) do begin 

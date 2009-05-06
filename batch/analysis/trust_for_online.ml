@@ -80,6 +80,30 @@ object(self)
     val mutable chunks_sig_a : Author_sig.packed_author_signature_t array array = [| [| |] |]
 
 
+    (** Writes the SQL code for writing the wikitrust_revision to the db. *)
+    method private write_wikitrust_revision_sql 
+      (r: Revision.trust_revision) : unit = 
+      (* Revision parameters *)
+      (* ---qui--- fix: why store here the text_id? *)
+      let rev_id = ml2int g#get_id in
+      let page_id = ml2int r#get_page_id in
+      let text_id = ml2int revision_info.rev_text_id in 
+      let time_string = ml2str revision_info.rev_timestamp in 
+      let user_id = ml2int revision_info.rev_user in 
+      let username = ml2str revision_info.rev_user_text in 
+      let is_minor = ml2int (if revision_info.rev_is_minor then 1 else 0) in 
+      let comment = ml2str revision_info.rev_comment in 
+      (* Quality parameters *)
+      let q1 = ml2str (string_of__of__sexp_of sexp_of_qual_info_t quality_info) in 
+      let q2 =  ml2float quality_info.reputation_gain in 
+      let aq2 = if (q2 = "inf") then (ml2float infinity) else q2 in
+      let q3 = ml2float quality_info.overall_trust in
+      (* Db write access *)
+      let s2 =  Printf.sprintf "INSERT INTO %swikitrust_revision (revision_id, page_id, text_id, time_string, user_id, username, is_minor, comment, quality_info, reputation_delta, overall_trust) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE quality_info = %s, reputation_delta = %s, overall_trust = %s"
+	db_prefix rev_id page_id text_id time_string user_id username is_minor comment q1 aq2 q3 q1 aq2 q3 in 
+
+
+
     (** Processes a new revision, computing trust, author, and origin, and outputting:
 	- The colored revision text, compressed, in the filesystem.
 	- The sql code for the online system metadata.
