@@ -59,6 +59,7 @@ class revision
   object 
     val is_anon : bool = is_anonymous user_id
     method get_time : float = time
+    method get_timestamp : string = timestamp
     method get_id : int = id
     method get_ip : string = ip_addr 
     method get_page_id : int = page_id
@@ -69,6 +70,8 @@ class revision
       else
         username
     method get_is_anon : bool = is_anon
+    method get_is_minor : bool = is_minor
+    method get_comment : string = comment
 
   end (* revision object *)
 

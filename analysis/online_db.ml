@@ -51,9 +51,6 @@ exception DB_Internal_Error
 (* Commit failed, or other database error that may have to cause a rollback. *)
 exception DB_TXN_Bad
 
-(* Infinity for reputation delta *)
-let infinity = 100000.0;;
-
 (* This is the function that sexplib uses to convert floats *)
 Sexplib.Conv.default_string_of_float := (fun n -> sprintf "%.3f" n);;
 

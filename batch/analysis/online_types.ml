@@ -176,6 +176,12 @@ type qual_info_t = {
   mutable overall_trust: float;
 } with sexp
 
+(* Infinity for reputation delta *)
+let infinity = 100000.0;;
+
+(* Default for quality information.  This is used both for
+   new revisions, and for revisions that have been processed
+   as part of the online analysis. *)
 let quality_info_default = {
   n_edit_judges = 0;
   total_edit_quality = 0.;
