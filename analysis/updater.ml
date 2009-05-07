@@ -104,12 +104,12 @@ class updater
 	  begin 
 	    begin (* try ... with ... *)
 	      try 
-		!online_logger#log (Printf.sprintf "\nEvaluating revision %d of page %d\n" rev_id page_id);
+		!Online_log.online_logger#log (Printf.sprintf "\nEvaluating revision %d of page %d\n" rev_id page_id);
 		let page = new Online_page.page db page_id rev_id (Some r) trust_coeff n_retries in
 		n_processed_events <- n_processed_events + 1;
 		if page#eval 
-		then !online_logger#log (Printf.sprintf "\nDone revision %d of page %d" rev_id page_id)
-		else !online_logger#log (Printf.sprintf "\nRevision %d of page %d was already done" 
+		then !Online_log.online_logger#log (Printf.sprintf "\nDone revision %d of page %d" rev_id page_id)
+		else !Online_log.online_logger#log (Printf.sprintf "\nRevision %d of page %d was already done" 
 		  rev_id page_id);
 	      with Online_page.Missing_trust r' -> 
 		begin
@@ -117,7 +117,7 @@ class updater
 		  (* This if is a basic sanity check only. It should always be true *)
 		  if r'#get_id <> rev_id then 
 		    begin 
-		      !online_logger#log (Printf.sprintf 
+		      !Online_log.online_logger#log (Printf.sprintf 
 			"\nMissing trust info: we need first to evaluate revision %d of page %d\n" 
 			r'#get_id r'#get_page_id);
 		      evaluate_revision_helper r';
@@ -139,7 +139,7 @@ class updater
     method private evaluate_vote (page_id: int) (revision_id: int) (voter_id: int) = 
       if n_processed_events < max_events_to_process then 
 	begin 
-	  !online_logger#log (Printf.sprintf "\nEvaluating vote by %d on revision %d of page %d" 
+	  !Online_log.online_logger#log (Printf.sprintf "\nEvaluating vote by %d on revision %d of page %d" 
 	    voter_id revision_id page_id); 
 	  let page = new Online_page.page db page_id revision_id None trust_coeff n_retries in
 	  begin
@@ -148,13 +148,13 @@ class updater
 		(* We mark the vote as processed. *)
 		db#mark_vote_as_processed revision_id voter_id;
 		n_processed_events <- n_processed_events + 1;
-		!online_logger#log (Printf.sprintf "\nDone processing vote by %d on revision %d of page %d"
+		!Online_log.online_logger#log (Printf.sprintf "\nDone processing vote by %d on revision %d of page %d"
 		  voter_id revision_id page_id)
 	      end
 	    with Online_page.Missing_work_revision -> begin
 	      (* We mark the vote as processed. *)
 	      db#mark_vote_as_processed revision_id voter_id;
-	      !online_logger#log (Printf.sprintf 
+	      !Online_log.online_logger#log (Printf.sprintf 
 		"\nVote by %d on revision %d of page %d not processed: no trust for page"
 		voter_id revision_id page_id)
 	    end
@@ -239,14 +239,14 @@ class updater
 		if already_tried 
 		then begin
 		  do_more := false;
-		  !online_logger#log (Printf.sprintf 
+		  !Online_log.online_logger#log (Printf.sprintf 
 		    "\nWaited too long for lock of page %d; terminating." page_id);
 		  flush stdout;
 		end
 		else Hashtbl.add tried page_id ();
 	      end; (* not got it *)
 	      let t_end = Unix.gettimeofday () in 
-	      !online_logger#log (Printf.sprintf "\nAnalysis took %f seconds." (t_end -. t_start));
+	      !Online_log.online_logger#log (Printf.sprintf "\nAnalysis took %f seconds." (t_end -. t_start));
 	      flush stdout
 	    end (* event that needs processing *)
 	end done (* Loop as long as we need to do events *)

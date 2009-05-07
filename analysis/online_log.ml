@@ -58,4 +58,4 @@ class logger
   end
 
 (* Logfile *)
-let online_logger = ref (new Online_log.logger stdout true);;
+let online_logger = ref (new logger stdout true);;

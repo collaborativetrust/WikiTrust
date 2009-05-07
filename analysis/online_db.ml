@@ -40,6 +40,8 @@ open Sexplib.Conv
 open Sexplib.Sexp
 open Sexplib
 open Printf
+open Online_log
+
 
 TYPE_CONV_PATH "UCSC_WIKI_RESEARCH"
 

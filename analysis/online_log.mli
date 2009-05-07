@@ -56,3 +56,4 @@ class logger :
 
   end
 
+val online_logger: logger ref

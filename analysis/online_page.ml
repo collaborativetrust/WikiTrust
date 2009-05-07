@@ -226,11 +226,11 @@ class page
       
       (* Produces the Vec of all revisions *)
       revs <- merge_chron recent_revs (merge_chron hi_rep_revs hi_trust_revs); 
-      let f (r: rev_t) : unit = !online_logger#log (Printf.sprintf "%d " r#get_id) in 
-      !online_logger#log "\n  Recent   revisions: "; Vec.iter f recent_revs;
-      !online_logger#log "\n  Hi-trust revisions: "; Vec.iter f hi_trust_revs;
-      !online_logger#log "\n  Hi-rep   revisions: "; Vec.iter f hi_rep_revs;
-      !online_logger#log "\n  Total    revisions: "; Vec.iter f revs;
+      let f (r: rev_t) : unit = !Online_log.online_logger#log (Printf.sprintf "%d " r#get_id) in 
+      !Online_log.online_logger#log "\n  Recent   revisions: "; Vec.iter f recent_revs;
+      !Online_log.online_logger#log "\n  Hi-trust revisions: "; Vec.iter f hi_trust_revs;
+      !Online_log.online_logger#log "\n  Hi-rep   revisions: "; Vec.iter f hi_rep_revs;
+      !Online_log.online_logger#log "\n  Total    revisions: "; Vec.iter f revs;
       
       (* Sets the current time *)
       let n_revs = Vec.length revs in 
@@ -272,7 +272,7 @@ class page
 	  median := !median +. 1. 
 	end
       end done;
-      !online_logger#log (
+      !Online_log.online_logger#log (
 	Printf.sprintf "\n %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %2.0f%%-median: %.2f" 
 	  a.(0) a.(1) a.(2) a.(3) a.(4) a.(5) a.(6) a.(7) a.(8) a.(9) (m *. 100.) !median); 
       !median
@@ -946,7 +946,7 @@ class page
 	  let t = Compute_robust_trust.compute_overall_trust new_trust_a.(0) in 
 	  rev0#set_overall_trust t;
 	  (* And writes the information on the revision back to disk. *)
-	  if debug then !online_logger#log "   Voted; writing the quality information...\n";
+	  if debug then !Online_log.online_logger#log "   Voted; writing the quality information...\n";
 	  rev0#write_quality_to_db
 	end (* end of vote_for_trust *)
 
@@ -1035,7 +1035,7 @@ class page
 	  (* Increments the histogram according to the work of the judge *)
 	  let slot = max 0 (min 9 (int_of_float rev2_weight)) in 
 	  histogram.(slot) <- histogram.(slot) +. !min_dist_to_2; 
-	  !online_logger#log (Printf.sprintf "\n Incrementing histogram slot %d by %f" 
+	  !Online_log.online_logger#log (Printf.sprintf "\n Incrementing histogram slot %d by %f" 
 	    slot !min_dist_to_2);
 	  let new_hi_median' = self#compute_hi_median histogram trust_coeff.hi_median_perc in 
 	  new_hi_median <- max hi_median new_hi_median';
@@ -1146,7 +1146,7 @@ class page
 		  if (q <= trust_coeff.nix_threshold)
 		  then Printf.sprintf "\n\nRevision %d has been nixed due to quality" rev1_id
 		  else Printf.sprintf "\n\nRevision %d has been nixed due to too frequent edits" rev1_id
-		in !online_logger#log s
+		in !Online_log.online_logger#log s
 	      end
 	    end;
 
@@ -1218,17 +1218,17 @@ class page
 	    rev1#add_edit_quality_info delta q (new_rep -. rev1_rep) ; 
 
             (* For logging purposes, produces the Edit_inc line *)
-            !online_logger#log (Printf.sprintf "\n\nEditInc %10.0f PageId: %d Inc: %.4f Capd_inc: %.4f q: %.4f Delta: %.2f" 
+            !Online_log.online_logger#log (Printf.sprintf "\n\nEditInc %10.0f PageId: %d Inc: %.4f Capd_inc: %.4f q: %.4f Delta: %.2f" 
 	      (* time and page id *)
 	      rev2_time page_id rep_inc (new_rep -. rev1_rep) q delta);
 	    (* revision and user ids *)
-	    !online_logger#log (Printf.sprintf "\n  rev_c2: %d uid_c2: %d uname_c2: %S rev_c2_rep: %.3f" 
+	    !Online_log.online_logger#log (Printf.sprintf "\n  rev_c2: %d uid_c2: %d uname_c2: %S rev_c2_rep: %.3f" 
 	      r_c2_id r_c2_uid r_c2_username r_c2_rep); 
-	    !online_logger#log (Printf.sprintf "\n  rev1: %d uid1: %d uname1: %S r1_rep: %.3f Nixed: %B" 
+	    !Online_log.online_logger#log (Printf.sprintf "\n  rev1: %d uid1: %d uname1: %S r1_rep: %.3f Nixed: %B" 
 	      rev1_id rev1_uid rev1_uname rev1_rep rev1#get_nix); 
-	    !online_logger#log (Printf.sprintf "\n  rev2: %d uid2: %d uname2: %S r2_rep: %.3f w2_renorm: %.3f" 
+	    !Online_log.online_logger#log (Printf.sprintf "\n  rev2: %d uid2: %d uname2: %S r2_rep: %.3f w2_renorm: %.3f" 
 	      rev2_id rev2_uid rev2_uname rev2_rep renorm_w); 
-	    !online_logger#log (Printf.sprintf "\n  d_c1_1: %.2f d_c2_1: %.2f d_c2_2: %.2f d12: %.2f rev_1_to_2_time: %.3f\n"
+	    !Online_log.online_logger#log (Printf.sprintf "\n  d_c1_1: %.2f d_c2_1: %.2f d_c2_2: %.2f d12: %.2f rev_1_to_2_time: %.3f\n"
 	      delta d_c2_1 d_c2_2 d12 ((rev2_time -. rev1_time) /. (3600. *. 24.))); 
 	  end (* rev1 is by non_anonymous *)
 	end done (* for rev1_idx *)
@@ -1268,14 +1268,14 @@ class page
 	      self#read_page_revisions_edit; 
 	      
 	      (* Computes the edit distances *)
-	      if debug then !online_logger#log "   Computing edit lists...\n";
+	      if debug then !Online_log.online_logger#log "   Computing edit lists...\n";
 	      self#compute_edit_lists; 
 	      (* Computes, and writes to disk, the trust of the newest revision *)
-	      if debug then !online_logger#log "   Computing trust...\n";
+	      if debug then !Online_log.online_logger#log "   Computing trust...\n";
 	      self#compute_trust;
 	      
 	      (* We now process the reputation update. *)
-	      if debug then !online_logger#log "   Computing edit incs...\n";
+	      if debug then !Online_log.online_logger#log "   Computing edit incs...\n";
 	      self#compute_edit_inc;
 	      
 	      (* Inserts the revision in the list of high rep or high trust revisions, 
@@ -1285,7 +1285,7 @@ class page
 	      db#write_page_chunks_info page_id del_chunks_list page_info;
 
 	      (* We write back to disk the information of all revisions *)
-	      if debug then !online_logger#log "   Writing the quality information...\n";
+	      if debug then !Online_log.online_logger#log "   Writing the quality information...\n";
 	      let f r = r#write_quality_to_db in 
 	      Vec.iter f revs;
 
@@ -1312,10 +1312,10 @@ class page
       if !needs_coloring then begin 
 
 	(* We write to disk all reputation changes *)
-	if debug then !online_logger#log "   Writing the reputations...\n";
+	if debug then !Online_log.online_logger#log "   Writing the reputations...\n";
 	self#write_all_reps;
 	
-	if debug then !online_logger#log "   All done!\n";
+	if debug then !Online_log.online_logger#log "   All done!\n";
       end; (* needs coloring *)
 
       (* Writes the new histogram *)
@@ -1340,7 +1340,7 @@ class page
       end;
 
       (* Flushes the logger.  *)
-      !online_logger#flush; 
+      !Online_log.online_logger#flush; 
 
       (* Returns whether we have done something *)
       !done_something
@@ -1362,7 +1362,7 @@ class page
 	begin 
 	  try 
 	    db#start_transaction Online_db.MediaWiki;
-	    if debug then !online_logger#log "Start vote for revision...\n";
+	    if debug then !Online_log.online_logger#log "Start vote for revision...\n";
 	    (* Reads the page information and the revision *)
 	    self#read_page_revisions_vote; 
 	    (* Increases the trust of the revision, and writes the 
@@ -1377,10 +1377,10 @@ class page
 	    db#commit Online_db.MediaWiki;
 	    n_attempts := n_retries;
 	    done_something := true;
-	    !online_logger#log (Printf.sprintf 
+	    !Online_log.online_logger#log (Printf.sprintf 
 	      "\n\nUser %d voted for revision %d of page %d" 
 	      voter_id revision_id page_id);
-	    !online_logger#flush; 
+	    !Online_log.online_logger#flush; 
 	    
 	  with Online_db.DB_TXN_Bad | Online_db.DB_Not_Found -> begin 
 	    db#rollback_transaction Online_db.MediaWiki;

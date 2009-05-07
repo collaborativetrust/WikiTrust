@@ -93,7 +93,7 @@ let set_wt_db_colored_base_path s = wt_db_colored_base_path := Some s
 let synch_log = ref false
 let set_log_name d = begin
   let f = open_out_gen [Open_wronly; Open_creat; Open_append; Open_text] 0o640 d in
-  online_logger := new Online_log.logger f !synch_log
+  Online_log.online_logger := new Online_log.logger f !synch_log
 end
 
 (* Other paramiters *)

@@ -60,15 +60,6 @@ type revision_t = {
   rev_comment: string
 } 
 
-(* Represents a signature *)
-type sig_t = {
-  words_a: string array;
-  trust_a: float array;
-  origin_a: int array;
-  author_a: string array;
-  sig_a: Author_sig.packed_author_signature_t array;
-} with sexp
-
 (* This is the type of a vote data *)
 type vote_t = {
   vote_time: string;

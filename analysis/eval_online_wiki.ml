@@ -104,7 +104,7 @@ let db = new Online_db.db !db_prefix mediawiki_db wikitrust_db_opt
 (* If requested, we erase all coloring, and we recompute it from scratch. *)
 if !delete_all then begin 
   db#delete_all true; 
-  !online_logger#log "\n  Cleared the db."
+  !Online_log.online_logger#log "\n  Cleared the db."
 end;
 
 (* Creates an event processor *)
@@ -139,5 +139,5 @@ end;
 db#close;
     
 (* Close the logger *)
-!online_logger#close
+!Online_log.online_logger#close
 
