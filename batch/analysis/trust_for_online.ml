@@ -43,28 +43,37 @@ POSSIBILITY OF SUCH DAMAGE.
 (* TODO(Luca): we could use a more sophisticated comparison, as in the online system,
    where a revision would be compared with multiple past ones. *)
 
-
 type word = string 
 exception Ins_text_in_deleted_chunk
 open Eval_defs
 open Online_types
+open Mysql
+open Sexplib.Conv
+open Sexplib.Sexp
+open Sexplib
 
 class page 
   (page_id: int)
   (title: string)
-  (out_file: out_channel)
+  (* File to use for sql command output *)
   (sql_file: out_channel)
+  (* Base path for filesystem revision storage *)
   (colored_base_path: string)
+  (* Base path for filesystem signature storage *)
+  (sig_base_path: string)
+  (* Prefix for db tables *)
   (db_prefix: string)
+  (* History of user reputations *)
   (rep_histories: Rephist.rephist)
+  (* Coefficients for trust computation *)
   (trust_coeff_lends_rep: float)
   (trust_coeff_read_all: float) 
   (trust_coeff_read_part: float) 
   (trust_coeff_part_radius: float)
   (trust_coeff_cut_rep_radius: float) 
   (trust_coeff_kill_decrease: float)
-  (n_rev_to_color: int) 
-  (equate_anons: bool) 
+  (* N. of signatures to output *)
+  (n_sigs: int) 
   =
 
 object(self) 
@@ -102,7 +111,7 @@ object(self)
     method private write_wikitrust_revision_sql 
       (r: Revision.trust_revision) : unit = 
       (* Revision parameters *)
-      let rev_id = ml2int g#get_id in
+      let rev_id = ml2int r#get_id in
       let page_id = ml2int r#get_page_id in
       (* We don't have the text_id, so we put 0 in place. *)
       let text_id = ml2int 0 in
@@ -129,7 +138,7 @@ object(self)
 	 selecting high-quality revisions, and as it can be computed on 
 	 the basis of the current revision only. *)
       quality_info.overall_trust <- 
-	Compute_robust_trust.compute_overall_trust chunks_trust.a(0);
+	Compute_robust_trust.compute_overall_trust chunks_trust_a.(0);
       (* Writes these parameters. *)
       let q1 = ml2str (string_of__of__sexp_of sexp_of_qual_info_t quality_info_default) in 
       let q2 =  ml2float quality_info_default.reputation_gain in 
@@ -144,7 +153,7 @@ object(self)
 	- The colored revision text, compressed, in the filesystem.
 	- The sql code for the online system metadata.
 	- The revision metadata in an xml file, just in case. *)
-    method eval_newest : unit = 
+    method private eval_newest : unit = 
       let rev_idx = (Vec.length revs) - 1 in 
       let rev = Vec.get rev_idx revs in 
       let uid = rev#get_user_id in 
@@ -164,7 +173,7 @@ object(self)
       let (new_chunks_trust_a, new_chunks_sig_a) = Compute_robust_trust.compute_robust_trust
 	chunks_trust_a chunks_sig_a new_chunks_a rev#get_seps medit_l rep_float uid 
 	trust_coeff_lends_rep trust_coeff_kill_decrease trust_coeff_cut_rep_radius
-	trust_coeff_read_all trust_coeff_read_part trust_coeff_local_decay in
+	trust_coeff_read_all trust_coeff_read_part default_trust_coeff.local_decay in
 
       (* Computes the origin of the words in the new revision. *)
       let (new_chunks_origin_a, new_chunks_author_a) = Compute_robust_trust.compute_origin
@@ -176,11 +185,12 @@ object(self)
       chunks_author_a <- new_chunks_author_a;
       chunks_sig_a <- new_chunks_sig_a;
       chunks_a <- new_chunks_a;
-      (* Also notes in the revision the reputations and the origins *)
+      (* Also notes in the revision the reputations and the origins, as well as the sigs. *)
       rev#set_word_trust new_chunks_trust_a.(0);
       rev#set_word_origin new_chunks_origin_a.(0);
-      rev#set_word_author new_chunks_author_a(0);
-      
+      rev#set_word_author new_chunks_author_a.(0);
+      rev#set_word_sig new_chunks_sig_a.(0);
+
       (* Outputs the colored text *)
       let colored_text = rev#get_colored_text in
       Filesystem_store.write_revision colored_base_path rev#get_page_id rev#get_id colored_text;
@@ -211,7 +221,7 @@ object(self)
       (* Evaluates the newest version *)
       self#eval_newest; 
       (* If the buffer is full, evaluates the oldest version and kicks it out *)
-      if (Vec.length revs) > n_rev_to_color then begin 
+      if (Vec.length revs) > n_sigs then begin 
 	(* The parameter 0 is the index of what is considered to be the oldest. 
            It is used, since in no_more_revisions it may be a larger number *)
 	revs <- Vec.remove 0 revs;
@@ -222,13 +232,12 @@ object(self)
 
     (** This method produces the sql code that adds the wikitrust_page information
 	to the db. *)
-    method produce_page_information : unit =
+    method private produce_page_information : unit =
       (* We need to produce a chunk_t list first. *)
       (* I timestamp them all with the time of the current revision.
 	 This is not ideal, but will be fine. *)
       let rev_idx = (Vec.length revs) - 1 in 
       let rev = Vec.get rev_idx revs in 
-      let uid = rev#get_user_id in 
       let rev_time = rev#get_time in 
       (* Yes, yes, I use iteration, but it's over arrays, and I need the index, so... *)
       let chunk_list = ref [] in 
@@ -247,7 +256,6 @@ object(self)
       let chunks_string = ml2str (string_of__of__sexp_of 
 	(sexp_of_list sexp_of_chunk_t) !chunk_list) in 
       (* Produces page_info_t *)
-      (* TODO(Luca): add the bookkeeping to compute these lists in the proper way. *)
       let page_info = {
 	past_hi_rep_revs = [];
 	past_hi_trust_revs = [];
@@ -257,13 +265,21 @@ object(self)
 	db_prefix (ml2int page_id) chunks_string info_string chunks_string info_string
 	
 
+    (** This method stores the sigs of the last few revisions in the filesystem. *)
+    method private output_sigs : unit = 
+      let output_sig r = 
+	let signature_string = string_of__of__sexp_of sexp_of_sig_t r#get_sig in
+	Filesystem_store.write_revision sig_base_path r#get_page_id r#get_id signature_string
+      in Vec.iter output_sig revs
+
+
     (** This method is called when there are no more revisions to evaluate. 
 	We need to produce the sql that contains the page information. *)
     method eval: unit = 
       (* Produces the page information *)
       self#produce_page_information;
-      (* Produces the sig information *)
-      self#produce_sig_information;
-      flush sql_file
+      flush sql_file;
+      (* Produces the sig information to the filesystem *)
+      self#output_sigs
     
   end

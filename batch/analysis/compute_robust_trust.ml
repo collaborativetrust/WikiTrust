@@ -1,6 +1,6 @@
 (*
 
-Copyright (c) 2007-2008 The Regents of the University of California
+Copyright (c) 2007-2009 The Regents of the University of California
 All rights reserved.
 
 Authors: Luca de Alfaro
@@ -463,3 +463,19 @@ let compute_origin
   in 
   List.iter f medit_l; 
   (new_chunks_origin_a, new_chunks_author_a)
+
+
+(** [compute_overall_trust t] computes the overall trust of a revision
+    where the word trust is given by array [t]. *)
+let compute_overall_trust (trust_a: float array) : float = 
+  (* Computes the sum of the square trust of a revision *)
+  let f (tot: float) (tr: float) : float = 
+    let norm_tr = tr /. (float_of_int max_rep_val) in 
+    tot +. (norm_tr *. norm_tr)
+  in 
+  let tot_sq_tr = Array.fold_left f 0. trust_a in 
+  let m = Array.length trust_a in 
+  let n = float_of_int m in 
+  (* The overall trust is the total of the square trust, multiplied by the 
+     average of the square trust. *)
+  if m = 0 then 0. else tot_sq_tr *. tot_sq_tr /. n 

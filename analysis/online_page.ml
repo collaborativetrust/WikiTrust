@@ -347,20 +347,6 @@ class page
     (** Computes the weight of a reputation *)
     method private weight (r: float) : float = log (1.2 +. r)
 
-    (** Computes the overall trust of a revision *)
-    method private compute_overall_trust (trust_a: float array) : float = 
-      (* Computes the sum of the square trust of a revision *)
-      let f (tot: float) (tr: float) : float = 
-	let norm_tr = tr /. (float_of_int max_rep_val) in 
-	tot +. (norm_tr *. norm_tr)
-      in 
-      let tot_sq_tr = Array.fold_left f 0. trust_a in 
-      let m = Array.length trust_a in 
-      let n = float_of_int m in 
-      (* The overall trust is the total of the square trust, multiplied by the 
-	 average of the square trust. *)
-      if m = 0 then 0. else tot_sq_tr *. tot_sq_tr /. n 
-
 
     (** [insert_revision_in_lists] inserts the revision in the 
 	list of high rep or high trust revisions if needed, and erases also 
@@ -748,7 +734,7 @@ class page
 	rev0#set_sigs   chunk_0_sigs;
 	rev0#write_words_trust_origin_sigs;
 	(* Computes the overall trust of the revision *)
-	let t = self#compute_overall_trust chunk_0_trust in 
+	let t = Compute_robust_trust.compute_overall_trust chunk_0_trust in 
 	rev0#set_overall_trust t
 
       end else begin 
@@ -906,7 +892,7 @@ class page
 	rev0#set_sigs   new_sigs_10_a.(0);
 	rev0#write_words_trust_origin_sigs;
 	(* Computes the overall trust of the revision *)
-	let t = self#compute_overall_trust new_trust_10_a.(0) in 
+	let t = Compute_robust_trust.compute_overall_trust new_trust_10_a.(0) in 
 	rev0#set_overall_trust t
       end (* method compute_trust *)
 
@@ -957,7 +943,7 @@ class page
 	  rev0#set_trust new_trust_a.(0); 
 	  rev0#set_sigs  new_sigs_a.(0);
 	  rev0#write_words_trust_origin_sigs;
-	  let t = self#compute_overall_trust new_trust_a.(0) in 
+	  let t = Compute_robust_trust.compute_overall_trust new_trust_a.(0) in 
 	  rev0#set_overall_trust t;
 	  (* And writes the information on the revision back to disk. *)
 	  if debug then !online_logger#log "   Voted; writing the quality information...\n";

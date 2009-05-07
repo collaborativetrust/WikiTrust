@@ -69,15 +69,6 @@ type revision_t = {
   rev_comment: string
 } 
 
-(* Represents a signature *)
-type sig_t = {
-  words_a: string array;
-  trust_a: float array;
-  origin_a: int array;
-  author_a: string array;
-  sig_a: Author_sig.packed_author_signature_t array;
-} with sexp
-
 let set_is_minor ism = match ism with
   | 0 -> false
   | 1 -> true

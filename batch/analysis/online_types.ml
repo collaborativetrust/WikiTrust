@@ -34,7 +34,9 @@ POSSIBILITY OF SUCH DAMAGE.
  *)
 
 (** This file contains types that are used by several modules of the 
-    online WikiTrust implementation. *)
+    online WikiTrust implementation.  It belongs to the batch implementation
+    because the batch trust analysis needs to be able to prepare data 
+    in the format used by the online analysis. *)
 
 TYPE_CONV_PATH "UCSC_WIKI_RESEARCH"    
 
@@ -66,6 +68,15 @@ type chunk_t = {
   origin: int array;
   (** This is the author of each word *)
   author: author_t array;
+} with sexp
+
+(** This type represents a signature *)
+type sig_t = {
+  words_a: string array;
+  trust_a: float array;
+  origin_a: int array;
+  author_a: string array;
+  sig_a: Author_sig.packed_author_signature_t array;
 } with sexp
 
 (** These are the coefficients used for the evaluation. *)
@@ -220,9 +231,6 @@ let page_info_default = {
 
 (* Timestamp in the DB *)
 type timestamp_t = int * int * int * int * int * int;;
-
-(* Logfile *)
-let online_logger = ref (new Online_log.logger stdout true);;
 
 (* Things for the WMF implementation *)
 

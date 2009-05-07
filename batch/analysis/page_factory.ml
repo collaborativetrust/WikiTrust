@@ -160,7 +160,13 @@ class page_factory
     (* When pruning revisions, keep only revisions after this time *)
     val mutable keep_rev_after = -1000.0
     (* Prefix to use when writing revisions as files *)
-    val mutable base_name = "/tmp/"
+    val mutable rev_base_path = "/tmp/rev"
+    (* Prefix to use when writing sigs as files *)
+    val mutable sig_base_path = "/tmp/sig"
+    (* Database prefix *)
+    val mutable db_prefix = ""
+    (* N. of signatures to write *)
+    val mutable n_sigs = 0
 
     (* Files for output *)
     val mutable out_file : out_channel = stderr (* also used for eval_file *)
@@ -221,7 +227,10 @@ class page_factory
     method set_n_edit_judging (n: int) = n_edit_judging <- n 
     method set_n_rev_to_output (n: int) = n_rev_to_output <- n 
     method set_keep_rev_after (n: string) = keep_rev_after <- Timeconv.convert_time n  
-    method set_base_name (n: string) = base_name <- n 
+    method set_rev_base_path (n: string) = rev_base_path <- n 
+    method set_sig_base_path (n: string) = sig_base_path <- n 
+    method set_db_prefix (n: string) = db_prefix <- n
+    method set_n_sigs (n: int) = n_sigs <- n
 
     (* This method gets the argument list part to be used to parse the command line *)      
     method get_arg_parser = 
@@ -261,7 +270,10 @@ class page_factory
        ("-do_origin", Arg.Set do_origin, "While doing the evaluation of trust, also generates word origin information");
        ("-keep_rev_after", Arg.String self#set_keep_rev_after, "<date>: Keep Revisions after date (date is in Wiki format, e.g., 2006-11-22T14:25:19Z )");
        ("-revisions_to_text", Arg.Unit self#set_revs_to_text, "Writes each revision out as a separate file."); 
-       ("-rev_base_name", Arg.String self#set_base_name, "Prefix for writing out each revision as a separate file."); 
+       ("-rev_base_path", Arg.String self#set_rev_base_path, "Prefix for writing out each revision as a separate file."); 
+       ("-sig_base_path", Arg.String self#set_sig_base_path, "Prefix for writing out each revision signature as a separate file."); 
+       ("-db_prefix", Arg.String self#set_db_prefix, "Prefix of db tables for the wiki.");
+       ("-n_sigs", Arg.Int self#set_n_sigs, "Number of past signatures to store in the filesystem.");
       ]		   
 
     (** Makes a page for the primary name space, where analysis must occur. *)
@@ -298,9 +310,10 @@ class page_factory
       | Trust_and_origin -> new Trust_origin_analysis.page id title xml_file rep_histories
 	  trust_coeff_lends_rep trust_coeff_read_all trust_coeff_read_part trust_coeff_part_radius 
 	    trust_coeff_cut_rep_radius trust_coeff_kill_decrease n_rev_to_output !equate_anons 
-      | Trust_for_online -> new Trust_for_online.page id title xml_file rep_histories
-	  trust_coeff_lends_rep trust_coeff_read_all trust_coeff_read_part trust_coeff_part_radius 
-	    trust_coeff_cut_rep_radius trust_coeff_kill_decrease n_rev_to_output !equate_anons 
+      | Trust_for_online -> new Trust_for_online.page id title sql_file
+	  rev_base_path sig_base_path db_prefix rep_histories
+	    trust_coeff_lends_rep trust_coeff_read_all trust_coeff_read_part trust_coeff_part_radius 
+	    trust_coeff_cut_rep_radius trust_coeff_kill_decrease n_sigs
       | Revcount_analysis -> begin 
 	  let n = page_seq_number in 
 	  page_seq_number <- n + 1; 
@@ -308,7 +321,7 @@ class page_factory
 	end 
       | Intertime_analysis -> new Intertime_analysis.page id title out_file
       | Prune_revisions -> new Prune_analysis.page id title xml_file n_rev_to_output keep_rev_after false true
-      | Revisions_to_text -> new Revs_to_files_analysis.page id title base_name xml_file
+      | Revisions_to_text -> new Revs_to_files_analysis.page id title rev_base_path xml_file
       | Do_nothing -> new page
 
 
@@ -348,9 +361,8 @@ class page_factory
 	    names_l := Vec.singleton xml_name
 	  end
 	| Trust_for_online -> begin
-	    xml_file <- Fileinfo.open_info_out xml_name; 
 	    sql_file <- Fileinfo.open_info_out sql_name; 
-	    names_l := Vec.of_list [xml_name; sql_name]
+	    names_l := Vec.singleton sql_name
 	  end
 	| Do_nothing -> ()
       end; 

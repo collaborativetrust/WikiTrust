@@ -1,6 +1,6 @@
 (*
 
-Copyright (c) 2007-2008 The Regents of the University of California
+Copyright (c) 2007-2009 The Regents of the University of California
 All rights reserved.
 
 Authors: Luca de Alfaro
@@ -75,3 +75,7 @@ val compute_origin :
   (* revid *) int ->
   (* author_name *) string -> 
   (* chunks_origin_a * chunks_author_a *) (int array array) * (string array array)
+
+(** [compute_overall_trust t] computes the overall trust of a revision
+    where the word trust is given by array [t]. *)
+val compute_overall_trust : float array -> float

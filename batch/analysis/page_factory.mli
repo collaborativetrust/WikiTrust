@@ -105,6 +105,7 @@ class page_factory :
     method set_trust_and_origin : unit -> unit
     method set_prune : unit -> unit 
     method set_revs_to_text : unit -> unit 
+    method set_trust_for_online : unit -> unit
 
     method print_mode : unit 
 
@@ -126,6 +127,10 @@ class page_factory :
     method set_single_file : out_channel -> unit
     method close_out_files : unit
     method set_keep_rev_after : string -> unit
-    method set_base_name : string -> unit
+    method set_rev_base_path : string -> unit
+    method set_sig_base_path : string -> unit
+    method set_db_prefix : string -> unit
+    method set_n_sigs : int -> unit
+
   end
 

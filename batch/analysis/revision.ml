@@ -34,6 +34,7 @@ POSSIBILITY OF SUCH DAMAGE.
  *)
 
 open Eval_defs
+open Online_types
 
 type word = string 
 
@@ -463,6 +464,11 @@ class trust_revision
     method set_word_author (a: string array) : unit = word_author <- a
     method get_word_author : string array = word_author
 
+    (* This is an array of word sigs *)
+    val mutable word_sig : Author_sig.packed_author_signature_t array = [| |]
+    method set_word_sig a : unit = word_sig <- a
+    method get_word_sig = word_sig
+
     method print_words_and_seps : unit = begin 
       Text.print_words_and_seps words seps;
       print_newline (); 
@@ -515,6 +521,15 @@ class trust_revision
     method get_colored_text : string = 
       Buffer.contents (produce_annotated_markup seps word_trust word_origin word_author
 	false true true)
+
+    (** Returns the signature of the revision. *)
+    method get_sig : sig_t = {
+      words_a = words;
+      trust_a = word_trust;
+      origin_a = word_origin;
+      author_a = word_author;
+      sig_a = word_sig
+    }
 
   end (* revision object *)
 
