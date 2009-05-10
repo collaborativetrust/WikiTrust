@@ -499,7 +499,7 @@ class db
     (* This is currently a first cut, which will be hopefully optimized later *)
     method write_colored_markup (page_id: int) (rev_id : int) (markup : string) : unit =
       let db_mkup = match colored_base_path with
-	  Some _ -> ""
+	  Some _ -> "''"
 	| None -> ml2str markup
       in 
       let s = Printf.sprintf "INSERT INTO %swikitrust_colored_markup (revision_id, revision_text) VALUES (%s, %s) ON DUPLICATE KEY UPDATE revision_text = %s"
