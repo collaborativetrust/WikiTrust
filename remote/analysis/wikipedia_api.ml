@@ -363,7 +363,7 @@ let rec get_revs_from_api (page_title: string) (last_id: int)
 	next_id
       end
   end with API_error -> begin
-    if rev_lim > 1 then begin
+    if rev_lim > 2 then begin
       logger#log (Printf.sprintf "Page load error for page %S. Trying again\n" page_title);
       Unix.sleep retry_delay_sec;
       get_revs_from_api page_title last_id db logger (rev_lim / 2);
