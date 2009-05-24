@@ -244,7 +244,7 @@ let fetch_page_and_revs_after_xml (page_title : string) (rev_start_id : string)
     ^ "?action=query&prop=revisions|"
     ^ "info&format=xml&inprop=&rvprop=ids|flags|timestamp|user|size|comment|"
     ^ "content&"
-    ^ "rvexpandtemplates=0&"
+    (* ^ "rvexpandtemplates=1&" *)
     ^ "rvstartid=" ^ rev_start_id
     ^ "&rvlimit=" ^ (string_of_int rev_lim)
     ^ "&rvdir=newer&titles=" ^ (Netencoding.Url.encode page_title) in
@@ -264,7 +264,7 @@ let fetch_page_and_revs_after_json (page_title : string)
     ^ "?action=query&prop=revisions|"
     ^ "info&format=json&inprop=&rvprop=ids|flags|timestamp|user|size|comment|"
     ^ "content&"
-    ^ "rvexpandtemplates=0&"
+    (* ^ "rvexpandtemplates=1&" *)
     ^ "rvstartid=" ^ rev_start_id
     ^ "&rvlimit=" ^ (string_of_int rev_lim)
     ^ "&rvdir=newer&titles=" ^ (Netencoding.Url.encode page_title) in
