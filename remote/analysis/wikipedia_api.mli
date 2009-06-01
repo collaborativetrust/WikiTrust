@@ -50,7 +50,7 @@ val default_timestamp : string
    See http://en.wikipedia.org/w/api.php for more details.
 *)
 val fetch_page_and_revs_after : string -> string -> int ->
-  Online_log.logger -> (Online_types.wiki_page_t option * 
+  Online_log.logger -> Online_db.db -> (Online_types.wiki_page_t option * 
 			  Online_types.wiki_revision_t list * int option) 
 
 (** [get_user_id user_name logger] returns the user_id of user with name [user_name]. 

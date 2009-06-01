@@ -81,7 +81,11 @@ let main_loop () =
 	  db#get_latest_rev_id title
 	with Online_db.DB_Not_Found -> 0
       in
-	download_page title lastid;
+	try
+	  download_page title lastid;
+	with Wikipedia_api.API_error -> begin
+	  logger#log (Printf.sprintf "ERROR: %s\n" title);
+	end
     done
   with End_of_file -> ()
 in

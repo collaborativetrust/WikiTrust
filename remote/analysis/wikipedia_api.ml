@@ -206,17 +206,26 @@ let process_rev ((key, rev) : (string * result_tree)) : wiki_revision_t =
 
 
 
-(** [process_page page] takes as input an xml tag representing a page,
+(** [process_page db page] takes as input a structure representing a page,
     and returns a pair consisting of a wiki_page_t structure, and a 
     list of corresponding wiki_revision_t. 
    *)
-let process_page ((key, page): (string * result_tree)) : (wiki_page_t * wiki_revision_t list) =
+let process_page (db : Online_db.db) ((key, page): (string * result_tree))
+	: (wiki_page_t * wiki_revision_t list) =
   let spaces2underscores str = Str.global_replace (Str.regexp " ") "_" str in
   let redirect_attr = get_property page "redirect" (Some "") in
+  let api_page = int_of_string (get_property page "pageid" None) in
+  let api_title = spaces2underscores (get_property page "title" None) in
+  let the_page_id = try
+	let db_pageid = db#get_page_id api_title in
+	if db_pageid <> api_page then raise API_error
+	else api_page
+      with Online_db.DB_Not_Found -> api_page
+  in
   let w_page = {
-    page_id = int_of_string (get_property page "pageid" None);
+    page_id = the_page_id;
     page_namespace = int_of_string (get_property page "ns" None);
-    page_title = spaces2underscores (get_property page "title" None); 
+    page_title = api_title;
     page_restrictions = "";
     page_counter = int_of_string (get_property page "counter" None);
     page_is_redirect = if redirect_attr = "" then false
@@ -238,7 +247,7 @@ let process_page ((key, page): (string * result_tree)) : (wiki_page_t * wiki_rev
   ;;
 
 let fetch_page_and_revs_after_xml (page_title : string) (rev_start_id : string)
-    (rev_lim: int) (logger : Online_log.logger) 
+    (rev_lim: int) (logger : Online_log.logger)
     : result_tree =
   let url = !Online_command_line.target_wikimedia 
     ^ "?action=query&prop=revisions|"
@@ -258,7 +267,7 @@ let fetch_page_and_revs_after_xml (page_title : string) (rev_start_id : string)
 
 let fetch_page_and_revs_after_json (page_title : string)
     (rev_start_id : string) (rev_lim: int)
-    (logger : Online_log.logger) 
+    (logger : Online_log.logger)
     : result_tree =
   let url = !Online_command_line.target_wikimedia 
     ^ "?action=query&prop=revisions|"
@@ -277,7 +286,7 @@ let fetch_page_and_revs_after_json (page_title : string)
 
 
 (**
-   [fetch_page_and_revs after page_title rev_start_id logger], given a [page_title] 
+   [fetch_page_and_revs after page_title rev_start_id logger db], given a [page_title] 
    and a [rev_start_id], returns all the revisions of [page_title] after 
    [rev_start_id].  [logger] is, well, a logger. 
    It returns a triple, consisting of:
@@ -288,7 +297,7 @@ let fetch_page_and_revs_after_json (page_title : string)
    See http://en.wikipedia.org/w/api.php for more details.
 *)
 let fetch_page_and_revs_after (page_title : string) (rev_start_id : string)
-    (rev_lim: int) (logger : Online_log.logger) 
+    (rev_lim: int) (logger : Online_log.logger) (db : Online_db.db)
     : (wiki_page_t option * wiki_revision_t list * int option) =
   let api = fetch_page_and_revs_after_json page_title rev_start_id rev_lim logger in
   match get_descendant api ["query"; "pages"] with
@@ -296,7 +305,7 @@ let fetch_page_and_revs_after (page_title : string) (rev_start_id : string)
   | Some pages -> begin
       let pagelist = get_children pages in
       let first = List.hd pagelist in
-      let (page_info, rev_info) = process_page first in
+      let (page_info, rev_info) = process_page db first in
       let nextrev = get_descendant api ["query-continue"; "revisions"] in
       match nextrev with
 	  None -> (Some page_info, rev_info, None)
@@ -343,7 +352,7 @@ let rec get_revs_from_api (page_title: string) (last_id: int)
     logger#log (Printf.sprintf "Getting revs from api for page '%s'\n" page_title);
     (* Retrieve a page and revision list from mediawiki. *)
     let (wiki_page', wiki_revs, next_id) = 
-      fetch_page_and_revs_after page_title (string_of_int last_id) rev_lim logger in  
+      fetch_page_and_revs_after page_title (string_of_int last_id) rev_lim logger db in  
     match wiki_page' with
       None -> None
     | Some wiki_page -> begin
