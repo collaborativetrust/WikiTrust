@@ -223,10 +223,16 @@ let process_page (db : Online_db.db) ((key, page): (string * result_tree))
 	else api_page
       with Online_db.DB_Not_Found -> api_page
   in
+  let the_page_title = try
+	let db_pagetitle = db#get_page_title the_page_id in
+	if db_pagetitle <> api_title then raise API_error_noretry
+	else api_title
+      with Online_db.DB_Not_Found -> api_title
+  in
   let w_page = {
     page_id = the_page_id;
     page_namespace = int_of_string (get_property page "ns" None);
-    page_title = api_title;
+    page_title = the_page_title;
     page_restrictions = "";
     page_counter = int_of_string (get_property page "counter" None);
     page_is_redirect = if redirect_attr = "" then false

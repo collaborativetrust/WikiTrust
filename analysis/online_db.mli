@@ -203,6 +203,9 @@ class db :
     (** [get_page_id page_title] returns the page id of the named page *)
     method get_page_id : string -> int
 
+    (** [get_page_title page_id] returns the page title of the named page *)
+    method get_page_title : int -> string
+
     (* ================================================================ *)
     (* Revision methods.  We assume we have a lock on the page to which 
        the revision belongs when calling these methods. *)
