@@ -669,7 +669,10 @@ class db
 	(ml2int page.page_len) 
 	(ml2int page.page_latest)
       in
-      ignore (self#db_exec mediawiki_dbh s)
+      let result = self#db_exec mediawiki_dbh s in
+      let rows = Mysql.size result in
+      if rows <> (Int64.of_int 1) then raise DB_Not_Found
+      else ()
 
     (** This method writes a revision to the database. 
 	It is only useful for the remote use of WikiTrust. *) 
