@@ -39,6 +39,7 @@ open Online_types;;
 open Json_type;;
 
 exception API_error
+exception API_error_noretry
 
 Random.self_init ()
 
@@ -218,7 +219,7 @@ let process_page (db : Online_db.db) ((key, page): (string * result_tree))
   let api_title = spaces2underscores (get_property page "title" None) in
   let the_page_id = try
 	let db_pageid = db#get_page_id api_title in
-	if db_pageid <> api_page then raise API_error
+	if db_pageid <> api_page then raise API_error_noretry
 	else api_page
       with Online_db.DB_Not_Found -> api_page
   in
@@ -377,4 +378,6 @@ let rec get_revs_from_api (page_title: string) (last_id: int)
       Unix.sleep retry_delay_sec;
       get_revs_from_api page_title last_id db logger (rev_lim / 2);
     end else raise API_error
-  end;;
+  end
+ | API_error_noretry -> raise API_error
+;;
