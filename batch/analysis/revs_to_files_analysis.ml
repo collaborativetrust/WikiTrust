@@ -88,10 +88,12 @@ class page
       let r = new Revision.write_only_revision rev_id page_id timestamp time contributor user_id 
 	ip_addr username is_minor comment Vec.empty true in
       r#output_revision out_file;
-      (* Now we need to write the text of the revision in its own file *)
-      (* First, generates the text. *)
+      (* Now we need to write the text of the revision in its own file. *)
+      (* First, generates the text, converting the XML escapes &gt; etc into normal
+	 characters. *)
       let buf = Buffer.create 10000 in
-      Vec.iter (Buffer.add_string buf) text_init;
+      let add_str s = Buffer.add_string buf (Text.xml_disarm s) in
+      Vec.iter add_str text_init;
       (* Then writes it. *)
       Filesystem_store.write_revision base_name page_id rev_id (Buffer.contents buf)
 
