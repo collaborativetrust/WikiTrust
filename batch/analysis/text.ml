@@ -1,6 +1,6 @@
 (*
 
-Copyright (c) 2007-2008 The Regents of the University of California
+Copyright (c) 2007-2009 The Regents of the University of California
 All rights reserved.
 
 Authors: Luca de Alfaro
@@ -137,6 +137,33 @@ let print_words_and_seps (w: word array) (s: sep_t array) =
   Printf.printf ("\n"); 
   print_seps s
 
+(* **************************************************************** *)
+(* Functions for arming and disarming XML escape sequences. *)
+
+let a_lt_r = Str.regexp "&lt;"
+let lt_r = Str.regexp "<" 
+let a_gt_r = Str.regexp "&gt;"
+let gt_r = Str.regexp ">"
+let a_quot_r = Str.regexp "&quot;"
+let quot_r = Str.regexp "\""
+let a_apos_r = Str.regexp "&apos;"
+let apos_r = Str.regexp "'"
+let a_amp_r = Str.regexp "&aamp;"
+let amp_r = Str.regexp "&"
+
+let xml_disarm (s: string) : string =
+  Str.global_replace a_amp_r "&" (
+    Str.global_replace a_gt_r ">" (
+      Str.global_replace a_lt_r "<" (
+	Str.global_replace a_quot_r "\"" (
+	  Str.global_replace a_apos_r "'" s))))
+
+let xml_arm (s: string) : string =
+  Str.global_replace amp_r "&" (
+    Str.global_replace lt_r "&lt;" ( 
+      Str.global_replace gt_r "&gt;" (
+	Str.global_replace quot_r "\"" (
+	  Str.global_replace apos_r "'" s))))
 
 (* **************************************************************** *)
 (* Here start the functions that are used to split a wiki article in 
@@ -675,12 +702,7 @@ let gt_r = Str.regexp ">"
    taking also care of the &lt; and &gt; substitution *)
 let separate_whitespace (arm: bool) (v: piece_t Vec.t) : piece_t Vec.t = 
   (* The function rearm re-arms the < and > tags *)
-  let rearm (s: string) = 
-    if arm then begin 
-      let s' = Str.global_replace lt_r "&lt;" s in 
-      Str.global_replace gt_r "&gt;" s' 
-    end else s
-  in 
+  let rearm (s: string) = if arm then xml_arm s else s in 
   (* The function f is folded over v *)
   let f (d: piece_t) (piece_v: piece_t Vec.t) : piece_t Vec.t = 
     match d with 
@@ -715,16 +737,11 @@ let separate_whitespace (arm: bool) (v: piece_t Vec.t) : piece_t Vec.t =
     | _ -> Vec.append d piece_v 
   in Vec.fold f v Vec.empty
 
-let a_lt_r = Str.regexp "&lt;"
-let a_gt_r = Str.regexp "&gt;"
+
 (* This function splits a string respecting the Wiki markup language. *)
 let split_string_preserving_markup (arm: bool) (text: string) : piece_t Vec.t = 
   (* First, I replace &lt; and &gt; with < and > if requested *)
-  let text2 = 
-    if arm 
-    then Str.global_replace a_gt_r ">" (Str.global_replace a_lt_r "<" text)
-    else text
-  in
+  let text2 = if arm then xml_disarm text else text in
   let text3 = remove_html_comments text2 in 
   (* Makes sure the string begins with \n, to find markup at the beginning of a line *)
   if String.length text3 = 0 

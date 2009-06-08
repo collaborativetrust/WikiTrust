@@ -1,6 +1,6 @@
 (*
 
-Copyright (c) 2007-2008 The Regents of the University of California
+Copyright (c) 2007-2009 The Regents of the University of California
 All rights reserved.
 
 Authors: Luca de Alfaro
@@ -36,11 +36,11 @@ POSSIBILITY OF SUCH DAMAGE.
 (** Version number of the code *)
 val version: string
 
-type word = string
 (** The type of words *)
+type word = string
 
+(** The type of word tokens *)
 type sep_t =
-    (** The type of word tokens *)
     Title_start of string * int
       (** start sequence for a title *)
   | Title_end of string * int
@@ -70,15 +70,12 @@ type sep_t =
   | Redirect of string * int
       (** redirection tag, along with the position in the word array *)
 
+(** [split_into_words arm sv] splits a Vec of strings [sv] into an array of words.
+    [arm] denotes whether < and > have to be rearmed into &lt; and &gt; 
+    Used for reputation analysis. *)
 val split_into_words : bool -> string Vec.t -> word array
-  (** [split_into_words arm sv] splits a Vec of strings [sv] into an array of words.
-      [arm] denotes whether < and > have to be rearmed into &lt; and &gt; 
-      Used for reputation analysis. *)
 
-val split_into_words_seps_and_info : 
-  bool -> string Vec.t -> ((word array) * (float array) * (int array) * (string array)
-                           * (int array) * (sep_t array))
-  (** [split_into_words_seps_and_info arm sv] splits a Vec of strings [sv] into:
+(** [split_into_words_seps_and_info arm sv] splits a Vec of strings [sv] into:
    - an array of words (excluding separators, such as white space, etc)
    - an array of trust values of words (float) 
    - an array of origins of words (int) 
@@ -88,14 +85,19 @@ val split_into_words_seps_and_info :
      annotated. 
    [arm] denotes whether < and > have to be rearmed into &lt; and &gt; 
 *)
+val split_into_words_seps_and_info : 
+  bool -> string Vec.t -> ((word array) * (float array) * (int array) * (string array)
+                           * (int array) * (sep_t array))
 
+(** [print_words wa] prints the words in the word array [wa]. *)
 val print_words : word array -> unit
-  (** [print_words wa] prints the words in the word array [wa]. *)
 
+(** [print_seps wa] prints the array of separators [wa] *)
 val print_seps : sep_t array -> unit 
-  (** [print_seps wa] prints the array of separators [wa] *)
 
+(** [print_words_and_seps ws sp] prints the array of words [ws] and the array of separators [wa] *)
 val print_words_and_seps : (word array) -> (sep_t array) -> unit
-  (** [print_words_and_seps ws sp] prints the array of words [ws] and the array of separators [wa] *)
 
-
+(** Arms and disarms XML &lt; etc. tags. *)
+val xml_arm : string -> string
+val xml_disarm : string -> string

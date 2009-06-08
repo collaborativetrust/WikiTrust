@@ -1,6 +1,6 @@
 (*
 
-Copyright (c) 2007-2008 The Regents of the University of California
+Copyright (c) 2007-2009 The Regents of the University of California
 All rights reserved.
 
 Authors: Luca de Alfaro, B. Thomas Adler, Vishwanath Raman
@@ -34,9 +34,6 @@ POSSIBILITY OF SUCH DAMAGE.
  *)
 
 
-(** Module Showstats
-    This module computes and displays the statistics regarding
-    the predictive power of reputation for a wiki. *)
 open Evaltypes;;
 
 (* First, I want to figure out which version I am. *)
@@ -95,42 +92,41 @@ let set_end_time (s: string) =
     end_time = Timeconv.time_to_float y m d 0 0 0; 
 };;
 
-let command_line_format = [("-end", Arg.String (set_end_time), 
-			    "End time for the evaluation (YYYY.MMDD)"); 
-			   ("-m", Arg.Set (do_monthly), 
-			    "Do monthly statistics of precision and recall");
-			   ("-u", Arg.String set_user_file, 
-			    "<user_file>: produce file with user reputation evolution");
-			   ("-cumul", Arg.Set (do_cumulative), 
-			    "Do the monthly statistics in cumulative fashion, since the beginning of time");
-			   ("-a", Arg.Set (include_anon), 
-                            "Include anonymous users in statistics");
-			   ("-localinc", Arg.Set (do_localinc),
-			    "EditInc uses, as past reference point, only the immediately preceding version");
-			   ("-domains", Arg.Set include_domains,
-			    "Include user domains for anonymous users in computing reputation");
-			   ("-ip_nbytes", Arg.Int set_ip_nbytes, 
-			    "<n>: generate user ids using the first n bytes of their ip address. n should be in [1,4]");
-			   ("-u_contrib", Arg.String set_user_contrib_file,
-			    "<contrib_file>: produce a file with user contribution data");
-                           ("-u_contrib_order_asc", Arg.Set (user_contrib_order_asc),
-                            "Ascending order of user contributions (default: descending)");
-			   ("-gen_exact_rep", Arg.Set (gen_exact_rep),
-			    "Generate an extra column in the user reputation file with exact reputation values");
-			   ("-use_reputation_cap", Arg.Set use_reputation_cap, 
-			    "Use reputation cap.");
-			   ("-use_weak_nix", Arg.Set use_weak_nix, 
-			    "Use nix by any reputation (low rep can nix high rep).");
-			   ("-use_nix", Arg.Set use_nix, 
-			    "Use nix in which higher reputation users can nix lower reputation ones"); 
-			   ("-nix_inverval", Arg.Float set_nix_interval, 
-			    "Nixing interval (in seconds) for robust reputation.");
-			   ("-n_edit_judging", Arg.Int set_n_edit_judging, 
-			    "N. of edit judges for nixing (this must match the way evalwiki was called to compute the stats"); 
-			   ("-local_global_algo", Arg.Set gen_almost_truthful_rep, 
-			    "Use algorithm for almost truthful reputation.");
-			   ("-local_algo", Arg.Set gen_truthful_rep, 
-			    "Use algorithm for truthful reputation.");
+let command_line_format = 
+  [("-end", Arg.String (set_end_time), 
+  "End time for the evaluation (YYYY.MMDD)"); 
+  ("-m", Arg.Set (do_monthly), 
+  "Do monthly statistics of precision and recall");
+  ("-u", Arg.String set_user_file, 
+  "<user_file>: produce file with user reputation evolution");
+  ("-cumul", Arg.Set (do_cumulative), 
+  "Do the monthly statistics in cumulative fashion, since the beginning of time");
+  ("-a", Arg.Set (include_anon), "Include anonymous users in statistics");
+  ("-localinc", Arg.Set (do_localinc),
+  "EditInc uses, as past reference point, only the immediately preceding version");
+  ("-domains", Arg.Set include_domains,
+  "Include user domains for anonymous users in computing reputation");
+  ("-ip_nbytes", Arg.Int set_ip_nbytes, 
+  "<n>: generate user ids using the first n bytes of their ip address. n should be in [1,4]");
+  ("-u_contrib", Arg.String set_user_contrib_file,
+  "<contrib_file>: produce a file with user contribution data");
+  ("-u_contrib_order_asc", Arg.Set (user_contrib_order_asc),
+  "Ascending order of user contributions (default: descending)");
+  ("-gen_exact_rep", Arg.Set (gen_exact_rep),
+  "Generate an extra column in the user reputation file with exact reputation values");
+  ("-use_reputation_cap", Arg.Set use_reputation_cap, "Use reputation cap.");
+  ("-use_weak_nix", Arg.Set use_weak_nix, 
+  "Use nix by any reputation (low rep can nix high rep).");
+  ("-use_nix", Arg.Set use_nix, 
+  "Use nix in which higher reputation users can nix lower reputation ones"); 
+  ("-nix_inverval", Arg.Float set_nix_interval, 
+  "Nixing interval (in seconds) for robust reputation.");
+  ("-n_edit_judging", Arg.Int set_n_edit_judging, 
+  "N. of edit judges for nixing " ^ 
+    "(this must match the way evalwiki was called to compute the stats"); 
+  ("-local_global_algo", Arg.Set gen_almost_truthful_rep, 
+  "Use algorithm for almost truthful reputation.");
+  ("-local_algo", Arg.Set gen_truthful_rep, "Use algorithm for truthful reputation.");
 ]
 
 let _ = Arg.parse command_line_format set_file_name "Usage: generate_reputation [<filename>]\nIf <filename> is missing, stdin is used"
