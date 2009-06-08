@@ -176,7 +176,7 @@ class page
       (comment: string)
       (text_init: string Vec.t) (* Text of the revision, still to be split into words *)
       : unit =
-      let r = new Revision.plain_revision id page_id timestamp time contributor user_id ip_addr username is_minor comment text_init in 
+      let r = new Revision.plain_revision id page_id timestamp time contributor user_id ip_addr username is_minor comment text_init true in 
       Printf.fprintf stderr "."; flush stderr; 
       match last_rev with
         (* This is the first we see for this page *)

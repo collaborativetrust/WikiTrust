@@ -332,7 +332,7 @@ class page
       (comment: string)
       (text_init: string Vec.t) (* Text of the revision, still to be split into words *)
       : unit =
-      let r = new Revision.cirlin_revision id page_id timestamp time contributor user_id ip_addr username is_minor comment text_init n_edit_judging in 
+      let r = new Revision.cirlin_revision id page_id timestamp time contributor user_id ip_addr username is_minor comment text_init true n_edit_judging in 
       let newest' = (newest + 1) mod cache_size in
       begin match rev_cache.(newest') with
 

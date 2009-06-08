@@ -106,7 +106,7 @@ class page
       if count_this then begin 
 	n_revisions <- n_revisions + 1; 
 	let r = new Revision.write_only_revision id page_id timestamp time contributor
-    user_id ip_addr username is_minor comment text_init in
+    user_id ip_addr username is_minor comment text_init true in
   revs <- Vec.append r revs;  
   if (Vec.length revs) > n_rev_to_keep then begin 
                   (* The parameter 0 is the index of what is considered to be the oldest. 

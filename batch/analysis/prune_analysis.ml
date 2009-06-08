@@ -109,7 +109,7 @@ class page
       (text_init: string Vec.t) (* Text of the revision, still to be split into words *)
       : unit =
       if keep_rev_after <= time then begin (* Only add those revisions after time keep_after_time *)
-        let r = new Revision.write_only_revision id page_id timestamp time contributor user_id ip_addr username is_minor comment text_init in 
+        let r = new Revision.write_only_revision id page_id timestamp time contributor user_id ip_addr username is_minor comment text_init true in 
         (* To keep track of progress *)
         (* Printf.fprintf stderr "."; flush stderr; *)
         match last_rev with

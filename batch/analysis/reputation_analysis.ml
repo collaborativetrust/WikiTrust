@@ -414,7 +414,7 @@ class page
       (comment: string)
       (text_init: string Vec.t) (* Text of the revision, still to be split into words *)
       : unit =
-      let r = new Revision.reputation_revision rev_id page_id timestamp time contributor user_id ip_addr username is_minor comment text_init n_edit_judging in 
+      let r = new Revision.reputation_revision rev_id page_id timestamp time contributor user_id ip_addr username is_minor comment text_init true n_edit_judging in 
       match last_rev with 
         (* This is the first we see for this page *)
         None -> last_rev <- Some r
