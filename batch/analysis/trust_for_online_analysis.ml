@@ -215,7 +215,10 @@ object(self)
       (comment: string)
       (text_init: string Vec.t) (* Text of the revision, still to be split into words *)
       : unit =
-      let r = new Revision.trust_revision rev_id page_id timestamp time contributor user_id ip_addr username is_minor comment text_init false in 
+      (* First, we have to "disarm" the text from the xml tag conversions, so that &gt; is
+	 transformed into >, and so forth. *)
+      let disarmed_text = Vec.map Text.xml_disarm text_init in
+      let r = new Revision.trust_revision rev_id page_id timestamp time contributor user_id ip_addr username is_minor comment disarmed_text false in 
       (* Adds the revision to the Vec of revisions. *)
       revs <- Vec.append r revs; 
       (* Evaluates the newest version *)
