@@ -57,6 +57,8 @@ let default_timestamp = "19700201000000"
  *)
 let api_tz_re = Str.regexp "\\([0-9][0-9][0-9][0-9]\\)-\\([0-9][0-9]\\)-\\([0-9][0-9]\\)T\\([0-9][0-9]\\):\\([0-9][0-9]\\):\\([0-9][0-9]\\)Z"
 
+let ip_re = Str.regexp "^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$"
+
 (** [api_ts2mw_ts timestamp] maps the Wikipedias api timestamp to our internal one.
 *)
 let api_ts2mw_ts s =
@@ -328,7 +330,9 @@ let fetch_page_and_revs_after (page_title : string) (rev_start_id : string)
     or asks a web service for it if we do not. 
 *)
 let get_user_id (user_name: string) (db: Online_db.db) : int =
-  try db#get_user_id user_name 
+  try
+    if Str.string_match ip_re user_name 0 then 0
+    else db#get_user_id user_name 
   with Online_db.DB_Not_Found -> begin
     let safe_user_name = Netencoding.Url.encode user_name in
     let url = !Online_command_line.user_id_server ^ "?n=" ^ safe_user_name in
