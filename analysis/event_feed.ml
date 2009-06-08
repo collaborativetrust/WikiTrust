@@ -33,6 +33,34 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
+
+(* Event_feed works in one of three contexts:
+
+   1. Local installation.
+      Get the metadata _and_ text from the local database, 
+      build a list of revisions, and return it.
+
+   2. Remote installation. 
+      The MW API has already pre-fetched the data.  We can
+      thus query the local database, and proceed as above.
+
+   3. WMF installation.
+      The exec API is called, instead of the local db, to 
+      figure out the list of revisions to process (the call
+      to the exec API can happen in online_db). 
+      Then, we read the revision text via the exec API, 
+      and return the Online_revision.revision list. 
+
+   So in summary, online_db must return an Online_revision.revision list
+   with every revision already filled in with the text. 
+
+   Online_page.ml should no longer read (uncolored) revision text.
+
+   This allows us to batch together access to revision text, if needed.
+
+ *)
+
+
 open Eval_defs;;
 open Online_types;;
 open Online_db;;
