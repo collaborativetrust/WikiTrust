@@ -72,6 +72,7 @@ let set_file_name (s: string) = stream_name := s
 let set_user_file s = user_file := Some (Fileinfo.open_info_out s)
 let user_contrib_file = ref None
 let set_user_contrib_file s = user_contrib_file := Some (Fileinfo.open_info_out s)
+let write_final_reps = ref false
 
 let set_ip_nbytes i = 
   if (i < 1 || i > 4) then begin
@@ -119,7 +120,7 @@ let command_line_format =
   "Use nix by any reputation (low rep can nix high rep).");
   ("-use_nix", Arg.Set use_nix, 
   "Use nix in which higher reputation users can nix lower reputation ones"); 
-  ("-nix_inverval", Arg.Float set_nix_interval, 
+  ("-nix_interval", Arg.Float set_nix_interval, 
   "Nixing interval (in seconds) for robust reputation.");
   ("-n_edit_judging", Arg.Int set_n_edit_judging, 
   "N. of edit judges for nixing " ^ 
@@ -127,6 +128,7 @@ let command_line_format =
   ("-local_global_algo", Arg.Set gen_almost_truthful_rep, 
   "Use algorithm for almost truthful reputation.");
   ("-local_algo", Arg.Set gen_truthful_rep, "Use algorithm for truthful reputation.");
+  ("-write_final_reps", Arg.Set write_final_reps, "Write reputations only at the end.");
 ]
 
 let _ = Arg.parse command_line_format set_file_name "Usage: generate_reputation [<filename>]\nIf <filename> is missing, stdin is used"
@@ -148,7 +150,7 @@ if (!gen_almost_truthful_rep || !gen_truthful_rep) then begin
 end
 
 (* This is the reputation evaluator *)
-let r = new Computerep.rep params !include_anon all_time_intv !time_intv !user_file !do_monthly !do_cumulative !do_localinc !gen_exact_rep !user_contrib_order_asc !include_domains !ip_nbytes stdout !use_reputation_cap !use_nix !use_weak_nix !nix_interval !n_edit_judging !gen_almost_truthful_rep !gen_truthful_rep;;
+let r = new Computerep.rep params !include_anon all_time_intv !time_intv !user_file !write_final_reps !do_monthly !do_cumulative !do_localinc !gen_exact_rep !user_contrib_order_asc !include_domains !ip_nbytes stdout !use_reputation_cap !use_nix !use_weak_nix !nix_interval !n_edit_judging !gen_almost_truthful_rep !gen_truthful_rep;;
 
 (* Reads the data *)
 let stream = if !stream_name = "" 

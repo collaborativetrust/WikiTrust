@@ -34,12 +34,7 @@ POSSIBILITY OF SUCH DAMAGE.
  *)
 
 (* Combine stats files uses bucket sort to combine all of the statistics files in a specified directory.
- * It writes its output to a specified file
- * USAGE:
- *     ARG1: stat file directory
- *     ARG2: output directory
- *     ARG3: number of buckets (optional, temporary)
- *)
+ * It writes its output to a specified file. *)
 
 let filetype = ".stats"
 

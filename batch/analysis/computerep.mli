@@ -1,6 +1,6 @@
 (*
 
-Copyright (c) 2007-2008 The Regents of the University of California
+Copyright (c) 2007-2009 The Regents of the University of California
 All rights reserved.
 
 Authors: Luca de Alfaro, B. Thomas Adler, Vishwanath Raman
@@ -46,6 +46,7 @@ class users :
   bool ->
   int ->
   out_channel option ->
+  bool ->
   object
     method private generate_user_id : int -> string -> int
     method get_count : int -> float
@@ -57,6 +58,7 @@ class users :
     method inc_rep : int -> string -> float -> Rephist.RepHistory.key -> unit
     method inc_contrib : int -> string -> float -> float -> bool -> unit
     method print_contributions : out_channel -> bool -> unit
+    method write_user_bins : unit
   end
 class rep :
   (* parameters *) Evaltypes.params_t ->
@@ -64,6 +66,7 @@ class rep :
   (* rep_intv *) Evaltypes.time_intv_t ->
   (* eval_intv *) Evaltypes.time_intv_t ->
   (* user_history_file *) out_channel option ->
+  (* write_final_reps *) bool ->
   (* print_monthly_stats *) bool -> 
   (* do_cumulative_months *) bool ->
   (* do_localinc *) bool ->

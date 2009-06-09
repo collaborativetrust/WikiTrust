@@ -51,7 +51,8 @@ class users
   (gen_exact_rep: bool)
   (include_domains: bool)
   (ip_nbytes: int)
-  (user_history_file: out_channel option) 
+  (user_history_file: out_channel option)
+  (write_final_reps: bool)
   =
   object (self)
     val tbl = Hashtbl.create 1000 
@@ -72,7 +73,7 @@ class users
 	    with _ -> !domain
 	  end else !domain
 	in
-	  -(accumulate ip_nbytes (Str.split (Str.regexp_string ".") ip_addr))
+	-(accumulate ip_nbytes (Str.split (Str.regexp_string ".") ip_addr))
       end else uid
 
     method inc_rep (uid: int) (username: string) (q: float) (timestamp: Rephist.RepHistory.key) : unit = 
@@ -83,23 +84,26 @@ class users
 	      if debug then Printf.printf "Uid %d rep: %f " user_id u.rep; 
 	      if debug then Printf.printf "inc: %f\n" (q /. rep_scaling);
 	      u.rep <- max 0.0 (min max_rep (u.rep +. (q /. rep_scaling)));
-	      match user_history_file with 
+	      if (not write_final_reps) then begin 
+		match user_history_file with 
 		  None -> ()
 		| Some f -> begin 
 		    let new_weight = log (1.0 +. (max 0.0 u.rep)) in 
-		      if new_weight > (float_of_int u.rep_bin) +. 1.2 
-			|| new_weight < (float_of_int u.rep_bin) -. 0.2 
-			|| gen_exact_rep
-		      then (* must write out the change in reputation *)
-			let new_bin = int_of_float new_weight in 
-			  if gen_exact_rep then
-			    Printf.fprintf f "%f %7d %2d %2d %f\n" timestamp user_id u.rep_bin new_bin u.rep
-			  else
-			    Printf.fprintf f "%f %7d %2d %2d\n" timestamp user_id u.rep_bin new_bin;
-			  u.rep_bin <- new_bin 
+		    if new_weight > (float_of_int u.rep_bin) +. 1.2 
+		      || new_weight < (float_of_int u.rep_bin) -. 0.2 
+		      || gen_exact_rep
+		    then begin (* must write out the change in reputation *)
+		      let new_bin = int_of_float new_weight in 
+		      if gen_exact_rep then
+			Printf.fprintf f "%f %7d %2d %2d %f\n" timestamp user_id u.rep_bin new_bin u.rep
+		      else
+			Printf.fprintf f "%f %7d %2d %2d\n" timestamp user_id u.rep_bin new_bin;
+		      u.rep_bin <- new_bin 
+		    end
 		  end;
 		    if user_id = single_debug_id && single_debug then 
 		      Printf.printf "Rep of %d: %f\n" user_id u.rep
+	      end (* If not write_final_reps *)
 	  end
 	else 
 	  begin
@@ -110,20 +114,23 @@ class users
 	      contrib = 0.0;
 	      cnt = 0.0; 
 	      rep_bin = 0; 
-	      rep_history = RepHistory.empty } in 
-	      u.rep <- max 0.0 (min max_rep (u.rep +. (q /. rep_scaling)));
+	      rep_history = RepHistory.empty 
+	    } in 
+	    u.rep <- max 0.0 (min max_rep (u.rep +. (q /. rep_scaling)));
+	    if (not write_final_reps) then begin
 	      match user_history_file with 
-		  None -> ()
-		| Some f -> begin 
-		    let new_weight = log (1.0 +. (max 0.0 u.rep)) in 
-		    let new_bin = int_of_float new_weight in 
-		      if gen_exact_rep then
-			Printf.fprintf f "%f %7d %2d %2d %f\n" timestamp user_id (-1) new_bin u.rep
-		      else
-			Printf.fprintf f "%f %7d %2d %2d\n" timestamp user_id (-1) new_bin;
-		      u.rep_bin <- new_bin 
-		  end;
-		    Hashtbl.add tbl user_id u; 
+		None -> ()
+	      | Some f -> begin 
+		  let new_weight = log (1.0 +. (max 0.0 u.rep)) in 
+		  let new_bin = int_of_float new_weight in 
+		  if gen_exact_rep then
+		    Printf.fprintf f "%f %7d %2d %2d %f\n" timestamp user_id (-1) new_bin u.rep
+		  else
+		    Printf.fprintf f "%f %7d %2d %2d\n" timestamp user_id (-1) new_bin;
+		  u.rep_bin <- new_bin 
+		end;
+		  Hashtbl.add tbl user_id u; 
+	    end
 	  end
 
     method inc_contrib (uid: int) (username: string) (delta: float) (longevity: float) (include_anons: bool) : unit = 
@@ -133,10 +140,10 @@ class users
             if Hashtbl.mem tbl user_id then begin
 	      (* Existing user *)
               let u = Hashtbl.find tbl user_id in 
-	        if debug then Printf.printf "Uid %d rep: %f " user_id u.rep; 
-                u.contrib <- u.contrib +. (delta *. longevity);
+	      if debug then Printf.printf "Uid %d rep: %f " user_id u.rep; 
+              u.contrib <- u.contrib +. (delta *. longevity);
             end
-          else begin
+            else begin
               (* New user *)
               let u = {
                 uname = username;
@@ -144,8 +151,9 @@ class users
                 contrib = delta *. longevity;
 		cnt = 0.0; 
 		rep_bin = 0; 
-		rep_history = RepHistory.empty } in 
-                Hashtbl.add tbl user_id u; 
+		rep_history = RepHistory.empty 
+	      } in 
+              Hashtbl.add tbl user_id u; 
             end
         end
 
@@ -166,8 +174,9 @@ class users
                 contrib = 0.0; 
                 cnt = 1.0; 
                 rep_bin = 0; 
-                rep_history = RepHistory.empty } in 
-                Hashtbl.add tbl uid u
+                rep_history = RepHistory.empty 
+	      } in 
+              Hashtbl.add tbl uid u
             end
         end
 
@@ -251,6 +260,17 @@ class users
         in
           Vec.iter write_contrib !vec_of_users
 
+    method write_user_bins : unit =
+      if write_final_reps then begin
+	match user_history_file with 
+	  None -> ()
+	| Some f -> begin
+	    let prt id u =
+	      Printf.fprintf f "%f %7d %2d %2d %f\n" 0. id 0 u.rep_bin u.rep in
+	    Hashtbl.iter prt tbl
+	  end
+      end
+	
   end (* class users *)
 
 class rep 
@@ -259,6 +279,7 @@ class rep
   (rep_intv: time_intv_t) (* The interval of time for which reputation is computed *)
   (eval_intv: time_intv_t) (* The time interval for which reputation is evaluated *)
   (user_history_file: out_channel option) (* File where to write the history of user reputations *)
+  (write_final_reps: bool) (* Write the reputations only at the end *)
   (print_monthly_stats: bool) (* Prints monthly precision and recall statistics *)
   (do_cumulative_months: bool) (* True if the monthly statistics have to be cumulative *)
   (do_localinc: bool) (* In EditInc, compares a revision only with the immediately preceding one *)
@@ -277,7 +298,7 @@ class rep
   =
 object (self)
   (* This is the object keeping track of all users *)
-  val user_data = new users params.rep_scaling params.max_rep gen_exact_rep include_domains ip_nbytes user_history_file
+  val user_data = new users params.rep_scaling params.max_rep gen_exact_rep include_domains ip_nbytes user_history_file write_final_reps
     (* These are for computing the statistics on the fly *)
   val mutable stat_text = new Computestats.stats params eval_intv
   val mutable stat_edit = new Computestats.stats params eval_intv
@@ -458,6 +479,11 @@ object (self)
 
   (* This method computes the statistics, and returns the edit_stats * text_stats *)
   method compute_stats (contrib_out_ch: out_channel option) (out_ch: out_channel) : stats_t * stats_t = 
+    (* First writes all user reputations, if requested. *)
+    if write_final_reps then begin
+      user_data#write_user_bins
+    end;
+    (* Prints contributions, if requested. *)
     begin
       match contrib_out_ch with
           Some f -> user_data#print_contributions f user_contrib_order_asc
