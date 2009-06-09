@@ -68,14 +68,11 @@ class rephist
       let read_rep (t: float) (user_id: int) (prev_rep: int) (next_rep: int) : unit =
 	if Hashtbl.mem histories user_id then begin 
 	  (* The user is already in the table *)
-	  (* Check: prev_rep cannot be -1 *)
-	  if prev_rep = -1 then raise Invalid_data; 
 	  (* Inserts data in hash table *)
 	  let v = Hashtbl.find histories user_id in 
 	  v := RepHistory.add t next_rep !v
 	end else begin 
 	  (* New user *)
-	  if prev_rep <> -1 then raise Invalid_data; 
 	  let t' = t -. 1.0 in 
 	  (* Adds the fact that the reputation used to be 0 before *)
 	  let r1 = RepHistory.add t' 0 RepHistory.empty in 

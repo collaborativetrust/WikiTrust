@@ -266,7 +266,7 @@ class users
 	  None -> ()
 	| Some f -> begin
 	    let prt id u =
-	      Printf.fprintf f "%f %7d %2d %2d\n" 0. id 0 u.rep_bin in
+	      Printf.fprintf f "%f %7d %2d %2d\n" 0. id (-1) u.rep_bin in
 	    Hashtbl.iter prt tbl
 	  end
       end
