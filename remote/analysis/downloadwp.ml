@@ -83,9 +83,11 @@ let main_loop () =
       in
 	try
 	  download_page title lastid;
-	with Wikipedia_api.API_error -> begin
-	  logger#log (Printf.sprintf "ERROR: %s\n" title);
-	end
+	with
+	    Wikipedia_api.API_error ->
+		logger#log (Printf.sprintf "ERROR: %s\n" title);
+	    | Failure x ->
+		logger#log (Printf.sprintf "ERROR: %s\n" title);
     done
   with End_of_file -> ()
 in
