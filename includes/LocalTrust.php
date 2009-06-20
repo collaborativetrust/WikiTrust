@@ -64,8 +64,11 @@ class TextTrust {
     // ParserFirstCallInit was introduced in modern (1.12+) MW versions 
 		// so as to avoid unstubbing $wgParser on setHook() too early, as 
 		// per r35980.
+    // TODO(Bo): is this right?  Run ParserFirstCallInit if it's not defined?
+    // This doesn't match code from all the other examples I could find.
     if (!defined( 'MW_SUPPORTS_PARSERFIRSTCALLINIT' )) {
       global $wgParser;
+      // TODO(Bo): this is already declared global above...
       wfRunHooks( 'ParserFirstCallInit', $wgParser );
     }
 
@@ -102,6 +105,8 @@ class TextTrust {
 
   // Handle trust tab.
   // This is here because we use it all the time. 
+  // TODO(Bo): What does this mean?  Many of the other functions
+  // just call the Impl class.  Is there a speed optimization here?
   public static function ucscTrustTemplate($skin, &$content_actions){
     global $wgRequest;
     wfLoadExtensionMessages('RemoteTrust');
