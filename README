@@ -86,7 +86,7 @@ require_once( $IP . "/extensions/WikiTrust/WikiTrust.php" );
      $wgWikiTrustVersion = "local"; 
   
    This needs to be one of local, remote, wmf.
-   Leave it as local, unless you know what you are doing.
+   The 'remote' and 'wmf' modes are special modes we use at UCSC.
 
      $wgWikiTrustGadget = "gadget-WikiTrust";
 

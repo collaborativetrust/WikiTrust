@@ -20,7 +20,7 @@
 # USA
 
 # There isn't a built in enum for php
-$wgWikiTrustVersion = "mwf"; ## This needs to be one of local, remote, wmf.
+$wgWikiTrustVersion = "local"; ## This needs to be one of local, remote, wmf.
 
 $wgWikiTrustGadget = "gadget-WikiTrust";
 $wgWikiTrustShowVoteButton = true; // If true, the vote button is shown.
@@ -39,11 +39,11 @@ switch ($wgWikiTrustVersion) {
   case "remote":
 	  require_once("$IP/extensions/WikiTrust/includes/RemoteTrustAjax.php");
 	  break;
-  case "mwf":
+  case "wmf":
 	  require_once("$IP/extensions/WikiTrust/includes/RemoteTrust.php");
 	  break;
   default:
-    die("Set \$wgWikiTrustVersion to one of 'local', 'remote', 'mwf'\n");
+    die("Set \$wgWikiTrustVersion to one of 'local', 'remote', 'wmf'\n");
 }
 
 ?>
