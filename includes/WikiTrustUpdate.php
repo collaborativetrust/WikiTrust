@@ -1,6 +1,6 @@
 <?php
 
-class TextTrustUpdate{
+class WikiTrustUpdate{
 
   /**
    * Update the DB when MW is updated.
@@ -20,13 +20,13 @@ class TextTrustUpdate{
 		
     foreach ($create_scripts as $table => $scripts) {
       if (!$db_tables[$table]){
-				foreach ($scripts as $script){
-					$db->query($script);
-				}
+	foreach ($scripts as $script){
+	  $db->query($script);
+	}
       }
     }	
-		return true;
-	}
+    return true;
+  }
 }
 
 ?>

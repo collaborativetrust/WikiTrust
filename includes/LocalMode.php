@@ -1,5 +1,6 @@
 <?php
 
+# Copyright (c) 2009 B. Thomas Adler
 # Copyright (c) 2007,2008 Luca de Alfaro
 # Copyright (c) 2007,2008 Ian Pye
 # Copyright (c) 2007 Jason Benterou
@@ -25,23 +26,6 @@
 # Uses Tool Tip JS library under the LGPL.
 # http://www.walterzorn.com/tooltip/tooltip_e.htm
 
-$dir = dirname(__FILE__) . '/'; 
-
-$wgExtensionMessagesFiles['RemoteTrust'] = $dir.'/RemoteTrust.i18n.php';
-
-# Credits
-$wgExtensionCredits['other'][] = array(
-				       'name' => 
-				       'Text Attribution and Trust',
-				       'author' =>
-				       'Ian Pye, Luca de Alfaro', 
-				       'url' => 
-				       'http://trust.cse.ucsc.edu', 
-				       'description' => 
-				       'Text is colored according to how much it has been revised.  An orange background indicates new, unrevised, text;  white is for text that has been revised by many reputed authors.  If you click on a word, you will be redirected to the diff corresponding to the edit where the word was introduced.  If you hover over a word, a pop-up displays the word author.'
-				       );
-			 
-$wgAutoloadClasses['TextTrustImpl'] = $dir . 'LocalTrustImpl.php';
 $wgAutoloadClasses['TextTrustUpdate'] = $dir . 'RemoteTrustUpdate.php';
 $wgExtensionFunctions[] = 'TextTrust::init';
 
