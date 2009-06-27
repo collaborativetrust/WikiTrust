@@ -25,25 +25,6 @@
 # Uses Tool Tip JS library under the LGPL.
 # http://www.walterzorn.com/tooltip/tooltip_e.htm
 
-$dir = dirname(__FILE__) . '/'; 
-
-$wgExtensionMessagesFiles['RemoteTrust'] = $dir.'/RemoteTrust.i18n.php';
-
-# Credits
-$wgExtensionCredits['other'][] = array(
-				       'name' => 
-				       'Text Attribution and Trust',
-				       'author' =>
-				       'Ian Pye, Luca de Alfaro', 
-				       'url' => 
-				       'http://trust.cse.ucsc.edu', 
-				       'description' => 
-				       'Text is colored according to how much it has been revised.  An orange background indicates new, unrevised, text;  white is for text that has been revised by many reputed authors.  If you click on a word, you will be redirected to the diff corresponding to the edit where the word was introduced.  If you hover over a word, a pop-up displays the word author.'
-				       );
-			 
-$wgAutoloadClasses['TextTrustImpl'] = $dir . 'RemoteTrustImplAjax.php';
-$wgAutoloadClasses['TextTrustUpdate'] = $dir . 'RemoteTrustUpdate.php';
-$wgExtensionFunctions[] = 'TextTrust::init';
 
 class TextTrust {
 
@@ -55,27 +36,7 @@ class TextTrust {
       $wgUser, $wgOut, $wgScriptPath, $wgExtensionMessagesFiles, 
       $wgWikiTrustShowVoteButton;
     
-    // ParserFirstCallInit was introduced in modern (1.12+) MW versions so as to
-    // avoid unstubbing $wgParser on setHook() too early, as per r35980
-    if (!defined( 'MW_SUPPORTS_PARSERFIRSTCALLINIT' )) {
-      global $wgParser;
-      wfRunHooks( 'ParserFirstCallInit', $wgParser );
-    }
     
-    # GetColoredText Functionality
-    if($wgUseAjax){ 
-      $wgAjaxExportList[] = "TextTrustImpl::getColoredText";
-    }
-
-# Updater fired when updating to a new version of MW.
-    $wgHooks['LoadExtensionSchemaUpdates'][] = 'TextTrustUpdate::updateDB';
-
-# Code which takes the "I vote" action. 
-    if($wgUseAjax && $wgWikiTrustShowVoteButton){
-      $wgAjaxExportList[] = "TextTrustImpl::handleVote";
-    }
-    
-# Add trust CSS and JS
     $wgHooks['OutputPageBeforeHTML'][] ='TextTrust::ucscColorTrust_OP';
   }
 

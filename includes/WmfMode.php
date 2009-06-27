@@ -25,80 +25,7 @@
 # Uses Tool Tip JS library under the LGPL.
 # http://www.walterzorn.com/tooltip/tooltip_e.htm
 
-$dir = dirname(__FILE__) . '/'; 
-
-$wgExtensionMessagesFiles['RemoteTrust'] = $dir.'/RemoteTrust.i18n.php';
-
-# Credits
-$wgExtensionCredits['other'][] = array(
-				       'name' => 
-				       'Text Attribution and Trust',
-				       'author' =>
-				       'Ian Pye, Luca de Alfaro', 
-				       'url' => 
-				       'http://trust.cse.ucsc.edu', 
-				       'description' => 
-				       'Text is colored according to how much it has been revised.  An orange background indicates new, unrevised, text;  white is for text that has been revised by many reputed authors.  If you click on a word, you will be redirected to the diff corresponding to the edit where the word was introduced.  If you hover over a word, a pop-up displays the word author.'
-				       );
-			 
-$wgAutoloadClasses['TextTrustImpl'] = $dir . 'RemoteTrustImpl.php';
-$wgAutoloadClasses['TextTrustUpdate'] = $dir . 'RemoteTrustUpdate.php';
-$wgExtensionFunctions[] = 'TextTrust::init';
-
-// Vote handleing
-$wgAjaxExportList[] = "TextTrustImpl::handleVote";
-
 class TextTrust {
-  
-  // Instance of our TrustImpl class
-  private static $trust;
-
-  /**
-   * Initializes and configures the extension.
-   */
-  public static function init() {
-    global $wgHooks, $wgParser, $wgRequest, $wgUseAjax, $wgAjaxExportList, 
-      $wgUser, $wgOut, $wgScriptPath, $wgExtensionMessagesFiles, 
-      $wgWikiTrustShowVoteButton, $wgWikiTrustGadget;
-    
-    // ParserFirstCallInit was introduced in modern (1.12+) MW versions 
-		// so as to avoid unstubbing $wgParser on setHook() too early, as 
-		// per r35980.
-    if (!defined( 'MW_SUPPORTS_PARSERFIRSTCALLINIT' )) {
-      global $wgParser;
-      wfRunHooks( 'ParserFirstCallInit', $wgParser );
-    }
-
-# Updater fired when updating to a new version of MW.
-    $wgHooks['LoadExtensionSchemaUpdates'][] = 'TextTrustUpdate::updateDB';
-      
-# Is the user opting to use wikitrust?
-    if (!$wgUser->getOption( $wgWikiTrustGadget ) ) {
-			return;
-    }
- 
-# And add an extra tab.
-    $wgHooks['SkinTemplateTabs'][] = 'TextTrust::ucscTrustTemplate';
-  
-# Edit hook.
-		$wgHooks['ArticleSaveComplete'][] = 'TextTrust::ucscArticleSaveComplete';
-
-# Return if trust is not selected.
-    if(!$wgRequest->getVal('trust') || $wgRequest->getVal('action')){
-      return;
-    }
-    
-# Add colored text if availible.
-    $wgHooks['OutputPageBeforeHTML'][] = 'TextTrust::ucscOutputBeforeHTML';	
-	}
-
-  private static function getTrustObj(){
-    if (!self::$trust){
-      self::$trust = new TextTrustImpl();
-    }
-
-		return;
-  }
 
   // Handle trust tab.
   // This is here because we use it all the time. 
@@ -134,31 +61,6 @@ class TextTrust {
     return true;
   }
   
-  public static function ucscOutputBeforeHTML(&$out, &$text){
-    self::getTrustObj();
-    return self::$trust->ucscOutputBeforeHTML($out, $text);
-  }
-
-	public static function ucscArticleSaveComplete(&$article, 
-																								 &$user, 
-																								 &$text, 
-																								 &$summary,
-																								 &$minoredit, 
-																								 &$watchthis, 
-																								 &$sectionanchor, 
-																								 &$flags, 
-																								 &$revision){
-		self::getTrustObj();
-    return self::$trust->ucscArticleSaveComplete($article, 
-																								 $user, 
-																								 $text, 
-																								 $summary,
-																								 $minoredit, 
-																								 $watchthis, 
-																								 $sectionanchor, 
-																								 $flags, 
-																								 $revision);
-	}
 }    
 
 ?>

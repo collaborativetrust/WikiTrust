@@ -28,40 +28,6 @@
 
 class WikiTrust {
   
-  // Instance of our TrustImpl class
-  private static $trust;
-
-  /**
-   * Initializes and configures the extension.
-   */
-  public static function init() {
-    global $wgHooks, $wgParser, $wgRequest, $wgUseAjax, $wgAjaxExportList, 
-      $wgUser, $wgOut, $wgScriptPath, $wgExtensionMessagesFiles, 
-      $wgWikiTrustShowVoteButton, $wgWikiTrustGadget;
-    
-    // ParserFirstCallInit was introduced in modern (1.12+) MW versions 
-		// so as to avoid unstubbing $wgParser on setHook() too early, as 
-		// per r35980.
-    // TODO(Bo): is this right?  Run ParserFirstCallInit if it's not defined?
-    // This doesn't match code from all the other examples I could find.
-    if (!defined( 'MW_SUPPORTS_PARSERFIRSTCALLINIT' )) {
-      global $wgParser;
-      // TODO(Bo): this is already declared global above...
-      wfRunHooks( 'ParserFirstCallInit', $wgParser );
-    }
-
-# Add colored text if availible.
-    $wgHooks['OutputPageBeforeHTML'][] = 'TextTrust::ucscOutputBeforeHTML';	
-	}
-
-  private static function getTrustObj(){
-    if (!self::$trust){
-      self::$trust = new TextTrustImpl();
-    }
-
-		return;
-  }
-
   // Handle trust tab.
   // This is here because we use it all the time. 
   // TODO(Bo): What does this mean?  Many of the other functions
@@ -98,31 +64,6 @@ class WikiTrust {
     return true;
   }
   
-  public static function ucscOutputBeforeHTML(&$out, &$text){
-    self::getTrustObj();
-    return self::$trust->ucscOutputBeforeHTML($out, $text);
-  }
-
-	public static function ucscArticleSaveComplete(&$article, 
-																								 &$user, 
-																								 &$text, 
-																								 &$summary,
-																								 &$minoredit, 
-																								 &$watchthis, 
-																								 &$sectionanchor, 
-																								 &$flags, 
-																								 &$revision){
-		self::getTrustObj();
-    return self::$trust->ucscArticleSaveComplete($article, 
-																								 $user, 
-																								 $text, 
-																								 $summary,
-																								 $minoredit, 
-																								 $watchthis, 
-																								 $sectionanchor, 
-																								 $flags, 
-																								 $revision);
-	}
 }    
 
 ?>
