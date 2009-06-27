@@ -42,34 +42,46 @@ $wgWikiTrustApiURL = "http://en.wikipedia.org/w/api.php?";
 global $wgExtensionFunctions, $wgExtensionCredits;
 $wgExtensionFunctions[] = 'wfWikiTrustSetup';
 $wgExtensionCredits['other'][] = array(
-       'name' => 'Text Attribution and Trust',
+       'name' => 'WikiTrust',
        'author' => 'Ian Pye, Luca de Alfaro, Bo Adler',
        'url' => 'http://trust.cse.ucsc.edu',
-       'description' => 'Adds trust tab to visualize article trust.'
+       'description' => 'Adds trust tab to visualize article trust and provide text attribution.'
    );
 
 
 function wfWikiTrustSetup {
     $dir = dirname(__FILE__) . '/';
 
+    // TODO: Does this actually do anything??  It doesn't match
+	// code in other projects.
+    // ParserFirstCallInit was introduced in modern (1.12+) MW versions
+    // so as to avoid unstubbing $wgParser on setHook() too early, as
+    // per r35980.
+    if (!defined( 'MW_SUPPORTS_PARSERFIRSTCALLINIT' )) {
+      global $wgParser;
+      wfRunHooks( 'ParserFirstCallInit', $wgParser );
+    }
+
+
     global $wgExtensionMessagesFiles;
     $wgExtensionMessagesFiles['WikiTrust'] = $dir.'/WikiTrust.i18n.php';
 
     global $wgAutoloadClasses;
+    $wgAutoloadClasses['WikiTrustUpdate'] = $dir . 'WikiTrustUpdate.php';
+    $wgAutoloadClasses['WikiTrustBase'] = $dir . 'WikiTrustBase.php';
     switch ($wgWikiTrustVersion) {
       case "local":
-	$wgAutoloadClasses['WikiTrust'] = $dir . 'LocalMode.body.php';
+	$wgAutoloadClasses['WikiTrust'] = $dir . 'LocalMode.php';
 	break;
       case "remote":
-	$wgAutoloadClasses['WikiTrust'] = $dir . 'RemoteMode.body.php';
+	$wgAutoloadClasses['WikiTrust'] = $dir . 'RemoteMode.php';
         break;
       case "wmf":
-	$wgAutoloadClasses['WikiTrust'] = $dir . 'WmfMode.body.php';
+	$wgAutoloadClasses['WikiTrust'] = $dir . 'WmfMode.php';
 	break;
       default:
 	die("Set \$wgWikiTrustVersion to one of 'local', 'remote', 'wmf'\n");
     }
-    $wgAutoloadClasses['WikiTrustUpdate'] = $dir . 'WikiTrustUpdate.php';
 
     # Updater fired when updating to a new version of MW.
     global $wgHooks;
@@ -87,8 +99,13 @@ function wfWikiTrustSetup {
     # Edit hook to notify
     $wgHooks['ArticleSaveComplete'][] = 'WikiTrust::ucscArticleSaveComplete';
 
-    global $wgAjaxExportList;
-    $wgAjaxExportList[] = 'WikiTrust::handleVote';
+    global $wgAjaxExportList, $wgUseAjax;
+    if ($wgUseAjax) {
+	if ($wgWikiTrustShowVoteButton) {
+	    $wgAjaxExportList[] = 'WikiTrust::handleVote';
+	}
+	$wgAjaxExportList[] = 'WikiTrust::getColoredText';
+    }
 
     # That's it if the trust tab isn't selected
     global $wgRequest;

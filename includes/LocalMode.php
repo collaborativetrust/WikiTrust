@@ -26,13 +26,7 @@
 # Uses Tool Tip JS library under the LGPL.
 # http://www.walterzorn.com/tooltip/tooltip_e.htm
 
-$wgAutoloadClasses['TextTrustUpdate'] = $dir . 'RemoteTrustUpdate.php';
-$wgExtensionFunctions[] = 'TextTrust::init';
-
-// Vote handleing
-$wgAjaxExportList[] = "TextTrustImpl::handleVote";
-
-class TextTrust {
+class WikiTrust {
   
   // Instance of our TrustImpl class
   private static $trust;
@@ -56,25 +50,6 @@ class TextTrust {
       wfRunHooks( 'ParserFirstCallInit', $wgParser );
     }
 
-# Updater fired when updating to a new version of MW.
-    $wgHooks['LoadExtensionSchemaUpdates'][] = 'TextTrustUpdate::updateDB';
-      
-# Is the user opting to use wikitrust?
-    if ($wgWikiTrustGadget && !$wgUser->getOption( $wgWikiTrustGadget)){
-			return;
-    }
- 
-# And add an extra tab.
-    $wgHooks['SkinTemplateTabs'][] = 'TextTrust::ucscTrustTemplate';
-  
-# Edit hook.
-		$wgHooks['ArticleSaveComplete'][] = 'TextTrust::ucscArticleSaveComplete';
-
-# Return if trust is not selected.
-    if(!$wgRequest->getVal('trust') || $wgRequest->getVal('action')){
-      return;
-    }
-    
 # Add colored text if availible.
     $wgHooks['OutputPageBeforeHTML'][] = 'TextTrust::ucscOutputBeforeHTML';	
 	}
