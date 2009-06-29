@@ -1,63 +1,6 @@
 <?php
 
 class TextTrustImpl {
-
-  ## Types of analysis to perform.
-  const TRUST_EVAL_VOTE = 0;
-  const TRUST_EVAL_EDIT = 10;
-  const TRUST_EVAL_MISSING = 15;
-
-  ## the css tag to use
-  const TRUST_CSS_TAG = "background-color"; ## color the background
-  #$TRUST_CSS_TAG = "color"; ## color just the text
-  
-  ## ColorText is called multiple times, but we only want to color true text.
-  const DIFF_TOKEN_TO_COLOR = "Lin";
-
-  ## Trust normalization values;
-  const MAX_TRUST_VALUE = 9;
-  const MIN_TRUST_VALUE = 0;
-  const TRUST_MULTIPLIER = 10;
-  
-  ## Token to split trust and origin values on
-  const TRUST_SPLIT_TOKEN = ',';
-
-  ## Token to be replaed with <
-  const TRUST_OPEN_TOKEN = "QQampo:";
-  
-  ## Token to be replaed with >
-  const TRUST_CLOSE_TOKEN = ":ampc:";
-
-  ## Server forms
-  const NOT_FOUND_TEXT_TOKEN = "TEXT_NOT_FOUND";
-  const TRUST_COLOR_TOKEN = "<!--trust-->";
-
-  ## Context for communicating with the trust server
-  const TRUST_TIMEOUT = 10;
-
-  ## Default median to avoid div by 0 errors
-  const TRUST_DEFAULT_MEDIAN = 1;
-
-  ## Median Value of Trust
-  static $median = 1.0;
-
-  ## Don't close the first opening span tag
-  static $first_span = true;
-    
-  ## map trust values to html color codes
-  static $COLORS = array(
-		  "trust0",
-		  "trust1",
-		  "trust2",
-		  "trust3",
-		  "trust4",
-		  "trust5",
-		  "trust6",
-		  "trust7",
-		  "trust9",
-		  "trust10",
-		  );
-	
 	/** 
 	 * Actually run the eval edit program.
 	 * Returns -1 on error, the process id of the launched eval process 

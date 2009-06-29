@@ -1,43 +1,65 @@
 <?php
 
-class TextTrustImpl {
-	/**
-	 Does a POST HTTP request
-	*/
-	static function file_post_contents($url,$headers=false) {
-    $url = parse_url($url);
-		
-    if (!isset($url['port'])) {
-      if ($url['scheme'] == 'http') { $url['port']=80; }
-      elseif ($url['scheme'] == 'https') { $url['port']=443; }
-    }
-    $url['query']=isset($url['query'])?$url['query']:'';
-		
-    $url['protocol']=$url['scheme'].'://';
-    $eol="\r\n";
-		
-    $headers =  "POST "
-			.$url['protocol'].$url['host'].$url['path']." HTTP/1.0".$eol.
-			"Host: ".$url['host'].$eol.
-			"Referer: ".$url['protocol'].$url['host'].$url['path'].$eol.
-			"Content-Type: application/x-www-form-urlencoded".$eol.
-			"Content-Length: ".strlen($url['query']).$eol.
-			$eol.$url['query'];
-    $fp = fsockopen($url['host'], $url['port'], $errno, $errstr, 30);
-    if($fp) {
-      fputs($fp, $headers);
-      $result = '';
-      while(!feof($fp)) { $result .= fgets($fp, 128); }
-      fclose($fp);
-      if (!$headers) {
-        //removes headers
-        $pattern="/^.*\r\n\r\n/s";
-        $result=preg_replace($pattern,'',$result);
-      }
-      return $result;
-    }
-	}
+class WikiTrustBase {
+  ## Cache time that results are valid for.  Currently 1 day.
+  const TRUST_CACHE_VALID = 31556926;
+
+  ## Types of analysis to perform.
+  const TRUST_EVAL_VOTE = 0;
+  const TRUST_EVAL_EDIT = 10;
+  const TRUST_EVAL_MISSING = 15;
+
+  ## the css tag to use
+  const TRUST_CSS_TAG = "background-color"; ## color the background
+  #$TRUST_CSS_TAG = "color"; ## color just the text
   
+  ## ColorText is called multiple times, but we only want to color true text.
+  const DIFF_TOKEN_TO_COLOR = "Lin";
+
+  ## Trust normalization values;
+  const MAX_TRUST_VALUE = 9;
+  const MIN_TRUST_VALUE = 0;
+  const TRUST_MULTIPLIER = 10;
+  
+  ## Token to split trust and origin values on
+  const TRUST_SPLIT_TOKEN = ',';
+
+  ## Token to be replaed with <
+  const TRUST_OPEN_TOKEN = "QQampo:";
+  
+  ## Token to be replaed with >
+  const TRUST_CLOSE_TOKEN = ":ampc:";
+
+  ## Server forms
+  const NOT_FOUND_TEXT_TOKEN = "TEXT_NOT_FOUND";
+  const TRUST_COLOR_TOKEN = "<!-- trust -->";
+
+  ## Context for communicating with the trust server
+  const TRUST_TIMEOUT = 10;
+
+  ## Default median to avoid div by 0 errors
+  const TRUST_DEFAULT_MEDIAN = 1;
+
+  ## Median Value of Trust
+  static $median = 1.0;
+
+  ## Don't close the first opening span tag
+  static $first_span = true;
+    
+  ## map trust values to html color codes
+  static $COLORS = array(
+		  "trust0",
+		  "trust1",
+		  "trust2",
+		  "trust3",
+		  "trust4",
+		  "trust5",
+		  "trust6",
+		  "trust7",
+		  "trust9",
+		  "trust10",
+		  );
+	
   /**
    Records the vote.
    Called via ajax, so this must be static.
@@ -67,30 +89,33 @@ class TextTrustImpl {
 				}
       }
       $dbr->freeResult( $res ); 
-      
-      $ctx = stream_context_create(
-																	 array('http' => array(
-																												 'timeout' => 
-																												 self::TRUST_TIMEOUT
-																												 )
-																				 )
-																	 );
-      
-      $vote_str = ("Voting at " 
-									 . $wgWikiTrustContentServerURL 
-									 . "vote=1&rev=$rev_id&page=$page_id&user=$user_id"
-									 . "&page_title=$page_title&time=" . wfTimestampNow());
-      $colored_text = file_get_contents($wgWikiTrustContentServerURL 
-																				. "vote=1&rev=".urlencode($rev_id)
-																				."&page=".urlencode($page_id)
-																				."&user=".urlencode($user_id)
-																				."&page_title="
-																				.urlencode($page_title)
-																				."&time=" 
-																				. urlencode(wfTimestampNow()), 0
-																				, $ctx);
-      $response = new AjaxResponse($vote_str);	   
-    }
+
+			// Now see if this user has not already voted, 
+			// and count the vote if its the first time though.
+      $res = $dbr->select('wikitrust_vote', array('revision_id'), array('revision_id' => $rev_id, 'voter_id' => $user_id), array());
+      if ($res){
+				$row = $dbr->fetchRow($res);
+				if(!$row['revision_id']){
+	
+					$insert_vals = array("revision_id" => $rev_id,
+															 "page_id" => $page_id ,
+															 "voter_id" => $user_id,
+															 "voted_on" => wfTimestampNow()
+															 );
+					$dbw =& wfGetDB( DB_MASTER );
+					if ($dbw->insert( 'wikitrust_vote', $insert_vals)){
+						$dbw->commit();
+						$response = new AjaxResponse(implode  ( ",", $insert_vals));
+						self::runEvalEdit(self::TRUST_EVAL_VOTE, $rev_id, 
+															$page_id, $user_id); 
+						// Launch the evaluation of the vote.
+					}
+				} else {
+					$response = new AjaxResponse("Already Voted");
+				}
+				$dbr->freeResult( $res ); 	   
+			}
+		}
     return $response;
   }
   
@@ -118,13 +143,6 @@ class TextTrustImpl {
     return $output;
   }
 
-  static function handleFixSection($matches){
-		return "<span class=\"editsection\">[" .
-			$matches[1].
-			"Edit section: \">" .
-			"edit</a>]</span>";
-	}
-
 	/**
    Returns colored markup.
 	 
@@ -136,7 +154,7 @@ class TextTrustImpl {
 			, $wgScriptPath, $wgWikiTrustShowVoteButton, $wgUseAjax;
 		
 		// Load the i18n strings
-		wfLoadExtensionMessages('RemoteTrust');
+		wfLoadExtensionMessages('WikiTrust');
 
 		// Add the css and js
 		$out->addScript("<script type=\"text/javascript\" src=\""
@@ -147,7 +165,10 @@ class TextTrustImpl {
 	
     $dbr =& wfGetDB( DB_SLAVE );
     
-		$rev_id = $out->getRevisionId();
+		if (method_exists($out, "getRevisionId"))
+		    $rev_id = $out->getRevisionId();
+		else
+		    $rev_id = $out->mRevisionId;
 		$page_id = $wgTitle->getArticleID();
 		$page_title = $wgTitle->getDBkey();
     $user_id = $wgUser->getID();
@@ -165,42 +186,32 @@ class TextTrustImpl {
     
 		// Set this up so we can parse things later.
 		$options = ParserOptions::newFromUser($wgUser);
+		$colored_text = "";
 
-    $ctx = stream_context_create(
-																 array('http' => array(
-																											 'timeout' => 
-																											 self::TRUST_TIMEOUT
-																											 )
-																			 )
-																 );
-    
-    // Should we do doing this via HTTPS?
-    $colored_raw = (file_get_contents($wgWikiTrustContentServerURL . "rev=" . 
-																			urlencode($rev_id) . 
-																			"&page=".urlencode($page_id).
-																			"&page_title=".
-																			urlencode($page_title)."&time=".
-																			urlencode(wfTimestampNow())."&user="
-																			.urlencode($user_id)."", 0, $ctx));
+		$res = $dbr->select('wikitrust_colored_markup', 'revision_text',
+												array( 'revision_id' => $rev_id ), 
+												array());
+		if ($res){
+			$row = $dbr->fetchRow($res);
+			$colored_text = $row[0];
+		}
+		$dbr->freeResult( $res ); 
 
-    if ($colored_raw && $colored_raw != self::NOT_FOUND_TEXT_TOKEN
-        && $colored_raw != "bad"){
+		$res = $dbr->select('wikitrust_global', 'median',
+												array(), 
+												array());
+		if ($res){
+			$row = $dbr->fetchRow($res);
+			self::$median = $row[0];
+			if ($row[0] == 0){
+				self::$median = self::TRUST_DEFAULT_MEDIAN;
+			}
+		}
+		$dbr->freeResult( $res ); 
 
-      // Inflate. Pick off the first 10 bytes for python-php conversion.
-      $colored_raw = gzinflate(substr($colored_raw, 10));
-      
-      // Pick off the median value first.
-      $colored_data = explode(",", $colored_raw, 2);
-      $colored_text = $colored_data[1];
-      if (preg_match("/^[+-]?(([0-9]+)|([0-9]*\.[0-9]+|[0-9]+\.[0-9]*)|
-			    (([0-9]+|([0-9]*\.[0-9]+|[0-9]+\.[0-9]*))[eE][+-]?[0-9]+))$/", $colored_data[0])){
-				self::$median = $colored_data[0];
-				if ($colored_data[0] == 0){
-					self::$median = self::TRUST_DEFAULT_MEDIAN;
-				}
-      }
-
-      // First, make sure that there are not any instances of our tokens in the colored_text
+    if ($colored_text){
+      // First, make sure that there are not any instances of our tokens in 
+			// the colored_text
       $colored_text = str_replace(self::TRUST_OPEN_TOKEN, "", $colored_text);
       $colored_text = str_replace(self::TRUST_CLOSE_TOKEN, "", 
 																	$colored_text);
@@ -217,7 +228,6 @@ class TextTrustImpl {
       $text = $parsed->getText();
       
       $count = 0;
-      
       // Update the trust tags
       $text = preg_replace_callback("/\{\{#t:(\d+),(\d+),(.*?)\}\}/",
 																		"TextTrustImpl::handleParserRe",
@@ -234,15 +244,6 @@ class TextTrustImpl {
       $text = preg_replace('/<\/p>/', "</span></p>", $text, -1, $count);
       $text = preg_replace('/<p><\/span>/', "<p>", $text, -1, $count);
       $text = preg_replace('/<li><\/span>/', "<li>", $text, -1, $count);
-
-			// Fix edit section links
-      $text = preg_replace_callback("/<span class=\"editsection\">\[(.*?)Edit section: <\/span>(.*?)\">edit<\/a>\]<\/span>/",
-																		"TextTrustImpl::handleFixSection",
-																		$text,
-																		-1,
-																		$count
-																		);
-
 			$text = '<script type="text/javascript" src="'
 				.$wgScriptPath
 				.'/extensions/WikiTrust/js/wz_tooltip.js"></script>' . $text;
@@ -282,8 +283,6 @@ class TextTrustImpl {
 																								 &$sectionanchor, 
 																								 &$flags, 
 																								 &$revision){
-
-		global $wgWikiTrustContentServerURL;
 		
     $userName = $user->getName();
     $page_id = $article->getTitle()->getArticleID();
@@ -292,19 +291,48 @@ class TextTrustImpl {
 		$user_id = $user->getID();
 		$parentId = $revision->getParentId();
 		
-		$colored_text = self::file_post_contents($wgWikiTrustContentServerURL 
-																						 . "edit=1&rev=".urlencode($rev_id)
-																						 ."&page=".urlencode($page_id)
-																						 ."&user=".urlencode($user_id)
-																						 ."&parentId".urlencode($parentId)
-																						 ."&text=".urlencode($text)
-																						 ."&page_title="
-																						 .urlencode($page_title)
-																						 ."&time=" 
-																						 . urlencode(wfTimestampNow()));
-		
-		return true;
+		if (self::runEvalEdit(self::TRUST_EVAL_EDIT, 
+													$rev_id, 
+													$page_id,
+													$user_id) >= 0)
+			return true;
+		return false;
 	}
+
+  // Handle trust tab.
+  public static function ucscTrustTemplate($skin, &$content_actions){
+    global $wgRequest;
+    wfLoadExtensionMessages('RemoteTrust');
+    
+    if ($wgRequest->getVal('action') || $wgRequest->getVal('diff')){
+      // we don't want trust for actions or diffs.
+      return true;
+    }
+    
+    $trust_qs = $_SERVER['QUERY_STRING'];
+    if($trust_qs){
+      $trust_qs = "?" . $trust_qs .  "&trust=t";
+    } else {
+      $trust_qs .= "?trust=t"; 
+    }
+    
+    $content_actions['trust'] = array ( 'class' => '',
+					'text' => 
+					wfMsgNoTrans("wgTrustTabText"),
+					'href' => 
+					$_SERVER['PHP_SELF'] . $trust_qs );
+    
+    if($wgRequest->getVal('trust')){
+      $content_actions['trust']['class'] = 'selected';
+      $content_actions['nstab-main']['class'] = '';
+      $content_actions['nstab-main']['href'] .= '';
+    } else {
+      $content_actions['trust']['href'] .= '';
+    }
+    return true;
+  }
+
+
 }
 
 ?>
