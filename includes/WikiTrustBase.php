@@ -299,7 +299,7 @@ class WikiTrustBase {
 		return false;
 	}
 
-  // Handle trust tab.
+  // TrustTabSkin - add trust tab to display, and select if appropriate
   public static function ucscTrustTemplate($skin, &$content_actions){
     global $wgRequest;
     wfLoadExtensionMessages('RemoteTrust');
