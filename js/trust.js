@@ -42,7 +42,6 @@ function getQueryVariable(variable) {
 }
 
 function startVote(){
-
   var revID = getQueryVariable("oldid");
   if (revID == ""){
     revID = getQueryVariable("diff");
@@ -51,5 +50,5 @@ function startVote(){
     }
   }
 
-  return sajax_do_call( "TextTrustImpl::handleVote", [wgUserName, wgArticleId, revID, wgPageName] , voteCallback ); 
+  return sajax_do_call( "WikiTrust::handleVote", [wgUserName, wgArticleId, revID, wgPageName] , voteCallback ); 
 }

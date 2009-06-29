@@ -149,20 +149,20 @@ class WikiTrustBase {
    @return colored markup.
   */
   static function ucscOutputBeforeHTML(&$out, &$text){
+    global $wgScriptPath;
 		
-    global $wgParser, $wgWikiTrustContentServerURL, $wgUser, $wgTitle
-			, $wgScriptPath, $wgWikiTrustShowVoteButton, $wgUseAjax;
-		
-		// Load the i18n strings
-		wfLoadExtensionMessages('WikiTrust');
+    // Load the i18n strings
+    wfLoadExtensionMessages('WikiTrust');
 
-		// Add the css and js
-		$out->addScript("<script type=\"text/javascript\" src=\""
-										.$wgScriptPath
-										."/extensions/WikiTrust/js/trust.js\"></script>");
-		$out->addScript("<link rel=\"stylesheet\" type=\"text/css\" href=\""
-										.$wgScriptPath."/extensions/WikiTrust/css/trust.css\">"); 
+    // Add the css and js
+    $out->addScript("<script type=\"text/javascript\" src=\""
+		.$wgScriptPath
+		."/extensions/WikiTrust/js/trust.js\"></script>");
+    $out->addScript("<link rel=\"stylesheet\" type=\"text/css\" href=\""
+		.$wgScriptPath."/extensions/WikiTrust/css/trust.css\">"); 
 	
+    global $wgParser, $wgWikiTrustContentServerURL, $wgUser, $wgTitle,
+		$wgWikiTrustShowVoteButton, $wgUseAjax;
     $dbr =& wfGetDB( DB_SLAVE );
     
 		if (method_exists($out, "getRevisionId"))
