@@ -80,42 +80,46 @@ class WikiTrustBase {
     if($page_id){
       // First, look up the id numbers from the page and user strings
       $res = $dbr->select('user', array('user_id'), 
-													array('user_name' => $userName), array());
+			array('user_name' => $userName), array());
       if ($res){
-				$row = $dbr->fetchRow($res);
-				$user_id = $row['user_id'];
-				if (!$user_id) {
-					$user_id = 0;
-				}
+	$row = $dbr->fetchRow($res);
+	$user_id = $row['user_id'];
+	if (!$user_id) {
+	  $user_id = 0;
+	}
       }
       $dbr->freeResult( $res ); 
 
+      $response = self::vote_recordVote($user_id, $page_id, $rev_id)
+    }
+    return $response;
+  }
+
+  static function vote_recordVote($user_id, $page_id, $rev_id) {
 			// Now see if this user has not already voted, 
 			// and count the vote if its the first time though.
-      $res = $dbr->select('wikitrust_vote', array('revision_id'), array('revision_id' => $rev_id, 'voter_id' => $user_id), array());
-      if ($res){
-				$row = $dbr->fetchRow($res);
-				if(!$row['revision_id']){
-	
-					$insert_vals = array("revision_id" => $rev_id,
-															 "page_id" => $page_id ,
-															 "voter_id" => $user_id,
-															 "voted_on" => wfTimestampNow()
-															 );
-					$dbw =& wfGetDB( DB_MASTER );
-					if ($dbw->insert( 'wikitrust_vote', $insert_vals)){
-						$dbw->commit();
-						$response = new AjaxResponse(implode  ( ",", $insert_vals));
-						self::runEvalEdit(self::TRUST_EVAL_VOTE, $rev_id, 
-															$page_id, $user_id); 
-						// Launch the evaluation of the vote.
-					}
-				} else {
-					$response = new AjaxResponse("Already Voted");
-				}
-				$dbr->freeResult( $res ); 	   
-			}
-		}
+      $res = $dbr->select('wikitrust_vote', array('revision_id'),
+		array('revision_id' => $rev_id, 'voter_id' => $user_id),
+		array());
+      if ($res) {
+	$row = $dbr->fetchRow($res);
+	if(!$row['revision_id']){
+	  $insert_vals = array("revision_id" => $rev_id,
+				 "page_id" => $page_id ,
+				 "voter_id" => $user_id,
+				 "voted_on" => wfTimestampNow()
+			 );
+	  $dbw =& wfGetDB( DB_MASTER );
+	  if ($dbw->insert( 'wikitrust_vote', $insert_vals)){
+	    $dbw->commit();
+	    $response = new AjaxResponse(implode  ( ",", $insert_vals));
+	    self::runEvalEdit(self::TRUST_EVAL_VOTE, $rev_id, $page_id, $user_id); 
+	  }
+	} else {
+	  $response = new AjaxResponse("Already Voted");
+	}
+	$dbr->freeResult( $res ); 	   
+      }
     return $response;
   }
   
@@ -160,21 +164,25 @@ class WikiTrustBase {
 		."/extensions/WikiTrust/js/trust.js\"></script>");
     $out->addScript("<link rel=\"stylesheet\" type=\"text/css\" href=\""
 		.$wgScriptPath."/extensions/WikiTrust/css/trust.css\">"); 
-	
-    global $wgParser, $wgWikiTrustContentServerURL, $wgUser, $wgTitle,
+    return true;
+  }
+
+  static function trustdata_loadFDb()
+  {
+    global $wgParser, $wgUser, $wgTitle,
 		$wgWikiTrustShowVoteButton, $wgUseAjax;
     $dbr =& wfGetDB( DB_SLAVE );
     
-		if (method_exists($out, "getRevisionId"))
-		    $rev_id = $out->getRevisionId();
-		else
-		    $rev_id = $out->mRevisionId;
-		$page_id = $wgTitle->getArticleID();
-		$page_title = $wgTitle->getDBkey();
+    if (method_exists($out, "getRevisionId"))
+	$rev_id = $out->getRevisionId();
+    else
+	$rev_id = $out->mRevisionId;
+    $page_id = $wgTitle->getArticleID();
+    $page_title = $wgTitle->getDBkey();
     $user_id = $wgUser->getID();
 
     // If there is not a revId, assume it is the most recent one.
-    if(!$rev_id){
+    if(!$rev_id) {
       $res = $dbr->select('page', array('page_latest'), 
                           array('page_id' => $page_id), array());
       if ($res){
@@ -184,45 +192,43 @@ class WikiTrustBase {
       $dbr->freeResult( $res ); 
     }
     
-		// Set this up so we can parse things later.
-		$options = ParserOptions::newFromUser($wgUser);
-		$colored_text = "";
+    // Set this up so we can parse things later.
+    $options = ParserOptions::newFromUser($wgUser);
+    $colored_text = "";
 
-		$res = $dbr->select('wikitrust_colored_markup', 'revision_text',
-												array( 'revision_id' => $rev_id ), 
-												array());
-		if ($res){
-			$row = $dbr->fetchRow($res);
-			$colored_text = $row[0];
-		}
-		$dbr->freeResult( $res ); 
+    $res = $dbr->select('wikitrust_colored_markup', 'revision_text',
+			array( 'revision_id' => $rev_id ), 
+			array());
+    if ($res){
+      $row = $dbr->fetchRow($res);
+      $colored_text = $row[0];
+    }
+    $dbr->freeResult( $res ); 
 
-		$res = $dbr->select('wikitrust_global', 'median',
-												array(), 
-												array());
-		if ($res){
-			$row = $dbr->fetchRow($res);
-			self::$median = $row[0];
-			if ($row[0] == 0){
-				self::$median = self::TRUST_DEFAULT_MEDIAN;
-			}
-		}
-		$dbr->freeResult( $res ); 
+    $res = $dbr->select('wikitrust_global', 'median',
+			array(), 
+			array());
+    if ($res){
+      $row = $dbr->fetchRow($res);
+      self::$median = $row[0];
+      if ($row[0] == 0){
+	self::$median = self::TRUST_DEFAULT_MEDIAN;
+      }
+    }
+    $dbr->freeResult( $res ); 
 
     if ($colored_text){
       // First, make sure that there are not any instances of our tokens in 
-			// the colored_text
+      // the colored_text
       $colored_text = str_replace(self::TRUST_OPEN_TOKEN, "", $colored_text);
-      $colored_text = str_replace(self::TRUST_CLOSE_TOKEN, "", 
-																	$colored_text);
+      $colored_text = str_replace(self::TRUST_CLOSE_TOKEN, "", $colored_text);
       
       $colored_text = preg_replace("/&apos;/", "'", $colored_text, -1);      
       $colored_text = preg_replace("/&amp;/", "&", $colored_text, -1);
-      
       $colored_text = preg_replace("/&lt;/", self::TRUST_OPEN_TOKEN, 
-																	 $colored_text, -1);
+				 $colored_text, -1);
       $colored_text = preg_replace("/&gt;/", self::TRUST_CLOSE_TOKEN, 
-																	 $colored_text, -1);
+				 $colored_text, -1);
 			
       $parsed = $wgParser->parse($colored_text, $wgTitle, $options);
       $text = $parsed->getText();
@@ -230,47 +236,46 @@ class WikiTrustBase {
       $count = 0;
       // Update the trust tags
       $text = preg_replace_callback("/\{\{#t:(\d+),(\d+),(.*?)\}\}/",
-																		"TextTrustImpl::handleParserRe",
-																		$text,
-																		-1,
-																		$count
-																		);
+				"WikiTrust::handleParserRe",
+				$text,
+				-1,
+				$count);
       
       // Update open, close, images, and links.
       $text = preg_replace('/' . self::TRUST_OPEN_TOKEN . '/', 
-													 "<", $text, -1, $count);  
+			 "<", $text, -1, $count);  
       $text = preg_replace('/' . self::TRUST_CLOSE_TOKEN .'/', 
-													 ">", $text, -1, $count);
+			 ">", $text, -1, $count);
       $text = preg_replace('/<\/p>/', "</span></p>", $text, -1, $count);
       $text = preg_replace('/<p><\/span>/', "<p>", $text, -1, $count);
       $text = preg_replace('/<li><\/span>/', "<li>", $text, -1, $count);
-			$text = '<script type="text/javascript" src="'
-				.$wgScriptPath
-				.'/extensions/WikiTrust/js/wz_tooltip.js"></script>' . $text;
+
+      $text = '<script type="text/javascript" src="'
+	      .$wgScriptPath
+	      .'/extensions/WikiTrust/js/wz_tooltip.js"></script>' . $text;
 
       $msg = $wgParser->parse(wfMsgNoTrans("wgTrustExplanation"), 
-															$wgTitle, 
-															$options);
-			$text = $text . $msg->getText();
+				$wgTitle, 
+				$options);
+      $text = $text . $msg->getText();
 
-			if ($wgWikiTrustShowVoteButton && $wgUseAjax){
-				$text = "<div id='vote-button'><input type='button' name='vote' "
-					. "value='" 
-					. wfMsgNoTrans("wgTrustVote")
-					. "' onclick='startVote()' /></div><div id='vote-button-done'>"
-					. wfMsgNoTrans("wgTrustVoteDone") 
-					. "</div>"
-					. $text;
-			}
-
+      if ($wgWikiTrustShowVoteButton && $wgUseAjax){
+	$text = "<div id='vote-button'><input type='button' name='vote' "
+		. "value='" 
+		. wfMsgNoTrans("wgTrustVote")
+		. "' onclick='startVote()' /></div><div id='vote-button-done'>"
+		. wfMsgNoTrans("wgTrustVoteDone") 
+		. "</div>"
+		. $text;
+      }
     } else {
       // text not found.
       $msg = $wgParser->parse(wfMsgNoTrans("wgNoTrustExplanation"), 
-															$wgTitle, 
-															$options);
-			$text = $msg->getText() . $text;
+				$wgTitle, 
+				$options);
+      $text = $msg->getText() . $text;
     }
-    
+
     return true;
   }
 
