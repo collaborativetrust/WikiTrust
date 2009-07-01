@@ -90,12 +90,12 @@ class WikiTrustBase {
       }
       $dbr->freeResult( $res ); 
 
-      $response = self::vote_recordVote($user_id, $page_id, $rev_id)
+      $response = self::vote_recordVote($response, $user_id, $page_id, $rev_id);
     }
     return $response;
   }
 
-  static function vote_recordVote($user_id, $page_id, $rev_id) {
+  static function vote_recordVote(&$response, $user_id, $page_id, $rev_id) {
 			// Now see if this user has not already voted, 
 			// and count the vote if its the first time though.
       $res = $dbr->select('wikitrust_vote', array('revision_id'),
@@ -279,30 +279,26 @@ class WikiTrustBase {
     return true;
   }
 
-	public static function ucscArticleSaveComplete(&$article, 
-																								 &$user, 
-																								 &$text, 
-																								 &$summary,
-																								 &$minoredit, 
-																								 &$watchthis, 
-																								 &$sectionanchor, 
-																								 &$flags, 
-																								 &$revision){
-		
+  public static function ucscArticleSaveComplete(&$article, 
+			      &$user, &$text, &$summary,
+			      &$minoredit, &$watchthis,
+			      &$sectionanchor, &$flags, 
+			      &$revision)
+  {
     $userName = $user->getName();
     $page_id = $article->getTitle()->getArticleID();
     $rev_id = $revision->getID();
-		$page_title = $article->getTitle()->getDBkey();
-		$user_id = $user->getID();
-		$parentId = $revision->getParentId();
+    $page_title = $article->getTitle()->getDBkey();
+    $user_id = $user->getID();
+    $parentId = $revision->getParentId();
 		
-		if (self::runEvalEdit(self::TRUST_EVAL_EDIT, 
-													$rev_id, 
-													$page_id,
-													$user_id) >= 0)
-			return true;
-		return false;
-	}
+    if (self::runEvalEdit(self::TRUST_EVAL_EDIT, 
+			$rev_id, 
+			$page_id,
+			$user_id) >= 0)
+	return true;
+    return false;
+  }
 
   // TrustTabSkin - add trust tab to display, and select if appropriate
   public static function ucscTrustTemplate($skin, &$content_actions){
