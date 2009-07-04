@@ -32,6 +32,7 @@ class WikiTrust extends WikiTrustBase {
       fclose($fp);
       if (!$headers) {
         //removes headers
+	// TODO: Do these backslashes work in double quotes?
         $pattern="/^.*\r\n\r\n/s";
         $result=preg_replace($pattern,'',$result);
       }
@@ -60,13 +61,6 @@ class WikiTrust extends WikiTrustBase {
     return $response;
   }
   
-
-  static function handleFixSection($matches){
-		return "<span class=\"editsection\">[" .
-			$matches[1].
-			"Edit section: \">" .
-			"edit</a>]</span>";
-	}
 
   static function color_getColorData($rev_id)
   {

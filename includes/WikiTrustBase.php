@@ -82,6 +82,7 @@ class WikiTrustBase {
 
     $user_id = self::user_getIdFName($dbr, $userName);
 
+    // TODO: do we need to check for non-zero $rev_id?  $user_id?
     return self::vote_recordVote($dbr, $user_id, $page_id, $rev_id);
   }
 
@@ -267,6 +268,16 @@ class WikiTrustBase {
     $text = preg_replace('/<p><\/span>/', "<p>", $text, -1, $count);
     $text = preg_replace('/<li><\/span>/', "<li>", $text, -1, $count);
 
+    // TODO: This was only in RemoteTrustImpl (Wmf mode).  Not everywhere??
+    // Fix edit section links
+    $text = preg_replace_callback("/<span class=\"editsection\">\[(.*?)Edit section: <\/span>(.*?)\">edit<\/a>\]<\/span>/",
+		"WikiTrust::handleFixSection",
+		$text,
+		-1,
+		$count
+	      );
+
+
     $text = '<script type="text/javascript" src="'
 	      .$wgScriptPath
 	      .'/extensions/WikiTrust/js/wz_tooltip.js"></script>' . $text;
@@ -342,7 +353,7 @@ class WikiTrustBase {
     }
     
     $trust_qs = $_SERVER['QUERY_STRING'];
-    if($trust_qs){
+    if($trust_qs) {
       $trust_qs = "?" . $trust_qs .  "&trust=t";
     } else {
       $trust_qs .= "?trust=t"; 
@@ -408,6 +419,14 @@ class WikiTrustBase {
       $process = proc_open($command, $descriptorspec, $pipes, $cwd, $env);
 
       return $process; 
+  }
+
+  static function handleFixSection($matches)
+  {
+    return "<span class=\"editsection\">[" .
+	    $matches[1].
+	    "Edit section: \">" .
+	    "edit</a>]</span>";
   }
 
 }
