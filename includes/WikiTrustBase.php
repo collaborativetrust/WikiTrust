@@ -183,6 +183,7 @@ class WikiTrustBase {
   }
 
   static function color_addFileRefs(&$out) {
+    global $wgScriptPath;
     $out->addScript("<script type=\"text/javascript\" src=\""
 		.$wgScriptPath
 		."/extensions/WikiTrust/js/trust.js\"></script>");
@@ -199,6 +200,8 @@ class WikiTrustBase {
 
     if (!$rev_id) {
       // If no revId, assume it is the most recent one.
+      global $wgTitle;
+      $page_id = $wgTitle->getArticleID();
       $dbr =& wfGetDB( DB_SLAVE );
       $res = $dbr->select('page', array('page_latest'), 
                           array('page_id' => $page_id), array());
@@ -278,6 +281,7 @@ class WikiTrustBase {
 	      );
 
 
+    global $wgScriptPath;
     $text = '<script type="text/javascript" src="'
 	      .$wgScriptPath
 	      .'/extensions/WikiTrust/js/wz_tooltip.js"></script>' . $text;

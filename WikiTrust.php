@@ -49,8 +49,8 @@ $wgExtensionCredits['other'][] = array(
    );
 
 
-function wfWikiTrustSetup {
-    $dir = dirname(__FILE__) . '/';
+function wfWikiTrustSetup() {
+    $dir = dirname(__FILE__) . '/includes/';
 
     // TODO: Does this actually do anything??  It doesn't match
 	// code in other projects.
@@ -66,7 +66,7 @@ function wfWikiTrustSetup {
     global $wgExtensionMessagesFiles;
     $wgExtensionMessagesFiles['WikiTrust'] = $dir.'/WikiTrust.i18n.php';
 
-    global $wgAutoloadClasses, $wgHooks;
+    global $wgAutoloadClasses, $wgHooks, $wgWikiTrustVersion;
     $wgAutoloadClasses['WikiTrustBase'] = $dir . 'WikiTrustBase.php';
     $wgAutoloadClasses['WikiTrustUpdate'] = $dir . 'WikiTrustUpdate.php';
     switch ($wgWikiTrustVersion) {
@@ -84,7 +84,7 @@ function wfWikiTrustSetup {
 	$wgAutoloadClasses['WikiTrust'] = $dir . 'WmfMode.php';
 	break;
       default:
-	die("Set \$wgWikiTrustVersion to one of 'local', 'remote', 'wmf'\n");
+	die("Set \$wgWikiTrustVersion to one of 'local', 'remote', 'wmf' (not '$wgWikiTrustVersion')\n");
     }
 
     global $wgAjaxExportList, $wgUseAjax;
