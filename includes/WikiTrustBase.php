@@ -147,53 +147,68 @@ class WikiTrustBase {
     return $output;
   }
 
-	/**
-   Returns colored markup.
-	 
-   @return colored markup.
-  */
   static function ucscOutputBeforeHTML(&$out, &$text){
-    global $wgScriptPath;
-		
-    // Load the i18n strings
     wfLoadExtensionMessages('WikiTrust');
 
-    // Add the css and js
+    self::color_addFileRefs($out);
+    $rev_id = self::util_getRevidFOut($out);
+
+    $colored_text = self::color_getColorData($rev_id);
+    self::color_fixup($colored_text);
+
+    if (!$colored_text) {
+      // text not found.
+      global $wgUser, $wgParser, $wgTitle;
+      $options = ParserOptions::newFromUser($wgUser);
+      $msg = $wgParser->parse(wfMsgNoTrans("wgNoTrustExplanation"), 
+				$wgTitle, 
+				$options);
+      $text = $msg->getText() . $text;
+    } else {
+      self::color_wiki2html($colored_text, $text);
+      self::vote_showButton($text);
+    }
+
+    return true;
+  }
+
+  static function color_addFileRefs(&$out) {
     $out->addScript("<script type=\"text/javascript\" src=\""
 		.$wgScriptPath
 		."/extensions/WikiTrust/js/trust.js\"></script>");
     $out->addScript("<link rel=\"stylesheet\" type=\"text/css\" href=\""
 		.$wgScriptPath."/extensions/WikiTrust/css/trust.css\">"); 
-    return true;
   }
 
-  static function trustdata_loadFDb()
+  static function util_getRevidFOut($out)
   {
-    global $wgParser, $wgUser, $wgTitle,
-		$wgWikiTrustShowVoteButton, $wgUseAjax;
-    $dbr =& wfGetDB( DB_SLAVE );
-    
     if (method_exists($out, "getRevisionId"))
-	$rev_id = $out->getRevisionId();
+      $rev_id = $out->getRevisionId();
     else
-	$rev_id = $out->mRevisionId;
-    $page_id = $wgTitle->getArticleID();
-    $page_title = $wgTitle->getDBkey();
-    $user_id = $wgUser->getID();
+      $rev_id = $out->mRevisionId;
 
-    // If there is not a revId, assume it is the most recent one.
-    if(!$rev_id) {
+    if (!$rev_id) {
+      // If no revId, assume it is the most recent one.
+      $dbr =& wfGetDB( DB_SLAVE );
       $res = $dbr->select('page', array('page_latest'), 
                           array('page_id' => $page_id), array());
-      if ($res){
-        $row = $dbr->fetchRow($res);
-        $rev_id = $row['page_latest'];
+      if ($res) {
+	$row = $dbr->fetchRow($res);
+	$rev_id = $row['page_latest'];
       }
       $dbr->freeResult( $res ); 
     }
+
+    return $rev_id;
+  }
+
+  static function color_getColorData($rev_id)
+  {
+    if (!$rev_id)
+      return '';
+
+    $dbr =& wfGetDB( DB_SLAVE );
     
-    // Set this up so we can parse things later.
-    $options = ParserOptions::newFromUser($wgUser);
     $colored_text = "";
 
     $res = $dbr->select('wikitrust_colored_markup', 'revision_text',
@@ -205,79 +220,85 @@ class WikiTrustBase {
     }
     $dbr->freeResult( $res ); 
 
-    $res = $dbr->select('wikitrust_global', 'median',
-			array(), 
-			array());
-    if ($res){
+    $res = $dbr->select('wikitrust_global', 'median', array(), array());
+    if ($res) {
       $row = $dbr->fetchRow($res);
       self::$median = $row[0];
-      if ($row[0] == 0){
+      if ($row[0] == 0) {
 	self::$median = self::TRUST_DEFAULT_MEDIAN;
       }
     }
     $dbr->freeResult( $res ); 
 
-    if ($colored_text){
-      // First, make sure that there are not any instances of our tokens in 
-      // the colored_text
-      $colored_text = str_replace(self::TRUST_OPEN_TOKEN, "", $colored_text);
-      $colored_text = str_replace(self::TRUST_CLOSE_TOKEN, "", $colored_text);
-      
-      $colored_text = preg_replace("/&apos;/", "'", $colored_text, -1);      
-      $colored_text = preg_replace("/&amp;/", "&", $colored_text, -1);
-      $colored_text = preg_replace("/&lt;/", self::TRUST_OPEN_TOKEN, 
-				 $colored_text, -1);
-      $colored_text = preg_replace("/&gt;/", self::TRUST_CLOSE_TOKEN, 
-				 $colored_text, -1);
+    return $colored_text;
+  }
+
+  static function color_wiki2html(&$colored_text, &$text)
+  {
+    global $wgParser, $wgUser, $wgTitle,
+		$wgWikiTrustShowVoteButton, $wgUseAjax;
+
+
 			
-      $parsed = $wgParser->parse($colored_text, $wgTitle, $options);
-      $text = $parsed->getText();
+    $options = ParserOptions::newFromUser($wgUser);
+    $parsed = $wgParser->parse($colored_text, $wgTitle, $options);
+    $text = $parsed->getText();
       
-      $count = 0;
-      // Update the trust tags
-      $text = preg_replace_callback("/\{\{#t:(\d+),(\d+),(.*?)\}\}/",
+    $count = 0;
+    // Update the trust tags
+    $text = preg_replace_callback("/\{\{#t:(\d+),(\d+),(.*?)\}\}/",
 				"WikiTrust::handleParserRe",
 				$text,
 				-1,
 				$count);
       
-      // Update open, close, images, and links.
-      $text = preg_replace('/' . self::TRUST_OPEN_TOKEN . '/', 
+    // Update open, close, images, and links.
+    $text = preg_replace('/' . self::TRUST_OPEN_TOKEN . '/', 
 			 "<", $text, -1, $count);  
-      $text = preg_replace('/' . self::TRUST_CLOSE_TOKEN .'/', 
+    $text = preg_replace('/' . self::TRUST_CLOSE_TOKEN .'/', 
 			 ">", $text, -1, $count);
-      $text = preg_replace('/<\/p>/', "</span></p>", $text, -1, $count);
-      $text = preg_replace('/<p><\/span>/', "<p>", $text, -1, $count);
-      $text = preg_replace('/<li><\/span>/', "<li>", $text, -1, $count);
+    $text = preg_replace('/<\/p>/', "</span></p>", $text, -1, $count);
+    $text = preg_replace('/<p><\/span>/', "<p>", $text, -1, $count);
+    $text = preg_replace('/<li><\/span>/', "<li>", $text, -1, $count);
 
-      $text = '<script type="text/javascript" src="'
+    $text = '<script type="text/javascript" src="'
 	      .$wgScriptPath
 	      .'/extensions/WikiTrust/js/wz_tooltip.js"></script>' . $text;
 
-      $msg = $wgParser->parse(wfMsgNoTrans("wgTrustExplanation"), 
-				$wgTitle, 
-				$options);
-      $text = $text . $msg->getText();
+    $msg = $wgParser->parse(wfMsgNoTrans("wgTrustExplanation"), 
+			      $wgTitle, 
+			      $options);
+    $text .= $msg->getText();
+  }
 
-      if ($wgWikiTrustShowVoteButton && $wgUseAjax){
-	$text = "<div id='vote-button'><input type='button' name='vote' "
+  static function vote_showButton(&$text)
+  {
+    if ($wgWikiTrustShowVoteButton && $wgUseAjax){
+      $text = "<div id='vote-button'><input type='button' name='vote' "
 		. "value='" 
 		. wfMsgNoTrans("wgTrustVote")
 		. "' onclick='startVote()' /></div><div id='vote-button-done'>"
 		. wfMsgNoTrans("wgTrustVoteDone") 
 		. "</div>"
 		. $text;
-      }
-    } else {
-      // text not found.
-      $msg = $wgParser->parse(wfMsgNoTrans("wgNoTrustExplanation"), 
-				$wgTitle, 
-				$options);
-      $text = $msg->getText() . $text;
     }
-
-    return true;
   }
+
+  static function color_fixup(&$colored_text)
+  {
+    // First, make sure that there are not any instances of our tokens in 
+    // the colored_text
+    $colored_text = str_replace(self::TRUST_OPEN_TOKEN, "", $colored_text);
+    $colored_text = str_replace(self::TRUST_CLOSE_TOKEN, "", $colored_text);
+    
+    $colored_text = preg_replace("/&apos;/", "'", $colored_text, -1);      
+    $colored_text = preg_replace("/&amp;/", "&", $colored_text, -1);
+    $colored_text = preg_replace("/&lt;/", self::TRUST_OPEN_TOKEN, 
+			       $colored_text, -1);
+    $colored_text = preg_replace("/&gt;/", self::TRUST_CLOSE_TOKEN, 
+			       $colored_text, -1);
+  }
+			
 
   public static function ucscArticleSaveComplete(&$article, 
 			      &$user, &$text, &$summary,
