@@ -35,7 +35,7 @@ global $wgWikiTrustLog, $wgWikiTrustDebugLog;
 $wgWikiTrustLog = "/tmp/{$wgDBname}-trust.log";
 $wgWikiTrustDebugLog = "/tmp/{$wgDBname}-trust-debug.log";
 global $wgWikiTrustCmd, $wgWikiTrustRepSpeed, $wgWikiTrustApiURL;
-$wgWikiTrustCmd = $IP . "/eval_online_wiki";
+$wgWikiTrustCmd = dirname(__FILE__) . "/eval_online_wiki";
 $wgWikiTrustRepSpeed = 1.0;
 $wgWikiTrustApiURL = "http://en.wikipedia.org/w/api.php?";
 

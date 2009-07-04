@@ -390,7 +390,8 @@ class WikiTrustBase {
 			      $voter_id = -1)
   {
       global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgWikiTrustCmd, $wgWikiTrustLog, $wgWikiTrustDebugLog, $wgWikiTrustRepSpeed, $wgDBprefix, $wgThrift_host, $wgThrift_port, $wgThrift_uri, $wgThrift_protocol;
-	  
+      // TODO: What is this "thrift" stuff?
+
       $process = -1;
       $command = "";
       // Get the db.
