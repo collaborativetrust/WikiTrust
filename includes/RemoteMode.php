@@ -36,7 +36,6 @@ class WikiTrust extends WikiTrustBase {
    Callback for Images.
   */
   static function getImageInfo($matches){
-    global $wgWikiApiURL;
 
     /** Still not working
     $data = array('action'=>'parse',
@@ -44,7 +43,8 @@ class WikiTrust extends WikiTrustBase {
 		  'format' => 'json'
 		  );
    
-    $image_info_raw = file_get_contents($wgWikiApiURL
+    global $wgWikiTrustApiURL;
+    $image_info_raw = file_get_contents($wgWikiTrustApiURL
 					.http_build_query($data));
     $image_json = json_decode($image_info_raw, true);
     $image_text = $image_json["parse"]["text"]["*"];
@@ -65,7 +65,7 @@ class WikiTrust extends WikiTrustBase {
   static function getColoredText($page_title_raw,
 				 $page_id_raw = NULL, 
 				 $rev_id_raw = NULL){
-    global $wgParser, $wgWikiTrustContentServerURL, $wgWikiApiURL, $wgUser;
+    global $wgParser, $wgWikiTrustContentServerURL, $wgWikiTrustApiURL, $wgUser;
     global $wgMemc;
 
     $response = new AjaxResponse("");
@@ -91,7 +91,7 @@ class WikiTrust extends WikiTrustBase {
 		    'format' => 'json'
 		    );
       
-      $page_info_raw = file_get_contents($wgWikiApiURL
+      $page_info_raw = file_get_contents($wgWikiTrustApiURL
 					 .http_build_query($data));
       $page_json = json_decode($page_info_raw, true);
       $pages_arr = array_keys($page_json["query"]["pages"]);

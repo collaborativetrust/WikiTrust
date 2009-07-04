@@ -66,15 +66,17 @@ function wfWikiTrustSetup {
     global $wgExtensionMessagesFiles;
     $wgExtensionMessagesFiles['WikiTrust'] = $dir.'/WikiTrust.i18n.php';
 
-    global $wgAutoloadClasses;
-    $wgAutoloadClasses['WikiTrustUpdate'] = $dir . 'WikiTrustUpdate.php';
+    global $wgAutoloadClasses, $wgHooks;
     $wgAutoloadClasses['WikiTrustBase'] = $dir . 'WikiTrustBase.php';
+    $wgAutoloadClasses['WikiTrustUpdate'] = $dir . 'WikiTrustUpdate.php';
     switch ($wgWikiTrustVersion) {
       case "local":
 	$wgAutoloadClasses['WikiTrust'] = $dir . 'LocalMode.php';
+	$wgHooks['LoadExtensionsSchemaUpdates'][] = 'WikiTrustUpdate::updateDB';
 	break;
       case "remote":
 	$wgAutoloadClasses['WikiTrust'] = $dir . 'RemoteMode.php';
+	$wgHooks['LoadExtensionsSchemaUpdates'][] = 'WikiTrustUpdate::updateDB';
         break;
       case "wmf":
 	$wgAutoloadClasses['WikiTrust'] = $dir . 'WmfMode.php';
@@ -83,35 +85,29 @@ function wfWikiTrustSetup {
 	die("Set \$wgWikiTrustVersion to one of 'local', 'remote', 'wmf'\n");
     }
 
-    # Updater fired when updating to a new version of MW.
-    global $wgHooks;
-    $wgHooks['LoadExtensionsSchemaUpdates'][] = 'WikiTrust::updateDB';
-
-    # Is the user opting to use wikitrust
-    global $wgUser;
-    if ($wgWikiTrustGadget && !$wgUser->getOption($wgWikiTrustGadget)) {
-	return;
+    global $wgAjaxExportList, $wgUseAjax;
+    if ($wgUseAjax) {
+	$wgAjaxExportList[] = 'WikiTrust::handleVote';
+	$wgAjaxExportList[] = 'WikiTrust::getColoredText';
     }
+
+    # Is the user opting to use wikitrust?
+    global $wgUser;
+    if ($wgWikiTrustGadget && !$wgUser->getOption($wgWikiTrustGadget))
+	return;
 
     # Add an extra tab
     $wgHooks['SkinTemplateTabs'][] = 'WikiTrust::ucscTrustTemplate';
 
     # Edit hook to notify
+    # TODO: In 'remote' mode, we want to disable editing!
     $wgHooks['ArticleSaveComplete'][] = 'WikiTrust::ucscArticleSaveComplete';
 
-    global $wgAjaxExportList, $wgUseAjax;
-    if ($wgUseAjax) {
-	if ($wgWikiTrustShowVoteButton) {
-	    $wgAjaxExportList[] = 'WikiTrust::handleVote';
-	}
-	$wgAjaxExportList[] = 'WikiTrust::getColoredText';
-    }
 
-    # That's it if the trust tab isn't selected
+    # We are done if the trust tab isn't selected
     global $wgRequest;
-    if (!$wgRequest->getVal('trust') || $wgRequest->getVal('action')) {
+    if (!$wgRequest->getVal('trust') || $wgRequest->getVal('action'))
 	return;
-    }
 
     $wgHooks['OutputPageBeforeHTML'][] = 'WikiTrust::ucscOutputBeforeHTML';
 }

@@ -1,13 +1,14 @@
 <?php
 
-class WikiTrustUpdate{
+class WikiTrustUpdate {
 
   /**
    * Update the DB when MW is updated.
-   * This assums that the db has permissions to create tables.
+   * This assumes that the db has permissions to create tables.
    */
-  public static function updateDB(){
-		global $IP;
+  public static function updateDB()
+  {
+    global $IP;
 		
     require_once($IP . "/extensions/WikiTrust/includes/TrustUpdateScripts.inc");
     $db =& wfGetDB( DB_MASTER );

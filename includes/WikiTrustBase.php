@@ -65,62 +65,71 @@ class WikiTrustBase {
    Called via ajax, so this must be static.
   */
   static function handleVote($user_name_raw, $page_id_raw = 0, 
-			     $rev_id_raw = 0, $page_title_raw = ""){
+			     $rev_id_raw = 0, $page_title_raw = "")
+  {
     
-    global $wgWikiTrustContentServerURL;
-    $response = new AjaxResponse("0");
     
     $dbr =& wfGetDB( DB_SLAVE );
     
     $userName = $dbr->strencode($user_name_raw, $dbr);
     $page_id = $dbr->strencode($page_id_raw, $dbr);
     $rev_id = $dbr->strencode($rev_id_raw, $dbr);
-    $page_title = $dbr->strencode($page_title_raw, $dbr);
     
-    if($page_id){
-      // First, look up the id numbers from the page and user strings
-      $res = $dbr->select('user', array('user_id'), 
-			array('user_name' => $userName), array());
-      if ($res){
-	$row = $dbr->fetchRow($res);
-	$user_id = $row['user_id'];
-	if (!$user_id) {
-	  $user_id = 0;
-	}
-      }
-      $dbr->freeResult( $res ); 
 
-      $response = self::vote_recordVote($response, $user_id, $page_id, $rev_id);
-    }
-    return $response;
+    // TODO: lookup user_id, if page_id exists?  What about $rev_id
+    if(!$page_id)
+      return new AjaxResponse("0");
+
+    $user_id = self::user_getIdFName($dbr, $userName);
+
+    return self::vote_recordVote($dbr, $user_id, $page_id, $rev_id);
   }
 
-  static function vote_recordVote(&$response, $user_id, $page_id, $rev_id) {
-			// Now see if this user has not already voted, 
-			// and count the vote if its the first time though.
-      $res = $dbr->select('wikitrust_vote', array('revision_id'),
+  static function user_GetIdFName($dbr, $userName)
+  {
+    if (preg_match("/^\d+\.\d+\.\d+\.\d+$/", $userName))
+	return 0;		// IP addrs are anonymous
+
+    $res = $dbr->select('user', array('user_id'), 
+		    array('user_name' => $userName), array());
+    if ($res){
+      $row = $dbr->fetchRow($res);
+      $user_id = $row['user_id'];
+      if (!$user_id)
+	$user_id = 0;
+    }
+    $dbr->freeResult( $res ); 
+
+    return $user_id;
+  }
+
+  static function vote_recordVote(&$dbr, $user_id, $page_id, $rev_id)
+  {
+    // Now see if this user has not already voted, 
+    // and count the vote if its the first time though.
+    $res = $dbr->select('wikitrust_vote', array('revision_id'),
 		array('revision_id' => $rev_id, 'voter_id' => $user_id),
 		array());
-      if ($res) {
-	$row = $dbr->fetchRow($res);
-	if(!$row['revision_id']){
-	  $insert_vals = array("revision_id" => $rev_id,
-				 "page_id" => $page_id ,
-				 "voter_id" => $user_id,
-				 "voted_on" => wfTimestampNow()
-			 );
-	  $dbw =& wfGetDB( DB_MASTER );
-	  if ($dbw->insert( 'wikitrust_vote', $insert_vals)){
-	    $dbw->commit();
-	    $response = new AjaxResponse(implode  ( ",", $insert_vals));
-	    self::runEvalEdit(self::TRUST_EVAL_VOTE, $rev_id, $page_id, $user_id); 
-	  }
-	} else {
-	  $response = new AjaxResponse("Already Voted");
-	}
-	$dbr->freeResult( $res ); 	   
-      }
-    return $response;
+    if (!$res) return new AjaxResponse("0");
+	// TODO: do we also need to $dbr->freeResult($res)?
+
+    $row = $dbr->fetchRow($res);
+    $dbr->freeResult($res);
+    if ($row['revision_id']) return new AjaxResponse("Already Voted");
+
+    $insert_vals = array("revision_id" => $rev_id,
+			 "page_id" => $page_id ,
+			 "voter_id" => $user_id,
+			 "voted_on" => wfTimestampNow()
+		   );
+    $dbw =& wfGetDB( DB_MASTER );
+    if ($dbw->insert( 'wikitrust_vote', $insert_vals)) {
+      $dbw->commit();
+      self::runEvalEdit(self::TRUST_EVAL_VOTE, $rev_id, $page_id, $user_id); 
+      return new AjaxResponse(implode  ( ",", $insert_vals));
+    } else {
+      return new AjaxResponse("0");
+    }
   }
   
   /*
@@ -151,7 +160,7 @@ class WikiTrustBase {
     wfLoadExtensionMessages('WikiTrust');
 
     self::color_addFileRefs($out);
-    $rev_id = self::util_getRevidFOut($out);
+    $rev_id = self::util_getRevFOut($out);
 
     $colored_text = self::color_getColorData($rev_id);
     self::color_fixup($colored_text);
@@ -180,7 +189,7 @@ class WikiTrustBase {
 		.$wgScriptPath."/extensions/WikiTrust/css/trust.css\">"); 
   }
 
-  static function util_getRevidFOut($out)
+  static function util_getRevFOut($out)
   {
     if (method_exists($out, "getRevisionId"))
       $rev_id = $out->getRevisionId();
@@ -235,11 +244,8 @@ class WikiTrustBase {
 
   static function color_wiki2html(&$colored_text, &$text)
   {
-    global $wgParser, $wgUser, $wgTitle,
-		$wgWikiTrustShowVoteButton, $wgUseAjax;
+    global $wgParser, $wgUser, $wgTitle;
 
-
-			
     $options = ParserOptions::newFromUser($wgUser);
     $parsed = $wgParser->parse($colored_text, $wgTitle, $options);
     $text = $parsed->getText();
@@ -273,6 +279,8 @@ class WikiTrustBase {
 
   static function vote_showButton(&$text)
   {
+    global $wgWikiTrustShowVoteButton, $wgUseAjax;
+
     if ($wgWikiTrustShowVoteButton && $wgUseAjax){
       $text = "<div id='vote-button'><input type='button' name='vote' "
 		. "value='" 
@@ -290,7 +298,9 @@ class WikiTrustBase {
     // the colored_text
     $colored_text = str_replace(self::TRUST_OPEN_TOKEN, "", $colored_text);
     $colored_text = str_replace(self::TRUST_CLOSE_TOKEN, "", $colored_text);
-    
+
+    // TODO: I think these replacements are from broken XML parser?
+	// Still needed?  (Luca working on fixing unpacking...) -Bo
     $colored_text = preg_replace("/&apos;/", "'", $colored_text, -1);      
     $colored_text = preg_replace("/&amp;/", "&", $colored_text, -1);
     $colored_text = preg_replace("/&lt;/", self::TRUST_OPEN_TOKEN, 
@@ -306,12 +316,13 @@ class WikiTrustBase {
 			      &$sectionanchor, &$flags, 
 			      &$revision)
   {
-    $userName = $user->getName();
+    // TODO: Cleanup these unused var references
+    # $userName = $user->getName();
     $page_id = $article->getTitle()->getArticleID();
     $rev_id = $revision->getID();
-    $page_title = $article->getTitle()->getDBkey();
+    # $page_title = $article->getTitle()->getDBkey();
     $user_id = $user->getID();
-    $parentId = $revision->getParentId();
+    # $parentId = $revision->getParentId();
 		
     if (self::runEvalEdit(self::TRUST_EVAL_EDIT, 
 			$rev_id, 
@@ -322,11 +333,10 @@ class WikiTrustBase {
   }
 
   // TrustTabSkin - add trust tab to display, and select if appropriate
-  public static function ucscTrustTemplate($skin, &$content_actions){
+  public static function ucscTrustTemplate($skin, &$content_actions)
+  {
     global $wgRequest;
-    wfLoadExtensionMessages('RemoteTrust');
-    
-    if ($wgRequest->getVal('action') || $wgRequest->getVal('diff')){
+    if ($wgRequest->getVal('action') || $wgRequest->getVal('diff')) {
       // we don't want trust for actions or diffs.
       return true;
     }
@@ -338,11 +348,12 @@ class WikiTrustBase {
       $trust_qs .= "?trust=t"; 
     }
     
-    $content_actions['trust'] = array ( 'class' => '',
-					'text' => 
-					wfMsgNoTrans("wgTrustTabText"),
-					'href' => 
-					$_SERVER['PHP_SELF'] . $trust_qs );
+    wfLoadExtensionMessages('WikiTrust');
+    $content_actions['trust'] = array (
+				    'class' => '',
+				    'text' => wfMsgNoTrans("wgTrustTabText"),
+				    'href' => $_SERVER['PHP_SELF'] . $trust_qs
+				);
     
     if($wgRequest->getVal('trust')){
       $content_actions['trust']['class'] = 'selected';
@@ -354,6 +365,50 @@ class WikiTrustBase {
     return true;
   }
 
+  /** 
+   * Actually run the eval edit program.
+   * Returns -1 on error, the process id of the launched eval process 
+   otherwise.
+  */
+  private static function runEvalEdit($eval_type = self::TRUST_EVAL_EDIT,
+			      $rev_id = -1, $page_id = -1,
+			      $voter_id = -1)
+  {
+      global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgWikiTrustCmd, $wgWikiTrustLog, $wgWikiTrustDebugLog, $wgWikiTrustRepSpeed, $wgDBprefix, $wgThrift_host, $wgThrift_port, $wgThrift_uri, $wgThrift_protocol;
+	  
+      $process = -1;
+      $command = "";
+      // Get the db.
+      $dbr =& wfGetDB( DB_SLAVE );
+	  
+      // Do we use a DB prefix?
+      $prefix = ($wgDBprefix)? "-db_prefix " . $dbr->strencode($wgDBprefix): "";
+	  
+      switch ($eval_type) {
+	  case self::TRUST_EVAL_EDIT:
+	      $command = escapeshellcmd("$wgWikiTrustCmd -rep_speed $wgWikiTrustRepSpeed -log_file $wgWikiTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname -thrift_host $wgThrift_host -thrift_port $wgThrift_port -thrift_uri $wgThrift_uri -thrift_protocol $wgThrift_protocol $prefix") . " &";
+	      break;
+	  case self::TRUST_EVAL_VOTE:
+	      if ($rev_id == -1 || $page_id == -1 || $voter_id == -1)
+		  return -1;
+	      $command = escapeshellcmd("$wgWikiTrustCmd -eval_vote -rev_id " . $dbr->strencode($rev_id) . " -voter_id " . $dbr->strencode($voter_id) . " -page_id " . $dbr->strencode($page_id) . " -rep_speed $wgWikiTrustRepSpeed -log_file $wgWikiTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname -thrift_host $wgThrift_host -thrift_port $wgThrift_port -thrift_uri $wgThrift_uri -thrift_protocol $wgThrift_protocol $prefix") . " &";
+	      break;
+	  case self::TRUST_EVAL_MISSING:
+	      $command = escapeshellcmd("$wgWikiTrustCmd -rev_id " . $dbr->strencode($rev_id) . " -rep_speed $wgWikiTrustRepSpeed -log_file $wgWikiTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname -thrift_host $wgThrift_host -thrift_port $wgThrift_port -thrift_uri $wgThrift_uri -thrift_protocol $wgThrift_protocol $prefix") . " &";
+	      break;  
+      }
+	  
+      $descriptorspec = array(
+	      0 => array("pipe", "r"),
+	      1 => array("file", escapeshellcmd($wgWikiTrustDebugLog), "a"),
+	      2 => array("file", escapeshellcmd($wgWikiTrustDebugLog), "a")
+	  );
+      $cwd = '/tmp';
+      $env = array();
+      $process = proc_open($command, $descriptorspec, $pipes, $cwd, $env);
+
+      return $process; 
+  }
 
 }
 
