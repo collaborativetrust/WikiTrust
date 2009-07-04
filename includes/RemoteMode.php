@@ -2,7 +2,9 @@
 
 class WikiTrust extends WikiTrustBase {
   public static function ucscOutputBeforeHTML(&$out, &$text){
-    super::ucscOutputBeforeHTML($out, $text);
+    wfLoadExtensionMessages('WikiTrust');
+
+    self::color_addFileRefs($out);
 
     $ctext_html = "<div id='text-button'><input type='button' name='ctext' value='getColoredText' onclick='startGetColoredText()'></div>";
     $vtext_html = "<div id='vote-button'><input type='button' name='vote' value='" . wfMsgNoTrans("wgVoteText") . "' onclick='startVote()' /></div><div id='vote-button-done'>". wfMsgNoTrans("wgThankYouForVoting") ."</div>";
@@ -13,7 +15,10 @@ class WikiTrust extends WikiTrustBase {
     return true;
   }
 
-  public static function vote_recordVote($user_id, $page_id, $rev_id) {
+  public static function vote_recordVote(&$dbr, $user_id, $page_id, $rev_id)
+  {
+    global $wgWikiTrustContentServerURL;
+
     $ctx = stream_context_create(
 	array('http' => array( 'timeout' => self::TRUST_TIMEOUT ) )
       );
@@ -27,8 +32,7 @@ class WikiTrust extends WikiTrustBase {
 	"&user=".  urlencode($user_id).
 	"&page_title=". urlencode($page_title).
 	"&time=" .  urlencode(wfTimestampNow()), 0, $ctx);
-      $response = new AjaxResponse($vote_str);    
-    }
+    $response = new AjaxResponse($vote_str);    
     return $response;
   }
 
@@ -218,7 +222,7 @@ class WikiTrust extends WikiTrustBase {
       /* $text = preg_replace_callback(
 				    '/'.self::TRUST_OPEN_TOKEN
 				    .'(Image|File):(.*?)<\/a>/'
-				    ,"TextTrustImpl::getImageInfo"
+				    ,"WikiTrust::getImageInfo"
 				    ,$text, -1, $count);
       */
       $text = preg_replace('/' . self::TRUST_CLOSE_TOKEN .'/', ">", $text

@@ -77,6 +77,8 @@ function wfWikiTrustSetup {
       case "remote":
 	$wgAutoloadClasses['WikiTrust'] = $dir . 'RemoteMode.php';
 	$wgHooks['LoadExtensionsSchemaUpdates'][] = 'WikiTrustUpdate::updateDB';
+	// We always want to show colored output in RemoteMode
+	$wgHooks['OutputPageBeforeHTML'][] = 'WikiTrust::ucscOutputBeforeHTML';
         break;
       case "wmf":
 	$wgAutoloadClasses['WikiTrust'] = $dir . 'WmfMode.php';
