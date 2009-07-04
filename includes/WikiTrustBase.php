@@ -389,7 +389,7 @@ class WikiTrustBase {
 			      $rev_id = -1, $page_id = -1,
 			      $voter_id = -1)
   {
-      global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgWikiTrustCmd, $wgWikiTrustLog, $wgWikiTrustDebugLog, $wgWikiTrustRepSpeed, $wgDBprefix, $wgThrift_host, $wgThrift_port, $wgThrift_uri, $wgThrift_protocol;
+      global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgWikiTrustCmd, $wgWikiTrustLog, $wgWikiTrustDebugLog, $wgWikiTrustRepSpeed, $wgDBprefix;
       // TODO: What is this "thrift" stuff?
 
       $process = -1;
@@ -402,15 +402,15 @@ class WikiTrustBase {
 	  
       switch ($eval_type) {
 	  case self::TRUST_EVAL_EDIT:
-	      $command = escapeshellcmd("$wgWikiTrustCmd -rep_speed $wgWikiTrustRepSpeed -log_file $wgWikiTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname -thrift_host $wgThrift_host -thrift_port $wgThrift_port -thrift_uri $wgThrift_uri -thrift_protocol $wgThrift_protocol $prefix") . " &";
+	      $command = escapeshellcmd("$wgWikiTrustCmd -rep_speed $wgWikiTrustRepSpeed -log_file $wgWikiTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix") . " &";
 	      break;
 	  case self::TRUST_EVAL_VOTE:
 	      if ($rev_id == -1 || $page_id == -1 || $voter_id == -1)
 		  return -1;
-	      $command = escapeshellcmd("$wgWikiTrustCmd -eval_vote -rev_id " . $dbr->strencode($rev_id) . " -voter_id " . $dbr->strencode($voter_id) . " -page_id " . $dbr->strencode($page_id) . " -rep_speed $wgWikiTrustRepSpeed -log_file $wgWikiTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname -thrift_host $wgThrift_host -thrift_port $wgThrift_port -thrift_uri $wgThrift_uri -thrift_protocol $wgThrift_protocol $prefix") . " &";
+	      $command = escapeshellcmd("$wgWikiTrustCmd -eval_vote -rev_id " . $dbr->strencode($rev_id) . " -voter_id " . $dbr->strencode($voter_id) . " -page_id " . $dbr->strencode($page_id) . " -rep_speed $wgWikiTrustRepSpeed -log_file $wgWikiTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix") . " &";
 	      break;
 	  case self::TRUST_EVAL_MISSING:
-	      $command = escapeshellcmd("$wgWikiTrustCmd -rev_id " . $dbr->strencode($rev_id) . " -rep_speed $wgWikiTrustRepSpeed -log_file $wgWikiTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname -thrift_host $wgThrift_host -thrift_port $wgThrift_port -thrift_uri $wgThrift_uri -thrift_protocol $wgThrift_protocol $prefix") . " &";
+	      $command = escapeshellcmd("$wgWikiTrustCmd -rev_id " . $dbr->strencode($rev_id) . " -rep_speed $wgWikiTrustRepSpeed -log_file $wgWikiTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix") . " &";
 	      break;  
       }
 	  
