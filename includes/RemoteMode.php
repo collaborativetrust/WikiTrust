@@ -17,6 +17,8 @@ class WikiTrust extends WikiTrustBase {
 
   public static function vote_recordVote(&$dbr, $user_id, $page_id, $rev_id)
   {
+    // TODO: forward on vote?  Shouldn't RemoteMode assume that voting
+    // is in local database?  Is this actually from WmfMode?
     global $wgWikiTrustContentServerURL;
 
     $ctx = stream_context_create(
@@ -26,6 +28,7 @@ class WikiTrust extends WikiTrustBase {
 	  $wgWikiTrustContentServerURL .
 	  "vote=1&rev=$rev_id&page=$page_id&user=$user_id&page_title=$page_title&time=" .
 	  wfTimestampNow());
+    // TODO: isn't $user_id already db encoded?
     $colored_text = file_get_contents($wgWikiTrustContentServerURL .
 	"vote=1&rev=".  urlencode($rev_id).
 	"&page=".  urlencode($page_id).
@@ -36,37 +39,13 @@ class WikiTrust extends WikiTrustBase {
     return $response;
   }
 
-  /*
-   Callback for Images.
-  */
-  static function getImageInfo($matches){
-
-    /** Still not working
-    $data = array('action'=>'parse',
-		  'text'=>"[[File:".$matches[2]."]]",
-		  'format' => 'json'
-		  );
-   
-    global $wgWikiTrustApiURL;
-    $image_info_raw = file_get_contents($wgWikiTrustApiURL
-					.http_build_query($data));
-    $image_json = json_decode($image_info_raw, true);
-    $image_text = $image_json["parse"]["text"]["*"];
-    $image_texts = explode("<p>", $image_text);
-    $image_final = explode("</p>", $image_texts[1]);
-    
-    return $image_final[0];
-    */
-    return  '<a href="/wiki/File:'.$matches[2].'" class="image">File:'.$matches[2].'</a>';
-
-  }
 
 	/**
    Returns colored markup.
 	 
    @return colored markup.
   */
-  static function getColoredText($page_title_raw,
+  static function color_getColoredText($page_title_raw,
 				 $page_id_raw = NULL, 
 				 $rev_id_raw = NULL){
     global $wgParser, $wgWikiTrustContentServerURL, $wgWikiTrustApiURL, $wgUser;
@@ -147,21 +126,20 @@ class WikiTrust extends WikiTrustBase {
 
     // Since we are here, we need to get the colored HTML the hard way.
     $ctx = stream_context_create(
-				 array('http' => array(
-						       'timeout' => 
-						       self::TRUST_TIMEOUT
-						       )
-				       )
-				 );
+		 array('http' => array('timeout' => self::TRUST_TIMEOUT))
+	   );
     
-    // Should we do doing this via HTTPS?
-    $colored_raw = (file_get_contents($wgWikiTrustContentServerURL . "rev=" . 
-				      urlencode($rev_id) . 
-				      "&page=".urlencode($page_id).
-				      "&page_title=".
-				      urlencode($page_title)."&time=".
-				      urlencode(wfTimestampNow())."&user="
-				      .urlencode(0)."", 0, $ctx));
+    // TODO: Should we do doing this via HTTPS?  Or POST?
+    // TODO: in RemoteMode, shouldn't we use local database?
+    $colored_raw = (file_get_contents($wgWikiTrustContentServerURL .
+			"rev=" .  urlencode($rev_id) . 
+			"&page=".urlencode($page_id).
+			"&page_title=".  urlencode($page_title).
+			"&time=".urlencode(wfTimestampNow()).
+			"&user=" .urlencode(0)."",
+		 0, $ctx));
+	// TODO: trailing empty string?
+	// TODO: user=0?
     
     if ($colored_raw && $colored_raw != self::NOT_FOUND_TEXT_TOKEN){
     
@@ -200,7 +178,7 @@ class WikiTrust extends WikiTrustBase {
       $count = 0;
       // Update the trust tags
       $text = preg_replace_callback("/\{\{#t:(\d+),(\d+),(.*?)\}\}/",
-				    "TextTrustImpl::handleParserRe",
+				    "WikiTrust::color_handleParserRe",
 				    $text,
 				    -1,
 				    $count
@@ -222,7 +200,7 @@ class WikiTrust extends WikiTrustBase {
       /* $text = preg_replace_callback(
 				    '/'.self::TRUST_OPEN_TOKEN
 				    .'(Image|File):(.*?)<\/a>/'
-				    ,"WikiTrust::getImageInfo"
+				    ,"WikiTrust::color_getImageInfo"
 				    ,$text, -1, $count);
       */
       $text = preg_replace('/' . self::TRUST_CLOSE_TOKEN .'/', ">", $text
@@ -255,6 +233,31 @@ class WikiTrust extends WikiTrustBase {
     } 
     
     return $response;
+  }
+
+  /*
+   Callback for Images.
+  */
+  static function color_getImageInfo($matches){
+
+    /** Still not working
+    $data = array('action'=>'parse',
+		  'text'=>"[[File:".$matches[2]."]]",
+		  'format' => 'json'
+		  );
+   
+    global $wgWikiTrustApiURL;
+    $image_info_raw = file_get_contents($wgWikiTrustApiURL
+					.http_build_query($data));
+    $image_json = json_decode($image_info_raw, true);
+    $image_text = $image_json["parse"]["text"]["*"];
+    $image_texts = explode("<p>", $image_text);
+    $image_final = explode("</p>", $image_texts[1]);
+    
+    return $image_final[0];
+    */
+    return  '<a href="/wiki/File:'.$matches[2].'" class="image">File:'.$matches[2].'</a>';
+
   }
 
 }    

@@ -5,6 +5,7 @@ class WikiTrust extends WikiTrustBase {
    Does a POST HTTP request
   */
   static function file_post_contents($url,$headers=false) {
+    // TODO: is cURL library frowned upon?
     $url = parse_url($url);
 
     if (!isset($url['port'])) {
@@ -45,7 +46,8 @@ class WikiTrust extends WikiTrustBase {
     $ctx = stream_context_create(
 	      array('http' => array('timeout' => self::TRUST_TIMEOUT))
 	    );
-      
+
+    // TODO: do we want to POST to try to protect privacy of users?
     $vote_str = ("Voting at " 
 		. $wgWikiTrustContentServerURL 
 		. "vote=1&rev=$rev_id&page=$page_id&user=$user_id"
@@ -68,7 +70,7 @@ class WikiTrust extends WikiTrustBase {
 		 array('http' => array('timeout' => self::TRUST_TIMEOUT))
 	 );
     
-    // TODO: Should we do doing this via HTTPS?
+    // TODO: Should we do doing this via HTTPS?  Or POST?
     $colored_raw = (file_get_contents($wgWikiTrustContentServerURL .
 			"rev=" .  urlencode($rev_id) . 
 			"&page=".urlencode($page_id) .

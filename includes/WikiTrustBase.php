@@ -48,6 +48,8 @@ class WikiTrustBase {
 		  "trust9",
 		  "trust10",
 		  );
+
+
 	
   /**
    Records the vote.
@@ -75,23 +77,6 @@ class WikiTrustBase {
     return self::vote_recordVote($dbr, $user_id, $page_id, $rev_id);
   }
 
-  static function user_GetIdFName($dbr, $userName)
-  {
-    if (preg_match("/^\d+\.\d+\.\d+\.\d+$/", $userName))
-	return 0;		// IP addrs are anonymous
-
-    $res = $dbr->select('user', array('user_id'), 
-		    array('user_name' => $userName), array());
-    if ($res){
-      $row = $dbr->fetchRow($res);
-      $user_id = $row['user_id'];
-      if (!$user_id)
-	$user_id = 0;
-    }
-    $dbr->freeResult( $res ); 
-
-    return $user_id;
-  }
 
   static function vote_recordVote(&$dbr, $user_id, $page_id, $rev_id)
   {
@@ -122,30 +107,6 @@ class WikiTrustBase {
     }
   }
   
-  /*
-   Callback for parser function.
-  */
-  static function handleParserRe($matches){
-    
-    $normalized_value = min(self::MAX_TRUST_VALUE, 
-			    max(self::MIN_TRUST_VALUE, 
-				(($matches[1] + .5) * 
-				 self::TRUST_MULTIPLIER) 
-				/ self::$median));
-    $class = self::$COLORS[$normalized_value];
-    $output = self::TRUST_OPEN_TOKEN . "span class=\"$class\"" 
-      . " onmouseover=\"Tip('".str_replace("&#39;","\\'",$matches[3])
-      ."')\" onmouseout=\"UnTip()\""
-      . " onclick=\"showOrigin(" 
-      . $matches[2] . ")\"" . self::TRUST_CLOSE_TOKEN;
-    if (self::$first_span){
-      self::$first_span = false;
-    } else {
-      $output = self::TRUST_OPEN_TOKEN . "/span" . self::TRUST_CLOSE_TOKEN . $output;
-    }
-    return $output;
-  }
-
   static function ucscOutputBeforeHTML(&$out, &$text){
     wfLoadExtensionMessages('WikiTrust');
 
@@ -164,7 +125,7 @@ class WikiTrustBase {
 				$options);
       $text = $msg->getText() . $text;
     } else {
-      self::color_wiki2html($colored_text, $text);
+      self::color_Wiki2Html($colored_text, $text);
       self::vote_showButton($text);
     }
 
@@ -180,28 +141,19 @@ class WikiTrustBase {
 		.$wgScriptPath."/extensions/WikiTrust/css/trust.css\">"); 
   }
 
-  static function util_getRevFOut($out)
+  static function vote_showButton(&$text)
   {
-    if (method_exists($out, "getRevisionId"))
-      $rev_id = $out->getRevisionId();
-    else
-      $rev_id = $out->mRevisionId;
+    global $wgWikiTrustShowVoteButton, $wgUseAjax;
 
-    if (!$rev_id) {
-      // If no revId, assume it is the most recent one.
-      global $wgTitle;
-      $page_id = $wgTitle->getArticleID();
-      $dbr =& wfGetDB( DB_SLAVE );
-      $res = $dbr->select('page', array('page_latest'), 
-                          array('page_id' => $page_id), array());
-      if ($res) {
-	$row = $dbr->fetchRow($res);
-	$rev_id = $row['page_latest'];
-      }
-      $dbr->freeResult( $res ); 
+    if ($wgWikiTrustShowVoteButton && $wgUseAjax){
+      $text = "<div id='vote-button'><input type='button' name='vote' "
+		. "value='" 
+		. wfMsgNoTrans("wgTrustVote")
+		. "' onclick='startVote()' /></div><div id='vote-button-done'>"
+		. wfMsgNoTrans("wgTrustVoteDone") 
+		. "</div>"
+		. $text;
     }
-
-    return $rev_id;
   }
 
   static function color_getColorData($rev_id)
@@ -235,7 +187,7 @@ class WikiTrustBase {
     return $colored_text;
   }
 
-  static function color_wiki2html(&$colored_text, &$text)
+  static function color_Wiki2Html(&$colored_text, &$text)
   {
     global $wgParser, $wgUser, $wgTitle;
 
@@ -246,7 +198,7 @@ class WikiTrustBase {
     $count = 0;
     // Update the trust tags
     $text = preg_replace_callback("/\{\{#t:(\d+),(\d+),(.*?)\}\}/",
-				"WikiTrust::handleParserRe",
+				"WikiTrust::color_handleParserRe",
 				$text,
 				-1,
 				$count);
@@ -263,7 +215,7 @@ class WikiTrustBase {
     // TODO: This was only in RemoteTrustImpl (Wmf mode).  Not everywhere??
     // Fix edit section links
     $text = preg_replace_callback("/<span class=\"editsection\">\[(.*?)Edit section: <\/span>(.*?)\">edit<\/a>\]<\/span>/",
-		"WikiTrust::handleFixSection",
+		"WikiTrust::color_handleFixSection",
 		$text,
 		-1,
 		$count
@@ -281,19 +233,33 @@ class WikiTrustBase {
     $text .= $msg->getText();
   }
 
-  static function vote_showButton(&$text)
-  {
-    global $wgWikiTrustShowVoteButton, $wgUseAjax;
-
-    if ($wgWikiTrustShowVoteButton && $wgUseAjax){
-      $text = "<div id='vote-button'><input type='button' name='vote' "
-		. "value='" 
-		. wfMsgNoTrans("wgTrustVote")
-		. "' onclick='startVote()' /></div><div id='vote-button-done'>"
-		. wfMsgNoTrans("wgTrustVoteDone") 
-		. "</div>"
-		. $text;
+  static function color_handleParserRe($matches){
+    
+    $normalized_value = min(self::MAX_TRUST_VALUE, 
+			    max(self::MIN_TRUST_VALUE, 
+				(($matches[1] + .5) * 
+				 self::TRUST_MULTIPLIER) 
+				/ self::$median));
+    $class = self::$COLORS[$normalized_value];
+    $output = self::TRUST_OPEN_TOKEN . "span class=\"$class\"" 
+      . " onmouseover=\"Tip('".str_replace("&#39;","\\'",$matches[3])
+      ."')\" onmouseout=\"UnTip()\""
+      . " onclick=\"showOrigin(" 
+      . $matches[2] . ")\"" . self::TRUST_CLOSE_TOKEN;
+    if (self::$first_span){
+      self::$first_span = false;
+    } else {
+      $output = self::TRUST_OPEN_TOKEN . "/span" . self::TRUST_CLOSE_TOKEN . $output;
     }
+    return $output;
+  }
+
+  static function color_handleFixSection($matches)
+  {
+    return "<span class=\"editsection\">[" .
+	    $matches[1].
+	    "Edit section: \">" .
+	    "edit</a>]</span>";
   }
 
   static function color_fixup(&$colored_text)
@@ -415,12 +381,47 @@ class WikiTrustBase {
       return $process; 
   }
 
-  static function handleFixSection($matches)
+
+  static function user_GetIdFName(&$dbr, $userName)
   {
-    return "<span class=\"editsection\">[" .
-	    $matches[1].
-	    "Edit section: \">" .
-	    "edit</a>]</span>";
+    if (preg_match("/^\d+\.\d+\.\d+\.\d+$/", $userName))
+	return 0;		// IP addrs are anonymous
+
+    $res = $dbr->select('user', array('user_id'), 
+		    array('user_name' => $userName), array());
+    if ($res){
+      $row = $dbr->fetchRow($res);
+      $user_id = $row['user_id'];
+      if (!$user_id)
+	$user_id = 0;
+    }
+    $dbr->freeResult( $res ); 
+
+    return $user_id;
+  }
+
+  static function util_getRevFOut($out)
+  {
+    if (method_exists($out, "getRevisionId"))
+      $rev_id = $out->getRevisionId();
+    else
+      $rev_id = $out->mRevisionId;
+
+    if (!$rev_id) {
+      // If no revId, assume it is the most recent one.
+      global $wgTitle;
+      $page_id = $wgTitle->getArticleID();
+      $dbr =& wfGetDB( DB_SLAVE );
+      $res = $dbr->select('page', array('page_latest'), 
+                          array('page_id' => $page_id), array());
+      if ($res) {
+	$row = $dbr->fetchRow($res);
+	$rev_id = $row['page_latest'];
+      }
+      $dbr->freeResult( $res ); 
+    }
+
+    return $rev_id;
   }
 
 }
