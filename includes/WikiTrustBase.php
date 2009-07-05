@@ -9,21 +9,11 @@ class WikiTrustBase {
   const TRUST_EVAL_EDIT = 10;
   const TRUST_EVAL_MISSING = 15;
 
-  ## the css tag to use
-  const TRUST_CSS_TAG = "background-color"; ## color the background
-  #$TRUST_CSS_TAG = "color"; ## color just the text
-  
-  ## ColorText is called multiple times, but we only want to color true text.
-  const DIFF_TOKEN_TO_COLOR = "Lin";
-
   ## Trust normalization values;
   const MAX_TRUST_VALUE = 9;
   const MIN_TRUST_VALUE = 0;
   const TRUST_MULTIPLIER = 10;
   
-  ## Token to split trust and origin values on
-  const TRUST_SPLIT_TOKEN = ',';
-
   ## Token to be replaed with <
   const TRUST_OPEN_TOKEN = "QQampo:";
   
@@ -32,7 +22,6 @@ class WikiTrustBase {
 
   ## Server forms
   const NOT_FOUND_TEXT_TOKEN = "TEXT_NOT_FOUND";
-  const TRUST_COLOR_TOKEN = "<!-- trust -->";
 
   ## Context for communicating with the trust server
   const TRUST_TIMEOUT = 10;
