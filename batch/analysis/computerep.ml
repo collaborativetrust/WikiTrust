@@ -84,25 +84,31 @@ class users
 	      if debug then Printf.printf "Uid %d rep: %f " user_id u.rep; 
 	      if debug then Printf.printf "inc: %f\n" (q /. rep_scaling);
 	      u.rep <- max 0.0 (min max_rep (u.rep +. (q /. rep_scaling)));
+	      let new_weight = log (1.0 +. (max 0.0 u.rep)) in 
+	      let new_bin = int_of_float new_weight in
+	      let old_bin = u.rep_bin in
+	      u.rep_bin <- new_bin;
+	      (* debug *)
+	      Printf.printf "Inc user %d by %f, leading to %f\n" uid (q /. rep_scaling) u.rep;
 	      if (not write_final_reps) then begin 
-		match user_history_file with 
-		  None -> ()
-		| Some f -> begin 
-		    let new_weight = log (1.0 +. (max 0.0 u.rep)) in 
-		    if new_weight > (float_of_int u.rep_bin) +. 1.2 
-		      || new_weight < (float_of_int u.rep_bin) -. 0.2 
-		      || gen_exact_rep
-		    then begin (* must write out the change in reputation *)
-		      let new_bin = int_of_float new_weight in 
-		      if gen_exact_rep then
-			Printf.fprintf f "%f %7d %2d %2d %f\n" timestamp user_id u.rep_bin new_bin u.rep
-		      else
-			Printf.fprintf f "%f %7d %2d %2d\n" timestamp user_id u.rep_bin new_bin;
-		      u.rep_bin <- new_bin 
+		begin
+		  match user_history_file with 
+		    None -> ()
+		  | Some f -> begin 
+		      if new_weight > (float_of_int old_bin) +. 1.2 
+			|| new_weight < (float_of_int old_bin) -. 0.2 
+			|| gen_exact_rep
+		      then
+			begin (* must write out the change in reputation *)
+			  if gen_exact_rep then
+			    Printf.fprintf f "%f %7d %2d %2d %f\n" timestamp user_id old_bin new_bin u.rep
+			  else
+			    Printf.fprintf f "%f %7d %2d %2d\n" timestamp user_id old_bin new_bin;
+			end
 		    end
-		  end;
-		    if user_id = single_debug_id && single_debug then 
-		      Printf.printf "Rep of %d: %f\n" user_id u.rep
+		end;
+		if user_id = single_debug_id && single_debug then 
+		  Printf.printf "Rep of %d: %f\n" user_id u.rep
 	      end (* If not write_final_reps *)
 	  end
 	else 
@@ -117,17 +123,17 @@ class users
 	      rep_history = RepHistory.empty 
 	    } in 
 	    u.rep <- max 0.0 (min max_rep (u.rep +. (q /. rep_scaling)));
+	    let new_weight = log (1.0 +. (max 0.0 u.rep)) in 
+	    let new_bin = int_of_float new_weight in 
+	    u.rep_bin <- new_bin;
 	    if (not write_final_reps) then begin
 	      match user_history_file with 
 		None -> ()
 	      | Some f -> begin 
-		  let new_weight = log (1.0 +. (max 0.0 u.rep)) in 
-		  let new_bin = int_of_float new_weight in 
 		  if gen_exact_rep then
 		    Printf.fprintf f "%f %7d %2d %2d %f\n" timestamp user_id (-1) new_bin u.rep
 		  else
 		    Printf.fprintf f "%f %7d %2d %2d\n" timestamp user_id (-1) new_bin;
-		  u.rep_bin <- new_bin 
 		end;
 		  Hashtbl.add tbl user_id u; 
 	    end
@@ -266,8 +272,8 @@ class users
 	  None -> ()
 	| Some f -> begin
 	    let prt id u =
-	      Printf.fprintf f "%f %7d %2d %2d\n" 0. id (-1) u.rep_bin in
-	    Hashtbl.iter prt tbl
+	      if u.rep_bin > 0 then Printf.fprintf f "%f %7d %2d %2d\n" 0. id (-1) u.rep_bin
+	    in Hashtbl.iter prt tbl
 	  end
       end
 	

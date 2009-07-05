@@ -1,4 +1,4 @@
-# Computing the stats (can be parallelized):
+# Computing the statistics (can be parallelized):
 /bin/gunzip -c /home/luca/wiki-data/enwiki/wiki-00100000.xml.gz \
     | ./evalwiki -compute_stats -si ~/wiki-data/enwork/stats/wiki-00100000.stats
 
