@@ -88,8 +88,6 @@ class users
 	      let new_bin = int_of_float new_weight in
 	      let old_bin = u.rep_bin in
 	      u.rep_bin <- new_bin;
-	      (* debug *)
-	      Printf.printf "Inc user %d by %f, leading to %f\n" uid (q /. rep_scaling) u.rep;
 	      if (not write_final_reps) then begin 
 		begin
 		  match user_history_file with 
