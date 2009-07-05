@@ -330,7 +330,7 @@ class page_factory
     method make_colon_page (id: int) (title: string) : page = new page
 
 
-    (* Opens the files, given a basename.  Returns a Vec.t of the names opened. *)
+    (* Opens the files, given a basename. *)
     method open_out_files (base_name: string) : string Vec.t = 
       let default_name = base_name ^ ".out" in 
       let xml_name     = base_name ^ ".xml" in 

@@ -2,6 +2,9 @@
 /bin/gunzip -c /home/luca/wiki-data/enwiki/wiki-00100000.xml.gz \
     | ./evalwiki -compute_stats -si ~/wiki-data/enwork/stats/wiki-00100000.stats
 
+/bin/gunzip -c /home/luca/wiki-data/enwiki/wiki-00100220.xml.gz \
+    | ./evalwiki -compute_stats -si ~/wiki-data/enwork/stats/wiki-00100220.stats
+
 # Sorting the statistics:
 ./combinestats -outfile ~/wiki-data/enwork/sorted_stats/all_sorted.stat \
     -outdir ~/wiki-data/enwork/sorted_stats_temp/ ~/wiki-data/enwork/stats/
@@ -17,10 +20,11 @@
     -write_final_reps ~/wiki-data/enwork/sorted_stats/all_sorted.stat
 
 # Generating the colored pages and the sql file for batch-online:
-/bin/gunzip -c /home/luca/wiki-data/enwiki/wiki-00100000.xml.gz | \
-    ./evalwiki -trust_for_online \
+./evalwiki -trust_for_online \
     -historyfile ~/wiki-data/enwork/reps/rep_history.txt \
     -rev_base_path ~/wiki-data/enwork/revtree \
     -sig_base_path ~/wiki-data/enwork/sigtree \
-    -n_sigs 8
+    -n_sigs 8 \
+    -d ~/wiki-data/enwork/sql \
+    /home/luca/wiki-data/enwiki/wiki-00100000.xml.gz
 
