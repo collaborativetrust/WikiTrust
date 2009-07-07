@@ -7,7 +7,6 @@ class WikiTrustBase {
   ## Types of analysis to perform.
   const TRUST_EVAL_VOTE = 0;
   const TRUST_EVAL_EDIT = 10;
-  const TRUST_EVAL_MISSING = 15;
 
   ## Trust normalization values;
   const MAX_TRUST_VALUE = 9;
@@ -363,16 +362,13 @@ class WikiTrustBase {
 	  
       switch ($eval_type) {
 	  case self::TRUST_EVAL_EDIT:
-	      $command = escapeshellcmd("$wgWikiTrustCmd -rep_speed $wgWikiTrustRepSpeed -log_file $wgWikiTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix") . " &";
+	      $command = escapeshellcmd("$wgWikiTrustCmd -rep_speed $wgWikiTrustRepSpeed -log_file $wgWikiTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix $wgWikiTrustCmdExtraArgs") . " &";
 	      break;
 	  case self::TRUST_EVAL_VOTE:
 	      if ($rev_id == -1 || $page_id == -1 || $voter_id == -1)
 		  return -1;
-	      $command = escapeshellcmd("$wgWikiTrustCmd -eval_vote -rev_id " . $dbr->strencode($rev_id) . " -voter_id " . $dbr->strencode($voter_id) . " -page_id " . $dbr->strencode($page_id) . " -rep_speed $wgWikiTrustRepSpeed -log_file $wgWikiTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix") . " &";
+	      $command = escapeshellcmd("$wgWikiTrustCmd -eval_vote -rev_id " . $dbr->strencode($rev_id) . " -voter_id " . $dbr->strencode($voter_id) . " -page_id " . $dbr->strencode($page_id) . " -rep_speed $wgWikiTrustRepSpeed -log_file $wgWikiTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix $wgWikiTrustCmdExtraArgs") . " &";
 	      break;
-	  case self::TRUST_EVAL_MISSING:
-	      $command = escapeshellcmd("$wgWikiTrustCmd -rev_id " . $dbr->strencode($rev_id) . " -rep_speed $wgWikiTrustRepSpeed -log_file $wgWikiTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix") . " &";
-	      break;  
       }
 	  
       $descriptorspec = array(

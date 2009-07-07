@@ -31,8 +31,10 @@ $wgWikiTrustContentServerURL = "http://localhost:10303/?";
 global $wgWikiTrustLog, $wgWikiTrustDebugLog;
 $wgWikiTrustLog = "/tmp/{$wgDBname}-trust.log";
 $wgWikiTrustDebugLog = "/tmp/{$wgDBname}-trust-debug.log";
-global $wgWikiTrustCmd, $wgWikiTrustRepSpeed, $wgWikiTrustApiURL;
+global $wgWikiTrustCmd, $wgWikiTrustCmdExtraArgs,
+	$wgWikiTrustRepSpeed, $wgWikiTrustApiURL;
 $wgWikiTrustCmd = dirname(__FILE__) . "/eval_online_wiki";
+$wgWikiTrustCmdExtraArgs = "";
 $wgWikiTrustRepSpeed = 1.0;
 $wgWikiTrustApiURL = "http://en.wikipedia.org/w/api.php?";
 
