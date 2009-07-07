@@ -3,7 +3,7 @@
 Copyright (c) 2008-09 The Regents of the University of California
 All rights reserved.
 
-Authors: Luca de Alfaro, Ian Pye 
+Authors: Luca de Alfaro, Ian Pye, B. Thomas Adler
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -184,9 +184,18 @@ class db :
         [timestamp], and [rev_id]. *)
     method fetch_col_revs : int -> timestamp_t -> int -> int -> Mysql.result
       
-    (** [get_latest_rev_id page_id] returns the revision id of the most 
-	recent revision of page [page_id]. *)
+    (** [get_latest_col_rev_id page_id] returns the revision id of the most 
+	recent colored revision of page [page_id]. *)
     method get_latest_col_rev_id : int -> int
+    (** [get_latest_rev_id page_title] returns the revision id of the most 
+	recent revision of page [page_title]. *)
+    method get_latest_rev_id : string -> int
+
+    (** [get_page_id page_title] returns the page id of the named page *)
+    method get_page_id : string -> int
+
+    (** [get_page_title page_id] returns the page title of the named page *)
+    method get_page_title : int -> string
 
     (* ================================================================ *)
     (* Revision methods.  We assume we have a lock on the page to which 

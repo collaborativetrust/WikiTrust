@@ -61,19 +61,35 @@ let db = new Online_db.db !db_prefix mediawiki_db None
 let logger = new Online_log.logger !log_name !synch_log in
 
 
-let page_titles = [ "Olwen" ] in
-
 let rec download_page title last_rev =
-  let next_rev = Wikipedia_api.get_revs_from_api title last_rev db logger 0 in 
+  let next_rev = Wikipedia_api.get_revs_from_api title last_rev db logger 50 in 
   let _ = Unix.sleep sleep_time_sec in
   match next_rev with
-      Some next_id -> download_page title next_id
+      Some next_id -> begin
+	logger#log (Printf.sprintf "Loading next batch: %s -> %d\n" title next_id);
+	download_page title next_id
+      end
     | None -> ()
 in
 
 let main_loop () =
-  let f title = download_page title 0 in
-  List.map f page_titles;
+  try
+    while true do
+      let title = input_line stdin in
+      let lastid =
+	try
+	  db#get_latest_rev_id title
+	with Online_db.DB_Not_Found -> 0
+      in
+	try
+	  download_page title lastid;
+	with
+	    Wikipedia_api.API_error ->
+		logger#log (Printf.sprintf "ERROR: %s\n" title);
+	    | Failure x ->
+		logger#log (Printf.sprintf "ERROR: %s\n" title);
+    done
+  with End_of_file -> ()
 in
 
 main_loop ()

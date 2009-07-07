@@ -3,3 +3,4 @@ host = host
 user = user
 pass = password
 db   = db
+prefix = dbprefix

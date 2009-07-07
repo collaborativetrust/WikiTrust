@@ -61,9 +61,11 @@ let read_gzipped_file (file_name: string) : string option =
 (** [write_gzipped_file file_name l s] writes to the file [file_name] 
     the gzipped contents of string [s], with compression level [l]. *)
 let write_gzipped_file (file_name: string) (s: string) : unit =
+  (* TODO: does not work with empty strings! *)
   let f = Gzip.open_out file_name in
   let n = String.length s in 
-  Gzip.output f s 0 n;
+  if n > 0 then
+    Gzip.output f s 0 n;
   Gzip.close_out f
 
 (** [get_filename base_path page_id rev_id] computes the filename where
