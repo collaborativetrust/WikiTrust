@@ -67,13 +67,11 @@ class WikiTrustBase {
     $rev_id = $dbr->strencode($rev_id_raw, $dbr);
     
 
-    // TODO: lookup user_id, if page_id exists?  What about $rev_id
-    if(!$page_id)
+    if(!$page_id || !$user_id || !$rev_id)
       return new AjaxResponse("0");
 
     $user_id = self::user_getIdFName($dbr, $userName);
 
-    // TODO: do we need to check for non-zero $rev_id?  $user_id?
     return self::vote_recordVote($dbr, $user_id, $page_id, $rev_id);
   }
 
@@ -190,12 +188,20 @@ class WikiTrustBase {
   static function color_Wiki2Html(&$colored_text, &$text)
   {
     global $wgParser, $wgUser, $wgTitle;
+    $count = 0;
+
+    // #t might be reserved already!!
+    // TODO: big hack!!
+    $text = preg_replace_callback("/\{\{#t:(\d+),(\d+),(.*?)\}\}/",
+				"WikiTrust::color_t2trust",
+				$text,
+				-1,
+				$count);
 
     $options = ParserOptions::newFromUser($wgUser);
     $parsed = $wgParser->parse($colored_text, $wgTitle, $options);
     $text = $parsed->getText();
       
-    $count = 0;
     // Update the trust tags
     $text = preg_replace_callback("/\{\{#t:(\d+),(\d+),(.*?)\}\}/",
 				"WikiTrust::color_handleParserRe",
@@ -212,7 +218,6 @@ class WikiTrustBase {
     $text = preg_replace('/<p><\/span>/', "<p>", $text, -1, $count);
     $text = preg_replace('/<li><\/span>/', "<li>", $text, -1, $count);
 
-    // TODO: This was only in RemoteTrustImpl (Wmf mode).  Not everywhere??
     // Fix edit section links
     $text = preg_replace_callback("/<span class=\"editsection\">\[(.*?)Edit section: <\/span>(.*?)\">edit<\/a>\]<\/span>/",
 		"WikiTrust::color_handleFixSection",
@@ -254,6 +259,11 @@ class WikiTrustBase {
     return $output;
   }
 
+  static function color_t2trust($matches){
+    return "{{#trust:".$matches[1].",".$matches[2].",".$matches[3]."}}";
+  }
+
+
   static function color_handleFixSection($matches)
   {
     return "<span class=\"editsection\">[" .
@@ -286,19 +296,16 @@ class WikiTrustBase {
 			      &$sectionanchor, &$flags, 
 			      &$revision)
   {
-    // TODO: Cleanup these unused var references
-    # $userName = $user->getName();
     $page_id = $article->getTitle()->getArticleID();
     $rev_id = $revision->getID();
-    # $page_title = $article->getTitle()->getDBkey();
     $user_id = $user->getID();
-    # $parentId = $revision->getParentId();
 		
     if (self::runEvalEdit(self::TRUST_EVAL_EDIT, 
 			$rev_id, 
 			$page_id,
-			$user_id) >= 0)
+			$user_id) >= 0) {
 	return true;
+    }
     return false;
   }
 
@@ -345,7 +352,6 @@ class WikiTrustBase {
 			      $voter_id = -1)
   {
       global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgWikiTrustCmd, $wgWikiTrustLog, $wgWikiTrustDebugLog, $wgWikiTrustRepSpeed, $wgDBprefix;
-      // TODO: What is this "thrift" stuff?
 
       $process = -1;
       $command = "";

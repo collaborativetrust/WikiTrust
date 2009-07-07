@@ -1,9 +1,6 @@
 <?php
 
-# Copyright (c) 2009 B. Thomas Adler
-# Copyright (c) 2007,2008 Luca de Alfaro
-# Copyright (c) 2007,2008 Ian Pye
-# Copyright (c) 2007 Jason Benterou
+# Copyright (c) 2007-2009 University of California, Santa Cruz
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License as
@@ -51,17 +48,6 @@ $wgExtensionCredits['other'][] = array(
 
 function wfWikiTrustSetup() {
     $dir = dirname(__FILE__) . '/includes/';
-
-    // TODO: Does this actually do anything??  It doesn't match
-	// code in other projects.
-    // ParserFirstCallInit was introduced in modern (1.12+) MW versions
-    // so as to avoid unstubbing $wgParser on setHook() too early, as
-    // per r35980.
-    if (!defined( 'MW_SUPPORTS_PARSERFIRSTCALLINIT' )) {
-      global $wgParser;
-      wfRunHooks( 'ParserFirstCallInit', $wgParser );
-    }
-
 
     global $wgExtensionMessagesFiles;
     $wgExtensionMessagesFiles['WikiTrust'] = $dir.'/WikiTrust.i18n.php';
