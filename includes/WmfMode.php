@@ -5,7 +5,6 @@ class WikiTrust extends WikiTrustBase {
    Does a POST HTTP request
   */
   static function file_post_contents($url,$headers=false) {
-    // TODO: is cURL library frowned upon?
     $url = parse_url($url);
 
     if (!isset($url['port'])) {
@@ -33,7 +32,7 @@ class WikiTrust extends WikiTrustBase {
       fclose($fp);
       if (!$headers) {
         //removes headers
-	// TODO: Do these backslashes work in double quotes?
+	// NOTE: these backslashes work, b/c they are actual chars!
         $pattern="/^.*\r\n\r\n/s";
         $result=preg_replace($pattern,'',$result);
       }
@@ -47,11 +46,7 @@ class WikiTrust extends WikiTrustBase {
 	      array('http' => array('timeout' => self::TRUST_TIMEOUT))
 	    );
 
-    // TODO: do we want to POST to try to protect privacy of users?
-    $vote_str = ("Voting at " 
-		. $wgWikiTrustContentServerURL 
-		. "vote=1&rev=$rev_id&page=$page_id&user=$user_id"
-		. "&page_title=$page_title&time=" . wfTimestampNow());
+    // TODO: we need a shared key!
     $colored_text = file_get_contents($wgWikiTrustContentServerURL 
 		. "vote=1&rev=".urlencode($rev_id)
 		."&page=".urlencode($page_id)
@@ -69,16 +64,20 @@ class WikiTrust extends WikiTrustBase {
     $ctx = stream_context_create(
 		 array('http' => array('timeout' => self::TRUST_TIMEOUT))
 	 );
+
+    global $wgTitle, $wgUser;
+    $page_id = $wgTitle->getArticleID();
+    $page_title = $wgTitle->getDBkey();
+    $user_id = $wgUser->getID();
     
-    // TODO: Should we do doing this via HTTPS?  Or POST?
     $colored_raw = (file_get_contents($wgWikiTrustContentServerURL .
-			"rev=" .  urlencode($rev_id) . 
+                        "rev=" .  urlencode($rev_id) . 
 			"&page=".urlencode($page_id) .
 			"&page_title=" . urlencode($page_title) .
-			"&time=" . urlencode(wfTimestampNow()) .
-			"&user=" . urlencode($user_id)
-			."",		// TODO: trailing empty string?
-		0, $ctx));
+                        "&time=" . urlencode(wfTimestampNow()) .
+			"&user=" . urlencode($user_id),
+                0, $ctx));
+
 
     if (!$colored_raw
 	|| $colored_raw == self::NOT_FOUND_TEXT_TOKEN

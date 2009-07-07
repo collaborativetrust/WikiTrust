@@ -18,17 +18,17 @@ class WikiTrust extends WikiTrustBase {
   public static function vote_recordVote(&$dbr, $user_id, $page_id, $rev_id)
   {
     // TODO: forward on vote?  Shouldn't RemoteMode assume that voting
-    // is in local database?  Is this actually from WmfMode?
+    // is in local database?  Ian and Bo discussed and there's still
+    // some fuzziness on how RemoteMode would work without help from WMF.
+    // Main problem seems to be cross-site scripting issues with
+    // the buttons.
     global $wgWikiTrustContentServerURL;
 
     $ctx = stream_context_create(
 	array('http' => array( 'timeout' => self::TRUST_TIMEOUT ) )
       );
-    $vote_str = ("Voting at " .
-	  $wgWikiTrustContentServerURL .
-	  "vote=1&rev=$rev_id&page=$page_id&user=$user_id&page_title=$page_title&time=" .
-	  wfTimestampNow());
-    // TODO: isn't $user_id already db encoded?
+
+    // TODO: We need a shared key added to this.
     $colored_text = file_get_contents($wgWikiTrustContentServerURL .
 	"vote=1&rev=".  urlencode($rev_id).
 	"&page=".  urlencode($page_id).
@@ -136,10 +136,8 @@ class WikiTrust extends WikiTrustBase {
 			"&page=".urlencode($page_id).
 			"&page_title=".  urlencode($page_title).
 			"&time=".urlencode(wfTimestampNow()).
-			"&user=" .urlencode(0)."",
+			"&user=0",
 		 0, $ctx));
-	// TODO: trailing empty string?
-	// TODO: user=0?
     
     if ($colored_raw && $colored_raw != self::NOT_FOUND_TEXT_TOKEN){
     
