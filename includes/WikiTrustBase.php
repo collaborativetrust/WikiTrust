@@ -158,18 +158,25 @@ class WikiTrustBase {
     if (!$rev_id)
       return '';
 
-    $dbr =& wfGetDB( DB_SLAVE );
-    
     $colored_text = "";
 
-    $res = $dbr->select('wikitrust_colored_markup', 'revision_text',
+    $dbr =& wfGetDB( DB_SLAVE );
+    
+    if (!$wgWikiTrustColorPath) {
+      $res = $dbr->select('wikitrust_colored_markup', 'revision_text',
 			array( 'revision_id' => $rev_id ), 
 			array());
-    if ($res){
-      $row = $dbr->fetchRow($res);
-      $colored_text = $row[0];
+      if ($res){
+	$row = $dbr->fetchRow($res);
+	$colored_text = $row[0];
+      }
+      $dbr->freeResult( $res ); 
+    } else {
+      global $wgTitle;
+      $page_id = $wgTitle->getArticleID();
+      // TODO(Luca): Need code to build path from $page_id/$rev_id.
+	// and $wgWikiTrustColorPath
     }
-    $dbr->freeResult( $res ); 
 
     $res = $dbr->select('wikitrust_global', 'median', array(), array());
     if ($res) {
