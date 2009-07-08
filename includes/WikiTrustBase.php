@@ -166,10 +166,12 @@ class WikiTrustBase {
       $res = $dbr->select('wikitrust_colored_markup', 'revision_text',
 			array( 'revision_id' => $rev_id ), 
 			array());
-      if ($res){
-	$row = $dbr->fetchRow($res);
-	$colored_text = $row[0];
+      if (!$res) {
+	self::runEvalEdit(self::TRUST_EVAL_EDIT);
+	return '';
       }
+      $row = $dbr->fetchRow($res);
+      $colored_text = $row[0];
       $dbr->freeResult( $res ); 
     } else {
       global $wgTitle;
