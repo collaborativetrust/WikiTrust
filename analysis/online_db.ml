@@ -3,7 +3,7 @@
 Copyright (c) 2008-09 The Regents of the University of California
 All rights reserved.
 
-Authors: Luca de Alfaro, Ian Pye 
+Authors: Luca de Alfaro, Ian Pye, B. Thomas Adler
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -372,13 +372,36 @@ class db
       let s = Printf.sprintf "SELECT revision_id, page_id, text_id, time_string, user_id, username, is_minor, comment FROM %swikitrust_revision WHERE page_id = %s AND (time_string, revision_id) < (%s, %s) ORDER BY time_string DESC, revision_id DESC LIMIT %s" db_prefix (ml2int page_id) (ml2timestamp timestamp) (ml2int rev_id) (ml2int fetch_limit) in 
       self#db_exec mediawiki_dbh s
 
-    (** [get_latest_rev_id page_id] returns the revision id of the most 
+    (** [get_latest_col_rev_id page_id] returns the revision id of the most 
 	recent revision of page [page_id]. *)
     method get_latest_col_rev_id (page_id: int) : int = 
       let s = Printf.sprintf "SELECT revision_id FROM %swikitrust_revision WHERE page_id = %s ORDER BY rev_timestamp DESC, rev_id DESC LIMIT 1" db_prefix (ml2int page_id) in 
       match fetch (self#db_exec mediawiki_dbh s) with 
 	None -> raise DB_Not_Found
       | Some x -> not_null int2ml x.(0)
+
+    (** [get_latest_rev_id page_title] returns the revision id of the most 
+	recent revision of page [page_title], according. *)
+    method get_latest_rev_id (page_title: string) : int = 
+      let s = Printf.sprintf "SELECT rev_id FROM %srevision, %spage WHERE rev_page = page_id AND page_title = %s ORDER BY rev_timestamp DESC, rev_id DESC LIMIT 1" db_prefix db_prefix (ml2str page_title) in 
+      match fetch (self#db_exec mediawiki_dbh s) with 
+	None -> raise DB_Not_Found
+      | Some x -> not_null int2ml x.(0)
+
+    (** [get_page_id page_title] returns the page id of the named page *)
+    method get_page_id (page_title: string) : int = 
+      let s = Printf.sprintf "SELECT page_id FROM %spage WHERE page_title = %s LIMIT 1" db_prefix (ml2str page_title) in 
+      match fetch (self#db_exec mediawiki_dbh s) with 
+	None -> raise DB_Not_Found
+      | Some x -> not_null int2ml x.(0)
+
+    (** [get_page_title page_id] returns the page title of the named page *)
+    method get_page_title (page_id: int) : string = 
+      let s = Printf.sprintf "SELECT page_title FROM %spage WHERE page_id = %d LIMIT 1" db_prefix page_id in 
+      match fetch (self#db_exec mediawiki_dbh s) with 
+	None -> raise DB_Not_Found
+      | Some x -> not_null str2ml x.(0)
+
 
 
     (* ================================================================ *)
@@ -481,7 +504,7 @@ class db
     (* This is currently a first cut, which will be hopefully optimized later *)
     method write_colored_markup (page_id: int) (rev_id : int) (markup : string) : unit =
       let db_mkup = match colored_base_path with
-	  Some _ -> ""
+	  Some _ -> "''"
 	| None -> ml2str markup
       in 
       let s = Printf.sprintf "INSERT INTO %swikitrust_colored_markup (revision_id, revision_text) VALUES (%s, %s) ON DUPLICATE KEY UPDATE revision_text = %s"
@@ -644,7 +667,7 @@ class db
 	(ml2int page.page_len) 
 	(ml2int page.page_latest)
       in
-      ignore (self#db_exec mediawiki_dbh s)
+      ignore(self#db_exec mediawiki_dbh s)
 
     (** This method writes a revision to the database. 
 	It is only useful for the remote use of WikiTrust. *) 

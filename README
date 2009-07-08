@@ -29,6 +29,7 @@ The main developers are:
 Other contributors:
 
 - Krishnendu Chatterjee (krish.chat@gmail.com)
+- Jason Benterou
 
 
 REMOTE INSTALLATION
@@ -68,44 +69,35 @@ eval_online_wiki from source.
 
 3) Next, you need to install the trust coloring extension in
    mediawiki.  You can install it in
-   /var/lib/mediawiki/extensions/wikitrust
+   /var/lib/mediawiki/extensions/WikiTrust
+   with
+   cp -r wikitrust /var/lib/mediawiki/extensions/WikiTrust
 
 4) You should activate the extension by editing
    LocalSettings.php (part of the MediaWiki installation), adding the
    following lines: 
 
-   TODO(Luca): make $wgTrustCmd obsolete.
+$wgUseTidy = true;       // Enable Tidy
+$wgUseAjax = true;       // Enable Ajax (needed for voting)
+require_once( $IP . "/extensions/WikiTrust/WikiTrust.php" );
 
-----start of configuration lines----
-# Trust extension
-$wgUseTidy = true;
-$wgUseAjax = true;
- // If true, create an index on revision(rev_id, rev_timestamp)
-$wgCreateRevisionIndex = true;
-$wgShowVoteButton = true; // If true, the vote button is shown.
-$wgVoteText = "I believe this information is correct";
-$wgThankYouForVoting = "Thank you for your vote."; 
-$wgTrustCmd = "/var/lib/mediawiki/extensions/wikitrust/eval_online_wiki"; 
-$wgTrustLog = "/somedir/{$wgDBname}-trust.log";
-$wgTrustDebugLog = "/somedir/{$wgDBname}-trust-debug.log";
-$wgRepSpeed = 1.0;
-$wgTrustTabText = "check text";
-$wgTrustExplanation = '{| border="1" cellpadding="5" cellspacing="0" style="background:lightgreen; color:black"
-|-
-| The above text is colored according to how much it has been revised.  An orange background indicates new, unrevised, text;  white is for text that has been revised by many reputed authors.  If you click on a word, you will be redirected to the diff corresponding to the edit where the word was introduced.  If you hover over a word with the mouse pointer, a pop-up displays the name of the author of the word.
-|-
-| The text color and origin are computed by [http://wikitrust.soe.ucsc.edu/ WikiTrust]; if you notice problems, you can submit a bug report [http://code.google.com/p/wikitrust/issues here].
-|}';
-$wgNoTrustExplanation = '{| border="1" cellpadding="5" cellspacing="0" style="background:lightgreen; color:black"
-|-
-| There is no trust information available for this text yet.
-|}';
+   Edit WikiTrust.php, and set the following variables: 
 
-require_once( $IP . "/extensions/wikitrust/TrustBase.php");
-require_once( $IP . "/extensions/wikitrust/Trust.php" );
-----end of configuration lines----
+     $wgWikiTrustVersion = "local"; 
+  
+   This needs to be one of local, remote, wmf.
+   The 'remote' and 'wmf' modes are special modes we use at UCSC.
 
-   Above, we are requesting that two logs be created: 
+     $wgWikiTrustGadget = "gadget-WikiTrust";
+
+   By default the trust tab is selected only by a user opting in.
+	 Set this to NULL to make the tab always availible.
+   
+     $wgWikiTrustShowVoteButton = true; 
+
+   If true, the vote option is enabled. 
+
+   We are requesting that two logs be created: 
 
      $wgTrustLog = "/somedir/{$wgDBname}-trust.log";
 
@@ -129,10 +121,10 @@ require_once( $IP . "/extensions/wikitrust/Trust.php" );
 
 5) You need to make the installation readable from the web server. 
 
-        $ chmod a+rX /var/lib/mediawiki/extensions/wikitrust/*.php
-        $ chmod a+rX /var/lib/mediawiki/extensions/wikitrust/*.inc
-        $ chmod -R a+rX /var/lib/mediawiki/extensions/wikitrust/css
-        $ chmod -R a+rX /var/lib/mediawiki/extensions/wikitrust/js
+        $ chmod a+rX /var/lib/mediawiki/extensions/WikiTrust/*.php
+        $ chmod -R a+rX /var/lib/mediawiki/extensions/WikiTrust/include
+        $ chmod -R a+rX /var/lib/mediawiki/extensions/WikiTrust/css
+        $ chmod -R a+rX /var/lib/mediawiki/extensions/WikiTrust/js
 
    Be careful not to give access to the web server to the other files,
    as there may be obscure security issues associated with, for
@@ -158,7 +150,7 @@ require_once( $IP . "/extensions/wikitrust/Trust.php" );
 7) If there are already revisions in the wiki, you should first
    analyze their trust, via: 
 
-     $ ./eval_online_wiki -n_revs 1000000 -db_user <username> -db_pass <pwd> -db_name <db_name>
+     $ ./eval_online_wiki -n_events 1000000 -db_user <username> -db_pass <pwd> -db_name <db_name>
 
    The '1000000' means that eval_online_wiki will compute the trust of
    at most 1000000 revisions, then stop.  You can repeat the above
@@ -173,7 +165,7 @@ require_once( $IP . "/extensions/wikitrust/Trust.php" );
    If you wish to redo the analysis from scratch, throwing away the
    results of previous analyses, you can use the option '-delete_all': 
 
-     $ ./eval_online_wiki -delete_all -n_revs 1000000 -db_user <username> -db_pass <pwd>  -db_name <db_name>
+     $ ./eval_online_wiki -delete_all -n_events 1000000 -db_user <username> -db_pass <pwd>  -db_name <db_name>
 
    Warning: the analysis can take a long time on very large wikis, so
    do not use the option '-delete_all' lightly! 

@@ -1,14 +1,16 @@
 <?php
 
-class TextTrustUpdate{
+class WikiTrustUpdate {
 
   /**
    * Update the DB when MW is updated.
-   * This assums that the db has permissions to create tables.
+   * This assumes that the db has permissions to create tables.
    */
-  public static function updateDB(){
-    
-    require_once(dirname(__FILE__) . '/' . "TrustUpdateScripts.inc");
+  public static function updateDB()
+  {
+    global $IP;
+		
+    require_once($IP . "/extensions/WikiTrust/includes/TrustUpdateScripts.inc");
     $db =& wfGetDB( DB_MASTER );
     
     // First check to see what tables have already been created.
@@ -16,14 +18,16 @@ class TextTrustUpdate{
     while ($row = $db->fetchRow($res)){
       $db_tables[$row[0]] = True;
     }
-  
+		
     foreach ($create_scripts as $table => $scripts) {
       if (!$db_tables[$table]){
 	foreach ($scripts as $script){
 	  $db->query($script);
 	}
       }
-    }
+    }	
+    return true;
   }
 }
+
 ?>

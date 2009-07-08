@@ -34,22 +34,24 @@ POSSIBILITY OF SUCH DAMAGE.
  *)
 
 exception API_error
+exception API_error_noretry
 
 (* 19700201000000 *) 
 val default_timestamp : string
 
 (**
    [fetch_page_and_revs after page_title rev_date logger], given a [page_title] 
-   and a [rev_date], returns all the revisions of [page_title] after [rev_date]. 
-   [logger] is, well, a logger. 
+   and a [rev_date], returns [rev_lim] revisions of [page_title] after [rev_date]. 
+   [logger] is, well, a logger.
+
    Ian: why do you use page_title, rather than page_id? 
 
    Luca: This is inherent in the way the mediawiki api works -- the function I
    need is keyed off of page_title, not page_id. 
    See http://en.wikipedia.org/w/api.php for more details.
 *)
-val fetch_page_and_revs_after : string -> string ->
-  Online_log.logger -> (Online_types.wiki_page_t option * 
+val fetch_page_and_revs_after : string -> string -> int ->
+  Online_log.logger -> Online_db.db -> (Online_types.wiki_page_t option * 
 			  Online_types.wiki_revision_t list * int option) 
 
 (** [get_user_id user_name logger] returns the user_id of user with name [user_name]. 
@@ -59,9 +61,8 @@ val fetch_page_and_revs_after : string -> string ->
 val get_user_id : string -> Online_db.db -> int
 
 (**
-   [get_revs_from_api page_title last_timestamp db logger 0] reads 
-   a group of revisions of the given page (usually something like
-   50 revisions, see the Wikimedia API) from the Wikimedia API,
+   [get_revs_from_api page_title last_timestamp db logger rev_lim] reads 
+   a group of rev_lim revisions of the given page from the Wikimedia API,
    stores them to disk, and returns:
    - an optional id of the next revision to read.  Is None, then
      all revisions of the page have been read.
