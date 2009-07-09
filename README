@@ -208,6 +208,10 @@ Follow these instructions in place of step 2) above.
 	  godi-type-conv
 	  godi-zip
 
+	For the godi-ocaml-mysql package, you will also need
+	the mysql client library.  On Ubuntu, this is package
+	  libmysqlclient16-dev
+
    2a2) If you do not wish to use godi, you can get the above packages
         either from their source, or from the linux distribution you
         are using.  For Ubuntu, you can use the following packages:
