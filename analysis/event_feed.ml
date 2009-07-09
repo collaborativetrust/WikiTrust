@@ -121,7 +121,7 @@ object (self)
 	(* times_tried keeps track of how many times we have tried this transaction *)
 	let times_tried = ref 0 in
 	while !times_tried < n_retries do 
-	  db#start_transaction Online_db.MediaWiki;
+	  db#start_transaction;
 	  begin (* try ... with ... *)
 	    try
 	      let rev_list =
@@ -148,11 +148,11 @@ object (self)
 	      let f r = ((Timeconv.time_string_to_float r.rev_timestamp), r.rev_page, 
 	                 Revision_event (Online_revision.make_revision r db)) in 
 	      revs <- Vec.concat revs (Vec.of_list (List.map f rev_list)); 
-	      db#commit Online_db.MediaWiki;
+	      db#commit;
 	      times_tried := n_retries; 
 	    with Online_db.DB_TXN_Bad -> begin 
 	      times_tried := !times_tried + 1; 
-	      db#rollback_transaction Online_db.MediaWiki
+	      db#rollback_transaction;
 	    end
 	  end (* try ... with ... *)
 	done
@@ -165,7 +165,7 @@ object (self)
 	(* times_tried keeps track of how many times we have tried this transaction *)
 	let times_tried = ref 0 in
 	while !times_tried < n_retries do 
-	  db#start_transaction Online_db.MediaWiki;
+	  db#start_transaction;
 	  begin (* try ... with ... *)
 	    try
 	      let votes_list = 
@@ -175,11 +175,11 @@ object (self)
 	      (* f makes a vote into an event_occurrence_t *)
 	      let f v = (Timeconv.time_string_to_float v.vote_time), v.vote_page_id, Vote_event (v.vote_revision_id, v.vote_voter_id) in 
 	      votes <- Vec.concat votes (Vec.of_list (List.map f votes_list));
-	      db#commit Online_db.MediaWiki;
+	      db#commit;
 	      times_tried := n_retries
 	    with Online_db.DB_TXN_Bad -> begin 
 	      times_tried := !times_tried + 1; 
-	      db#rollback_transaction Online_db.MediaWiki
+	      db#rollback_transaction;
 	    end
 	  end (* try ... with ... *)
 	done

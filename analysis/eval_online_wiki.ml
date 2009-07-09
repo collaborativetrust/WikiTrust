@@ -84,22 +84,12 @@ let mediawiki_db = {
   dbpwd  = Some !mw_db_pass;
   dbuser = Some !mw_db_user;
 }
-let wikitrust_db_opt = 
-  if !use_separate_dbs 
-  then Some { 
-    dbhost = Some !wt_db_host;
-    dbname = Some !wt_db_name;
-    dbport = Some !wt_db_port;
-    dbpwd  = Some !wt_db_pass;
-    dbuser = Some !wt_db_user;
-  }
-  else None
 
 (* Here begins the sequential code *)
 
-let db = new Online_db.db !db_prefix mediawiki_db wikitrust_db_opt 
+let db = new Online_db.db !db_prefix mediawiki_db 
   !wt_db_rev_base_path !wt_db_sig_base_path !wt_db_colored_base_path 
-  !dump_db_calls in 
+  !dump_db_calls !use_exec_api in 
 
 (* If requested, we erase all coloring, and we recompute it from scratch. *)
 if !delete_all then begin 

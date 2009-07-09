@@ -88,7 +88,7 @@ let mediawiki_db = {
 (* Sets up the db *)
 let db = new Online_db.db !db_prefix mediawiki_db None 
   !wt_db_rev_base_path !wt_db_sig_base_path !wt_db_colored_base_path 
-  !dump_db_calls in
+  !dump_db_calls !use_exec_api in
 let logger = new Online_log.logger !log_name !synch_log in
 let trust_coeff = Online_types.get_default_coeff in
 

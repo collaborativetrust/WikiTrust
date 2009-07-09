@@ -67,18 +67,6 @@ let db_prefix = ref ""
 let set_db_prefix d = db_prefix := d
 let dump_db_calls = ref false
 
-(* Wikitrust DB *)
-let use_separate_dbs = ref false
-let wt_db_user = ref "wikiuser"
-let set_wt_db_user u = wt_db_user := u; use_separate_dbs := true
-let wt_db_pass = ref ""
-let set_wt_db_pass p = wt_db_pass := p; use_separate_dbs := true
-let wt_db_name = ref "wikidb"
-let set_wt_db_name d = wt_db_name := d; use_separate_dbs := true
-let wt_db_host = ref "localhost"
-let set_wt_db_host d = wt_db_host := d; use_separate_dbs := true
-let wt_db_port = ref 3306
-let set_wt_db_port d = wt_db_port := d; use_separate_dbs := true
 (* Base path for filesystem storage of revisions. *)
 let wt_db_rev_base_path = ref None
 let set_wt_db_rev_base_path s = wt_db_rev_base_path := Some s
@@ -88,6 +76,9 @@ let set_wt_db_sig_base_path s = wt_db_sig_base_path := Some s
 (* Base path for filesystem storage of colored revisions. *)
 let wt_db_colored_base_path = ref None
 let set_wt_db_colored_base_path s = wt_db_colored_base_path := Some s
+(* Use the exec API in order to get the list of revisions to process, and their
+   content. *)
+let use_exec_api = ref false
 
 (* Logging *)
 let synch_log = ref false
@@ -137,11 +128,6 @@ let command_line_format =
    ("-user_id_api", Arg.String set_user_id_server, "<string>: location of a tool which turns user_names into user_ids");
    ("-dump_db_calls", Arg.Set dump_db_calls, ": Writes to the db log all
  database calls.  This is very verbose; use only for debugging.");
-   ("-wt_db_user", Arg.String set_wt_db_user, "<string>: Wikitrust user reputation DB username (specify only if the wikitrust db is different from the mediawiki db) (default: wikiuser)");
-   ("-wt_db_name", Arg.String set_wt_db_name, "<string>: Wikitrust user reputation DB name (specify only if the wikitrust db is different from the mediawiki db) (default: wikidb)");
-   ("-wt_db_pass", Arg.String set_wt_db_pass, "<string>: Wikitrust user reputation DB password (specify only if the wikitrust db is different from the mediawiki db)");
-   ("-wt_db_host", Arg.String set_wt_db_host, "<string>: Wikitrust user reputation DB host (specify only if the wikitrust db is different from the mediawiki db) (default: localhost)");
-   ("-wt_db_port", Arg.Int set_wt_db_port, "<int>: Wikitrust user reputation DB port (specify only if the wikitrust db is different from the mediawiki db) (default: 3306)");
    ("-wt_db_rev_base_path", Arg.String set_wt_db_rev_base_path, "<string>: Filesystem base path for filesystem storage of revisions (default: revisions are stored in the db)");
    ("-wt_db_sig_base_path", Arg.String set_wt_db_sig_base_path, "<string>: Filesystem base path for filesystem storage of signatures (default: revisions are stored in the db)");
    ("-wt_db_colored_base_path", Arg.String set_wt_db_colored_base_path, "<string>: Filesystem base path for filesystem storage of colored revisions (default: revisions are stored in the db)");
@@ -155,5 +141,6 @@ let command_line_format =
    ("-throttle_delay", Arg.Float set_color_delay, "<float>: Amount of time (on average) to wait between analysis of events.  This can be used to throttle the computation, not to use too many resources.");
    ("-n_events", Arg.Int set_max_events_to_process, "<int>: Max number of events to process (default: 100) "); 
    ("-times_to_retry_trans", Arg.Int set_times_to_retry_trans, "<int>: Max number of times to retry a transation if it fails (default: 3)."); 
+   ("-use_exec_api", Arg.Set use_exec_api, "Use the exec API to access the WMF DB.");
    ("-delete_all", Arg.Set delete_all, ": Recomputes all reputations and trust from scratch.  BE CAREFUL!! This may take a LONG time for large wikis.");
   ]

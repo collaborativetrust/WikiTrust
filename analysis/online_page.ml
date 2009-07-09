@@ -329,13 +329,13 @@ class page
 	    while !n_attempts < n_retries do 
 	      begin 
 		try begin 
-		  db#start_transaction Online_db.WikiTrust;
+		  db#start_transaction;
 		  db#inc_rep uid (r -. old_r);
-		  db#commit Online_db.WikiTrust;
+		  db#commit;
 		  n_attempts := n_retries
 		end with _ -> begin 
 		  (* Roll back *)
-		  db#rollback_transaction Online_db.WikiTrust;
+		  db#rollback_transaction;
 		  n_attempts := !n_attempts + 1
 		end
 	      end done (* End of the multiple attempts at the transaction *)
@@ -1258,7 +1258,7 @@ class page
 	begin 
 	  try begin 
 	    
-	    db#start_transaction Online_db.MediaWiki;
+	    db#start_transaction;
 	    
 	    (* We do something only if the revision needs coloring *)
 	    needs_coloring := db#revision_needs_coloring revision_id;
@@ -1289,12 +1289,12 @@ class page
 	      let f r = r#write_quality_to_db in 
 	      Vec.iter f revs;
 
-	      db#commit Online_db.MediaWiki;
+	      db#commit;
 	      n_attempts := n_retries
 
 	    end else begin
 	      (* The revision is already colored; there is nothing to do *)
-	      db#commit Online_db.MediaWiki;
+	      db#commit;
 	      done_something := false;
 	      n_attempts := n_retries
 	    end
@@ -1302,7 +1302,7 @@ class page
 	  end (* try: this is the end of the main transaction *)
 	  with Online_db.DB_TXN_Bad -> begin 
 	    (* Roll back *)
-	    db#rollback_transaction Online_db.MediaWiki;
+	    db#rollback_transaction;
 	    n_attempts := !n_attempts + 1
 	  end
 	end done; (* End of the multiple attempts at the transaction *)
@@ -1325,15 +1325,15 @@ class page
 	  begin 
 	    try 
 	      begin 
-		db#start_transaction Online_db.MediaWiki;
+		db#start_transaction;
 		db#write_histogram delta_hist new_hi_median;
-		db#commit Online_db.MediaWiki;
+		db#commit;
 		n_attempts := n_retries
 	      end 
 	    with Online_db.DB_TXN_Bad -> 
 	      begin 
 		(* Roll back *)
-		db#rollback_transaction Online_db.MediaWiki;
+		db#rollback_transaction;
 		n_attempts := !n_attempts + 1
 	      end
 	  end done
@@ -1361,7 +1361,7 @@ class page
       while !n_attempts < n_retries do 
 	begin 
 	  try 
-	    db#start_transaction Online_db.MediaWiki;
+	    db#start_transaction;
 	    if debug then !Online_log.online_logger#log "Start vote for revision...\n";
 	    (* Reads the page information and the revision *)
 	    self#read_page_revisions_vote; 
@@ -1374,7 +1374,7 @@ class page
 	    (* We write to disk the page information *)
 	    db#write_page_info page_id page_info;
 	    (* Commits *)
-	    db#commit Online_db.MediaWiki;
+	    db#commit;
 	    n_attempts := n_retries;
 	    done_something := true;
 	    !Online_log.online_logger#log (Printf.sprintf 
@@ -1383,7 +1383,7 @@ class page
 	    !Online_log.online_logger#flush; 
 	    
 	  with Online_db.DB_TXN_Bad | Online_db.DB_Not_Found -> begin 
-	    db#rollback_transaction Online_db.MediaWiki;
+	    db#rollback_transaction;
 	    n_attempts := !n_attempts + 1
 	  end 
 	end done; (* End of the multiple attempts at the transaction *)

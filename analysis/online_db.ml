@@ -56,9 +56,6 @@ exception DB_TXN_Bad
 (* This is the function that sexplib uses to convert floats *)
 Sexplib.Conv.default_string_of_float := (fun n -> sprintf "%.3f" n);;
 
-(* Which DB should be used for the next transaction? *)
-type current_db_t = MediaWiki | WikiTrust | Both;;
-
 (* Represents the revision table in memory *)
 type revision_t = {
   rev_id: int; 
@@ -104,32 +101,19 @@ type vote_t = {
 class db  
   (db_prefix : string)
   (db_mediawiki : Mysql.db)
-  (db_wikitrust_opt : Mysql.db option)
   (rev_base_path: string option)
   (sig_base_path: string option)
   (colored_base_path: string option)
-  (debug_mode : bool) =
+  (debug_mode : bool) 
+  (use_exec_api : bool) =
   
+  (* DB handle *)
   let mediawiki_dbh = Mysql.connect db_mediawiki in
-  let wikitrust_dbh = match db_wikitrust_opt with
-    | None -> mediawiki_dbh
-    | Some d -> Mysql.connect d in
-  let separate_dbs = match db_wikitrust_opt with 
-      None -> false
-    | Some _ -> true in 
   (* name used for locking *)
   let wikitrust_database = begin 
-    match db_wikitrust_opt with 
-      None -> begin 
-	match db_mediawiki.dbname with 
-	  Some x -> x
-	| None -> "wikitrust"
-      end
-    | Some d -> begin 
-	match d.dbname with 
-	  Some x -> x
-	| None -> "wikitrust"
-      end
+    match db_mediawiki.dbname with 
+      Some x -> x
+    | None -> "wikitrust"
   end in 
   
 object(self)
@@ -148,8 +132,8 @@ object(self)
   (* ================================================================ *)
   (* Disconnect *)
   method close : unit = 
-    Mysql.disconnect mediawiki_dbh;
-    if separate_dbs then Mysql.disconnect wikitrust_dbh
+    Mysql.disconnect mediawiki_dbh
+
 
   (* ================================================================ *)
   (* Locks and commits. *)
@@ -182,50 +166,21 @@ object(self)
     ignore (self#db_exec mediawiki_dbh s)
 
   (** Start a transaction. *)
-  method start_transaction (cdb : current_db_t) : unit =
-    match cdb with
-    | MediaWiki -> ignore (self#db_exec mediawiki_dbh "START TRANSACTION")
-    | WikiTrust -> ignore (self#db_exec wikitrust_dbh "START TRANSACTION")
-    | Both -> begin 
-	ignore (self#db_exec mediawiki_dbh "START TRANSACTION");
-	if separate_dbs then ignore (self#db_exec wikitrust_dbh "START TRANSACTION")
-      end
+  method start_transaction : unit =
+    ignore (self#db_exec mediawiki_dbh "START TRANSACTION")
 
   (** rollback a transaction. *)
-  method rollback_transaction (cdb : current_db_t) : unit =
+  method rollback_transaction : unit =
     !online_logger#log "ROLLBACK\n";
-    begin 
-      match cdb with
-      | MediaWiki -> ignore (self#db_exec mediawiki_dbh "ROLLBACK")
-      | WikiTrust -> ignore (self#db_exec wikitrust_dbh "ROLLBACK")
-      | Both -> begin
-	  ignore (self#db_exec mediawiki_dbh "ROLLBACK");
-	  if separate_dbs then ignore (self#db_exec wikitrust_dbh "ROLLBACK")
-	end
-    end
+    ignore (self#db_exec mediawiki_dbh "ROLLBACK")
       
   (* Commits any changes to the db *)
-  method commit (cdb : current_db_t) : unit =
-    let commit_mw () = begin
-      ignore (self#db_exec mediawiki_dbh "COMMIT");
-      match Mysql.status mediawiki_dbh with 
-      | StatusError err -> raise DB_TXN_Bad
-      | _ -> ()
-    end in 
-    let commit_wt () = begin
-      ignore (self#db_exec wikitrust_dbh "COMMIT");
-      match Mysql.status wikitrust_dbh with 
-      | StatusError err -> raise DB_TXN_Bad
-      | _ -> ()
-    end in 
-    match cdb with
-    | MediaWiki -> commit_mw ()
-    | WikiTrust -> commit_wt ()
-    | Both -> begin
-	commit_mw ();
-	if separate_dbs then commit_wt ()
-      end
-
+  method commit : unit =
+    ignore (self#db_exec mediawiki_dbh "COMMIT");
+    match Mysql.status mediawiki_dbh with 
+    | StatusError err -> raise DB_TXN_Bad
+    | _ -> ()
+	
 	
   (* ================================================================ *)
   (* Global methods. *)
@@ -605,7 +560,7 @@ object(self)
     let s = Printf.sprintf "INSERT INTO %swikitrust_user (user_id, user_rep) VALUES (%s, %s) ON DUPLICATE KEY UPDATE user_rep = user_rep + %s" 
       db_prefix
       (ml2int uid) (ml2float delta) (ml2float delta) in 
-    ignore (self#db_exec wikitrust_dbh s)
+    ignore (self#db_exec mediawiki_dbh s)
       
   (** [get_rep uid] gets the reputation of user [uid], from a table 
       relating user ids to their reputation 
@@ -613,7 +568,7 @@ object(self)
    *)
   method get_rep (uid : int) : float =
     let s = Printf.sprintf "SELECT user_rep FROM %swikitrust_user WHERE user_id = %s" db_prefix (ml2int uid) in
-    let result = self#db_exec wikitrust_dbh s in
+    let result = self#db_exec mediawiki_dbh s in
     match Mysql.fetch result with 
       None -> raise DB_Not_Found
     | Some x -> not_null float2ml x.(0)
@@ -622,7 +577,7 @@ object(self)
   (** [get_user_id name] gets the user id for the user with the given user name *)
   method get_user_id (user_name : string) : int =
     let s = Printf.sprintf "SELECT user_id FROM %swikitrust_user WHERE username = %s" db_prefix (ml2str user_name) in
-    let result = self#db_exec wikitrust_dbh s in
+    let result = self#db_exec mediawiki_dbh s in
     begin
       match Mysql.fetch result with 
         None -> raise DB_Not_Found
@@ -634,7 +589,7 @@ object(self)
   method write_user_id (uid: int) (user_name: string) : unit = 
     if uid <> 0 then
       let s = Printf.sprintf "INSERT INTO %swikitrust_user (user_id, username) VALUES (%s, %s) ON DUPLICATE KEY UPDATE username = %s" db_prefix (ml2int uid) (ml2str user_name) (ml2str user_name) in
-      ignore (self#db_exec wikitrust_dbh s)
+      ignore (self#db_exec mediawiki_dbh s)
 
 
   (* ================================================================ *)
@@ -656,48 +611,64 @@ object(self)
   method mark_to_color (rev_id : int) (page_id : int) (page_title : string) 
     (rev_time : string) (user_id : int) =
     let s = Printf.sprintf "INSERT INTO %swikitrust_missing_revs (revision_id, page_id, page_title, rev_time, user_id) VALUES (%s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE requested_on = now(), processed = false" db_prefix (ml2int rev_id) (ml2int page_id) (ml2str page_title) (ml2str rev_time) (ml2int user_id) in
-    ignore (self#db_exec wikitrust_dbh s)
+    ignore (self#db_exec mediawiki_dbh s)
 
-      
   (** [mark_rev_as_processed rev_id] marks that the revision [rev_id] has ben processed. *)
   method mark_rev_as_processed (rev_id : int) =
     let s = Printf.sprintf "UPDATE %swikitrust_missing_revs SET processed = 'processed' WHERE revision_id = %s" db_prefix (ml2int rev_id) in
-    ignore (self#db_exec wikitrust_dbh s)
+    ignore (self#db_exec mediawiki_dbh s)
 
   (** [mark_rev_as_processed rev_id] marks that the revision
       [rev_id] has not been processed. *)
   method mark_rev_as_unprocessed (rev_id : int) =
     let s = Printf.sprintf "UPDATE %swikitrust_missing_revs SET processed = 'unprocessed' WHERE revision_id = %s" db_prefix (ml2int rev_id) in
-    ignore (self#db_exec wikitrust_dbh s)
+    ignore (self#db_exec mediawiki_dbh s)
 
-  (** [fetch_next_revisions_to_process] gets the list of revisions
-      that have to be possibly downloaded, and then colored.  It
-      also marks those revisions as "processing", so that subsequent
-      requests do not return the same revisions.  This code is
-      SINGLE-THREADED: it assumes that there is a single reader. *)
-  method fetch_next_revisions_to_color (max_to_get : int) : 
+  (** [fetch_work_from_queue max_to_get n_retries] gets the
+      list of revisions that have to be possibly downloaded, and then
+      colored.  It also marks those revisions as "processing", so that
+      subsequent requests do not return the same revisions.  This code
+      contains a transaction start / commit pair.  [max_to_get] is the
+      maximum number of results to get; [n_retries] is the number of
+      times the start / commit pair is used. *)
+  method fetch_work_from_queue (max_to_get : int) (n_retries: int) : 
     revision_processing_request_t list =
-    let s = Printf.sprintf "SELECT revision_id, page_id, page_title, rev_time, user_id, type FROM %swikitrust_missing_revs WHERE processed = 'unprocessed' ORDER BY requested_on ASC LIMIT %s" 
-      db_prefix (ml2int max_to_get) in
-    let db2color_row row : revision_processing_request_t =
-      {
-	req_revision_id = (not_null int2ml row.(0));
-	req_page_id = (not_null int2ml row.(1));
-	req_page_title = (not_null str2ml row.(2));
-	req_revision_timestamp = (not_null str2ml row.(3));
-	req_requesting_user_id = (not_null int2ml row.(4));
-	req_request_type = (match (not_null str2ml row.(5)) with
-	| "vote" -> Vote
-	| _ -> Coloring) 
-      }
-    in
-    let results = Mysql.map (self#db_exec wikitrust_dbh s) db2color_row in
-    let mark_as_processing req = 
-      let s = Printf.sprintf "UPDATE %swikitrust_missing_revs SET processed = 'processing' WHERE revision_id = %s" db_prefix (ml2int req.req_revision_id) in
-      ignore (self#db_exec wikitrust_dbh s)
-    in
-    List.iter mark_as_processing results;
-    results
+    let n_attempts = ref 0 in 
+    let results = ref [] in
+    while !n_attempts < n_retries do 
+      begin 
+	try begin 
+	  self#start_transaction;
+	  let s = Printf.sprintf "SELECT revision_id, page_id, page_title, rev_time, user_id, type FROM %swikitrust_missing_revs WHERE processed = 'unprocessed' ORDER BY requested_on ASC LIMIT %s" 
+	    db_prefix (ml2int max_to_get) in
+	  let db2color_row row : revision_processing_request_t =
+	    {
+	      req_revision_id = (not_null int2ml row.(0));
+	      req_page_id = (not_null int2ml row.(1));
+	      req_page_title = (not_null str2ml row.(2));
+	      req_revision_timestamp = (not_null str2ml row.(3));
+	      req_requesting_user_id = (not_null int2ml row.(4));
+	      req_request_type = begin
+		match (not_null str2ml row.(5)) with
+		| "vote" -> Vote
+		| _ -> Coloring
+	      end 
+	    }
+	  in
+	  results := Mysql.map (self#db_exec mediawiki_dbh s) db2color_row;
+	  let mark_as_processing req = 
+	    let s = Printf.sprintf "UPDATE %swikitrust_missing_revs SET processed = 'processing' WHERE revision_id = %s" db_prefix (ml2int req.req_revision_id) in
+	    ignore (self#db_exec mediawiki_dbh s)
+	  in
+	  List.iter mark_as_processing !results
+	end with _ -> begin 
+	  (* Roll back *)
+	  self#rollback_transaction;
+	  n_attempts := !n_attempts + 1
+	end
+      end done; (* End of the multiple attempts at the transaction *)
+    !results
+
 
   (* ================================================================ *)
   (* WikiMedia Api *)
@@ -767,7 +738,7 @@ object(self)
         ignore (self#db_exec mediawiki_dbh "TRUNCATE TABLE wikitrust_revision" );
         ignore (self#db_exec mediawiki_dbh "TRUNCATE TABLE wikitrust_colored_markup" );
         ignore (self#db_exec mediawiki_dbh "TRUNCATE TABLE wikitrust_sigs" );
-        ignore (self#db_exec wikitrust_dbh "TRUNCATE TABLE wikitrust_user" ); 
+        ignore (self#db_exec mediawiki_dbh "TRUNCATE TABLE wikitrust_user" ); 
 	ignore (self#db_exec mediawiki_dbh "UPDATE wikitrust_vote SET processed = FALSE" ); 
         (* Note that we do NOT delete the votes!! *)
         ignore (self#db_exec mediawiki_dbh "COMMIT");
