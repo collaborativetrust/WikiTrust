@@ -17,4 +17,5 @@ pickwiki
 *.cmx
 *.o
 .depends
-
+eval_online_wiki
+vote_revision

@@ -161,21 +161,38 @@ class WikiTrustBase {
     $colored_text = "";
 
     $dbr =& wfGetDB( DB_SLAVE );
-    
+
+    global $wgWikiTrustColorPath;
     if (!$wgWikiTrustColorPath) {
       $res = $dbr->select('wikitrust_colored_markup', 'revision_text',
 			array( 'revision_id' => $rev_id ), 
 			array());
-      if ($res){
-	$row = $dbr->fetchRow($res);
-	$colored_text = $row[0];
+      if (!$res) {
+	self::runEvalEdit(self::TRUST_EVAL_EDIT);
+	return '';
       }
+      $row = $dbr->fetchRow($res);
+      $colored_text = $row[0];
       $dbr->freeResult( $res ); 
     } else {
       global $wgTitle;
       $page_id = $wgTitle->getArticleID();
-      // TODO(Luca): Need code to build path from $page_id/$rev_id.
-	// and $wgWikiTrustColorPath
+      $file = self::util_getRevFilename($page_id, $rev_id);
+if (1) {
+      $gzdata = @file_get_contents($file, FILE_BINARY, NULL);
+} else {
+      $gzdata = '';
+      $fh = @fopen($file, "r");
+      if ($fh) {
+	$gzdata = fread($fh, filesize($file));
+	fclose($fh);
+      }
+}
+      if (!$gzdata) {
+	self::runEvalEdit(self::TRUST_EVAL_EDIT);
+	return '';
+      }
+      $colored_text = gzinflate(substr($gzdata, 10));
     }
 
     $res = $dbr->select('wikitrust_global', 'median', array(), array());
@@ -357,7 +374,7 @@ class WikiTrustBase {
 			      $rev_id = -1, $page_id = -1,
 			      $voter_id = -1)
   {
-      global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgWikiTrustCmd, $wgWikiTrustLog, $wgWikiTrustDebugLog, $wgWikiTrustRepSpeed, $wgDBprefix;
+      global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgWikiTrustCmd, $wgWikiTrustLog, $wgWikiTrustDebugLog, $wgWikiTrustRepSpeed, $wgDBprefix, $wgWikiTrustCmdExtraArgs;
 
       $process = -1;
       $command = "";
@@ -431,6 +448,19 @@ class WikiTrustBase {
     }
 
     return $rev_id;
+  }
+
+  static function util_getRevFilename($page_id, $rev_id)
+  {
+    $page_str = sprintf("%012d", $page_id);
+    $rev_str = sprintf("%012d", $rev_id);
+    global $wgWikiTrustColorPath;
+    $path = $wgWikiTrustColorPath;
+    for ($i = 0; $i <= 3; $i++)
+	$path .= "/" . substr($page_str, $i*3, 3);
+    $path .= "/" . substr($rev_str, 6, 3);
+    $path .= "/" . $page_str . "_" . $rev_str . ".gz";
+    return $path;
   }
 
 }

@@ -29,8 +29,10 @@ $wgWikiTrustShowVoteButton = true; // If true, the vote button is shown.
 $wgWikiTrustContentServerURL = "http://localhost:10303/?";
 
 global $wgWikiTrustLog, $wgWikiTrustDebugLog;
-$wgWikiTrustLog = "/tmp/{$wgDBname}-trust.log";
-$wgWikiTrustDebugLog = "/tmp/{$wgDBname}-trust-debug.log";
+#$wgWikiTrustLog = "/tmp/{$wgDBname}-trust.log";
+#$wgWikiTrustDebugLog = "/tmp/{$wgDBname}-trust-debug.log";
+$wgWikiTrustLog = "/dev/null";
+$wgWikiTrustDebugLog = "/dev/null";
 global $wgWikiTrustCmd, $wgWikiTrustCmdExtraArgs, $wgWikiTrustColorPath,
 	$wgWikiTrustRepSpeed, $wgWikiTrustApiURL;
 $wgWikiTrustCmd = dirname(__FILE__) . "/eval_online_wiki";

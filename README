@@ -81,26 +81,23 @@ $wgUseTidy = true;       // Enable Tidy
 $wgUseAjax = true;       // Enable Ajax (needed for voting)
 require_once( $IP . "/extensions/WikiTrust/WikiTrust.php" );
 
-   Edit WikiTrust.php, and set the following variables: 
+   You can look in extensions/WikiTrust/WikiTrust.php for a
+   list of all the configurable variables.  The defaults should
+   be correct for most installation, but you can override
+   values by placing assignments in your LocalSettings.php
+   after the require_once() call for the WikiTrust extension.
 
-     $wgWikiTrustVersion = "local"; 
-  
-   This needs to be one of local, remote, wmf.
-   The 'remote' and 'wmf' modes are special modes we use at UCSC.
+   Some settings that you might like to use instead:
 
-     $wgWikiTrustGadget = "gadget-WikiTrust";
-
+	     $wgWikiTrustGadget = NULL;
    By default the trust tab is selected only by a user opting in.
 	 Set this to NULL to make the tab always availible.
    
-     $wgWikiTrustShowVoteButton = true; 
+	     $wgWikiTrustShowVoteButton = false;
+   The default is to always show a "vote" button; disable this
+   feature by setting it to false.
 
-   If true, the vote option is enabled. 
-
-   We are requesting that two logs be created: 
-
-     $wgTrustLog = "/somedir/{$wgDBname}-trust.log";
-
+	     $wgWikiTrustLog = "/tmp/{$wgDBname}-trust.log";
    This creates a log of the analysis of how useful each contribution to
    the wiki is, as well as a log of all user reputation changes. 
    We advise you to create such a log: it contains very useful
@@ -108,16 +105,18 @@ require_once( $IP . "/extensions/WikiTrust/WikiTrust.php" );
    to extract the information present.  You don't want to miss out.  Note
    that you are responsible for rotating / compressing the log (e.g., via
    logrotate, or /etc/logrotate.conf or /etc/logrotate.d/
-   
-   On the other hand, the log requested via 
-   
-     $wgTrustDebugLog = "/somedir/{$wgDBname}-trust-debug.log";
-   
-   is just useful to us to track down bugs and other problems, and can be
-   safely disabled.  You can disable these logs via: 
-   
-     $wgTrustLog = "/dev/null";
-     $wgTrustDebugLog = "/dev/null";
+
+
+   As an example, we usually test with these lines added to
+   our LocalSettings.php file:
+
+$wgUseTidy = true;
+$wgUseAjax = true;
+require_once( $IP . "/extensions/WikiTrust/WikiTrust.php" );
+$wgWikiTrustGadget = NULL;              // enable for everyone
+
+
+
 
 5) You need to make the installation readable from the web server. 
 
@@ -209,6 +208,10 @@ Follow these instructions in place of step 2) above.
 	  godi-type-conv
 	  godi-zip
 
+	For the godi-ocaml-mysql package, you will also need
+	the mysql client library.  On Ubuntu, this is package
+	  libmysqlclient16-dev
+
    2a2) If you do not wish to use godi, you can get the above packages
         either from their source, or from the linux distribution you
         are using.  For Ubuntu, you can use the following packages:
@@ -235,6 +238,8 @@ Follow these instructions in place of step 2) above.
 2b) Make OcamlLdaLibs and install them. 
     If you can install without sudo rights: 
       $ make all
+    If you used godi (and don't need sudo rights):
+      $ make all-godi
     If you did not use godi, so that you need sudo rights to install: 
       $ make all-sudo
 
