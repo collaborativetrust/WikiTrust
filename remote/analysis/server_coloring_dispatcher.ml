@@ -34,8 +34,8 @@ POSSIBILITY OF SUCH DAMAGE.
  *)
 
 (*
-  This module runs as a daemon, polling every second for new requests.
-  Requests are of two types, a vote and a coloring request.
+  This module runs as a daemon, polling a database table for new requests.
+  Requests are of two types, a vote and a trust coloring request.
   
   Whenever a new request is found, a new process is forked to handle this 
   request. Note that to ensure consistency, there is page level locking, so 
@@ -44,8 +44,8 @@ POSSIBILITY OF SUCH DAMAGE.
 
   There is also a limit to the number of concurrent child processes.
 
-  The child process take a request tuple. This is a row from the 
-  database table: revision_id, page_id, page_title, rev_time, user_id. 
+  The child process take a request tuple from said database table. 
+  This is a row of the form: revision_id, page_id, page_title, rev_time, user_id. 
   
   Vote and Coloring requests are separated as follows:
   Votes are those where there is colored markup for the requested revision.
@@ -123,6 +123,7 @@ let check_subprocess_termination (page_id: int) (process_id: int) =
   end
 in
 
+
 (**
    [evaluate_revision page_id rev_id child_db n_processed_events]
    is the function that evaluates a revision. 
@@ -169,6 +170,7 @@ let rec evaluate_revision (page_id: int) (rev_id: int) (child_db : Online_db.db)
       end (* with: Was missing trust of a previous revision *)
   end (* End of try ... with ... *)
 in
+
 
 (**
    [evaluate_vote page_id revision_id voter_id child_db]
@@ -252,7 +254,7 @@ in
     function starts a new process going which either colores the
     revision text or else handles a vote.
     It groups the raw list of revs by page, and then forks a new 
-    process to handle each page, up to the concurrant proc. limit.
+    process to handle each page, up to the concurrent proc. limit.
  *)
 let dispatch_page (rev_pages : revision_processing_request_t list) = 
   let new_pages = Hashtbl.create (List.length rev_pages) in
@@ -310,20 +312,20 @@ in
 
 (* 
    [main_loop]
-   Poll to see if there is any more work to be done. 
-   If there is, do it.
+   Poll to see if there is work to be done in the database table;
+   if there is work to be done, does it. 
 *)
 let main_loop () =
   while true do
-    if (Hashtbl.length working_children) >= max_concurrent_procs then (
+    if (Hashtbl.length working_children) >= max_concurrent_procs then begin
+      (* Cleans up terminated children, if any *)
       Hashtbl.iter check_subprocess_termination working_children
-    ) else (
-      (* TODO: update to new API
+    end else begin
       let revs_to_process = db#fetch_next_revisions_to_color 
 	(max (max_concurrent_procs - Hashtbl.length working_children) 0) in
 	dispatch_page revs_to_process
       *)
-    );
+    end;
     Unix.sleep sleep_time_sec;
     if !synch_log then flush Pervasives.stdout;
   done
