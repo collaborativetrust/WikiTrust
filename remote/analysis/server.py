@@ -52,6 +52,7 @@ import gzip
 import cStringIO
 import time
 import os
+import server_utils
 
 from mod_python import util
 from mod_python import apache
@@ -95,29 +96,22 @@ def connect_db():
   ## Parses the db prefix.
   DB_PREFIX = ini_config.get('db', 'prefix')
 
-# [mark_for_coloring (rev_id, page_id, user_id, rev_time, page_title, r_type)]
-# Adds a revision into the db for coloring.
-def mark_for_coloring (rev_id, page_id, user_id, rev_time, page_title, r_type):
-  global DB_PREFIX
-  global connection
-
-  curs = connection.cursor()
-  sql = """SELECT revision_id FROM """ + DB_PREFIX + """wikitrust_missing_revs WHERE revision_id = %(rid)s AND processed <> 'processed'"""
-  args = {'rid':rev_id}
-  curs.execute(sql, args)
-  numRows = curs.execute(sql, args)
-
-  if (numRows <= 0):
-     sql = """INSERT INTO """ + DB_PREFIX + """wikitrust_missing_revs (revision_id, page_id, page_title, rev_time, user_id, type) VALUES (%(rid)s, %(pid)s, %(title)s, %(time)s, %(vid)s, %(ty)s) ON DUPLICATE KEY UPDATE requested_on = now(), processed = 'unprocessed', type=%(ty)s"""
-     args = {'rid':rev_id, 'pid':page_id, 'title':page_title, 
-             'time':rev_time, 'vid':user_id, 'ty':r_type}
-     curs.execute(sql, args)
-     connection.commit()
-
 # handle_edit(req, rev_id, page_id, user_id, v_time, page_title)
 # Insert a edit to be processed into the db.
 def handle_edit(req, rev_id, page_id, user_id, v_time, page_title):
-   mark_for_coloring(rev_id, page_id, user_id, v_time, page_title, "edit")
+
+   global DB_PREFIX
+   global connection
+   
+   server_utils.mark_for_coloring(rev_id,
+                                  page_id,
+                                  user_id,
+                                  v_time,
+                                  page_title,
+                                  "edit",
+                                  connection,
+                                  DB_PREFIX
+                                  )
    req.write("good")
 
 # handle_vote(req, rev_id, page_id, user_id, v_time, page_title)
@@ -134,7 +128,15 @@ def handle_vote(req, rev_id, page_id, user_id, v_time, page_title):
   # Once a vote is inserted, we need to recolor the page.
   # Only do this though if the vote is not a repeat.
   if (numRows > 0):
-     mark_for_coloring(rev_id, page_id, user_id, v_time, page_title, "vote")
+     server_utils.mark_for_coloring(rev_id,
+                       page_id,
+                       user_id,
+                       v_time,
+                       page_title,
+                       "vote",
+                       connection,
+                       DB_PREFIX
+                       )
   
   # Token saying things are ok
   # Votes do not return anything. This just sends back the ACK
@@ -189,6 +191,8 @@ def handle_text_request (req, rev_id, page_id, user_id, rev_time, page_title):
   global DB_PREFIX
   global sleep_time_sec
   global not_found_text_token
+  global connection
+  
   # First, tries to read the colored markup from the database. 
   res = fetch_colored_markup(rev_id, 
                              page_id, 
@@ -198,12 +202,15 @@ def handle_text_request (req, rev_id, page_id, user_id, rev_time, page_title):
   if (res == not_found_text_token):
     # If the revision is not found among the colored ones, it marks it for coloring,
     # and it waits a bit, in the hope that it got colored.
-    mark_for_coloring(rev_id, 
-                      page_id, 
-                      user_id, 
-                      rev_time, 
-                      page_title,
-                      "coloring")
+    server_utils.mark_for_coloring(rev_id, 
+                                   page_id, 
+                                   user_id, 
+                                   rev_time, 
+                                   page_title,
+                                   "coloring",
+                                   connection,
+                                   DB_PREFIX
+                                   )
     time.sleep(sleep_time_sec)
   # Tries again to get it, to see if it has been colored.
   res = fetch_colored_markup(rev_id, page_id, user_id, rev_time, page_title) 
