@@ -81,7 +81,7 @@ OUR_EVALWIKI_OBJS = textbuf.cmo text.cmo prioq.cmo filesystem_store.cmo \
 
 OUR_OPT_EVALWIKI_OBJS = textbuf.cmx text.cmx prioq.cmx filesystem_store.cmx \
 	coda.cmx editlist.cmx chdiff.cmx compute_edlist.cmx timeconv.cmx \
-	eval_defs.cmx author_sig.cmx cmx online_types.cmx \
+	eval_defs.cmx author_sig.cmx online_types.cmx \
 	rephist.cmx revision.cmx prune_analysis.cmx \
 	linear_analysis.cmx circbuf_analysis.cmx reputation_analysis.cmx \
 	compute_trust.cmx compute_robust_trust.cmx trust_analysis.cmx \
