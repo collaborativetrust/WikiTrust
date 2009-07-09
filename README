@@ -234,6 +234,8 @@ Follow these instructions in place of step 2) above.
 2b) Make OcamlLdaLibs and install them. 
     If you can install without sudo rights: 
       $ make all
+    If you used godi (and don't need sudo rights):
+      $ make all-godi
     If you did not use godi, so that you need sudo rights to install: 
       $ make all-sudo
 
