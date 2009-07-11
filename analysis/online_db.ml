@@ -605,59 +605,42 @@ object(self)
   (* Server System *)
   (* The following methods are used in the remote use of WikiTrust. *)
 
-  (** [mark_to_color rev_id page_id page_title rev_time user_id] marks that the revision
-      [rev_id] of page [page_id], with title [page_title], and time [rev_time], 
-      needs to be colored.  *)
-  method mark_to_color (rev_id : int) (page_id : int) (page_title : string) 
-    (rev_time : string) (user_id : int) =
-    let s = Printf.sprintf "INSERT INTO %swikitrust_missing_revs (revision_id, page_id, page_title, rev_time, user_id) VALUES (%s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE requested_on = now(), processed = false" db_prefix (ml2int rev_id) (ml2int page_id) (ml2str page_title) (ml2str rev_time) (ml2int user_id) in
+  (** [mark_page_to_process page_id page_title] specifies that a page must be brought
+      up to date, due to a vote or a new revision. *)
+  method mark_page_to_process (page_id : int) (page_title : string) : unit =
+    let s = Printf.sprintf "INSERT INTO %swikitrust_queue (revision_id, page_id) VALUES (%s, %s) ON DUPLICATE KEY UPDATE requested_on = now(), processed = false" db_prefix (ml2int page_id) (ml2str page_title) in
     ignore (self#db_exec mediawiki_dbh s)
 
-  (** [mark_rev_as_processed rev_id] marks that the revision [rev_id] has ben processed. *)
-  method mark_rev_as_processed (rev_id : int) =
-    let s = Printf.sprintf "UPDATE %swikitrust_missing_revs SET processed = 'processed' WHERE revision_id = %s" db_prefix (ml2int rev_id) in
+  (** [mark_page_as_processed page_id] marks that a page has ben processed. *)
+  method mark_page_as_processed (page_id : int) =
+    let s = Printf.sprintf "UPDATE %swikitrust_queue SET processed = 'processed' WHERE page_id = %s" db_prefix (ml2int page_id) in
     ignore (self#db_exec mediawiki_dbh s)
 
-  (** [mark_rev_as_processed rev_id] marks that the revision
-      [rev_id] has not been processed. *)
-  method mark_rev_as_unprocessed (rev_id : int) =
-    let s = Printf.sprintf "UPDATE %swikitrust_missing_revs SET processed = 'unprocessed' WHERE revision_id = %s" db_prefix (ml2int rev_id) in
+  (** [mark_page_as_unprocessed page_id] marks that a page has not been fully processed. *)
+  method mark_page_as_unprocessed (page_id : int) =
+    let s = Printf.sprintf "UPDATE %swikitrust_queue SET processed = 'unprocessed' WHERE page_id = %s" db_prefix (ml2int page_id) in
     ignore (self#db_exec mediawiki_dbh s)
 
   (** [fetch_work_from_queue max_to_get n_retries] gets the
-      list of revisions that have to be possibly downloaded, and then
-      colored.  It also marks those revisions as "processing", so that
+      list of page_ids that have to be brought up to date. 
+      It also marks those pages as "processing", so that
       subsequent requests do not return the same revisions.  This code
       contains a transaction start / commit pair.  [max_to_get] is the
       maximum number of results to get; [n_retries] is the number of
       times the start / commit pair is used. *)
-  method fetch_work_from_queue (max_to_get : int) (n_retries: int) : 
-    revision_processing_request_t list =
+  method fetch_work_from_queue (max_to_get : int) (n_retries: int) : int list =
     let n_attempts = ref 0 in 
     let results = ref [] in
     while !n_attempts < n_retries do 
       begin 
 	try begin 
 	  self#start_transaction;
-	  let s = Printf.sprintf "SELECT revision_id, page_id, page_title, rev_time, user_id, type FROM %swikitrust_missing_revs WHERE processed = 'unprocessed' ORDER BY requested_on ASC LIMIT %s" 
+	  let s = Printf.sprintf "SELECT page_id FROM %swikitrust_queue WHERE processed = 'unprocessed' ORDER BY requested_on ASC LIMIT %s" 
 	    db_prefix (ml2int max_to_get) in
-	  let db2color_row row : revision_processing_request_t =
-	    {
-	      req_revision_id = (not_null int2ml row.(0));
-	      req_page_id = (not_null int2ml row.(1));
-	      req_page_title = (not_null str2ml row.(2));
-	      req_revision_timestamp = (not_null str2ml row.(3));
-	      req_requesting_user_id = (not_null int2ml row.(4));
-	      req_request_type = begin
-		match (not_null str2ml row.(5)) with
-		| "vote" -> Vote
-		| _ -> Coloring
-	      end 
-	    }
-	  in
-	  results := Mysql.map (self#db_exec mediawiki_dbh s) db2color_row;
-	  let mark_as_processing req = 
-	    let s = Printf.sprintf "UPDATE %swikitrust_missing_revs SET processed = 'processing' WHERE revision_id = %s" db_prefix (ml2int req.req_revision_id) in
+	  let get_id row : int = (not_null int2ml row.(0)) in
+	  results := Mysql.map (self#db_exec mediawiki_dbh s) get_id;
+	  let mark_as_processing page_id = 
+	    let s = Printf.sprintf "UPDATE %swikitrust_queue SET processed = 'processing' WHERE page_id = %s" db_prefix (ml2int page_id) in
 	    ignore (self#db_exec mediawiki_dbh s)
 	  in
 	  List.iter mark_as_processing !results
@@ -739,6 +722,8 @@ object(self)
         ignore (self#db_exec mediawiki_dbh "TRUNCATE TABLE wikitrust_colored_markup" );
         ignore (self#db_exec mediawiki_dbh "TRUNCATE TABLE wikitrust_sigs" );
         ignore (self#db_exec mediawiki_dbh "TRUNCATE TABLE wikitrust_user" ); 
+        ignore (self#db_exec mediawiki_dbh "TRUNCATE TABLE wikitrust_queue" ); 
+        ignore (self#db_exec mediawiki_dbh "TRUNCATE TABLE wikitrust_text_cache" ); 
 	ignore (self#db_exec mediawiki_dbh "UPDATE wikitrust_vote SET processed = FALSE" ); 
         (* Note that we do NOT delete the votes!! *)
         ignore (self#db_exec mediawiki_dbh "COMMIT");

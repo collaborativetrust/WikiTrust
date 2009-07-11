@@ -33,34 +33,25 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
-(*
-  This module runs as a daemon, polling a database table for new requests.
-  Requests are of two types, a vote and a trust coloring request.
-  
-  Whenever a new request is found, a new process is forked to handle this 
-  request. Note that to ensure consistency, there is page level locking, so 
-  that there is never a situation where two child processes are working on the 
-  same page simultaneously. 
+(* This module runs as a daemon, polling a database table for pages
+   (articles) to be brought up to date.  Whenever a new page to be
+   processed is found, a new process is forked to handle this request.
+   There is a limit to the number of concurrent child processes.
 
-  There is also a limit to the number of concurrent child processes.
+   To say that new work needs to be done, proceed as follows:
 
-  The child process take a request tuple from said database table. 
-  This is a row of the form: revision_id, page_id, page_title, rev_time, user_id. 
-  
-  Vote and Coloring requests are separated as follows:
-  Votes are those where there is colored markup for the requested revision.
-  Coloring conversely are those requests where there is not already 
-  colored markup. We assume that is it never the case where a user can 
-  vote on a revision which has not been colored, and conversely a colored 
-  revision will never be re-colored without being voted on.
+   Votes:
+   * Insert the vote in the wikitrust_votes table.
+   * Insert the page in the wikitrust_queue table.
 
-  If it is a coloring request, the revision text is downloaded from the 
-  mediawiki api if it is not present locally.
-  
-  It then gives the request to the appropriate function, evaluate_revision or 
-  evaluate_vote.
+   Edits:
+   * Insert the page in the wikitrust_queue table.
+   * Optionally, add the text to the wikitrust_text_cache table.
    
-*)
+   Missing coloring:
+   * Insert the page in the wikiturst_queue table.
+
+ *)
 
 open Online_command_line
 open Online_types
@@ -124,191 +115,51 @@ let check_subprocess_termination (page_id: int) (process_id: int) =
 in
 
 
-(**
-   [evaluate_revision page_id rev_id child_db n_processed_events]
-   is the function that evaluates a revision. 
-   The function is recursive, because if some past revision of the same page 
-   that falls within the analysis horizon is not yet evaluated and colored
-   for trust, it evaluates and colors it first. 
- *)
-let rec evaluate_revision (page_id: int) (rev_id: int) (child_db : Online_db.db) 
-    (n_processed_events : int)
-    : unit = 
-  begin (* try ... with ... *)
-    try 
-      logger#log (Printf.sprintf "Evaluating revision %d of page %d\n" 
-		    rev_id page_id);
-      let page = new Online_page.page child_db logger 
-	page_id rev_id None trust_coeff !times_to_retry_trans in
-      if page#eval then begin 
-	logger#log (Printf.sprintf "Done revision %d of page %d\n" 
-	  rev_id page_id);
-      end else begin 
-	logger#log (
-	  Printf.sprintf "Revision %d of page %d was already done\n" 
-	    rev_id page_id);
-      end;
-      (* Waits, if so requested to throttle the computation. *)
-      if each_event_delay > 0 then Unix.sleep (each_event_delay); 
-      begin 
-	match every_n_events_delay with 
-	| Some d -> begin 
-	    if (n_processed_events mod d) = 0 then Unix.sleep (1);
-	  end
-	| None -> ()
-      end       
-    with Online_page.Missing_trust (page_id', r') -> 
-      begin
-	(* We need to evaluate page_id', rev_id' first *)
-	(* This if is a basic sanity check only. It should always be true *)
-	if r'#get_id <> rev_id then 
-	  begin 
-	    logger#log (Printf.sprintf "Missing trust info: we need first to evaluate revision %d of page %d\n" r'#get_id page_id');
-	    evaluate_revision page_id' r'#get_id child_db (n_processed_events + 1);
-	    evaluate_revision page_id rev_id child_db (n_processed_events + 2)
-	  end (* rev_id' <> rev_id *)
-      end (* with: Was missing trust of a previous revision *)
-  end (* End of try ... with ... *)
+(** [process_page page_id] is a child process that processes a page
+    with [page_id] as id. *)
+let process_page = 
+  (* Every child has their own db. *)
+  let child_db = new Online_db.db !db_prefix mediawiki_db None 
+    !wt_db_rev_base_path !wt_db_sig_base_path !wt_db_colored_base_path 
+    !dump_db_calls !use_exec_api in
+  (* And a new updater. *)
+  let processor = new Updater.updater child_db 
+    trust_coeff !times_to_retry_trans each_event_delay every_n_events_delay in
+  (* Brings the page up to date.  This will take care also of the page lock. *)
+  processor#update_page page_id;
+  (* Marks the page as processed. *)
+  child_db#mark_page_as_processed page_id
+  (* End of page processing. *)
 in
 
 
-(**
-   [evaluate_vote page_id revision_id voter_id child_db]
-   This is the code that evaluates a vote 
-*)
-let evaluate_vote (page_id: int) (revision_id: int) (voter_id: int) (child_db : Online_db.db) = 
-  logger#log (Printf.sprintf "Evaluating vote by %d on revision %d of page %d\n" 
-    voter_id revision_id page_id); 
-  let page = new Online_page.page child_db logger page_id revision_id None trust_coeff 
-    !times_to_retry_trans in 
-    if page#vote voter_id then 
-      logger#log (Printf.sprintf "User %d voted for revision %d of page %d.\n" 
-	voter_id revision_id page_id)
-in 
-
-
-(** [process_revs page_id rev_ids page_title rev_timestamp user_id] 
-    Returns unit.
-    This is given a page and a list of revisions to work on.
-    It successivly calls either evaluate_vote or evaluate_revision 
-    for each revision.
-*)
-let process_revs (page_id: int) (page_title : string)
-    (requests : revision_processing_request_t list) =
-  
-  (* Each child has its own database. *)
-  (* TODO: need to fix paths for child_db *)
-  let child_db = new Online_db.db !db_prefix mediawiki_db None None None None !dump_db_calls in
-  (* This recursive inner function actually does the processing *)
-  let rec do_processing (req : revision_processing_request_t) = 
-    match req.req_request_type with
-      Coloring -> begin
-	try (* to recover from API errors *)
-	  logger#log (Printf.sprintf "Working on coloring page %S\n" page_title);
-	  (* Fetches all new revisions. *)
-	  let last_rev_id = ref (
-	    try child_db#get_latest_col_rev_id page_id 
-	    with Online_db.DB_Not_Found -> 0)
-	  in
-	  let n_batches = ref 0 in
-	  let do_more = ref true in
-	  let new_rev_id_l = ref [] in
-	  while !do_more do begin
-	    let (rev_id_l, next_rev') = Wikipedia_api.get_revs_from_api 
-	      page_title !last_rev_id child_db logger 0 in
-	    new_rev_id_l := !new_rev_id_l @ rev_id_l;
-	    n_batches := !n_batches + 1;
-	    match next_rev' with
-	      None -> do_more := false
-	    | Some i -> begin
-		do_more := (!n_batches < max_batches_to_do);
-		last_rev_id := i
-	      end
-	  end done;
-	  (* Evaluate the revisions. *)
-	  let f rev = evaluate_revision page_id rev child_db 0 in
-	  List.iter f !new_rev_id_l;
-	  if !synch_log then flush Pervasives.stdout;
-	with Wikipedia_api.API_error -> ()
-      end
-    | Vote -> begin
-	logger#log (Printf.sprintf "Working on vote for revision %d of page %S\n" 
-	  req.req_revision_id page_title);
-	evaluate_vote page_id req.req_revision_id req.req_requesting_user_id child_db;
-	child_db#mark_vote_as_processed req.req_revision_id req.req_requesting_user_id
-      end
-  in
-  (* Process each revision in turn. *)
-  List.iter do_processing requests;
-  logger#log (Printf.sprintf
-    "Finished processing page %s\n" page_title);	      
-  exit 0 (* No more work to do, stop this process. *)
-in
-
-
-(* ---qui--- *)
-
-
-(** [dispatch_page rev_pages] -> unit.  Given a list [rev_pages] of
-    revisions to process (of type revision_processing_request_t), this
-    function starts a new process going which either colores the
-    revision text or else handles a vote.
-    It groups the raw list of revs by page, and then forks a new 
-    process to handle each page, up to the concurrent proc. limit.
+(** [dispatch_page pages] -> unit.  Given a list [pages] of page_ids to
+    process, this function starts a new process which brings the page up
+    to date.
  *)
-let dispatch_page (rev_pages : revision_processing_request_t list) = 
-  let new_pages = Hashtbl.create (List.length rev_pages) in
-  let is_old_page p = Hashtbl.mem working_children p in
-    (* 
-       [set_revs_to_get request]
-       If the revision is part of a page which is not
-       currently being processed, add it to a list to process.
-
-       Otherwise, change its state back to unprocessed, and try again with it
-       soon. I feel that trying to pass it to the working child would be too 
-       complicated at this point.
-    *)
-  let set_revs_to_get (req : revision_processing_request_t) =
-    logger#log (Printf.sprintf "page %d\n" req.req_page_id);
-    if (not (is_old_page req.req_page_id)) then (
-      let current_revs = try Hashtbl.find new_pages req.req_page_id with 
-	  Not_found -> [] in
-	Hashtbl.replace new_pages req.req_page_id (req :: current_revs)
-    ) else (
-      (* TODO: need to update this to new api
-	 db#mark_rev_as_unprocessed req.req_revision_id
-      *)
-    )
-  in 
-    (* 
-       [launch_processing page requests]
-       Given a page_id and a list of coloring requests, 
-       fork a child which processes all the requests.
-    *)
-  let launch_processing p reqs = (
-    let new_pid = Unix.fork () in
+let dispatch_page (pages : int list) =
+  (* Remove any finished processes from the list of active child processes. *)
+  Hashtbl.iter check_subprocess_termination working_children;
+    (* [launch_processing page]
+       Given a page_id, forks a child which brings the page up to date. *)
+  let launch_processing page_id = begin
+    (* If the page is currently being processed, does nothing. *)
+    if not (Hashtbl.mem working_children page_id) then begin
+      let new_pid = Unix.fork () in
       match new_pid with 
-	| 0 -> (
-	    logger#log (Printf.sprintf 
-			  "I'm the child\n Running on page %d rev %d\n" p 
-			  (List.hd reqs).req_revision_id);
-	    process_revs p ((List.hd reqs).req_page_title) reqs
-	  )
-	| _ -> (logger#log (Printf.sprintf "Parent of pid %d\n" new_pid);  
-		Hashtbl.add working_children p (new_pid)
-	       )
-  ) in
-    (* Remove any finished processes from the list of active child
-       processes
-    *)
-    Hashtbl.iter check_subprocess_termination working_children;
-
-    (* Order the revs by page. *)
-    List.iter set_revs_to_get rev_pages;
-
-    (* Actually process the pages. *)
-    Hashtbl.iter launch_processing new_pages
+      | 0 -> begin
+	  logger#log (Printf.sprintf "I'm the child\n Running on page %d\n" page_id); 
+	  process_page page_id;
+	end
+      | _ -> begin
+	  logger#log (Printf.sprintf "Parent of pid %d\n" new_pid);  
+	  Hashtbl.add working_children p (new_pid)
+	end
+    end  (* if the page is already begin processed *)
+  end in
+  Hashtbl.iter launch_processing pages
 in
+
 
 (* 
    [main_loop]
@@ -321,10 +172,10 @@ let main_loop () =
       (* Cleans up terminated children, if any *)
       Hashtbl.iter check_subprocess_termination working_children
     end else begin
-      let revs_to_process = db#fetch_next_revisions_to_color 
-	(max (max_concurrent_procs - Hashtbl.length working_children) 0) in
-	dispatch_page revs_to_process
-      *)
+      let pages_to_process = db#fetch_work_from_queue
+	(max (max_concurrent_procs - Hashtbl.length working_children) 0) 
+	!times_to_retry_trans
+      in dispatch_page pages_to_process
     end;
     Unix.sleep sleep_time_sec;
     if !synch_log then flush Pervasives.stdout;

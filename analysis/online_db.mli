@@ -297,28 +297,23 @@ class db :
     (* Server System. *)
 
   (** [fetch_work_from_queue max_to_get n_retries] gets the
-      list of revisions that have to be possibly downloaded, and then
-      colored.  It also marks those revisions as "processing", so that
+      list of page_ids that have to be brought up to date. 
+      It also marks those pages as "processing", so that
       subsequent requests do not return the same revisions.  This code
       contains a transaction start / commit pair.  [max_to_get] is the
       maximum number of results to get; [n_retries] is the number of
       times the start / commit pair is used. *)
-    method fetch_work_from_queue : int -> int -> revision_processing_request_t list
+    method fetch_work_from_queue : int -> int -> int list
 
-    (** [mark_to_color rev_id page_id page_title rev_time user_id] marks that the revision
-	[rev_id] of page [page_id], with title [page_title], and time [rev_time], 
-	needs to be colored.  *)
-    method mark_to_color : int -> int -> string -> string -> int -> unit
-
-    (** [mark_rev_as_processed rev_id] marks that the revision
-	[rev_id] has ben processed. *)
-    method mark_rev_as_processed : int -> unit
-
-    (** [mark_rev_as_processed rev_id] marks that the revision
-	[rev_id] has not been processed. *)
-    method mark_rev_as_unprocessed : int -> unit
-
-
+    (** [mark_page_to_process page_id page_title] specifies that a page must be brought
+	up to date, due to a vote or a new revision. *)
+    method mark_page_to_process : int -> string -> unit
+      
+    (** [mark_page_as_processed page_id] marks that a page has ben processed. *)
+    method mark_page_as_processed : int -> unit
+      
+    (** [mark_page_as_unprocessed page_id] marks that a page has not been fully processed. *)
+    method mark_page_as_unprocessed : int -> unit
 
     (* ================================================================ *)
     (* WikiMedia Api *)
