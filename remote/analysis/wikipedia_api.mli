@@ -43,11 +43,11 @@ val default_timestamp : string
    [fetch_page_and_revs after page_title rev_date logger], given a [page_title] 
    and a [rev_date], returns [rev_lim] revisions of [page_title] after [rev_date]. 
    [logger] is, well, a logger.
-
-   Ian: why do you use page_title, rather than page_id? 
-
-   Luca: This is inherent in the way the mediawiki api works -- the function I
-   need is keyed off of page_title, not page_id. 
+   The return value, in detail, consists of: 
+   * A page option, containing the page information.  This is present
+     if anything else is present.
+   * A list of revision metadata.
+   * The id of the next revision, if known.
    See http://en.wikipedia.org/w/api.php for more details.
 *)
 val fetch_page_and_revs_after : string -> string -> int ->
@@ -64,7 +64,7 @@ val get_user_id : string -> Online_db.db -> int
    [get_revs_from_api page_title last_timestamp db logger rev_lim] reads 
    a group of rev_lim revisions of the given page from the Wikimedia API,
    stores them to disk, and returns:
-   - an optional id of the next revision to read.  Is None, then
+   - an optional id of the next revision to read.  If None, then
      all revisions of the page have been read.
    Raises API_error if the API is unreachable.
 *)

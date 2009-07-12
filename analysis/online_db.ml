@@ -104,8 +104,7 @@ class db
   (rev_base_path: string option)
   (sig_base_path: string option)
   (colored_base_path: string option)
-  (debug_mode : bool) 
-  (use_exec_api : bool) =
+  (debug_mode : bool) =
   
   (* DB handle *)
   let mediawiki_dbh = Mysql.connect db_mediawiki in
@@ -243,7 +242,7 @@ object(self)
       db_prefix
       rr (ml2str timestamp) (ml2int rev_id) wr (ml2int max_revs_to_return) in
     Mysql.map (self#db_exec mediawiki_dbh s) rev_row2revision_t
-
+      
 
   (** [fetch_all_revs req_page_id max_revs_to_return] returns a list
       of revisions in the database, in ascending order of timestamp,
@@ -257,7 +256,8 @@ object(self)
     let s = Printf.sprintf  "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM %srevision %s ORDER BY rev_timestamp ASC, rev_id ASC LIMIT %s" 
       db_prefix wr (ml2int max_revs_to_return) in
     Mysql.map (self#db_exec mediawiki_dbh s) rev_row2revision_t
-      
+
+
   (** [fetch_unprocessed_votes req_page_id n_events] returns at most [n_events]
       unprocessed votes, starting from the oldest unprocessed
       vote.
@@ -277,6 +277,7 @@ object(self)
       }
     in
     Mysql.map (self#db_exec mediawiki_dbh s) vote_row2vote_t
+
 
   (** [mark_vote_as_processed (revision_id: int) (voter_id : int)] marks a vote as processed. *)
   method mark_vote_as_processed (revision_id: int) (voter_id : int) : unit = 
@@ -392,7 +393,7 @@ object(self)
 	(r, q)
       end
 
-  (** [write_revision_info rev_id quality_info elist] writes the wikitrust data 
+  (** [write_wikitrust_revision rev_id quality_info elist] writes the wikitrust data 
       associated with a revision *)
   method write_wikitrust_revision (revision_info: revision_t) (quality_info: qual_info_t) : unit = 
     (* Revision parameters *)

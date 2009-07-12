@@ -96,7 +96,9 @@ type event_occurrence_t = float * int * event_t
     should be included in the feed; this is used to close holes in the
     processing, albeit in an approximate way. *)
 class event_feed
-  (db: Online_db.db) 
+  (db: Online_db.db)
+  (use_exec_api: bool)
+  (use_wikipedia_api: bool)
   (requested_page_id: int option)
   (requested_rev_id: int option) 
   (n_retries: int) 

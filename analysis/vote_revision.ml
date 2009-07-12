@@ -99,7 +99,7 @@ let vote_time = match !vote_time_opt with
 (* Opens the db connections. *)
 let db = new Online_db.db !db_prefix mediawiki_db
   !wt_db_rev_base_path !wt_db_sig_base_path !wt_db_colored_base_path 
-  !dump_db_calls !use_exec_api;;
+  !dump_db_calls;;
 
 (* Add the vote to the db *)
 db#vote {

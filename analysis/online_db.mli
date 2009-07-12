@@ -72,7 +72,6 @@ class db :
   string option -> (* signatures base path *)
   string option -> (* colored revisions base path *)
   bool ->          (* debug_mode *)
-  bool ->          (* use_exec_api *)
   object
 
     (* ================================================================ *)
@@ -205,7 +204,7 @@ class db :
 	wikitrust_revision table. *)
     method read_wikitrust_revision : int -> (revision_t * qual_info_t)
 
-    (** [write_revision_info rev_id quality_info elist] writes the wikitrust data 
+    (** [write_wikitrust_revision rev_id quality_info elist] writes the wikitrust data 
 	associated with revision with id [rev_id] *)
     method write_wikitrust_revision : revision_t -> qual_info_t -> unit
 

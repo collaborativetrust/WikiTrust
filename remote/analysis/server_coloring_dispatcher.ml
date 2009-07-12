@@ -79,7 +79,7 @@ let mediawiki_db = {
 (* Sets up the db *)
 let db = new Online_db.db !db_prefix mediawiki_db None 
   !wt_db_rev_base_path !wt_db_sig_base_path !wt_db_colored_base_path 
-  !dump_db_calls !use_exec_api in
+  !dump_db_calls in
 let logger = new Online_log.logger !log_name !synch_log in
 let trust_coeff = Online_types.get_default_coeff in
 
@@ -121,9 +121,9 @@ let process_page =
   (* Every child has their own db. *)
   let child_db = new Online_db.db !db_prefix mediawiki_db None 
     !wt_db_rev_base_path !wt_db_sig_base_path !wt_db_colored_base_path 
-    !dump_db_calls !use_exec_api in
+    !dump_db_calls in
   (* And a new updater. *)
-  let processor = new Updater.updater child_db 
+  let processor = new Updater.updater child_db !use_exec_api !use_wikimedia_api
     trust_coeff !times_to_retry_trans each_event_delay every_n_events_delay in
   (* Brings the page up to date.  This will take care also of the page lock. *)
   processor#update_page page_id;

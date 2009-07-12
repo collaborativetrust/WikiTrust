@@ -89,7 +89,7 @@ let mediawiki_db = {
 
 let db = new Online_db.db !db_prefix mediawiki_db 
   !wt_db_rev_base_path !wt_db_sig_base_path !wt_db_colored_base_path 
-  !dump_db_calls !use_exec_api in 
+  !dump_db_calls in 
 
 (* If requested, we erase all coloring, and we recompute it from scratch. *)
 if !delete_all then begin 
@@ -99,7 +99,8 @@ end;
 
 (* Creates an event processor *)
 let processor = new Updater.updater 
-  db trust_coeff !times_to_retry_trans each_event_delay every_n_events_delay in
+  db !use_exec_api !use_wikimedia_api 
+  trust_coeff !times_to_retry_trans each_event_delay every_n_events_delay in
 
 (* Processes the event, as requested. *)
 begin

@@ -79,6 +79,9 @@ let set_wt_db_colored_base_path s = wt_db_colored_base_path := Some s
 (* Use the exec API in order to get the list of revisions to process, and their
    content. *)
 let use_exec_api = ref false
+(* Use the WikiMedia API in order to get the list of revisions to process, and their
+   content. *)
+let use_wikimedia_api = ref false
 
 (* Logging *)
 let synch_log = ref false
@@ -142,5 +145,6 @@ let command_line_format =
    ("-n_events", Arg.Int set_max_events_to_process, "<int>: Max number of events to process (default: 100) "); 
    ("-times_to_retry_trans", Arg.Int set_times_to_retry_trans, "<int>: Max number of times to retry a transation if it fails (default: 3)."); 
    ("-use_exec_api", Arg.Set use_exec_api, "Use the exec API to access the WMF DB.");
+   ("-use_wikimedia_api", Arg.Set use_wikimedia_api, "Use the WikiMedia API to access the WMF DB.");
    ("-delete_all", Arg.Set delete_all, ": Recomputes all reputations and trust from scratch.  BE CAREFUL!! This may take a LONG time for large wikis.");
   ]
