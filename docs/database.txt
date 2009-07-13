@@ -2,7 +2,7 @@ The current WikiTrust database scheme.
 
 wikitrust_missing_revs:
 
-This table is used by the dispatcher to record what pages need to be processed and how.
+This table is used by the dispatcher to record what pages need to be processed and how. 
 
 mysql> describe wikitrust_missing_revs;
 +--------------+----------------------------------------------+------+-----+-------------------+-------+
