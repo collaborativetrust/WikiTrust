@@ -1,0 +1,19 @@
+The current WikiTrust database scheme.
+
+wikitrust_missing_revs:
+
+This table is used by the dispatcher to record what pages need to be processed and how.
+
+mysql> describe wikitrust_missing_revs;
++--------------+----------------------------------------------+------+-----+-------------------+-------+
+| Field        | Type                                         | Null | Key | Default           | Extra |
++--------------+----------------------------------------------+------+-----+-------------------+-------+
+| revision_id  | int(11)                                      | NO   | PRI | NULL              |       | 
+| page_id      | int(11)                                      | NO   |     | NULL              |       | 
+| page_title   | varchar(255)                                 | NO   |     | NULL              |       | 
+| rev_time     | varchar(255)                                 | NO   |     | NULL              |       | 
+| user_id      | int(11)                                      | NO   |     | NULL              |       | 
+| requested_on | timestamp                                    | NO   |     | CURRENT_TIMESTAMP |       | 
+| type         | enum('coloring','vote','edit')               | NO   |     | NULL              |       | 
+| processed    | enum('unprocessed','processing','processed') | NO   |     | unprocessed       |       | 
++--------------+----------------------------------------------+------+-----+-------------------+-------+
