@@ -45,9 +45,6 @@ exception DB_Not_Found;;
 (* Raised when a commit fails. *)
 exception DB_TXN_Bad;;
 
-(* Which DB should be used for the next transaction? *)
-type current_db_t = MediaWiki | WikiTrust | Both;;
-
 (* Represents the revision table in memory *)
 type revision_t = {
   rev_id: int; 
@@ -69,14 +66,13 @@ type vote_t = {
 }
 
 class db : 
-  string ->
-  Mysql.db ->
-  Mysql.db option ->
+  string ->        (* db prefix *)
+  Mysql.db ->      (* mediawiki db *)
   string option -> (* revision base path *)
   string option -> (* signatures base path *)
   string option -> (* colored revisions base path *)
-  bool ->
-
+  bool ->          (* debug_mode *)
+  bool ->          (* use_exec_api *)
   object
 
     (* ================================================================ *)
@@ -105,13 +101,13 @@ class db :
     method release_page_lock : int -> unit
 
     (** Start a transaction *)
-    method start_transaction : current_db_t -> unit
+    method start_transaction : unit
 
     (** Rollback a transaction *)
-    method rollback_transaction : current_db_t -> unit 
+    method rollback_transaction : unit 
 
     (** Commit of transaction *)
-    method commit : current_db_t -> unit
+    method commit : unit
 
     (* ================================================================ *)
     (* Global methods. *)
@@ -300,6 +296,27 @@ class db :
     (* ================================================================ *)
     (* Server System. *)
 
+  (** [fetch_work_from_queue max_to_get n_retries] gets the
+      list of page_ids that have to be brought up to date. 
+      It also marks those pages as "processing", so that
+      subsequent requests do not return the same revisions.  This code
+      contains a transaction start / commit pair.  [max_to_get] is the
+      maximum number of results to get; [n_retries] is the number of
+      times the start / commit pair is used. *)
+    method fetch_work_from_queue : int -> int -> int list
+
+    (** [mark_page_to_process page_id page_title] specifies that a page must be brought
+	up to date, due to a vote or a new revision. *)
+    method mark_page_to_process : int -> string -> unit
+      
+    (** [mark_page_as_processed page_id] marks that a page has ben processed. *)
+    method mark_page_as_processed : int -> unit
+      
+    (** [mark_page_as_unprocessed page_id] marks that a page has not been fully processed. *)
+    method mark_page_as_unprocessed : int -> unit
+
+    (* ================================================================ *)
+    (* WikiMedia Api *)
     (** [write_page page_to_add] adds adds the given data to the page
 	table of the database.  It can be used to import data from the
 	mediawiki api and store it locally.  *)

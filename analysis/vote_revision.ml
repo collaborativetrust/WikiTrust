@@ -81,16 +81,6 @@ let mediawiki_db = {
   dbpwd  = Some !mw_db_pass;
   dbuser = Some !mw_db_user;
 }
-let wikitrust_db_opt = 
-  if !use_separate_dbs 
-  then Some { 
-    dbhost = Some !wt_db_host;
-    dbname = Some !wt_db_name;
-    dbport = Some !wt_db_port;
-    dbpwd  = Some !wt_db_pass;
-    dbuser = Some !wt_db_user;
-  }
-  else None
 
 (* Extracts page, revision, and user id, complaining if they are not there. *)
 let page_id = match !page_id_opt with 
@@ -107,9 +97,9 @@ let vote_time = match !vote_time_opt with
   | Some d -> d;;
 
 (* Opens the db connections. *)
-let db = new Online_db.db !db_prefix mediawiki_db wikitrust_db_opt 
+let db = new Online_db.db !db_prefix mediawiki_db
   !wt_db_rev_base_path !wt_db_sig_base_path !wt_db_colored_base_path 
-  !dump_db_calls;;
+  !dump_db_calls !use_exec_api;;
 
 (* Add the vote to the db *)
 db#vote {
