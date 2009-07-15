@@ -683,8 +683,6 @@ object(self)
       None ->
 	let s = Printf.sprintf "INSERT INTO %stext (old_id, old_text, old_flags) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE old_flags = %s" db_prefix (ml2int rev.revision_id) (ml2str rev.revision_content) (ml2str "utf8") (ml2str "utf8") in
 	ignore (self#db_exec mediawiki_dbh s)
-<<<<<<< HEAD:analysis/online_db.ml
-=======
     | Some b ->
 	Filesystem_store.write_revision b 
 	  rev.revision_page rev.revision_id rev.revision_content;
@@ -707,100 +705,9 @@ object(self)
     in
     ignore (self#db_exec mediawiki_dbh s)
   end
->>>>>>> origin/luca:analysis/online_db.ml
 
-<<<<<<< HEAD:analysis/online_db.ml
-    (* ================================================================ *)
-    (* Server System *)
-    (* The following methods are only useful  in the remote use of WikiTrust. *)
-=======
   (* ================================================================ *)
->>>>>>> origin/luca:analysis/online_db.ml
 
-<<<<<<< HEAD:analysis/online_db.ml
-    (** Adds a page to the database.  This is normally taken care of by Mediawiki, except when
-        WikiTrust is used in remote mode. *)
-    method write_page (page : wiki_page_t) =
-      let s = Printf.sprintf "INSERT INTO %spage (page_id, page_namespace, page_title, page_restrictions, page_counter, page_is_redirect, page_is_new, page_random, page_touched, page_latest, page_len) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE page_latest = %s" 
-	db_prefix 
-	(ml2int page.page_id) 
-	(ml2int page.page_namespace) 
-	(ml2str page.page_title) 
-	(ml2str page.page_restrictions) 
-	(ml2int page.page_counter) 
-	(if page.page_is_redirect then "true" else "false") 
-	(if page.page_is_new then "true" else "false") 
-	(ml2float page.page_random) 
-	(ml2str page.page_touched) 
-	(ml2int page.page_latest) 
-	(ml2int page.page_len) 
-	(ml2int page.page_latest)
-      in
-      ignore(self#db_exec mediawiki_dbh s)
-
-    (** This method writes a revision to the database. 
-	It is only useful for the remote use of WikiTrust. *) 
-    method write_revision (rev : wiki_revision_t) = begin
-      (match rev_base_path with
-	None ->
-	  let s = Printf.sprintf "INSERT INTO %stext (old_id, old_text, old_flags) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE old_flags = %s" db_prefix (ml2int rev.revision_id) (ml2str rev.revision_content) (ml2str "utf8") (ml2str "utf8") in
-	  ignore (self#db_exec mediawiki_dbh s)
-      | Some b ->
-	  Filesystem_store.write_revision b 
-	    rev.revision_page rev.revision_id rev.revision_content;
-      );
-      (* And then the revision metadata. *)
-      let s = Printf.sprintf "INSERT INTO %srevision (rev_id, rev_page, rev_text_id, rev_comment, rev_user, rev_user_text, rev_timestamp, rev_minor_edit, rev_deleted, rev_len, rev_parent_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE rev_len = %s" 
-	db_prefix 
-	(ml2int rev.revision_id) 
-	(ml2int rev.revision_page) 
-	(ml2int rev.revision_id) 
-	(ml2str rev.revision_comment) 
-	(ml2int rev.revision_user) 
-	(ml2str rev.revision_user_text) 
-	(ml2str rev.revision_timestamp) 
-	(if rev.revision_minor_edit then "true" else "false") 
-	(if rev.revision_deleted then "true" else "false") 
-	(ml2int rev.revision_len) 
-	(ml2int rev.revision_parent_id) 
-	(ml2int rev.revision_len) 
-      in
-      ignore (self#db_exec mediawiki_dbh s)
-    end
-
-    (* ================================================================ *)
-
-    (** Deletes all WikiTrust data.
-	(Uncolored) revisions, pages, and votes are not deleted. 
-	This enables the recomputation from scratch of all reputations and trust. 
-	Careful!  The recomputation may take a very long time for large wikis. *)
-    method delete_all (really : bool) =
-      let sql cmd = Printf.sprintf cmd db_prefix in
-      match really with
-        true -> begin
-	  ignore (self#db_exec mediawiki_dbh (sql "DELETE FROM %swikitrust_global"));
-	  ignore (self#db_exec mediawiki_dbh (sql "INSERT INTO %swikitrust_global VALUES (0,0,0,0,0,0,0,0,0,0,0)"));
-          ignore (self#db_exec mediawiki_dbh (sql "TRUNCATE TABLE %swikitrust_page"));
-          ignore (self#db_exec mediawiki_dbh (sql "TRUNCATE TABLE %swikitrust_revision"));
-          ignore (self#db_exec mediawiki_dbh (sql "TRUNCATE TABLE %swikitrust_colored_markup"));
-          ignore (self#db_exec mediawiki_dbh (sql "TRUNCATE TABLE %swikitrust_sigs"));
-          ignore (self#db_exec wikitrust_dbh (sql "TRUNCATE TABLE %swikitrust_user")); 
-	  ignore (self#db_exec mediawiki_dbh (sql "UPDATE %swikitrust_vote SET processed = FALSE")); 
-          (* Note that we do NOT delete the votes!! *)
-          ignore (self#db_exec mediawiki_dbh "COMMIT");
-	  (* We also delete the filesystem storage of signatures and
-	     colored revisions. *)
-	  begin
-	    match sig_base_path with
-	      Some b -> ignore (Filesystem_store.delete_all b)
-	    | None -> ()
-	  end;
-	  begin
-	    match colored_base_path with
-	      Some b -> ignore (Filesystem_store.delete_all b)
-	    | None -> ()
-	  end
-=======
   (** Deletes all WikiTrust data.
       (Uncolored) revisions, pages, and votes are not deleted. 
       This enables the recomputation from scratch of all reputations and trust. 
@@ -831,7 +738,6 @@ object(self)
 	  match colored_base_path with
 	    Some b -> ignore (Filesystem_store.delete_all b)
 	  | None -> ()
->>>>>>> origin/luca:analysis/online_db.ml
 	end
       end
     | false -> ignore (self#db_exec mediawiki_dbh "COMMIT")

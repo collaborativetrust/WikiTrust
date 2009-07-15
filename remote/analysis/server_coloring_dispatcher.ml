@@ -117,11 +117,11 @@ in
 
 (** [process_page page_id] is a child process that processes a page
     with [page_id] as id. *)
-let process_page = 
+let process_page page_id = 
   (* Every child has their own db. *)
   let child_db = new Online_db.db !db_prefix mediawiki_db None 
     !wt_db_rev_base_path !wt_db_sig_base_path !wt_db_colored_base_path 
-    !dump_db_calls !use_exec_api in
+    !dump_db_calls in
   (* And a new updater. *)
   let processor = new Updater.updater child_db 
     trust_coeff !times_to_retry_trans each_event_delay every_n_events_delay in
