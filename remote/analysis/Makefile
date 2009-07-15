@@ -34,12 +34,12 @@ PACKAGES = unix,str,vec,mapmin,hashtbl_bounded,fileinfo,intvmap,extlib,mysql,net
 SYNTAX = camlp4o
 OUR_LIBS = evalwiki.cma online_types.cmo online_log.cmo online_db.cmo \
 	online_revision.cmo db_page.cmo online_page.cmo event_feed.cmo  \
-	online_command_line.cmo
+	online_command_line.cmo updater.cmo
 
 OUR_LIBS_OPT = evalwiki.cmxa online_types.cmx online_log.cmx online_db.cmx \
 	online_revision.cmx \
 	db_page.cmx online_page.cmx event_feed.cmx \
-	online_command_line.cmx
+	online_command_line.cmx updater.cmx
 
 INCLUDES = -I ../../batch/analysis -I ../../analysis
 
