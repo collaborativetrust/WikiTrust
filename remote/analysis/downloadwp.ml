@@ -58,15 +58,15 @@ let mediawiki_db = {
 let db = new Online_db.db !db_prefix mediawiki_db None 
   !wt_db_rev_base_path !wt_db_sig_base_path !wt_db_colored_base_path 
   !dump_db_calls in
-let logger = new Online_log.logger !log_name !synch_log in
+let logger = Online_log.online_logger in
 
 
 let rec download_page title last_rev =
-  let next_rev = Wikipedia_api.get_revs_from_api title last_rev db logger 50 in 
+  let next_rev = Wikipedia_api.get_revs_from_api title last_rev db !logger 50 in 
   let _ = Unix.sleep sleep_time_sec in
   match next_rev with
       Some next_id -> begin
-	logger#log (Printf.sprintf "Loading next batch: %s -> %d\n" title next_id);
+	!logger#log (Printf.sprintf "Loading next batch: %s -> %d\n" title next_id);
 	download_page title next_id
       end
     | None -> ()
@@ -85,9 +85,9 @@ let main_loop () =
 	  download_page title lastid;
 	with
 	    Wikipedia_api.API_error ->
-		logger#log (Printf.sprintf "ERROR: %s\n" title);
+		!logger#log (Printf.sprintf "ERROR: %s\n" title);
 	    | Failure x ->
-		logger#log (Printf.sprintf "ERROR: %s\n" title);
+		!logger#log (Printf.sprintf "ERROR: %s\n" title);
     done
   with End_of_file -> ()
 in
