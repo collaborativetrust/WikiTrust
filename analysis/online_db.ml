@@ -714,18 +714,20 @@ object(self)
       This enables the recomputation from scratch of all reputations and trust. 
       Careful!  The recomputation may take a very long time for large wikis. *)
   method delete_all (really : bool) =
+    let add_prefix cmd = Printf.sprintf cmd db_prefix in
     match really with
       true -> begin
-	ignore (self#db_exec mediawiki_dbh "DELETE FROM wikitrust_global");
-	ignore (self#db_exec mediawiki_dbh "INSERT INTO wikitrust_global VALUES (0,0,0,0,0,0,0,0,0,0,0)");
-        ignore (self#db_exec mediawiki_dbh "TRUNCATE TABLE wikitrust_page" );
-        ignore (self#db_exec mediawiki_dbh "TRUNCATE TABLE wikitrust_revision" );
-        ignore (self#db_exec mediawiki_dbh "TRUNCATE TABLE wikitrust_colored_markup" );
-        ignore (self#db_exec mediawiki_dbh "TRUNCATE TABLE wikitrust_sigs" );
-        ignore (self#db_exec mediawiki_dbh "TRUNCATE TABLE wikitrust_user" ); 
-        ignore (self#db_exec mediawiki_dbh "TRUNCATE TABLE wikitrust_queue" ); 
-        ignore (self#db_exec mediawiki_dbh "TRUNCATE TABLE wikitrust_text_cache" ); 
-	ignore (self#db_exec mediawiki_dbh "UPDATE wikitrust_vote SET processed = FALSE" ); 
+	ignore (self#db_exec mediawiki_dbh (add_prefix "DELETE FROM %swikitrust_global"));
+	ignore (self#db_exec mediawiki_dbh (add_prefix "INSERT INTO %swikitrust_global VALUES (0,0,0,0,0,0,0,0,0,0,0)"));
+        ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_page"));
+        ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_revision"));
+        ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_colored_markup"));
+        ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_sigs"));
+        ignore (self#db_exec wikitrust_dbh (add_prefix "TRUNCATE TABLE %swikitrust_user")); 
+        ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_queue")); 
+        ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_text_cache")); 
+	ignore (self#db_exec mediawiki_dbh (add_prefix "UPDATE %swikitrust_vote SET processed = FALSE")); 
+
         (* Note that we do NOT delete the votes!! *)
         ignore (self#db_exec mediawiki_dbh "COMMIT");
 	(* We also delete the filesystem storage of signatures and
