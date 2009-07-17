@@ -77,10 +77,10 @@ let mediawiki_db = {
 }
 
 (* Sets up the db *)
-let db = new Online_db.db !db_prefix mediawiki_db None 
+let db = new Online_db.db !db_prefix mediawiki_db 
   !wt_db_rev_base_path !wt_db_sig_base_path !wt_db_colored_base_path 
-  !dump_db_calls in
-let logger = new Online_log.logger !log_name !synch_log in
+  !dump_db_calls !use_exec_api in
+let logger = !Online_log.online_logger in
 let trust_coeff = Online_types.get_default_coeff in
 
 (* Delay throttling code.
@@ -117,9 +117,9 @@ in
 
 (** [process_page page_id] is a child process that processes a page
     with [page_id] as id. *)
-let process_page = 
+let process_page page_id = 
   (* Every child has their own db. *)
-  let child_db = new Online_db.db !db_prefix mediawiki_db None 
+  let child_db = new Online_db.db !db_prefix mediawiki_db 
     !wt_db_rev_base_path !wt_db_sig_base_path !wt_db_colored_base_path 
     !dump_db_calls in
   (* And a new updater. *)
@@ -148,16 +148,17 @@ let dispatch_page (pages : int list) =
       let new_pid = Unix.fork () in
       match new_pid with 
       | 0 -> begin
-	  logger#log (Printf.sprintf "I'm the child\n Running on page %d\n" page_id); 
-	  process_page page_id;
-	end
+	        logger#log (Printf.sprintf 
+                        "I'm the child\n Running on page %d\n" page_id); 
+	        process_page page_id;
+	      end
       | _ -> begin
-	  logger#log (Printf.sprintf "Parent of pid %d\n" new_pid);  
-	  Hashtbl.add working_children p (new_pid)
-	end
+	        logger#log (Printf.sprintf "Parent of pid %d\n" new_pid);  
+	        Hashtbl.add working_children page_id (new_pid)
+	      end
     end  (* if the page is already begin processed *)
   end in
-  Hashtbl.iter launch_processing pages
+    List.iter launch_processing pages
 in
 
 
