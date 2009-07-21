@@ -616,24 +616,26 @@ object(self)
     ignore (self#db_exec mediawiki_dbh s)
 
   (** [fetch_work_from_queue max_to_get n_retries] gets the
-      list of page_ids that have to be brought up to date. 
+      list of page ids and titles that have to be brought up to date. 
       It also marks those pages as "processing", so that
       subsequent requests do not return the same revisions.  This code
       contains a transaction start / commit pair.  [max_to_get] is the
       maximum number of results to get; [n_retries] is the number of
       times the start / commit pair is used. *)
-  method fetch_work_from_queue (max_to_get : int) (n_retries: int) : int list =
+  method fetch_work_from_queue (max_to_get : int) (n_retries: int) : (int * string) list =
     let n_attempts = ref 0 in 
     let results = ref [] in
     while !n_attempts < n_retries do 
       begin 
 	try begin 
 	  self#start_transaction;
-	  let s = Printf.sprintf "SELECT page_id FROM %swikitrust_queue WHERE processed = 'unprocessed' ORDER BY requested_on ASC LIMIT %s" 
+	  let s = Printf.sprintf "SELECT page_id, page_title FROM %swikitrust_queue WHERE processed = 'unprocessed' ORDER BY requested_on ASC LIMIT %s" 
 	    db_prefix (ml2int max_to_get) in
 	  let get_id row : int = (not_null int2ml row.(0)) in
-	  results := Mysql.map (self#db_exec mediawiki_dbh s) get_id;
-	  let mark_as_processing page_id = 
+	  let get_title row : string = (not_null str2ml row.(1)) in
+	  let get_pair row = (get_id row, get_title row) in 
+	  results := Mysql.map (self#db_exec mediawiki_dbh s) get_pair;
+	  let mark_as_processing (page_id, _) = 
 	    let s = Printf.sprintf "UPDATE %swikitrust_queue SET processed = 'processing' WHERE page_id = %s" db_prefix (ml2int page_id) in
 	    ignore (self#db_exec mediawiki_dbh s)
 	  in

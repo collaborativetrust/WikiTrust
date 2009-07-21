@@ -80,7 +80,7 @@ let mediawiki_db = {
 let mediawiki_dbh = Mysql.connect mediawiki_db in
 let db = new Online_db.db !db_prefix mediawiki_dbh !mw_db_name
   !wt_db_rev_base_path !wt_db_sig_base_path !wt_db_colored_base_path 
-  !dump_db_calls !use_exec_api in
+  !dump_db_calls in
 let logger = !Online_log.online_logger in
 let trust_coeff = Online_types.get_default_coeff in
 
@@ -118,13 +118,16 @@ in
 
 (** [process_page page_id] is a child process that processes a page
     with [page_id] as id. *)
-let process_page page_id = 
+let process_page (page_id: int) (page_title: string) = 
   (* Every child has their own db. *)
   let child_dbh = Mysql.connect mediawiki_db in 
   let child_db = new Online_db.db !db_prefix child_dbh !mw_db_name
     !wt_db_rev_base_path !wt_db_sig_base_path !wt_db_colored_base_path 
     !dump_db_calls in
-  (* And a new updater. *)
+  (* If I am using the WikiMedia API, I need to first download any new
+     revisions of the page. *)
+  if !use_wikimedia_api then Wikipedia_api.download_page child_db page_title;
+  (* Creates a new updater. *)
   let processor = new Updater.updater child_db !use_exec_api !use_wikimedia_api
     trust_coeff !times_to_retry_trans each_event_delay every_n_events_delay in
   (* Brings the page up to date.  This will take care also of the page lock. *)
@@ -135,16 +138,15 @@ let process_page page_id =
 in
 
 
-(** [dispatch_page pages] -> unit.  Given a list [pages] of page_ids to
-    process, this function starts a new process which brings the page up
-    to date.
- *)
-let dispatch_page (pages : int list) =
+(** [dispatch_page pages] -> unit.  Given a list [pages] of [(page_id,
+    page_title)] to process, this function starts a new process which
+    brings the page up to date.  *)
+let dispatch_page (pages : (int * string) list) =
   (* Remove any finished processes from the list of active child processes. *)
   Hashtbl.iter check_subprocess_termination working_children;
     (* [launch_processing page]
        Given a page_id, forks a child which brings the page up to date. *)
-  let launch_processing page_id = begin
+  let launch_processing (page_id, page_title) = begin
     (* If the page is currently being processed, does nothing. *)
     if not (Hashtbl.mem working_children page_id) then begin
       let new_pid = Unix.fork () in
@@ -152,7 +154,7 @@ let dispatch_page (pages : int list) =
       | 0 -> begin
 	        logger#log (Printf.sprintf 
                         "I'm the child\n Running on page %d\n" page_id); 
-	        process_page page_id;
+	        process_page page_id page_title;
 	      end
       | _ -> begin
 	        logger#log (Printf.sprintf "Parent of pid %d\n" new_pid);  

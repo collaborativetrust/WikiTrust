@@ -297,13 +297,13 @@ class db :
     (* Server System. *)
 
   (** [fetch_work_from_queue max_to_get n_retries] gets the
-      list of page_ids that have to be brought up to date. 
+      list of page ids and titles that have to be brought up to date. 
       It also marks those pages as "processing", so that
       subsequent requests do not return the same revisions.  This code
       contains a transaction start / commit pair.  [max_to_get] is the
       maximum number of results to get; [n_retries] is the number of
       times the start / commit pair is used. *)
-    method fetch_work_from_queue : int -> int -> int list
+    method fetch_work_from_queue : int -> int -> (int * string) list
 
     (** [mark_page_to_process page_id page_title] specifies that a page must be brought
 	up to date, due to a vote or a new revision. *)
@@ -562,13 +562,13 @@ class db_exec_api :
     (* Server System. *)
 
   (** [fetch_work_from_queue max_to_get n_retries] gets the
-      list of page_ids that have to be brought up to date. 
+      list of page ids and titles that have to be brought up to date. 
       It also marks those pages as "processing", so that
       subsequent requests do not return the same revisions.  This code
       contains a transaction start / commit pair.  [max_to_get] is the
       maximum number of results to get; [n_retries] is the number of
       times the start / commit pair is used. *)
-    method fetch_work_from_queue : int -> int -> int list
+    method fetch_work_from_queue : int -> int -> (int * string) list
 
     (** [mark_page_to_process page_id page_title] specifies that a page must be brought
 	up to date, due to a vote or a new revision. *)

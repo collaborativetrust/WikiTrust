@@ -40,9 +40,8 @@ exception API_error_noretry
 val default_timestamp : string
 
 (**
-   [fetch_page_and_revs after page_title rev_date logger], given a [page_title] 
+   [fetch_page_and_revs after page_title rev_date], given a [page_title] 
    and a [rev_date], returns [rev_lim] revisions of [page_title] after [rev_date]. 
-   [logger] is, well, a logger.
    The return value, in detail, consists of: 
    * A page option, containing the page information.  This is present
      if anything else is present.
@@ -51,17 +50,17 @@ val default_timestamp : string
    See http://en.wikipedia.org/w/api.php for more details.
 *)
 val fetch_page_and_revs_after : string -> string -> int ->
-  Online_log.logger -> Online_db.db -> (Online_types.wiki_page_t option * 
+  Online_db.db -> (Online_types.wiki_page_t option * 
 			  Online_types.wiki_revision_t list * int option) 
 
-(** [get_user_id user_name logger] returns the user_id of user with name [user_name]. 
+(** [get_user_id user_name] returns the user_id of user with name [user_name]. 
     This involves querying the toolserver, which is usaually heavilly loaded,
     resulting in long responce times.
  *)
 val get_user_id : string -> Online_db.db -> int
 
 (**
-   [get_revs_from_api page_title last_timestamp db logger rev_lim] reads 
+   [get_revs_from_api page_title last_timestamp db rev_lim] reads 
    a group of rev_lim revisions of the given page from the Wikimedia API,
    stores them to disk, and returns:
    - an optional id of the next revision to read.  If None, then
@@ -69,5 +68,9 @@ val get_user_id : string -> Online_db.db -> int
    Raises API_error if the API is unreachable.
 *)
 val get_revs_from_api : string -> int -> 
-    Online_db.db -> Online_log.logger -> int ->
+    Online_db.db -> int ->
     int option
+
+(** Downloads all revisions of a page, given the title, and sticks them into the db. *)
+val download_page : Online_db.db -> string -> unit
+

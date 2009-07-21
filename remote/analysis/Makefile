@@ -77,9 +77,9 @@ OCAMLOPT_FLAGS=$(INCLUDES)
 # Here are the objects that we want to build. 
 # We need two lines of these, one for the debugging compilation,
 # one for the optimizing compilation. 
-OUR_ONLINE_OBJS = tmpfile.cmo wikipedia_api.cmo \
+OUR_ONLINE_OBJS = tmpfile.cmo wikipedia_api.cmo
 
-OUR_OPT_ONLINE_OBJS = tmpfile.cmx wikipedia_api.cmx \
+OUR_OPT_ONLINE_OBJS = tmpfile.cmx wikipedia_api.cmx
 
 downloadwp: $(OUR_ONLINE_OBJS) downloadwp.ml
 	$(OCAMLC) -linkpkg -o downloadwp $(OCAML_CFLAGS) $(OUR_LIBS) $(OUR_ONLINE_OBJS) downloadwp.ml 

@@ -52,6 +52,8 @@ let buf_len = 8192
 let requested_encoding_type = "gzip"
 let tmp_prefix = "wiki"
 let default_timestamp = "19700201000000"
+let logger = !Online_log.online_logger
+
 (* Regex to map from a mediawiki api timestamp to a mediawiki timestamp
    YYYY-MM-DDTHH:MM:SS
  *)
@@ -68,8 +70,6 @@ let api_ts2mw_ts s =
     ^ (Str.matched_group 6 s) 
   else default_timestamp in
   ts
-
-
 
 
 (** [get_url url] makes a get call to [url] and returns the result as a string. *)      
@@ -99,11 +99,12 @@ let get_url (url: string) : string =
 	with Not_found -> call#response_body#value
       end
     | _ -> raise API_error
-;;
+
 
 type result_tree =
   | JSON of Json_type.t
   | XML of Xml.xml
+
 
 let get_children (node: result_tree): (string * result_tree) list =
   match node with
@@ -119,7 +120,7 @@ let get_children (node: result_tree): (string * result_tree) list =
       let xmlify n = ((Xml.tag n), XML n) in
       List.map xmlify (Xml.children xnode)
     end
-;;
+
 
 (** [get_child node tag] returns the first child on [node] that has
     [tag], if there is one, or None if there is none. *)
@@ -128,7 +129,8 @@ let get_child (node: result_tree) (tag: string) : result_tree option =
   let rec find_first = function
       [] -> None
     | (k, v) :: rest -> if (k = tag) then Some v else find_first rest 
-  in find_first l;;
+  in find_first l
+
 
 (** [get_xml_hier node tag_list] returns the (leftmost) node reachable from
     [node] by [tag_list], if there is one, and None otherwise. *)
@@ -139,7 +141,8 @@ let rec get_descendant (node: result_tree) (tag_list: string list) : result_tree
       match get_child node t with
 	None -> None
       | Some n -> get_descendant n tl
-    end;;
+    end
+
 
 let get_property (node: result_tree) (key: string) (defval: string option): string =
   let default () : string =
@@ -169,7 +172,7 @@ let get_property (node: result_tree) (key: string) (defval: string option): stri
 	      in find_first proplist
 	  | _ -> raise API_error
       end
-;;
+
 
 let get_text (node: result_tree) : string =
   match node with
@@ -181,8 +184,6 @@ let get_text (node: result_tree) : string =
 	with Failure f -> ""
       end
     | JSON jnode -> (get_property node "*" None)
-;;
-
 
 
 (** [process_rev rev] takes as input a xml tag [rev], and returns 
@@ -205,8 +206,6 @@ let process_rev ((key, rev) : (string * result_tree)) : wiki_revision_t =
     revision_content = get_text rev;
   } 
   in r
-;;
-
 
 
 (** [process_page db page] takes as input a structure representing a page,
@@ -253,11 +252,10 @@ let process_page (db : Online_db.db) ((key, page): (string * result_tree))
 	let revlist = get_children rev_node in
 	let new_revs = List.map process_rev revlist in
 	(w_page, new_revs)
-  ;;
+
 
 let fetch_page_and_revs_after_xml (page_title : string) (rev_start_id : string)
-    (rev_lim: int) (logger : Online_log.logger)
-    : result_tree =
+    (rev_lim: int) : result_tree =
   let url = !Online_command_line.target_wikimedia 
     ^ "?action=query&prop=revisions|"
     ^ "info&format=xml&inprop=&rvprop=ids|flags|timestamp|user|size|comment|"
@@ -271,13 +269,10 @@ let fetch_page_and_revs_after_xml (page_title : string) (rev_start_id : string)
   let api = Xml.parse_string res in
   (* logger#log (Printf.sprintf "result: %s\n" res); *)
   XML api
-;;
 
 
 let fetch_page_and_revs_after_json (page_title : string)
-    (rev_start_id : string) (rev_lim: int)
-    (logger : Online_log.logger)
-    : result_tree =
+    (rev_start_id : string) (rev_lim: int) : result_tree =
   let url = !Online_command_line.target_wikimedia 
     ^ "?action=query&prop=revisions|"
     ^ "info&format=json&inprop=&rvprop=ids|flags|timestamp|user|size|comment|"
@@ -291,13 +286,12 @@ let fetch_page_and_revs_after_json (page_title : string)
   let api = Json_io.json_of_string res in
   (* logger#log (Printf.sprintf "result: %s\n" res); *)
   JSON api
-;;
 
 
 (**
-   [fetch_page_and_revs after page_title rev_start_id logger db], given a [page_title] 
+   [fetch_page_and_revs after page_title rev_start_id db], given a [page_title] 
    and a [rev_start_id], returns all the revisions of [page_title] after 
-   [rev_start_id].  [logger] is, well, a logger. 
+   [rev_start_id]. 
    It returns a triple, consisting of:
    - optional page info (if nothing is returned, then there is nothing to return)
    - list of revisions
@@ -306,9 +300,9 @@ let fetch_page_and_revs_after_json (page_title : string)
    See http://en.wikipedia.org/w/api.php for more details.
 *)
 let fetch_page_and_revs_after (page_title : string) (rev_start_id : string)
-    (rev_lim: int) (logger : Online_log.logger) (db : Online_db.db)
+    (rev_lim: int) (db : Online_db.db)
     : (wiki_page_t option * wiki_revision_t list * int option) =
-  let api = fetch_page_and_revs_after_json page_title rev_start_id rev_lim logger in
+  let api = fetch_page_and_revs_after_json page_title rev_start_id rev_lim in
   match get_descendant api ["query"; "pages"] with
     None -> (None, [], None)
   | Some pages -> begin
@@ -322,7 +316,6 @@ let fetch_page_and_revs_after (page_title : string) (rev_start_id : string)
 	    let next_rev_id = int_of_string (get_property rev_cont "rvstartid" None) in
 	    (Some page_info, rev_info, Some next_rev_id)
     end
-;;
 
 
 (** [get_user_id user_name db]   
@@ -343,11 +336,11 @@ let get_user_id (user_name: string) (db: Online_db.db) : int =
       db#write_user_id int_uid user_name;
       int_uid;
     end with int_of_string -> 0
-  end;;
+  end
 
 
 (**
-   [get_revs_from_api page_title last_id db logger 0] reads 
+   [get_revs_from_api page_title last_id db 0] reads 
    a group of revisions of the given page (usually something like
    50 revisions, see the Wikimedia API) from the Wikimedia API,
    stores them to disk, and returns:
@@ -356,14 +349,14 @@ let get_user_id (user_name: string) (db: Online_db.db) : int =
    Raises API_error if the API is unreachable.
 *)
 let rec get_revs_from_api (page_title: string) (last_id: int) 
-    (db: Online_db.db) (logger : Online_log.logger)
+    (db: Online_db.db)
     (rev_lim: int) : (int option) =
   try begin
-    if rev_lim = 0 then raise API_error
+    if rev_lim = 0 then raise API_error;
     logger#log (Printf.sprintf "Getting revs from api for page '%s'\n" page_title);
     (* Retrieve a page and revision list from mediawiki. *)
     let (wiki_page', wiki_revs, next_id) = 
-      fetch_page_and_revs_after page_title (string_of_int last_id) rev_lim logger db in  
+      fetch_page_and_revs_after page_title (string_of_int last_id) rev_lim db in  
     match wiki_page' with
       None -> None
     | Some wiki_page -> begin
@@ -386,8 +379,26 @@ let rec get_revs_from_api (page_title: string) (last_id: int)
     if rev_lim > 2 then begin
       logger#log (Printf.sprintf "Page load error for page %S. Trying again\n" page_title);
       Unix.sleep retry_delay_sec;
-      get_revs_from_api page_title last_id db logger (rev_lim / 2);
+      get_revs_from_api page_title last_id db (rev_lim / 2);
     end else raise API_error
   end
  | API_error_noretry -> raise API_error
-;;
+
+
+(** Downloads all revisions of a page, given the title, and sticks them into the db. *)
+let download_page (db: Online_db.db) (title: string) : unit = 
+  let rec download_page_helper title last_rev =
+    let next_rev = get_revs_from_api title last_rev db 50 in 
+    let _ = Unix.sleep sleep_time_sec in
+    match next_rev with
+      Some next_id -> begin
+	logger#log (Printf.sprintf "Loading next batch: %s -> %d\n" title next_id);
+	download_page_helper title next_id
+      end
+    | None -> ()
+  in
+  let lastid =
+    try
+      db#get_latest_rev_id title
+    with Online_db.DB_Not_Found -> 0
+  in download_page_helper title lastid

@@ -31,11 +31,14 @@
 
 all: 
 	cd analysis; make all; cp eval_online_wiki .. ; cp vote_revision ..
+	cd remote/analysis; make all
 
 allopt: 
 	cd analysis; make allopt; cp eval_online_wiki .. ; cp vote_revision ..
+	cd remote/analysis; make allopt
 
 clean:
 	cd analysis; make clean
 	rm -f eval_online_wiki vote_revision
+	cd remote/analysis; make clean
 
