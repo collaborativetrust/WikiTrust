@@ -77,7 +77,8 @@ let mediawiki_db = {
 }
 
 (* Sets up the db *)
-let db = new Online_db.db !db_prefix mediawiki_db 
+let mediawiki_dbh = Mysql.connect mediawiki_db in
+let db = new Online_db.db !db_prefix mediawiki_dbh !mw_db_name
   !wt_db_rev_base_path !wt_db_sig_base_path !wt_db_colored_base_path 
   !dump_db_calls !use_exec_api in
 let logger = !Online_log.online_logger in
@@ -119,7 +120,8 @@ in
     with [page_id] as id. *)
 let process_page page_id = 
   (* Every child has their own db. *)
-  let child_db = new Online_db.db !db_prefix mediawiki_db 
+  let child_dbh = Mysql.connect mediawiki_db in 
+  let child_db = new Online_db.db !db_prefix child_dbh !mw_db_name
     !wt_db_rev_base_path !wt_db_sig_base_path !wt_db_colored_base_path 
     !dump_db_calls in
   (* And a new updater. *)

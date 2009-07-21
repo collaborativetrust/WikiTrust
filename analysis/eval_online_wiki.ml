@@ -87,7 +87,8 @@ let mediawiki_db = {
 
 (* Here begins the sequential code *)
 
-let db = new Online_db.db !db_prefix mediawiki_db 
+let mediawiki_dbh = Mysql.connect mediawiki_db in 
+let db = new Online_db.db !db_prefix mediawiki_dbh !mw_db_name
   !wt_db_rev_base_path !wt_db_sig_base_path !wt_db_colored_base_path 
   !dump_db_calls in 
 

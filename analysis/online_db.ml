@@ -100,20 +100,13 @@ type vote_t = {
 
 class db  
   (db_prefix : string)
-  (db_mediawiki : Mysql.db)
+  (mediawiki_dbh : Mysql.dbd)
+  (db_name: string)
   (rev_base_path: string option)
   (sig_base_path: string option)
   (colored_base_path: string option)
   (debug_mode : bool) =
   
-  (* DB handle *)
-  let mediawiki_dbh = Mysql.connect db_mediawiki in
-  (* name used for locking *)
-  let wikitrust_database = begin 
-    match db_mediawiki.dbname with 
-      Some x -> x
-    | None -> "wikitrust"
-  end in 
   
 object(self)
 
@@ -141,7 +134,7 @@ object(self)
       mutual exclusion on the updates for page [page_id].  The lock is waited for at 
       most time [timeout] seconds.  The function returns [true] if the lock was acquired. *)
   method get_page_lock (page_id: int) (timeout: int) : bool = 
-    let lock_name = Printf.sprintf "%s.%swikitrust_page.%d" wikitrust_database db_prefix page_id in 
+    let lock_name = Printf.sprintf "%s.%swikitrust_page.%d" db_name db_prefix page_id in 
     let s = Printf.sprintf "SELECT GET_LOCK(%s,%s)" (ml2str lock_name) (ml2int timeout) in 
     match fetch (self#db_exec mediawiki_dbh s) with 
       None -> raise DB_Internal_Error
@@ -151,7 +144,7 @@ object(self)
       (there is no guarantee that somebody does not lock the page between this test and a 
       subsequent call to [get_page_lock]. *)
   method is_page_lock_free (page_id: int) : bool = 
-    let lock_name = Printf.sprintf "%s.%swikitrust_page.%d" wikitrust_database db_prefix page_id in 
+    let lock_name = Printf.sprintf "%s.%swikitrust_page.%d" db_name db_prefix page_id in 
     let s = Printf.sprintf "SELECT IS_FREE_LOCK(%s)" (ml2str lock_name) in 
     match fetch (self#db_exec mediawiki_dbh s) with 
       None -> raise DB_Internal_Error
@@ -160,7 +153,7 @@ object(self)
   (** [release_page_lock page_id] releases the lock for page [page_id], to guarantee 
       mutual exclusion on the updates for page [page_id]. *)
   method release_page_lock (page_id: int) : unit = 
-    let lock_name = Printf.sprintf "%s.%swikitrust_page.%d" wikitrust_database db_prefix page_id in 
+    let lock_name = Printf.sprintf "%s.%swikitrust_page.%d" db_name db_prefix page_id in 
     let s = Printf.sprintf "SELECT RELEASE_LOCK(%s)" (ml2str lock_name) in 
     ignore (self#db_exec mediawiki_dbh s)
 
@@ -723,7 +716,7 @@ object(self)
         ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_revision"));
         ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_colored_markup"));
         ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_sigs"));
-        ignore (self#db_exec wikitrust_dbh (add_prefix "TRUNCATE TABLE %swikitrust_user")); 
+        ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_user")); 
         ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_queue")); 
         ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_text_cache")); 
 	ignore (self#db_exec mediawiki_dbh (add_prefix "UPDATE %swikitrust_vote SET processed = FALSE")); 
@@ -747,3 +740,41 @@ object(self)
 	
 end;; (* online_db *)
 
+(** This class extends the classical db class by using the executable api to 
+    get the data from the db. *)
+class db_exec_api
+  (db_prefix : string)
+  (mediawiki_dbh : Mysql.dbd)
+  (db_name: string)
+  (rev_base_path: string option)
+  (sig_base_path: string option)
+  (colored_base_path: string option)
+  (debug_mode : bool) =
+  
+object(self)
+  inherit db db_prefix mediawiki_dbh db_name rev_base_path sig_base_path colored_base_path debug_mode
+    as super 
+
+  (** [get_rev_text page_id text_id] returns the text associated with text id [text_id].
+      This method first tries to read the revision text from the cache.  If it does not
+      succeed, it reads it from the exec api.  *)
+  method read_rev_text (page_id: int) (rev_id: int) (text_id: int) : string =
+    let s = Printf.sprintf "SELECT revision_text FROM %swikitrust_text_cache WHERE revision_id = %s"
+      db_prefix (ml2int rev_id) in 
+    let result = self#db_exec mediawiki_dbh s in
+    match Mysql.fetch result with 
+      None -> begin 
+	(* Tries to read the revision using the exec API *)
+	(* ---complete--- For now I am reading from the db as usual. *)
+	super#read_rev_text page_id rev_id text_id
+      end
+    | Some r -> not_null str2ml r.(0)
+
+  (**  [fetch_all_revs_after] is like the superclass method, except that it
+       uses the exec api to read the revisions. *)
+  method fetch_all_revs_after (req_page_id: int option) (req_rev_id: int option) 
+    (timestamp : string) (rev_id: int) (max_revs_to_return: int) : revision_t list =  
+    (* For now it just uses the super method. *)
+    super#fetch_all_revs_after req_rev_id req_rev_id timestamp rev_id max_revs_to_return
+
+end (* class db_exec_api *)
