@@ -78,9 +78,8 @@ let mediawiki_db = {
 
 (* Sets up the db *)
 let mediawiki_dbh = Mysql.connect mediawiki_db in
-let db = new Online_db.db !db_prefix mediawiki_dbh !mw_db_name
-  !wt_db_rev_base_path !wt_db_sig_base_path !wt_db_colored_base_path 
-  !dump_db_calls in
+let db = Online_db.create_db !use_exec_api !db_prefix mediawiki_dbh !mw_db_name
+  !wt_db_rev_base_path !wt_db_sig_base_path !wt_db_colored_base_path !dump_db_calls in
 let logger = !Online_log.online_logger in
 let trust_coeff = Online_types.get_default_coeff in
 
@@ -121,14 +120,13 @@ in
 let process_page (page_id: int) (page_title: string) = 
   (* Every child has their own db. *)
   let child_dbh = Mysql.connect mediawiki_db in 
-  let child_db = new Online_db.db !db_prefix child_dbh !mw_db_name
-    !wt_db_rev_base_path !wt_db_sig_base_path !wt_db_colored_base_path 
-    !dump_db_calls in
+  let child_db = Online_db.create_db !use_exec_api !db_prefix child_dbh !mw_db_name
+    !wt_db_rev_base_path !wt_db_sig_base_path !wt_db_colored_base_path !dump_db_calls in
   (* If I am using the WikiMedia API, I need to first download any new
      revisions of the page. *)
   if !use_wikimedia_api then Wikipedia_api.download_page child_db page_title;
   (* Creates a new updater. *)
-  let processor = new Updater.updater child_db !use_exec_api !use_wikimedia_api
+  let processor = new Updater.updater child_db
     trust_coeff !times_to_retry_trans each_event_delay every_n_events_delay in
   (* Brings the page up to date.  This will take care also of the page lock. *)
   processor#update_page page_id;

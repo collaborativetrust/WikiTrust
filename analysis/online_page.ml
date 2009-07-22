@@ -697,6 +697,7 @@ class page
       let rev0_uname = rev0#get_user_name in 
       let rev0_t = rev0#get_words in 
       let rev0_time = rev0#get_time in 
+      let rev0_time_string = rev0#get_time_string in 
       let rev0_l = Array.length rev0_t in 
       let rev0_seps = rev0#get_seps in 
 
@@ -891,9 +892,14 @@ class page
 	rev0#set_author new_author_10_a.(0);
 	rev0#set_sigs   new_sigs_10_a.(0);
 	rev0#write_words_trust_origin_sigs;
-	(* Computes the overall trust of the revision *)
+	(* Now that the colored revision is written out to disk, we don't need
+	   any more its uncolored text.   If we are using the exec_api, 
+	   we erase from the disk cache the text of all previous
+	   revisions for the same page. *)
+	db#erase_cached_rev_text page_id rev0_id rev0_time_string;
+	(* Computes the overall trust of the revision. *)
 	let t = Compute_robust_trust.compute_overall_trust new_trust_10_a.(0) in 
-	rev0#set_overall_trust t
+	rev0#set_overall_trust t  
       end (* method compute_trust *)
 
 

@@ -36,7 +36,7 @@ POSSIBILITY OF SUCH DAMAGE.
 open Online_command_line
 open Online_types
 
-(* evry batch corresponds to 50 revisions, so this will do 1000 at most. *)
+(* Every batch corresponds to 50 revisions, so this will do 1000 at most. *)
 let max_batches_to_do = 20
 let max_concurrent_procs = 10
 let sleep_time_sec = 1
@@ -55,8 +55,9 @@ let mediawiki_db = {
 }
 
 (* Sets up the db *)
+(* Note that here it does not make sense to use the wikipedia API *)
 let mediawiki_dbh = Mysql.connect mediawiki_db in 
-let db = new Online_db.db !db_prefix mediawiki_dbh !mw_db_name
+let db = Online_db.create_db false !db_prefix mediawiki_dbh !mw_db_name
   !wt_db_rev_base_path !wt_db_sig_base_path !wt_db_colored_base_path 
   !dump_db_calls in
 

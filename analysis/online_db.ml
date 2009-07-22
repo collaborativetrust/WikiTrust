@@ -649,6 +649,11 @@ object(self)
     !results
 
 
+  (** [erase_cached_rev_text page_id rev_id rev_time_string] does nothing; 
+      it does something only in the subclass that uses the exec api. *)
+  method erase_cached_rev_text (page_id: int) (rev_id: int) (rev_time_string: string) : unit = ()
+
+
   (* ================================================================ *)
   (* WikiMedia Api *)
 
@@ -772,6 +777,14 @@ object(self)
       end
     | Some r -> not_null str2ml r.(0)
 
+
+  (** [erase_cached_rev_text page_id rev_id rev_time_string] erases the cached text of all
+      revisions of [page_id] prior and including the ones for [rev_id] and [rev_time_string]. *)
+  method erase_cached_rev_text (page_id: int) (rev_id: int) (rev_time_string: string) : unit =
+    let s = Printf.sprintf "DELETE FROM %swikitrust_text_cache WHERE page_id = %s AND (time_string, revision_id) <= (%s, %s)" db_prefix (ml2int page_id) (ml2str rev_time_string) (ml2int rev_id) in
+    ignore (self#db_exec mediawiki_dbh s)
+
+
   (**  [fetch_all_revs_after] is like the superclass method, except that it
        uses the exec api to read the revisions. *)
   method fetch_all_revs_after (req_page_id: int option) (req_rev_id: int option) 
@@ -780,3 +793,21 @@ object(self)
     super#fetch_all_revs_after req_rev_id req_rev_id timestamp rev_id max_revs_to_return
 
 end (* class db_exec_api *)
+
+
+(** This function returns a db of the appropriate type, according to whether we are using the
+    exec api or not. *)
+let create_db 
+    (use_exec_api: bool)
+    (db_prefix : string)
+    (mediawiki_dbh : Mysql.dbd)
+    (db_name: string)
+    (rev_base_path: string option)
+    (sig_base_path: string option)
+    (colored_base_path: string option)
+    (debug_mode : bool) =
+  if use_exec_api
+  then new db db_prefix mediawiki_dbh db_name 
+    rev_base_path sig_base_path colored_base_path debug_mode
+  else new db_exec_api db_prefix mediawiki_dbh db_name 
+    rev_base_path sig_base_path colored_base_path debug_mode

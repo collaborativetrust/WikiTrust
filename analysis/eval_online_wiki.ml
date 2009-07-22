@@ -88,9 +88,9 @@ let mediawiki_db = {
 (* Here begins the sequential code *)
 
 let mediawiki_dbh = Mysql.connect mediawiki_db in 
-let db = new Online_db.db !db_prefix mediawiki_dbh !mw_db_name
+let db = Online_db.create_db !use_exec_api !db_prefix mediawiki_dbh !mw_db_name
   !wt_db_rev_base_path !wt_db_sig_base_path !wt_db_colored_base_path 
-  !dump_db_calls in 
+  !dump_db_calls in
 
 (* If requested, we erase all coloring, and we recompute it from scratch. *)
 if !delete_all then begin 
@@ -100,8 +100,7 @@ end;
 
 (* Creates an event processor *)
 let processor = new Updater.updater 
-  db !use_exec_api !use_wikimedia_api 
-  trust_coeff !times_to_retry_trans each_event_delay every_n_events_delay in
+  db trust_coeff !times_to_retry_trans each_event_delay every_n_events_delay in
 
 (* Processes the event, as requested. *)
 begin

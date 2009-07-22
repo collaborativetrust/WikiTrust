@@ -57,8 +57,6 @@ open Mysql;;
 
 class updater
   (db: Online_db.db) 
-  (use_exec_api: bool)
-  (use_wikimedia_api: bool)
   (trust_coeff: Online_types.trust_coeff_t)
   (n_retries: int)
   (each_event_delay: int)
@@ -297,8 +295,7 @@ class updater
       if got_it then begin
 	try 
 	  (* Creates a feed for the page events. *)
-	  let feed = new Event_feed.event_feed db use_exec_api use_wikimedia_api
-	    (Some page_id) None n_retries in
+	  let feed = new Event_feed.event_feed db (Some page_id) None n_retries in
 	  self#process_page_feed feed;
 	  db#release_page_lock page_id
 	with e -> begin
@@ -312,8 +309,7 @@ class updater
 	in global chronological order. *)
     method update_global : unit =
       (* Creates a feed for the page events. *)
-      let feed = new Event_feed.event_feed db use_exec_api use_wikimedia_api 
-	None None n_retries in
+      let feed = new Event_feed.event_feed db None None n_retries in
       self#process_feed feed
 
 
