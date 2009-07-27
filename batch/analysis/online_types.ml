@@ -249,7 +249,7 @@ type wiki_page_t = {
   page_touched : string; 
   page_latest : int;
   page_len : int
-}
+} with sexp
 
 type wiki_revision_t = {
   revision_id : int;
@@ -264,4 +264,4 @@ type wiki_revision_t = {
   revision_len : int;
   revision_parent_id : int;
   revision_content : string;
-}
+} with sexp

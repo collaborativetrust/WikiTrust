@@ -53,6 +53,9 @@ exception DB_Internal_Error
 (* Commit failed, or other database error that may have to cause a rollback. *)
 exception DB_TXN_Bad
 
+(* ExecAPI failed *)
+exception DB_Exec_Error
+
 (* This is the function that sexplib uses to convert floats *)
 Sexplib.Conv.default_string_of_float := (fun n -> sprintf "%.3f" n);;
 
@@ -97,12 +100,12 @@ type vote_t = {
 (** [get_cmd_output cmdline] returns the output from an external command.
     An exception is thrown if there is a problem.  *)
 let get_cmd_output (cmdline: string) : string =
-  let stdout = Unix.open_process_in cmdline in 
+  let cmdout = Unix.open_process_in cmdline in 
   let bufSize = 8192 in
   let buf = String.create bufSize in
   let completeFile = Buffer.create bufSize in
   let rec loop () =
-    let chunkLen = input stdout buf 0 bufSize in
+    let chunkLen = input cmdout buf 0 bufSize in
     if (chunkLen > 0) then begin
       let actualChunk = String.sub buf 0 chunkLen in
       Buffer.add_string completeFile actualChunk;
@@ -113,8 +116,10 @@ let get_cmd_output (cmdline: string) : string =
     try
       loop ()
     with End_of_file -> begin
-      ignore (Unix.close_process_in stdout);
-      Buffer.contents completeFile
+      let status = Unix.close_process_in cmdout in
+      match status with
+        | Unix.WEXITED 0 -> Buffer.contents completeFile
+        | _ -> raise DB_Exec_Error
     end
   end
 
@@ -799,6 +804,10 @@ object(self)
 	(* Tries to read the revision using the exec API *)
 	(* ---complete--- For now I am reading from the db as usual. *)
 	super#read_rev_text page_id rev_id text_id
+	(* TODO(Bo): need to switch to true execAPI
+	 * let cmdline = Printf.sprintf "%sread_rev_text -log_file /dev/null -rev_id %d" "" rev_id in
+	 * get_cmd_output cmdline
+	 *)
       end
     | Some r -> not_null str2ml r.(0)
 

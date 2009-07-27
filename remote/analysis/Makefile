@@ -76,9 +76,9 @@ OCAMLOPT_FLAGS=$(INCLUDES)
 
 universe: all allopt
 
-all: downloadwp dispatcher read_rev_text
+all: downloadwp dispatcher read_rev_text fetch_all_revs_after
 
-allopt: downloadwpopt dispatcheropt
+allopt: downloadwpopt dispatcheropt read_rev_textopt fetch_all_revs_afteropt
 
 # Here are the objects that we want to build. 
 # We need two lines of these, one for the debugging compilation,
@@ -99,6 +99,11 @@ read_rev_text: $(OUR_ONLINE_OBJS) read_rev_text.ml
 read_rev_textopt: $(OUR_OPT_ONLINE_OBJS) read_rev_text.ml
 	$(OCAMLOPT) -linkpkg -o read_rev_text $(OCAMLOPT_FLAGS) $(OUR_LIBS_OPT) $(OUR_OPT_ONLINE_OBJS) read_rev_text.ml
 
+fetch_all_revs_after: $(OUR_ONLINE_OBJS) fetch_all_revs_after.ml
+	$(OCAMLC) -linkpkg -o fetch_all_revs_after $(OCAML_CFLAGS) $(OUR_LIBS) $(OUR_ONLINE_OBJS) fetch_all_revs_after.ml 
+
+fetch_all_revs_afteropt: $(OUR_OPT_ONLINE_OBJS) fetch_all_revs_after.ml
+	$(OCAMLOPT) -linkpkg -o fetch_all_revs_after $(OCAMLOPT_FLAGS) $(OUR_LIBS_OPT) $(OUR_OPT_ONLINE_OBJS) fetch_all_revs_after.ml
 
 dispatcher: $(OUR_ONLINE_OBJS) 	
 	$(OCAMLC) -linkpkg -o dispatcher $(OCAML_CFLAGS) $(OUR_LIBS) $(OUR_ONLINE_OBJS) server_coloring_dispatcher.ml 
