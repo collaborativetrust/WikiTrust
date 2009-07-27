@@ -52,7 +52,8 @@ let buf_len = 8192
 let requested_encoding_type = "gzip"
 let tmp_prefix = "wiki"
 let default_timestamp = "19700201000000"
-let logger = !Online_log.online_logger
+
+let logger = Online_log.online_logger
 
 (* Regex to map from a mediawiki api timestamp to a mediawiki timestamp
    YYYY-MM-DDTHH:MM:SS
@@ -264,7 +265,7 @@ let fetch_page_and_revs_after_xml (selector : string) : result_tree =
     ^ "&format=xml&inprop=&rvprop=ids|flags|timestamp|user|size|comment|content"
     (* ^ "rvexpandtemplates=1&"   -- even =0 triggers template expansion! *)
     ^ "&" ^ selector in
-  logger#log (Printf.sprintf "getting url: %s\n" url);
+  !logger#log (Printf.sprintf "getting url: %s\n" url);
   let res = get_url url in
   let api = Xml.parse_string res in
   (* logger#log (Printf.sprintf "result: %s\n" res); *)
@@ -278,7 +279,7 @@ let fetch_page_and_revs_after_json (selector : string) : result_tree =
     ^ "content&"
     (* ^ "rvexpandtemplates=1&"   -- even =0 triggers template expansion! *)
     ^ "&" ^ selector in
-  logger#log (Printf.sprintf "getting url: %s\n" url);
+  !logger#log (Printf.sprintf "getting url: %s\n" url);
   let res = get_url url in
   let api = Json_io.json_of_string res in
   (* logger#log (Printf.sprintf "result: %s\n" res); *)
@@ -349,7 +350,7 @@ let rec get_revs_from_api (page_title: string) (last_id: int)
     (rev_lim: int) : (int option) =
   try begin
     if rev_lim = 0 then raise API_error;
-    logger#log (Printf.sprintf "Getting revs from api for page '%s'\n" page_title);
+    !logger#log (Printf.sprintf "Getting revs from api for page '%s'\n" page_title);
     (* Retrieve a page and revision list from mediawiki. *)
     let (wiki_page', wiki_revs, next_id) = 
       let selector = title_selector page_title last_id rev_lim in
@@ -370,7 +371,7 @@ let rec get_revs_from_api (page_title: string) (last_id: int)
 	  with Online_db.DB_Not_Found -> wiki_page.page_title
 	in
 	(* Write the updated or new page info to the page table. *)
-	logger#log (Printf.sprintf "Got page titled %S\n" the_page_title);
+	!logger#log (Printf.sprintf "Got page titled %S\n" the_page_title);
 	(* Write the new page to the page table. *)
 	db#write_page wiki_page;
 	(* Writes the revisions to the db. *)
@@ -378,7 +379,7 @@ let rec get_revs_from_api (page_title: string) (last_id: int)
 	  rev.revision_page <- wiki_page.page_id;
 	  (* User ids are not given by the api, so we have to use the toolserver. *)
 	  rev.revision_user <- (get_user_id rev.revision_user_text db);
-	  logger#log (Printf.sprintf "Writing to db revision %d.\n" rev.revision_id);
+	  !logger#log (Printf.sprintf "Writing to db revision %d.\n" rev.revision_id);
 	  db#write_revision rev
 	in List.iter update_and_write_rev wiki_revs;
 	(* Finally, return the next id to read *)
@@ -386,7 +387,7 @@ let rec get_revs_from_api (page_title: string) (last_id: int)
       end
   end with API_error -> begin
     if rev_lim > 2 then begin
-      logger#log (Printf.sprintf "Page load error for page %S. Trying again\n" page_title);
+      !logger#log (Printf.sprintf "Page load error for page %S. Trying again\n" page_title);
       Unix.sleep retry_delay_sec;
       get_revs_from_api page_title last_id db (rev_lim / 2);
     end else raise API_error
@@ -401,7 +402,7 @@ let download_page (db: Online_db.db) (title: string) : unit =
     let _ = Unix.sleep sleep_time_sec in
     match next_rev with
       Some next_id -> begin
-	logger#log (Printf.sprintf "Loading next batch: %s -> %d\n" title next_id);
+	!logger#log (Printf.sprintf "Loading next batch: %s -> %d\n" title next_id);
 	download_page_helper title next_id
       end
     | None -> ()
@@ -425,13 +426,13 @@ let rec get_revs_from_pageid (page_id: int) (last_id: int) (rev_lim: int)
     : (wiki_page_t option * wiki_revision_t list * int option) =
   try begin
     if rev_lim = 0 then raise API_error;
-    logger#log (Printf.sprintf "Getting revs from api for page '%d'\n" page_id);
+    !logger#log (Printf.sprintf "Getting revs from api for page '%d'\n" page_id);
     (* Retrieve a page and revision list from mediawiki. *)
     let selector = page_selector page_id last_id rev_lim in
     fetch_page_and_revs_after selector
   end with API_error -> begin
     if rev_lim > 2 then begin
-      logger#log (Printf.sprintf "Page load error for page %d. Trying again\n" page_id);
+      !logger#log (Printf.sprintf "Page load error for page %d. Trying again\n" page_id);
       Unix.sleep retry_delay_sec;
       get_revs_from_pageid page_id last_id (rev_lim / 2);
     end else raise API_error
@@ -450,7 +451,7 @@ let rec get_revs_from_pageid (page_id: int) (last_id: int) (rev_lim: int)
 let rec get_rev_from_revid (rev_id: int)
     : (wiki_page_t option * wiki_revision_t list * int option) =
   begin
-    logger#log (Printf.sprintf "Getting rev from api for revid '%d'\n" rev_id);
+    !logger#log (Printf.sprintf "Getting rev from api for revid '%d'\n" rev_id);
     (* Retrieve a page and revision list from mediawiki. *)
     let selector = rev_selector rev_id in
     fetch_page_and_revs_after selector
