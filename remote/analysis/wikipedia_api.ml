@@ -208,32 +208,20 @@ let process_rev ((key, rev) : (string * result_tree)) : wiki_revision_t =
   in r
 
 
-(** [process_page db page] takes as input a structure representing a page,
+(** [process_page page] takes as input a structure representing a page,
     and returns a pair consisting of a wiki_page_t structure, and a 
     list of corresponding wiki_revision_t. 
    *)
-let process_page (db : Online_db.db) ((key, page): (string * result_tree))
+let process_page ((key, page): (string * result_tree))
 	: (wiki_page_t * wiki_revision_t list) =
   let spaces2underscores str = Str.global_replace (Str.regexp " ") "_" str in
   let redirect_attr = get_property page "redirect" (Some "") in
-  let api_page = int_of_string (get_property page "pageid" None) in
+  let api_pageid = int_of_string (get_property page "pageid" None) in
   let api_title = spaces2underscores (get_property page "title" None) in
-  let the_page_id = try
-	let db_pageid = db#get_page_id api_title in
-	if db_pageid <> api_page then raise API_error_noretry
-	else api_page
-      with Online_db.DB_Not_Found -> api_page
-  in
-  let the_page_title = try
-	let db_pagetitle = db#get_page_title the_page_id in
-	if db_pagetitle <> api_title then raise API_error_noretry
-	else api_title
-      with Online_db.DB_Not_Found -> api_title
-  in
   let w_page = {
-    page_id = the_page_id;
+    page_id = api_pageid;
     page_namespace = int_of_string (get_property page "ns" None);
-    page_title = the_page_title;
+    page_title = api_title;
     page_restrictions = "";
     page_counter = int_of_string (get_property page "counter" None);
     page_is_redirect = if redirect_attr = "" then false
@@ -253,17 +241,29 @@ let process_page (db : Online_db.db) ((key, page): (string * result_tree))
 	let new_revs = List.map process_rev revlist in
 	(w_page, new_revs)
 
-
-let fetch_page_and_revs_after_xml (page_title : string) (rev_start_id : string)
-    (rev_lim: int) : result_tree =
-  let url = !Online_command_line.target_wikimedia 
-    ^ "?action=query&prop=revisions|"
-    ^ "info&format=xml&inprop=&rvprop=ids|flags|timestamp|user|size|comment|"
-    ^ "content&"
-    (* ^ "rvexpandtemplates=1&"   -- even =0 triggers template expansion! *)
-    ^ "rvstartid=" ^ rev_start_id
+let title_selector (page_title : string) (rev_start_id : int)
+		(rev_lim : int) : string =
+    "titles=" ^ (Netencoding.Url.encode page_title)
+    ^ "&rvdir=newer"
+    ^ "&rvstartid=" ^ (string_of_int rev_start_id)
     ^ "&rvlimit=" ^ (string_of_int rev_lim)
-    ^ "&rvdir=newer&titles=" ^ (Netencoding.Url.encode page_title) in
+
+let page_selector (page_id : int) (rev_start_id : int)
+		(rev_lim : int) : string =
+    "pageids=" ^ (Netencoding.Url.encode (string_of_int page_id))
+    ^ "&rvdir=newer"
+    ^ "&rvstartid=" ^ (string_of_int rev_start_id)
+    ^ "&rvlimit=" ^ (string_of_int rev_lim)
+
+let rev_selector (rev_id : int) : string =
+    "revids=" ^ (Netencoding.Url.encode (string_of_int rev_id))
+
+let fetch_page_and_revs_after_xml (selector : string) : result_tree =
+  let url = !Online_command_line.target_wikimedia 
+    ^ "?action=query&prop=revisions|info"
+    ^ "&format=xml&inprop=&rvprop=ids|flags|timestamp|user|size|comment|content"
+    (* ^ "rvexpandtemplates=1&"   -- even =0 triggers template expansion! *)
+    ^ "&" ^ selector in
   logger#log (Printf.sprintf "getting url: %s\n" url);
   let res = get_url url in
   let api = Xml.parse_string res in
@@ -271,16 +271,13 @@ let fetch_page_and_revs_after_xml (page_title : string) (rev_start_id : string)
   XML api
 
 
-let fetch_page_and_revs_after_json (page_title : string)
-    (rev_start_id : string) (rev_lim: int) : result_tree =
+let fetch_page_and_revs_after_json (selector : string) : result_tree =
   let url = !Online_command_line.target_wikimedia 
     ^ "?action=query&prop=revisions|"
     ^ "info&format=json&inprop=&rvprop=ids|flags|timestamp|user|size|comment|"
     ^ "content&"
     (* ^ "rvexpandtemplates=1&"   -- even =0 triggers template expansion! *)
-    ^ "rvstartid=" ^ rev_start_id
-    ^ "&rvlimit=" ^ (string_of_int rev_lim)
-    ^ "&rvdir=newer&titles=" ^ (Netencoding.Url.encode page_title) in
+    ^ "&" ^ selector in
   logger#log (Printf.sprintf "getting url: %s\n" url);
   let res = get_url url in
   let api = Json_io.json_of_string res in
@@ -289,8 +286,8 @@ let fetch_page_and_revs_after_json (page_title : string)
 
 
 (**
-   [fetch_page_and_revs after page_title rev_start_id db], given a [page_title] 
-   and a [rev_start_id], returns all the revisions of [page_title] after 
+   [fetch_page_and_revs after selector rev_start_id db], given a [selector] 
+   and a [rev_start_id], returns all the revisions of [selector] after 
    [rev_start_id]. 
    It returns a triple, consisting of:
    - optional page info (if nothing is returned, then there is nothing to return)
@@ -299,16 +296,15 @@ let fetch_page_and_revs_after_json (page_title : string)
      there are no more revisions.
    See http://en.wikipedia.org/w/api.php for more details.
 *)
-let fetch_page_and_revs_after (page_title : string) (rev_start_id : string)
-    (rev_lim: int) (db : Online_db.db)
-    : (wiki_page_t option * wiki_revision_t list * int option) =
-  let api = fetch_page_and_revs_after_json page_title rev_start_id rev_lim in
+let fetch_page_and_revs_after (selector : string)
+	    : (wiki_page_t option * wiki_revision_t list * int option) =
+  let api = fetch_page_and_revs_after_json selector in
   match get_descendant api ["query"; "pages"] with
     None -> (None, [], None)
   | Some pages -> begin
       let pagelist = get_children pages in
       let first = List.hd pagelist in
-      let (page_info, rev_info) = process_page db first in
+      let (page_info, rev_info) = process_page first in
       let nextrev = get_descendant api ["query-continue"; "revisions"] in
       match nextrev with
 	  None -> (Some page_info, rev_info, None)
@@ -356,12 +352,25 @@ let rec get_revs_from_api (page_title: string) (last_id: int)
     logger#log (Printf.sprintf "Getting revs from api for page '%s'\n" page_title);
     (* Retrieve a page and revision list from mediawiki. *)
     let (wiki_page', wiki_revs, next_id) = 
-      fetch_page_and_revs_after page_title (string_of_int last_id) rev_lim db in  
+      let selector = title_selector page_title last_id rev_lim in
+      fetch_page_and_revs_after selector in  
     match wiki_page' with
       None -> None
     | Some wiki_page -> begin
+	let the_page_id = try
+	    let db_pageid = db#get_page_id wiki_page.page_title in
+	    if db_pageid <> wiki_page.page_id then raise API_error_noretry
+	    else wiki_page.page_id
+	  with Online_db.DB_Not_Found -> wiki_page.page_id
+	in
+	let the_page_title = try
+	    let db_pagetitle = db#get_page_title the_page_id in
+	    if db_pagetitle <> wiki_page.page_title then raise API_error_noretry
+	    else wiki_page.page_title
+	  with Online_db.DB_Not_Found -> wiki_page.page_title
+	in
 	(* Write the updated or new page info to the page table. *)
-	logger#log (Printf.sprintf "Got page titled %S\n" wiki_page.page_title);
+	logger#log (Printf.sprintf "Got page titled %S\n" the_page_title);
 	(* Write the new page to the page table. *)
 	db#write_page wiki_page;
 	(* Writes the revisions to the db. *)
@@ -402,3 +411,48 @@ let download_page (db: Online_db.db) (title: string) : unit =
       db#get_latest_rev_id title
     with Online_db.DB_Not_Found -> 0
   in download_page_helper title lastid
+
+(**
+   [get_revs_from_pageid page_id last_id 50] reads 
+   a group of revisions of the given page (usually something like
+   50 revisions, see the Wikimedia API) from the Wikimedia API,
+   stores them to disk, and returns:
+   - an optional id of the next revision to read.  Is None, then
+     all revisions of the page have been read.
+   Raises API_error if the API is unreachable.
+*)
+let rec get_revs_from_pageid (page_id: int) (last_id: int) (rev_lim: int)
+    : (wiki_page_t option * wiki_revision_t list * int option) =
+  try begin
+    if rev_lim = 0 then raise API_error;
+    logger#log (Printf.sprintf "Getting revs from api for page '%d'\n" page_id);
+    (* Retrieve a page and revision list from mediawiki. *)
+    let selector = page_selector page_id last_id rev_lim in
+    fetch_page_and_revs_after selector
+  end with API_error -> begin
+    if rev_lim > 2 then begin
+      logger#log (Printf.sprintf "Page load error for page %d. Trying again\n" page_id);
+      Unix.sleep retry_delay_sec;
+      get_revs_from_pageid page_id last_id (rev_lim / 2);
+    end else raise API_error
+  end
+ | API_error_noretry -> raise API_error
+
+(**
+   [get_rev_from_revid rev_id] reads 
+   a group of revisions of the given page (usually something like
+   50 revisions, see the Wikimedia API) from the Wikimedia API,
+   stores them to disk, and returns:
+   - an optional id of the next revision to read.  Is None, then
+     all revisions of the page have been read.
+   Raises API_error if the API is unreachable.
+*)
+let rec get_rev_from_revid (rev_id: int)
+    : (wiki_page_t option * wiki_revision_t list * int option) =
+  begin
+    logger#log (Printf.sprintf "Getting rev from api for revid '%d'\n" rev_id);
+    (* Retrieve a page and revision list from mediawiki. *)
+    let selector = rev_selector rev_id in
+    fetch_page_and_revs_after selector
+  end
+

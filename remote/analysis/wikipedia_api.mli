@@ -49,13 +49,13 @@ val default_timestamp : string
    * The id of the next revision, if known.
    See http://en.wikipedia.org/w/api.php for more details.
 *)
-val fetch_page_and_revs_after : string -> string -> int ->
-  Online_db.db -> (Online_types.wiki_page_t option * 
+val fetch_page_and_revs_after : string ->
+  (Online_types.wiki_page_t option * 
 			  Online_types.wiki_revision_t list * int option) 
 
 (** [get_user_id user_name] returns the user_id of user with name [user_name]. 
-    This involves querying the toolserver, which is usaually heavilly loaded,
-    resulting in long responce times.
+    This involves querying the toolserver, which is usaually heavily loaded,
+    resulting in long response times.
  *)
 val get_user_id : string -> Online_db.db -> int
 
@@ -73,4 +73,9 @@ val get_revs_from_api : string -> int ->
 
 (** Downloads all revisions of a page, given the title, and sticks them into the db. *)
 val download_page : Online_db.db -> string -> unit
+
+val get_revs_from_pageid : int -> int -> int ->
+    (Online_types.wiki_page_t option * Online_types.wiki_revision_t list * int option)
+val get_rev_from_revid : int ->
+    (Online_types.wiki_page_t option * Online_types.wiki_revision_t list * int option)
 

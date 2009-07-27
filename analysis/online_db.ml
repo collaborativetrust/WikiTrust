@@ -94,6 +94,30 @@ type vote_t = {
   vote_voter_id: int;
 }
 
+(** [get_cmd_output cmdline] returns the output from an external command.
+    An exception is thrown if there is a problem.  *)
+let get_cmd_output (cmdline: string) : string =
+  let stdout = Unix.open_process_in cmdline in 
+  let bufSize = 8192 in
+  let buf = String.create bufSize in
+  let completeFile = Buffer.create bufSize in
+  let rec loop () =
+    let chunkLen = input stdout buf 0 bufSize in
+    if (chunkLen > 0) then begin
+      let actualChunk = String.sub buf 0 chunkLen in
+      Buffer.add_string completeFile actualChunk;
+      loop ()
+    end else
+      raise End_of_file
+  in begin
+    try
+      loop ()
+    with End_of_file -> begin
+      ignore (Unix.close_process_in stdout);
+      Buffer.contents completeFile
+    end
+  end
+
 
 (** This class provides a handle for accessing the database in the on-line 
     implementation. *)
@@ -761,6 +785,7 @@ class db_exec_api
 object(self)
   inherit db db_prefix mediawiki_dbh db_name rev_base_path sig_base_path colored_base_path debug_mode
     as super 
+
 
   (** [get_rev_text page_id text_id] returns the text associated with text id [text_id].
       This method first tries to read the revision text from the cache.  If it does not

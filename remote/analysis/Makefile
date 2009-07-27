@@ -74,6 +74,12 @@ OCAMLOPT_FLAGS=$(INCLUDES)
 
 .PHONY: all allopt universe clean
 
+universe: all allopt
+
+all: downloadwp dispatcher read_rev_text
+
+allopt: downloadwpopt dispatcheropt
+
 # Here are the objects that we want to build. 
 # We need two lines of these, one for the debugging compilation,
 # one for the optimizing compilation. 
@@ -87,17 +93,19 @@ downloadwp: $(OUR_ONLINE_OBJS) downloadwp.ml
 downloadwpopt: $(OUR_OPT_ONLINE_OBJS) downloadwp.ml
 	$(OCAMLOPT) -linkpkg -o downloadwp $(OCAMLOPT_FLAGS) $(OUR_LIBS_OPT) $(OUR_OPT_ONLINE_OBJS) downloadwp.ml
 
+read_rev_text: $(OUR_ONLINE_OBJS) read_rev_text.ml
+	$(OCAMLC) -linkpkg -o read_rev_text $(OCAML_CFLAGS) $(OUR_LIBS) $(OUR_ONLINE_OBJS) read_rev_text.ml 
+
+read_rev_textopt: $(OUR_OPT_ONLINE_OBJS) read_rev_text.ml
+	$(OCAMLOPT) -linkpkg -o read_rev_text $(OCAMLOPT_FLAGS) $(OUR_LIBS_OPT) $(OUR_OPT_ONLINE_OBJS) read_rev_text.ml
+
+
 dispatcher: $(OUR_ONLINE_OBJS) 	
 	$(OCAMLC) -linkpkg -o dispatcher $(OCAML_CFLAGS) $(OUR_LIBS) $(OUR_ONLINE_OBJS) server_coloring_dispatcher.ml 
 
 dispatcheropt: $(OUR_OPT_ONLINE_OBJS)
 	$(OCAMLOPT) -linkpkg -o dispatcher $(OCAMLOPT_FLAGS) $(OUR_LIBS_OPT) $(OUR_OPT_ONLINE_OBJS) server_coloring_dispatcher.ml
 
-all: downloadwp dispatcher
-
-allopt: downloadwpopt dispatcheropt
-
-universe: all allopt
 
 clean:
 	rm -f *.o *.cmo *.cmx *.cmi .depends dispatcher
