@@ -22,7 +22,7 @@ AUTHORS:
 
 The main developers are: 
 
-- Luca de Alfaro (lda@dealfaro.com)
+- Luca de Alfaro (luca@dealfaro.com)
 - Ian Pye (ipye@gmail.com)
 - Bo Adler (thumper@alumni.caltech.edu)
 
@@ -32,7 +32,7 @@ Other contributors:
 - Jason Benterou
 
 
-REMOTE INSTALLATION
+INSTALLATION PROCEDURE:
 
 We describe in this README file the use of WikiTrust as a MediaWiki
 extension.  
@@ -67,13 +67,21 @@ eval_online_wiki from source.
 
 2) Take a deep breath. 
 
-3) Next, you need to install the trust coloring extension in
-   mediawiki.  You can install it in
-   /var/lib/mediawiki/extensions/WikiTrust
-   with
-   cp -r wikitrust /var/lib/mediawiki/extensions/WikiTrust
+3) Next, you need to unpack and install the trust coloring extension in
+   mediawiki.  If you have downloaded a tarball, you can do: 
 
-4) You should activate the extension by editing
+     $ cp wikitrust-xyz.tgz /var/lib/mediawiki/extensions
+     $ cd /var/lib/mediawiki/extensions
+     $ tar xfvz wikitrust-xyz.tgz
+
+   where xyz is the version information for the tarball.
+   You should also move the executables to the 
+   /var/lib/mediawiki/extensions directory.
+
+   If you use git, then you should really be compiling WikiTrust
+   from scratch; otherwise, what's the point? 
+
+4) You should activate the extension by editing the file
    LocalSettings.php (part of the MediaWiki installation), adding the
    following lines: 
 
@@ -81,29 +89,29 @@ $wgUseTidy = true;       // Enable Tidy
 $wgUseAjax = true;       // Enable Ajax (needed for voting)
 require_once( $IP . "/extensions/WikiTrust/WikiTrust.php" );
 
-   You can look in extensions/WikiTrust/WikiTrust.php for a
-   list of all the configurable variables.  The defaults should
+   You can look in WikiTrust.php (located at WikiTrust/WikiTrust.php) 
+   for a list of all the configurable variables.  The defaults should
    be correct for most installation, but you can override
    values by placing assignments in your LocalSettings.php
    after the require_once() call for the WikiTrust extension.
 
    Some settings that you might like to use instead:
 
-	     $wgWikiTrustGadget = NULL;
-   By default the trust tab is selected only by a user opting in.
-	 Set this to NULL to make the tab always availible.
+     $wgWikiTrustGadget = "gadget-WikiTrust";
+   By default the trust tab is always visible.
+   Set this as above to make it visible only to users opting in.
    
-	     $wgWikiTrustShowVoteButton = false;
+     $wgWikiTrustShowVoteButton = false;
    The default is to always show a "vote" button; disable this
    feature by setting it to false.
 
-	     $wgWikiTrustLog = "/tmp/{$wgDBname}-trust.log";
+     $wgWikiTrustLog = "/tmp/{$wgDBname}-trust.log";
    This creates a log of the analysis of how useful each contribution to
    the wiki is, as well as a log of all user reputation changes. 
    We advise you to create such a log: it contains very useful
    information, and it is likely that we will develop a variety of tools
    to extract the information present.  You don't want to miss out.  Note
-   that you are responsible for rotating / compressing the log (e.g., via
+   that you are responsible for rotating and compressing the log (e.g., via
    logrotate, or /etc/logrotate.conf or /etc/logrotate.d/
 
 
@@ -113,17 +121,14 @@ require_once( $IP . "/extensions/WikiTrust/WikiTrust.php" );
 $wgUseTidy = true;
 $wgUseAjax = true;
 require_once( $IP . "/extensions/WikiTrust/WikiTrust.php" );
-$wgWikiTrustGadget = NULL;              // enable for everyone
-
-
 
 
 5) You need to make the installation readable from the web server. 
 
-        $ chmod a+rX /var/lib/mediawiki/extensions/WikiTrust/*.php
-        $ chmod -R a+rX /var/lib/mediawiki/extensions/WikiTrust/include
-        $ chmod -R a+rX /var/lib/mediawiki/extensions/WikiTrust/css
-        $ chmod -R a+rX /var/lib/mediawiki/extensions/WikiTrust/js
+     $ chmod a+rX /var/lib/mediawiki/extensions/WikiTrust/*.php
+     $ chmod -R a+rX /var/lib/mediawiki/extensions/WikiTrust/includes
+     $ chmod -R a+rX /var/lib/mediawiki/extensions/WikiTrust/css
+     $ chmod -R a+rX /var/lib/mediawiki/extensions/WikiTrust/js
 
    Be careful not to give access to the web server to the other files,
    as there may be obscure security issues associated with, for
@@ -136,15 +141,18 @@ $wgWikiTrustGadget = NULL;              // enable for everyone
    when you create the wiki instance during the MediaWiki installation
    process), proceed as follows: 
 
-   $ cd sql
-   $ ./create_db.php "path_to_mediawiki" "mysql_root_user_name"
+     $ cd sql
+     $ ./create_db.php "path_to_mediawiki" "mysql_root_user_name"
 
-   where path_to_mediawiki is the path to the mediawiki installation
-   (such as /usr/share/mediawiki). 
-   If you need to remove the tables, before recreating them, the
-   command is: 
+   where path_to_mediawiki is the path to the mediawiki installation.
+   A typical command for Ubuntu is:
+     $ ./create_db.php /usr/share/mediawiki root
 
-   $ ./create_db.php "path_to_mediawiki" "mysql_root_user_name" remove
+   If you need to remove the tables first, then do instead:
+
+     $ cd sql
+     $ ./create_db.php "path_to_mediawiki" "mysql_root_user_name" remove
+     $ ./create_db.php "path_to_mediawiki" "mysql_root_user_name"
 
 7) If there are already revisions in the wiki, you should first
    analyze their trust, via: 
@@ -194,7 +202,8 @@ Follow these instructions in place of step 2) above.
 2a) You need to install some packages for Ocaml.  There are two ways. 
 
    2a1) The best way is to use godi (http://godi.camlcity.org), as this
-        enables you to build everything in userspace.
+        provides a simple way to get all the packages you need, and it
+	enables you to build everything in userspace.
 
         Get godi from http://godi.camlcity.org/godi/index.html and
         download godi. Follow the instructions to install it.  Install
@@ -203,9 +212,13 @@ Follow these instructions in place of step 2) above.
 
           godi-extlib
           godi-findlib
+	  godi-json-wheel
           godi-ocaml-mysql
+	  godi-ocamlnet
+	  godi-pcre
 	  godi-sexplib
 	  godi-type-conv
+	  godi-xml-light
 	  godi-zip
 
 	For the godi-ocaml-mysql package, you will also need
@@ -243,8 +256,17 @@ Follow these instructions in place of step 2) above.
     If you did not use godi, so that you need sudo rights to install: 
       $ make all-sudo
 
-2c) Compile the code: 
+2c) Get the code using git:
 
+      $ cd /var/lib/mediawiki/extensions
+      $ git clone git://trust.cse.ucsc.edu/share/git/WikiTrust.git
+
+2d) Compile the code.  There are various branches of git available,
+    and by default you are in the master branch, which is fine. 
+    Look at the web documentation to see if you prefer any other
+    branch.  You can compile the code with:
+
+      $ cd WikiTrust
       $ make clean ; make all ; make allopt
 
     This creates an eval_online_wiki executable, which is what

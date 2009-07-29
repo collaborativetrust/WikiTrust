@@ -1,6 +1,7 @@
 <?php
 
-# Copyright (c) 2007-2009 University of California, Santa Cruz
+# Copyright (c) 2007-09 The Regents of the University of California
+# All rights reserved.
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License as
@@ -24,7 +25,7 @@ global $wgWikiTrustVersion;
 $wgWikiTrustVersion = "local"; ## This needs to be one of local, remote, wmf.
 
 global $wgWikiTrustGadget, $wgWikiTrustShowVoteButton, $wgWikiTrustContentServerURL;
-$wgWikiTrustGadget = "gadget-WikiTrust";
+$wgWikiTrustGadget = NULL;
 $wgWikiTrustShowVoteButton = true; // If true, the vote button is shown.
 $wgWikiTrustContentServerURL = "http://localhost:10303/?";
 

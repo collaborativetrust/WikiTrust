@@ -35,3 +35,4 @@ batch/analysis/evalwiki -trust_for_online \
     -n_sigs 8 \
     -d ~/wiki-data/enwork/sql \
     /home/luca/wiki-data/enwiki/wiki-00100220.xml.gz
+

@@ -113,7 +113,7 @@ CREATE TABLE ".$wgDBprefix."wikitrust_text_cache (
 ) ENGINE=InnoDB","
 GRANT ALL ON ".$wgDBprefix."wikitrust_text_cache TO $wgDBuser", "
 CREATE INDEX " . $wgDBprefix . "wikitrust_text_cache ON "
-       	       . $wgDBprefix . "wikitrust_text_cache (processed)
+       	       . $wgDBprefix . "wikitrust_text_cache (revision_id, time_string, page_id)
 ");
 
 $create_index_scripts[$wgDBprefix . "revision"]['wikitrust_revision_id_timestamp_idx'] = "CREATE INDEX wikitrust_revision_id_timestamp_idx ON " . $wgDBprefix . "revision (rev_id, rev_timestamp)";
@@ -124,12 +124,9 @@ $remove_scripts[$wgDBprefix.'wikitrust_page'] = array("DROP TABLE ".$wgDBprefix.
 $remove_scripts[$wgDBprefix.'wikitrust_revision'] = array("DROP TABLE ".$wgDBprefix."wikitrust_revision");
 $remove_scripts[$wgDBprefix.'wikitrust_colored_markup'] = array("DROP TABLE ".$wgDBprefix."wikitrust_colored_markup");
 $remove_scripts[$wgDBprefix.'wikitrust_sigs'] = array("DROP TABLE ".$wgDBprefix."wikitrust_sigs");
-$remove_scripts[$wgDBprefix.'wikitrust_user'] = array("DROP TABLE
-".$wgDBprefix."wikitrust_user");
-$remove_scripts[$wgDBprefix.'wikitrust_queue'] = array("DROP TABLE
-".$wgDBprefix."wikitrust_queue");
-$remove_scripts[$wgDBprefix.'wikitrust_text_cache'] = array("DROP TABLE
-".$wgDBprefix."wikitrust_text_cache");
+$remove_scripts[$wgDBprefix.'wikitrust_user'] = array("DROP TABLE ".$wgDBprefix."wikitrust_user");
+$remove_scripts[$wgDBprefix.'wikitrust_queue'] = array("DROP TABLE ".$wgDBprefix."wikitrust_queue");
+$remove_scripts[$wgDBprefix.'wikitrust_text_cache'] = array("DROP TABLE ".$wgDBprefix."wikitrust_text_cache");
 
 $remove_index_scripts[$wgDBprefix . "revision"]['wikitrust_revision_id_timestamp_idx'] = "DROP INDEX wikitrust_revision_id_timestamp_idx ON ".$wgDBprefix."revision";
 
