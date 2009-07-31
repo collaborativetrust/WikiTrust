@@ -211,7 +211,12 @@ object(self)
   method get_histogram : float array * float =
     let s = Printf.sprintf "SELECT * FROM %swikitrust_global" db_prefix in
     match fetch (self#db_exec mediawiki_dbh s) with
-      None -> raise DB_Not_Found
+      None -> begin
+	(* No histogram is found.  It creates a default one, and returns it. *)
+	let s = Printf.sprintf "INSERT INTO %swikitrust_global VALUES (0,0,0,0,0,0,0,0,0,0,0)" db_prefix in
+	ignore (self#db_exec mediawiki_dbh s);
+	([|0.; 0.; 0.;  0.; 0.; 0.;  0.; 0.; 0.;  0.|],  0.)
+      end
     | Some row -> ([| not_null float2ml row.(1); not_null float2ml row.(2); not_null float2ml row.(3); 
       not_null float2ml row.(4);  not_null float2ml row.(5);
       not_null float2ml row.(6);  not_null float2ml row.(7);
@@ -746,8 +751,7 @@ object(self)
     let add_prefix cmd = Printf.sprintf cmd db_prefix in
     match really with
       true -> begin
-	ignore (self#db_exec mediawiki_dbh (add_prefix "DELETE FROM %swikitrust_global"));
-	ignore (self#db_exec mediawiki_dbh (add_prefix "INSERT INTO %swikitrust_global VALUES (0,0,0,0,0,0,0,0,0,0,0)"));
+	ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_global"));
         ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_page"));
         ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_revision"));
         ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_colored_markup"));
