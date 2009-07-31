@@ -167,7 +167,7 @@ class WikiTrustBase {
       $res = $dbr->select('wikitrust_colored_markup', 'revision_text',
 			array( 'revision_id' => $rev_id ), 
 			array());
-      if (!$res) {
+      if (!$res || $dbr->numRows($res) == 0) {
 	self::runEvalEdit(self::TRUST_EVAL_EDIT);
 	return '';
       }
