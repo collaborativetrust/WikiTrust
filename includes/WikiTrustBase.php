@@ -82,7 +82,7 @@ class WikiTrustBase {
     $res = $dbr->select('wikitrust_vote', array('revision_id'),
 		array('revision_id' => $rev_id, 'voter_id' => $user_id),
 		array());
-    if (!$res) return new AjaxResponse("0");
+    if (!$res || $dbr->numRows($res) == 0) return new AjaxResponse("0");
 	// TODO: do we also need to $dbr->freeResult($res)?
 
     $row = $dbr->fetchRow($res);
@@ -196,7 +196,7 @@ if (1) {
     }
 
     $res = $dbr->select('wikitrust_global', 'median', array(), array());
-    if ($res) {
+    if ($res && $dbr->numRows($res) > 0) {
       $row = $dbr->fetchRow($res);
       self::$median = $row[0];
       if ($row[0] == 0) {
@@ -415,7 +415,7 @@ if (1) {
 
     $res = $dbr->select('user', array('user_id'), 
 		    array('user_name' => $userName), array());
-    if ($res){
+    if ($res && $dbr->numRows($res) > 0){
       $row = $dbr->fetchRow($res);
       $user_id = $row['user_id'];
       if (!$user_id)
@@ -440,7 +440,7 @@ if (1) {
       $dbr =& wfGetDB( DB_SLAVE );
       $res = $dbr->select('page', array('page_latest'), 
                           array('page_id' => $page_id), array());
-      if ($res) {
+      if ($res && $dbr->numRows($res) > 0) {
 	$row = $dbr->fetchRow($res);
 	$rev_id = $row['page_latest'];
       }

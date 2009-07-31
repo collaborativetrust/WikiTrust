@@ -102,7 +102,7 @@ class WikiTrust extends WikiTrustBase {
     $res = $dbr->select('wikitrust_colored_markup', 
 			array('revision_createdon'), 
 			array('revision_id' => $rev_id), array());
-    if ($res){
+    if ($res && $dbr->numRows($res) > 0){
       $row = $dbr->fetchRow($res);
       $rev_ts = $row['revision_createdon'];
 
