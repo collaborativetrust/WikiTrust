@@ -36,3 +36,8 @@ batch/analysis/evalwiki -trust_for_online \
     -d ~/wiki-data/enwork/sql \
     /home/luca/wiki-data/enwiki/wiki-00100220.xml.gz
 
+# Load the xml files in the wiki db:
+cd test-scripts 
+python load_data.py --clear_db /home/luca/wiki-data/enwiki/wiki-00100000.xml /home/luca/wiki-data/enwiki/wiki-00100220.xml
+
+# Now loads the 
