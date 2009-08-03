@@ -155,6 +155,7 @@ class WikiTrustBase {
 
   static function color_getColorData($rev_id)
   {
+    error_log ("Entered getcolordata."); // Debug
     if (!$rev_id)
       return '';
 
@@ -162,15 +163,19 @@ class WikiTrustBase {
 
     $dbr =& wfGetDB( DB_SLAVE );
 
+    error_log ("Looks in the database.");
+
     global $wgWikiTrustColorPath;
     if (!$wgWikiTrustColorPath) {
       $res = $dbr->select('wikitrust_colored_markup', 'revision_text',
 			array( 'revision_id' => $rev_id ), 
 			array());
       if (!$res || $dbr->numRows($res) == 0) {
+	error_log ("Calls the evaluation."); // Debug
 	self::runEvalEdit(self::TRUST_EVAL_EDIT);
 	return '';
       }
+      error_log ("It thinks it has found colored text."); // Debug
       $row = $dbr->fetchRow($res);
       $colored_text = $row[0];
       $dbr->freeResult( $res ); 
@@ -402,6 +407,7 @@ if (1) {
 	  );
       $cwd = '/tmp';
       $env = array();
+      error_log ("wikitrustbase.php calling " . $command); // Debug
       $process = proc_open($command, $descriptorspec, $pipes, $cwd, $env);
 
       return $process; 

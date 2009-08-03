@@ -95,7 +95,7 @@ let db = Online_db.create_db !use_exec_api !db_prefix mediawiki_dbh !mw_db_name
 (* If requested, we erase all coloring, and we recompute it from scratch. *)
 if !delete_all then begin 
   db#delete_all true; 
-  !Online_log.online_logger#log "\n  Cleared the db."
+  !Online_log.online_logger#log "\n  Cleared the db.\n"
 end;
 
 (* Creates an event processor *)
