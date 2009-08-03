@@ -167,7 +167,7 @@ while !do_more do
 	    do_more := false; 
 	    print_string "Reached the end of the input.\n"; 
 	    flush stdout; 
-	    "</mediawiki>"
+	    ""
 	  end 
 	in 
 	begin 
