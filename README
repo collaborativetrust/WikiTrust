@@ -157,14 +157,25 @@ require_once( $IP . "/extensions/WikiTrust/WikiTrust.php" );
 7) If there are already revisions in the wiki, you should first
    analyze their trust, via: 
 
-     $ ./eval_online_wiki -n_events 1000000 -db_user <username> -db_pass <pwd> -db_name <db_name>
+     $ ./eval_online_wiki -db_user <username> -db_pass <pwd> -db_name <db_name>
 
-   The '1000000' means that eval_online_wiki will compute the trust of
-   at most 1000000 revisions, then stop.  You can repeat the above
-   command as many times as needed (or with a larger or smaller bound)
-   until all revisions are analyzed for trust; each invocation will
-   analyze at most 1000000 additional revisions.  Typical values for
-   these parameters are:
+   The above command analyzes all revisions in a single sweep.  If you
+   prefer, you can limit each invocation of the command to a certain
+   number of revisions, for example 1000, by doing:
+
+     $ ./eval_online_wiki -n_events 1000 -db_user <username> -db_pass <pwd> -db_name <db_name>
+
+   You can then give the command many times, until all the wiki is
+   analyzed.  You can also slow down the processing via the
+   -throttle_delay option, if you wish to limit the CPU or database
+   load; for instance 
+
+      -throttle_delay 0.2
+
+   will insert a 0.2-second delay between the analysis of revisions.
+   eval_online_wiki has many options, of which only some are
+   documented here. 
+   Typical values for database username and password are:
 
      username: wikiuser
      db_name: wikidb
@@ -172,7 +183,7 @@ require_once( $IP . "/extensions/WikiTrust/WikiTrust.php" );
    If you wish to redo the analysis from scratch, throwing away the
    results of previous analyses, you can use the option '-delete_all': 
 
-     $ ./eval_online_wiki -delete_all -n_events 1000000 -db_user <username> -db_pass <pwd>  -db_name <db_name>
+     $ ./eval_online_wiki -delete_all -db_user <username> -db_pass <pwd>  -db_name <db_name>
 
    Warning: the analysis can take a long time on very large wikis, so
    do not use the option '-delete_all' lightly! 
@@ -248,23 +259,41 @@ Follow these instructions in place of step 2) above.
         Which are available from
         http://www.janestcapital.com/ocaml/index.html .
 
-2b) Make OcamlLdaLibs and install them. 
-    If you can install without sudo rights: 
-      $ make all
-    If you used godi (and don't need sudo rights):
-      $ make all-godi
-    If you did not use godi, so that you need sudo rights to install: 
-      $ make all-sudo
+2b) You need to obtain OcamlLdaLibs.  You can get them from 
+    http://ocamlldalibs.sourceforge.net as either a tarball,
+    or via git:
+        $ git clone git://ocamlldalibs.git.sourceforge.net/gitroot/ocamlldalibs
 
-2c) Get the code using git:
+2c) Make OcamlLdaLibs and install them.  
+    First, do:
+
+        $ cd ocamlldalibs
+
+    Then, there are various cases:
+
+    - If you used godi:
+        $ make all-godi
+
+    - If you can install Ocaml libraries without sudo rights: 
+        $ make all
+
+    - If you did not use godi, and you need sudo to install Ocaml libraries:
+        $ make all-sudo
+
+2d) Get the WikiTrust code using git:
 
       $ cd /var/lib/mediawiki/extensions
-      $ git clone git://trust.cse.ucsc.edu/share/git/WikiTrust.git
+      $ git clone git://wikitrust.git.sourceforge.net/gitroot/wikitrust
+      $ mv wikitrust WikiTrust
 
-2d) Compile the code.  There are various branches of git available,
+2e) Compile the code.  There are various branches of git available,
     and by default you are in the master branch, which is fine. 
     Look at the web documentation to see if you prefer any other
-    branch.  You can compile the code with:
+    branch.  If you want to go, e.g., in the development branch, do:
+
+      $ git checkout development
+
+    You can compile the code with:
 
       $ cd WikiTrust
       $ make clean ; make all ; make allopt
@@ -278,5 +307,7 @@ Follow these instructions in place of step 2) above.
 
 BATCH MODE:
 
-The tool has also a batch mode, useful for computing statistical
-quantities of a wiki.  Please see batch/README for more information.
+The tool has also a batch mode, useful for analyzing the history of a
+wiki, including the history of author contributions, page reversions,
+quarrels, and more.  Please see batch/analysis/README for more
+information.
