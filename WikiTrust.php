@@ -29,9 +29,15 @@ $wgWikiTrustGadget = NULL;
 $wgWikiTrustShowVoteButton = true; // If true, the vote button is shown.
 $wgWikiTrustContentServerURL = "http://localhost:10303/?";
 
+// Debugging Verbosity
+define(WIKITRUST_DEBUG, 0);
+define(WIKITRUST_WARN, 10);
+define(WIKITRUST_ERROR, 20);
+
 global $wgWikiTrustLog, $wgWikiTrustDebugLog;
 $wgWikiTrustLog = "/tmp/{$wgDBname}-trust.log";
 $wgWikiTrustDebugLog = "/tmp/{$wgDBname}-trust-debug.log";
+$wgWikiTrustDebugVerbosity = WIKITRUST_DEBUG; // how much information to write;
 #$wgWikiTrustLog = "/dev/null";
 #$wgWikiTrustDebugLog = "/dev/null";
 global $wgWikiTrustCmd, $wgWikiTrustCmdExtraArgs, $wgWikiTrustColorPath,
@@ -51,6 +57,19 @@ $wgExtensionCredits['other'][] = array(
        'description' => 'Adds trust tab to visualize article trust and provide text attribution.'
    );
 
+
+  // Quick debugging functions -- add a debugging level and call WikiTrust::Debug.
+function wgWikiTrustDebug($msg){
+  WikiTrust::debug($msg, WIKITRUST_DEBUG);
+}
+
+function wgWikiTrustWarn($msg){
+  WikiTrust::debug($msg, WIKITRUST_WARN);
+}
+
+function wgWikiTrustError($msg){
+  WikiTrust::debug($msg, WIKITRUST_ERROR);
+}
 
 function wfWikiTrustSetup() {
     $dir = dirname(__FILE__) . '/includes/';

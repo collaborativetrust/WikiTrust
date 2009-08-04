@@ -347,10 +347,13 @@ if (1) {
     }
     
     $trust_qs = $_SERVER['QUERY_STRING'];
-    if($trust_qs) {
-      $trust_qs = "?" . $trust_qs .  "&trust=t";
+    wgWikiTrustDebug(__FILE__ . ": " . __LINE__ . ": $trust_qs");
+    if ($trust_qs) {
+      if (!stristr($trust_qs, "trust=t")){
+        $trust_qs .= "&trust=t&action=purge";
+      }
     } else {
-      $trust_qs .= "?trust=t"; 
+      $trust_qs = "?trust=t&action=purge"; 
     }
     
     wfLoadExtensionMessages('WikiTrust');
@@ -380,7 +383,7 @@ if (1) {
 			      $voter_id = -1)
   {
       global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgWikiTrustCmd, $wgWikiTrustLog, $wgWikiTrustDebugLog, $wgWikiTrustRepSpeed, $wgDBprefix, $wgWikiTrustCmdExtraArgs;
-
+      
       $process = -1;
       $command = "";
       // Get the db.
@@ -405,6 +408,9 @@ if (1) {
 	      1 => array("file", escapeshellcmd($wgWikiTrustDebugLog), "a"),
 	      2 => array("file", escapeshellcmd($wgWikiTrustDebugLog), "a")
 	  );
+
+      wgWikiTrustDebug(__FILE__ . ": " . __LINE__ . ": $command");
+      
       $cwd = '/tmp';
       $env = array();
       error_log ("wikitrustbase.php calling " . $command); // Debug
@@ -469,6 +475,15 @@ if (1) {
     return $path;
   }
 
+  static function debug($msg, $level)
+  {
+    global $wgWikiTrustDebugLog, $wgWikiTrustDebugVerbosity;
+
+    if ($level >= $wgWikiTrustDebugVerbosity) 
+      file_put_contents($wgWikiTrustDebugLog, 
+                        $msg . PHP_EOL,
+                        FILE_APPEND|LOCK_EX);
+  }
 }
 
 ?>
