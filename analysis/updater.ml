@@ -100,7 +100,7 @@ class updater
       let rec evaluate_revision_helper (r: Online_revision.revision): unit = 
 	let rev_id = r#get_id in
 	let page_id = r#get_page_id in 
-	if n_processed_events < max_events_to_process then 
+	if max_events_to_process = 0 or n_processed_events < max_events_to_process then 
 	  begin 
 	    begin (* try ... with ... *)
 	      try 
@@ -137,7 +137,7 @@ class updater
         It assumes we have the page lock.
      *)
     method private evaluate_vote (page_id: int) (revision_id: int) (voter_id: int) = 
-      if n_processed_events < max_events_to_process then 
+      if max_events_to_process = 0 or n_processed_events < max_events_to_process then 
 	begin 
 	  !Online_log.online_logger#log (Printf.sprintf "\nEvaluating vote by %d on revision %d of page %d" 
 	    voter_id revision_id page_id); 
@@ -171,7 +171,7 @@ class updater
       (* This hashtable is used to implement the load-sharing algorithm. *)
       let tried : (int, unit) Hashtbl.t = Hashtbl.create 10 in 
       let do_more = ref true in 
-      while !do_more && (n_processed_events < max_events_to_process) do 
+      while !do_more && (max_events_to_process = 0 or n_processed_events < max_events_to_process) do 
 	begin 
 	  (* This is the main loop *)
 	  match feed#next_event with 
@@ -257,7 +257,7 @@ class updater
      *)
     method private process_page_feed (feed : Event_feed.event_feed) : unit =
       let do_more = ref true in 
-      while !do_more && (n_processed_events < max_events_to_process) do 
+      while !do_more && (max_events_to_process = 0 or n_processed_events < max_events_to_process) do 
 	begin 
 	  (* This is the main loop *)
 	  match feed#next_event with 

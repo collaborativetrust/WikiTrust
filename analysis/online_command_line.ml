@@ -99,7 +99,7 @@ let requested_rev_id = ref None
 let set_requested_rev_id d = requested_rev_id := Some d
 let color_delay = ref 0.
 let set_color_delay f = color_delay := f 
-let max_events_to_process = ref 100
+let max_events_to_process = ref 0
 let set_max_events_to_process n = max_events_to_process := n
 let times_to_retry_trans = ref 3
 let set_times_to_retry_trans n = times_to_retry_trans := n
@@ -142,7 +142,7 @@ let command_line_format =
    ("-page_id",  Arg.Int set_requested_page_id, "<int>: (optional) page ID that we want to evaluate the vote on");
    ("-rep_speed", Arg.Float set_reputation_speed, "<float>: Speed at which users gain reputation; 1.0 for large wikis");
    ("-throttle_delay", Arg.Float set_color_delay, "<float>: Amount of time (on average) to wait between analysis of events.  This can be used to throttle the computation, not to use too many resources.");
-   ("-n_events", Arg.Int set_max_events_to_process, "<int>: Max number of events to process (default: 100) "); 
+   ("-n_events", Arg.Int set_max_events_to_process, "<int>: Max number of events to process (default: 0 = all outstanding events) "); 
    ("-times_to_retry_trans", Arg.Int set_times_to_retry_trans, "<int>: Max number of times to retry a transation if it fails (default: 3)."); 
    ("-use_exec_api", Arg.Set use_exec_api, "Use the exec API to access the WMF DB.");
    ("-use_wikimedia_api", Arg.Set use_wikimedia_api, "Use the WikiMedia API to access the WMF DB.");
