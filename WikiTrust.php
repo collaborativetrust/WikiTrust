@@ -119,7 +119,9 @@ function wfWikiTrustSetup() {
 
     # We are done if the trust tab isn't selected
     global $wgRequest;
-    if (!$wgRequest->getVal('trust') || $wgRequest->getVal('action'))
+    if (!$wgRequest->getVal('trust') || 
+        (($wgRequest->getVal('action') && 
+          ($wgRequest->getVal('action') != 'purge'))))
 	return;
 
     $wgHooks['OutputPageBeforeHTML'][] = 'WikiTrust::ucscOutputBeforeHTML';
