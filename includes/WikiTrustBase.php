@@ -178,7 +178,7 @@ class WikiTrustBase {
 
   static function color_getColorData($rev_id)
   {
-    error_log ("Entered getcolordata."); // Debug
+    wgWikiTrustDebug(__FILE__.":".__LINE__ . "Entered getcolordata.");
     if (!$rev_id)
       return '';
 
@@ -186,7 +186,7 @@ class WikiTrustBase {
 
     $dbr =& wfGetDB( DB_SLAVE );
 
-    error_log ("Looks in the database.");
+    wgWikiTrustDebug(__FILE__.":".__LINE__ . "Looks in the database.");
 
     global $wgWikiTrustColorPath;
     if (!$wgWikiTrustColorPath) {
@@ -194,11 +194,12 @@ class WikiTrustBase {
 			array( 'revision_id' => $rev_id ), 
 			array());
       if (!$res || $dbr->numRows($res) == 0) {
-	error_log ("Calls the evaluation."); // Debug
+  wgWikiTrustDebug(__FILE__.":".__LINE__ . 
+    "Calls the evaluation."); // Debug
 	self::runEvalEdit(self::TRUST_EVAL_EDIT);
 	return '';
       }
-      error_log ("It thinks it has found colored text."); // Debug
+      wgWikiTrustDebug(__FILE__.":".__LINE__ . "It thinks it has found colored text."); // Debug
       $row = $dbr->fetchRow($res);
       $colored_text = $row[0];
       $dbr->freeResult( $res ); 
@@ -206,6 +207,7 @@ class WikiTrustBase {
       global $wgTitle;
       $page_id = $wgTitle->getArticleID();
       $file = self::util_getRevFilename($page_id, $rev_id);
+      // TODO: Bo -- what is this all about?
 if (1) {
       $gzdata = @file_get_contents($file, FILE_BINARY, NULL);
 } else {
@@ -360,7 +362,7 @@ if (1) {
     return false;
   }
 
-  // Cache controle -- invalidate the cache if someone voted on the 
+  // Cache control -- invalidate the cache if someone voted on the 
   // page recently, or if the colored page is invalid.
   // This function does this by making the sure the last
   // modified time of the page is set to now() if we don't want 
@@ -370,7 +372,13 @@ if (1) {
     wgWikiTrustDebug(__FILE__.":".__LINE__
                      .": ".print_r($modified_times, true));
     
-    // Load the colored text if availible;
+    // Load the colored text if the text is available.
+    // We do it here because this is the first hook to be fired as a page
+    // is rendered.
+    // We don't need to check if colored_text is already present, because 
+    // of this hook ordering.
+    // We need to know if the colored text is missing or not, and just getting
+    // it seems like the easiest way to figure this out.
     $rev_id = self::util_getRev();
     $colored_text = self::color_getColorData($rev_id);
     self::color_fixup($colored_text);
@@ -392,20 +400,28 @@ if (1) {
   public static function ucscTrustTemplate($skin, &$content_actions)
   {
     global $wgRequest;
-    if ($wgRequest->getVal('action') || $wgRequest->getVal('diff')) {
-      // we don't want trust for actions or diffs.
+    if (($wgRequest->getVal('action') 
+         && ($wgRequest->getVal('action') != 'purge')) 
+        || $wgRequest->getVal('diff')) {
+      // we don't want trust for actions which are not purges or diffs.
       return true;
     }
-    
+
+    // Builds up the query string for when a user clicks on the show 
+    // trust button. 
     $trust_qs = $_SERVER['QUERY_STRING'];
     wgWikiTrustDebug(__FILE__ . ": " . __LINE__ . ": $trust_qs");
     if ($trust_qs) {
+      // If there is already something after the ? in the page url:
       if (!stristr($trust_qs, "trust=t")){
+        // If there is not a trust=t, add it.
         $trust_qs = "?" . $trust_qs . "&trust=t";
       } else {
+        // Otherwise, just add a ? back.
         $trust_qs = "?" . $trust_qs;
       }
     } else {
+      // If there is nothing after the ?, add what we need.
       $trust_qs = "?trust=t"; 
     }
     
@@ -466,7 +482,8 @@ if (1) {
       
       $cwd = '/tmp';
       $env = array();
-      error_log ("wikitrustbase.php calling " . $command); // Debug
+      wgWikiTrustDebug(__FILE__.":".__LINE__ 
+        . "wikitrustbase.php calling " . $command); // Debug
       $process = proc_open($command, $descriptorspec, $pipes, $cwd, $env);
 
       return $process; 
@@ -490,16 +507,23 @@ if (1) {
 
     return $user_id;
   }
-
-  static function util_getRevFTitle()
+      
+  /* Utility function which returns the revid of the revision which is 
+   * currently being displayed.
+   * It tries to do this using the global wgArticle object, and if this fails
+   * queries the DB directly.
+   *
+   * This is a replacement for getRevFTitle() and eliminates 1 db call.
+   */
+  static function util_getRevFArticle()
   {
-    // If no revId, assume it is the most recent one.
+    // If no revid, assume it is the most recent one.
     // Try using the article object, and only if this fails use the Title.
     global $wgArticle;
     $rev_id = 0;
     if (method_exists($wgArticle, "getLatest"))
       $rev_id = $wgArticle->getLatest();
-    else {
+    else { // Otherwise, ask the db for the latest revid for the given pageid.
       global $wgTitle;
       $rev_id = 0;
       $page_id = $wgTitle->getArticleID();
@@ -515,6 +539,7 @@ if (1) {
     return $rev_id;
   }
 
+  // Returns the current revid from the $out object.
   static function util_getRevFOut($out)
   {
     if (method_exists($out, "getRevisionId"))
@@ -523,18 +548,21 @@ if (1) {
       $rev_id = $out->mRevisionId;
 
     if (!$rev_id) {
-      $rev_id = self::util_getRevFTitle();
+      $rev_id = self::util_getRevFArticle();
     }
 
     return $rev_id;
   }
 
+  // Likewise, this returns the current revid.
+  // If oldid is set, it returns this.
+  // Otherwise, it called util_getRevFArticle().
   static function util_getRev()
   {
     global $wgRequest;
     $rev_id = $wgRequest->getVal('oldid');
     if (!$rev_id) {
-      $rev_id = self::util_getRevFTitle();
+      $rev_id = self::util_getRevFArticle();
     }
     
     return $rev_id;

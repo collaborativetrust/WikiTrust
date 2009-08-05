@@ -37,7 +37,7 @@ define(WIKITRUST_ERROR, 20);
 global $wgWikiTrustLog, $wgWikiTrustDebugLog;
 $wgWikiTrustLog = "/tmp/{$wgDBname}-trust.log";
 $wgWikiTrustDebugLog = "/tmp/{$wgDBname}-trust-debug.log";
-$wgWikiTrustDebugVerbosity = WIKITRUST_DEBUG; // how much information to write;
+$wgWikiTrustDebugVerbosity = WIKITRUST_WARN; // how much information to write;
 #$wgWikiTrustLog = "/dev/null";
 #$wgWikiTrustDebugLog = "/dev/null";
 global $wgWikiTrustCmd, $wgWikiTrustCmdExtraArgs, $wgWikiTrustColorPath,
@@ -58,7 +58,8 @@ $wgExtensionCredits['other'][] = array(
    );
 
 
-  // Quick debugging functions -- add a debugging level and call WikiTrust::Debug.
+// Quick debugging functions -- 
+// They add a debugging level and call WikiTrust::Debug.
 function wgWikiTrustDebug($msg){
   WikiTrust::debug($msg, WIKITRUST_DEBUG);
 }
