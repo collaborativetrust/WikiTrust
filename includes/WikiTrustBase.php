@@ -36,6 +36,9 @@ class WikiTrustBase {
 
   ## Stores the colored text between function calls
   static $colored_text = "";
+
+  ## Has the colored text been loaded?
+  static $colored_text_loaded = false;
     
   ## map trust values to html color codes
   static $COLORS = array(
@@ -113,7 +116,7 @@ class WikiTrustBase {
     self::color_addFileRefs($out);
     $rev_id = self::util_getRevFOut($out);
     $colored_text = self::$colored_text;
-    if (!$colored_text){
+    if (!self::$colored_text_loaded){
       $colored_text = self::color_getColorData($rev_id);
       self::color_fixup($colored_text);
     }
@@ -383,6 +386,7 @@ if (1) {
     $colored_text = self::color_getColorData($rev_id);
     self::color_fixup($colored_text);
     self::$colored_text = $colored_text;
+    self::$colored_text_loaded = true;
     
     // Update the cache with the current time if we need to invalide it
     //   for this page.
