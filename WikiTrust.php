@@ -125,6 +125,7 @@ function wfWikiTrustSetup() {
 	return;
 
     $wgHooks['OutputPageBeforeHTML'][] = 'WikiTrust::ucscOutputBeforeHTML';
+    $wgHooks['OutputPageCheckLastModified'][] = 'WikiTrust::ucscOutputModified';
 }
 
 ?>

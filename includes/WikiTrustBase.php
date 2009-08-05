@@ -33,6 +33,9 @@ class WikiTrustBase {
 
   ## Don't close the first opening span tag
   static $first_span = true;
+
+  ## Stores the colored text between function calls
+  static $colored_text = "";
     
   ## map trust values to html color codes
   static $COLORS = array(
@@ -109,11 +112,14 @@ class WikiTrustBase {
 
     self::color_addFileRefs($out);
     $rev_id = self::util_getRevFOut($out);
-
-    $colored_text = self::color_getColorData($rev_id);
-    self::color_fixup($colored_text);
+    $colored_text = self::$colored_text;
+    if (!$colored_text){
+      $colored_text = self::color_getColorData($rev_id);
+      self::color_fixup($colored_text);
+    }
 
     if (!$colored_text) {
+      wgWikiTrustDebug("$rev_id: colored text not found.");
       // text not found.
       global $wgUser, $wgParser, $wgTitle;
       $options = ParserOptions::newFromUser($wgUser);
@@ -151,6 +157,23 @@ class WikiTrustBase {
 		. "</div>"
 		. $text;
     }
+  }
+
+  static function voteToProcess($rev_id)
+  {
+    $voteToProcess = false;
+    $dbr =& wfGetDB( DB_SLAVE );
+    $res = $dbr->select('wikitrust_vote', 'processed',
+			array( 'revision_id' => $rev_id ), 
+      array());
+    if ($res && $dbr->numRows($res) > 0) {
+      $row = $dbr->fetchRow($res);
+      if (!$row[0]){
+        $voteToProcess = true;
+      }
+    }
+    $dbr->freeResult( $res ); 
+    return $voteToProcess;
   }
 
   static function color_getColorData($rev_id)
@@ -337,6 +360,34 @@ if (1) {
     return false;
   }
 
+  // Cache controle -- invalidate the cache if someone voted on the 
+  // page recently, or if the colored page is invalid.
+  // This function does this by making the sure the last
+  // modified time of the page is set to now() if we don't want 
+  // output cached.
+  public static function ucscOutputModified(&$modified_times)
+  {
+    wgWikiTrustDebug(__FILE__.":".__LINE__
+                     .": ".print_r($modified_times, true));
+    
+    // Load the colored text if availible;
+    $rev_id = self::util_getRev();
+    $colored_text = self::color_getColorData($rev_id);
+    self::color_fixup($colored_text);
+    self::$colored_text = $colored_text;
+    
+    // Update the cache with the current time if we need to invalide it
+    //   for this page.
+    // Reasons for this are missing text or a vote which needs to be 
+    //   processed still.
+    if (!self::$colored_text || self::voteToProcess($rev_id)){
+      $modified_times['page'] = wfTimestampNow();
+      wgWikiTrustDebug(__FILE__.":".__LINE__
+                       .": new times - ".print_r($modified_times, true));
+    }
+    return true;
+  }
+
   // TrustTabSkin - add trust tab to display, and select if appropriate
   public static function ucscTrustTemplate($skin, &$content_actions)
   {
@@ -350,10 +401,12 @@ if (1) {
     wgWikiTrustDebug(__FILE__ . ": " . __LINE__ . ": $trust_qs");
     if ($trust_qs) {
       if (!stristr($trust_qs, "trust=t")){
-        $trust_qs .= "&trust=t&action=purge";
+        $trust_qs = "?" . $trust_qs . "&trust=t";
+      } else {
+        $trust_qs = "?" . $trust_qs;
       }
     } else {
-      $trust_qs = "?trust=t&action=purge"; 
+      $trust_qs = "?trust=t"; 
     }
     
     wfLoadExtensionMessages('WikiTrust');
@@ -438,6 +491,30 @@ if (1) {
     return $user_id;
   }
 
+  static function util_getRevFTitle()
+  {
+    // If no revId, assume it is the most recent one.
+    // Try using the article object, and only if this fails use the Title.
+    global $wgArticle;
+    $rev_id = 0;
+    if (method_exists($wgArticle, "getLatest"))
+      $rev_id = $wgArticle->getLatest();
+    else {
+      global $wgTitle;
+      $rev_id = 0;
+      $page_id = $wgTitle->getArticleID();
+      $dbr =& wfGetDB( DB_SLAVE );
+      $res = $dbr->select('page', array('page_latest'), 
+                          array('page_id' => $page_id), array());
+      if ($res && $dbr->numRows($res) > 0) {
+        $row = $dbr->fetchRow($res);
+        $rev_id = $row['page_latest'];
+      }
+      $dbr->freeResult( $res ); 
+    }
+    return $rev_id;
+  }
+
   static function util_getRevFOut($out)
   {
     if (method_exists($out, "getRevisionId"))
@@ -446,19 +523,20 @@ if (1) {
       $rev_id = $out->mRevisionId;
 
     if (!$rev_id) {
-      // If no revId, assume it is the most recent one.
-      global $wgTitle;
-      $page_id = $wgTitle->getArticleID();
-      $dbr =& wfGetDB( DB_SLAVE );
-      $res = $dbr->select('page', array('page_latest'), 
-                          array('page_id' => $page_id), array());
-      if ($res && $dbr->numRows($res) > 0) {
-	$row = $dbr->fetchRow($res);
-	$rev_id = $row['page_latest'];
-      }
-      $dbr->freeResult( $res ); 
+      $rev_id = self::util_getRevFTitle();
     }
 
+    return $rev_id;
+  }
+
+  static function util_getRev()
+  {
+    global $wgRequest;
+    $rev_id = $wgRequest->getVal('oldid');
+    if (!$rev_id) {
+      $rev_id = self::util_getRevFTitle();
+    }
+    
     return $rev_id;
   }
 
