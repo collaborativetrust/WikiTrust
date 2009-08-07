@@ -60,15 +60,15 @@ $wgExtensionCredits['other'][] = array(
 
 // Quick debugging functions -- 
 // They add a debugging level and call WikiTrust::Debug.
-function wgWikiTrustDebug($msg){
+function wfWikiTrustDebug($msg){
   WikiTrust::debug($msg, WIKITRUST_DEBUG);
 }
 
-function wgWikiTrustWarn($msg){
+function wfWikiTrustWarn($msg){
   WikiTrust::debug($msg, WIKITRUST_WARN);
 }
 
-function wgWikiTrustError($msg){
+function wfWikiTrustError($msg){
   WikiTrust::debug($msg, WIKITRUST_ERROR);
 }
 
@@ -120,7 +120,8 @@ function wfWikiTrustSetup() {
 
     # We are done if the trust tab isn't selected
     global $wgRequest;
-    if (!$wgRequest->getVal('trust') || 
+    $use_trust = $wgRequest->getVal('trust'); 
+    if (!isset($use_trust) || 
         (($wgRequest->getVal('action') && 
           ($wgRequest->getVal('action') != 'purge'))))
 	return;
