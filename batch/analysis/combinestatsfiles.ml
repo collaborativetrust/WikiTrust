@@ -77,7 +77,7 @@ let _ = Arg.parse command_line_format noop usage_message;;
 do_sorting := not !do_sorting;;
 
 (* Hash table where lines are stored *)
-let tempbuckets = Hashtbl.create 2000
+let tempbuckets = Hashtbl.create 20000
 
 (* Create a temporary working directory tree *)
 try 
@@ -104,7 +104,7 @@ let flush_tmp () =
 	let s = Printf.sprintf "%08d.bkt" k in 
 	let p1 = String.sub s 0 5 in
 	let d = !bucket_dir ^ "/" ^ p1 in
-	(d, d ^ "/" ^ s)
+	(d ^ "/" ^ s, d)
       end else (Printf.sprintf "%s/%08d.bkt" !bucket_dir k, "")
     in
     let file = 
@@ -152,7 +152,7 @@ let bucketize_file () =
 	if (String.sub line 0 idx1) <> "Page:" then begin
 	  let idx2 = String.index_from line (idx1 + 1) ' ' in
 	  let k = idx2 - idx1 - !digits_per_bucket in
-	  let time_piece = String.sub line idx1 k in
+	  let time_piece = String.sub line (idx1 + 1) (k - 1) in
 	  let bucketnum = int_of_string time_piece in
 	  if Hashtbl.mem tempbuckets bucketnum then begin
 	    let l = Hashtbl.find tempbuckets bucketnum in
