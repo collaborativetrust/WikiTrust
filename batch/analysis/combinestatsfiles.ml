@@ -44,7 +44,7 @@ let dirname = ref ""
 let outfile = ref ""
 let outdir  = ref "SORTEDSTATS/"
 let numbuckets = ref 2000
-let max_lines_in_mem = ref 100000
+let max_lines_in_mem = ref 200000
 
 let tempbuckets = Hashtbl.create 1750
 let sortedfilelist = ref ""
