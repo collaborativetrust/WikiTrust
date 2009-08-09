@@ -20,7 +20,7 @@ function voteCallback(http_request){
     bodyContent.appendChild(contentSub);
     bodyContent.appendChild(trustDiv);
     if (catlinks) bodyContent.appendChild(catlinks);
-    trustDiv.innerHTML = http_request.responseText);
+    trustDiv.innerHTML = http_request.responseText;
     return true;
   } else {
     // Turn off error reporting.
