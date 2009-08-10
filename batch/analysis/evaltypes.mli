@@ -113,7 +113,6 @@ type user_data_t = {
   mutable contrib: float;
   mutable cnt : float;
   mutable rep_bin : int;
-  mutable rep_history : int Rephist.RepHistory.t;
 }
 
 type stats_t = {

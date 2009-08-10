@@ -118,8 +118,7 @@ class users
 	      rep = initial_reputation; 
 	      contrib = 0.0;
 	      cnt = 0.0; 
-	      rep_bin = 0; 
-	      rep_history = RepHistory.empty 
+	      rep_bin = 0
 	    } in 
 	    u.rep <- max 0.0 (min max_rep (u.rep +. (q /. rep_scaling)));
 	    let new_weight = log (1.0 +. (max 0.0 u.rep)) in 
@@ -155,8 +154,7 @@ class users
 		rep = initial_reputation; 
                 contrib = delta *. longevity;
 		cnt = 0.0; 
-		rep_bin = 0; 
-		rep_history = RepHistory.empty 
+		rep_bin = 0
 	      } in 
               Hashtbl.add tbl user_id u; 
             end
@@ -178,8 +176,7 @@ class users
                 rep = 0.0; 
                 contrib = 0.0; 
                 cnt = 1.0; 
-                rep_bin = 0; 
-                rep_history = RepHistory.empty 
+                rep_bin = 0
 	      } in 
               Hashtbl.add tbl uid u
             end
