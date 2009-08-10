@@ -66,13 +66,13 @@ let time_intv = ref {
   start_time = 0.0; 
   end_time = Timeconv.time_to_float 2020 10 30 0 0 0; 
 };;
-
 let user_file = ref None
-let set_file_name (s: string) = stream_name := s
+let bucket_dir = ref ""
 let set_user_file s = user_file := Some (Fileinfo.open_info_out s)
 let user_contrib_file = ref None
 let set_user_contrib_file s = user_contrib_file := Some (Fileinfo.open_info_out s)
 let write_final_reps = ref false
+let noop s = ()
 
 let set_ip_nbytes i = 
   if (i < 1 || i > 4) then begin
@@ -94,7 +94,9 @@ let set_end_time (s: string) =
 };;
 
 let command_line_format = 
-  [("-end", Arg.String (set_end_time), 
+  [("-buckets", Arg.Set_string bucket_dir, 
+  "Directory where the stat buckets are");
+  ("-end", Arg.String (set_end_time), 
   "End time for the evaluation (YYYY.MMDD)"); 
   ("-m", Arg.Set (do_monthly), 
   "Do monthly statistics of precision and recall");
@@ -131,7 +133,7 @@ let command_line_format =
   ("-write_final_reps", Arg.Set write_final_reps, "Write reputations only at the end.");
 ]
 
-let _ = Arg.parse command_line_format set_file_name "Usage: generate_reputation [<filename>]\nIf <filename> is missing, stdin is used"
+let _ = Arg.parse command_line_format noop "Usage: generate_reputation\n"
 
 let params = {
   rep_scaling = 73.24;
@@ -152,13 +154,49 @@ end
 (* This is the reputation evaluator *)
 let r = new Computerep.rep params !include_anon all_time_intv !time_intv !user_file !write_final_reps !do_monthly !do_cumulative !do_localinc !gen_exact_rep !user_contrib_order_asc !include_domains !ip_nbytes stdout !use_reputation_cap !use_nix !use_weak_nix !nix_interval !n_edit_judging !gen_almost_truthful_rep !gen_truthful_rep;;
 
-(* Reads the data *)
-let stream = if !stream_name = "" 
-  then stdin 
-  else Fileinfo.open_info_in !stream_name 
-in 
-ignore (Wikidata.read_data stream r#add_data None);
-if !stream_name <> "" then Fileinfo.close_info_in stream;;
+(* Reads the data, and passes it to the function that updates user reputations. *)
+
+(* Gets all the bucket names (they can be many!) *)
+let file_list_f = Unix.open_process_in ("find " ^ !bucket_dir) in 
+Unix.sleep 3; (* waits a bit for the pipe to be set up *)
+(* Reads all file names *)
+let file_names_l = ref [] in
+try
+  while true do
+    file_names_l := (input_line file_list_f) :: !file_names_l
+  done
+with End_of_file -> ();
+ignore (Unix.close_process_in file_list_f);
+
+(* Sorts the list *)
+let file_names_a = Array.of_list !file_names_l in
+let cmp s1 s2 = begin
+  if s1 > s2 then 1
+  else if s1 < s2 then -1 else 0
+end in
+Array.sort cmp file_names_a;
+
+for file_idx = 0 to (Array.length file_names_a) - 1 do begin
+  (* Checks if there is a sorted version of the same file *)
+  let s = file_names_a.(file_idx) in
+  let is_there_sorted_version = 
+    file_idx < (Array.length file_names_a) - 1 
+    && begin
+      let s' = file_names_a.(file_idx + 1) in 
+      let l = String.length s in
+      let l' = String.length s' in
+      l < l' && s = String.sub s' 0 l
+    end
+  in
+  if not is_there_sorted_version then begin
+    (* Ok, there is no better version for this file.
+       Processes it. *)
+    print_string ("Processing file " ^ s ^ "\n"); flush stdout;
+    let stream = open_in s in 
+    ignore (Wikidata.read_data stream r#add_data None);
+    close_in stream
+  end
+end done;;
 
 (* And prints the results *)
 r#compute_stats !user_contrib_file stdout;;

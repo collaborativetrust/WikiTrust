@@ -87,27 +87,28 @@ class users
 	      let new_weight = log (1.0 +. (max 0.0 u.rep)) in 
 	      let new_bin = int_of_float new_weight in
 	      let old_bin = u.rep_bin in
-	      u.rep_bin <- new_bin;
-	      if (not write_final_reps) then begin 
-		begin
-		  match user_history_file with 
-		    None -> ()
-		  | Some f -> begin 
-		      if new_weight > (float_of_int old_bin) +. 1.2 
-			|| new_weight < (float_of_int old_bin) -. 0.2 
-			|| gen_exact_rep
-		      then
-			begin (* must write out the change in reputation *)
-			  if gen_exact_rep then
-			    Printf.fprintf f "%f %7d %2d %2d %f\n" timestamp user_id old_bin new_bin u.rep
-			  else
-			    Printf.fprintf f "%f %7d %2d %2d\n" timestamp user_id old_bin new_bin;
-			end
+	      if write_final_reps then begin
+		(* Simply updates the bin *)
+		u.rep_bin <- new_bin
+	      end else begin 
+		match user_history_file with 
+		  None -> ()
+		| Some f -> begin 
+		    if new_weight > (float_of_int old_bin) +. 1.1
+		      || new_weight < (float_of_int old_bin) -. 0.2 
+		      || gen_exact_rep
+		    then begin (* must write out the change in reputation *)
+		      (* Updates the bin *)
+		      u.rep_bin <- new_bin;
+		      if gen_exact_rep then
+			Printf.fprintf f "%f %7d %2d %2d %f\n" timestamp user_id old_bin new_bin u.rep
+		      else
+			Printf.fprintf f "%f %7d %2d %2d\n" timestamp user_id old_bin new_bin;
 		    end
-		end;
-		if user_id = single_debug_id && single_debug then 
-		  Printf.printf "Rep of %d: %f\n" user_id u.rep
-	      end (* If not write_final_reps *)
+		  end
+	      end;  (* If not write_final_reps *)
+	      if user_id = single_debug_id && single_debug then 
+		Printf.printf "Rep of %d: %f\n" user_id u.rep
 	  end
 	else 
 	  begin
@@ -483,25 +484,23 @@ object (self)
 
   (* This method computes the statistics, and returns the edit_stats * text_stats *)
   method compute_stats (contrib_out_ch: out_channel option) (out_ch: out_channel) : stats_t * stats_t = 
-    (* First writes all user reputations, if requested. *)
-    if write_final_reps then begin
-      user_data#write_user_bins
-    end;
+    (* First writes all final user reputations. *)
+    user_data#write_user_bins;
     (* Prints contributions, if requested. *)
     begin
       match contrib_out_ch with
-          Some f -> user_data#print_contributions f user_contrib_order_asc
-        | None -> ()
+        Some f -> user_data#print_contributions f user_contrib_order_asc
+      | None -> ()
     end;
     let total_revs = (Hashtbl.length nixed) + (Hashtbl.length not_nixed) in
     Printf.fprintf out_ch "%d Revisions out of %d nixed -- %f percent."
-        (Hashtbl.length nixed) total_revs (float_of_int (Hashtbl.length nixed) /.
+      (Hashtbl.length nixed) total_revs (float_of_int (Hashtbl.length nixed) /.
         float_of_int total_revs) ;
-    Printf.fprintf out_ch "\nEdit Stats:\n"; 
-    let edit_s = stat_edit#compute_stats false out_ch in 
-    Printf.fprintf out_ch "\nText Stats:\n";
-    let text_s = stat_text#compute_stats true  out_ch in 
-    (edit_s, text_s) 
+      Printf.fprintf out_ch "\nEdit Stats:\n"; 
+      let edit_s = stat_edit#compute_stats false out_ch in 
+      Printf.fprintf out_ch "\nText Stats:\n";
+      let text_s = stat_text#compute_stats true  out_ch in 
+      (edit_s, text_s) 
 
   method get_users : (int, Evaltypes.user_data_t) Hashtbl.t = user_data#get_users
 
