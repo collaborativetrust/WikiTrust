@@ -34,7 +34,7 @@ define(WIKITRUST_DEBUG, 0);
 define(WIKITRUST_WARN, 10);
 define(WIKITRUST_ERROR, 20);
 
-global $wgWikiTrustLog, $wgWikiTrustDebugLog;
+global $wgWikiTrustLog, $wgWikiTrustDebugLog, $wgWikiTrustDebugVerbosity;
 #$wgWikiTrustLog = "/tmp/{$wgDBname}-trust.log";
 #$wgWikiTrustDebugLog = "/tmp/{$wgDBname}-trust-debug.log";
 $wgWikiTrustDebugVerbosity = WIKITRUST_WARN; // how much information to write;
