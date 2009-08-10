@@ -245,18 +245,21 @@ if (1) {
     global $wgParser, $wgUser, $wgTitle;
     $count = 0;
 
+if(0) {
     // #t might be reserved already!!
     // TODO: big hack!!
+    // TODO: This gets thrown away.  Safe to delete?  -Bo
     $text = preg_replace_callback("/\{\{#t:(\d+),(\d+),(.*?)\}\}/",
 				"WikiTrust::color_t2trust",
 				$text,
 				-1,
 				$count);
+}
 
     $options = ParserOptions::newFromUser($wgUser);
     $parsed = $wgParser->parse($colored_text, $wgTitle, $options);
     $text = $parsed->getText();
-      
+
     // Update the trust tags
     $text = preg_replace_callback("/\{\{#t:(\d+),(\d+),(.*?)\}\}/",
 				"WikiTrust::color_handleParserRe",
@@ -272,6 +275,7 @@ if (1) {
     $text = preg_replace('/<\/p>/', "</span></p>", $text, -1, $count);
     $text = preg_replace('/<p><\/span>/', "<p>", $text, -1, $count);
     $text = preg_replace('/<li><\/span>/', "<li>", $text, -1, $count);
+    $text = preg_replace('/<\/dd><\/dl>/', "</span></dd></dl><span>", $text, -1, $count);
 
     // Fix edit section links
     $text = preg_replace_callback("/<span class=\"editsection\">\[(.*?)Edit section: <\/span>(.*?)\">edit<\/a>\]<\/span>/",
