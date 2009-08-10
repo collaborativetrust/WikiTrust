@@ -36,14 +36,10 @@ POSSIBILITY OF SUCH DAMAGE.
 (* Combine stats files uses bucket sort to combine all of the statistics files in a specified directory.
  * It writes its output to a specified file. *)
 
-let filetype = ".stats"
-
 let usage_message = "Usage: combinestats [<directory>]\nAll *.stats files in <directory> will be sorted\n"
 
 let input_dir = ref ""
-let sorted_dir  = ref "SORTEDSTATS/"
 let bucket_dir = ref ""
-let outfile = ref ""
 let digits_per_bucket = ref 5
 let max_lines_in_mem = ref 1000000
 let do_bucketing = ref false
@@ -54,14 +50,10 @@ let lines_in_cache = ref 0
 let noop s = ()
 
 let command_line_format = [
-  ("-outfile", Arg.Set_string outfile,
-  "write entire sorted output to this file (if empty, large output not produced)");
-  ("-sorted_dir",  Arg.Set_string sorted_dir,
-  "write split sorted files to this directory (defaults to ./SORTEDSTATS/)");
   ("-input_dir",  Arg.Set_string input_dir,
   "directory where the input files are");
   ("-bucket_dir", Arg.Set_string bucket_dir,
-  "directory where the unsorted buckets are");
+  "directory where the unsorted and sorted buckets are");
   ("-n_digits", Arg.Set_int digits_per_bucket,
   "number of digits that go into the same bucket (default: 5, or about a day)");
   ("-use_subdirs", Arg.Set use_dirs, 
@@ -72,7 +64,7 @@ let command_line_format = [
   "Skips the sorting step");
   ("-remove_unsorted", Arg.Set remove_unsorted,
   "Remove unsorted files after sorting");
-  ("-flush", Arg.Set_int max_lines_in_mem,
+  ("-cache_lines", Arg.Set_int max_lines_in_mem,
   "number of lines to read into memory before flushing to disk (default: 1000000)")
 ];;
   
@@ -88,15 +80,9 @@ let tempbuckets = Hashtbl.create 20000
 
 (* Create a temporary working directory tree *)
 if !do_bucketing then begin
-  try 
-    Unix.mkdir !bucket_dir 0o750;
-  with e -> begin 
-    print_string "Warning: bucket directory already exists.\n"; 
-    flush stdout 
-  end;
-
+  ignore (Unix.system ("mkdir " ^ !bucket_dir));
   (* Gets the list of files to bucketize *)
-  let file_list_f = Unix.open_process_in ("find " ^ !input_dir ^ " -name *" ^ filetype) in 
+  let file_list_f = Unix.open_process_in ("find " ^ !input_dir ^ " -name *" ^ ".stats") in 
   (* Waits a bit before reading from the pipe *)
   Unix.sleep 3;
 
@@ -184,10 +170,9 @@ if !do_bucketing then begin
   ignore (Unix.close_process_in file_list_f)
 end;;
 
-
 if !do_sorting then begin
   (* Gets the list of files to sort *)
-  let file_list_f = Unix.open_process_in ("find " ^ !input_dir ^ " -name *" ^ filetype) in 
+  let file_list_f = Unix.open_process_in ("find " ^ !bucket_dir ^ " -name *.bkt") in 
   (* Waits a bit before reading from the pipe *)
   Unix.sleep 3;
   
@@ -200,6 +185,7 @@ if !do_sorting then begin
       ignore (Unix.system commandtext);
       if !remove_unsorted then ignore (Unix.system ("rm " ^ filename))
     end done
-  with End_of_file -> ()
+  with End_of_file -> ();
+  ignore (Unix.close_process_in file_list_f)
 end;;
 

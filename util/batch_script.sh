@@ -6,8 +6,10 @@
     | batch/analysis/evalwiki -compute_stats -si ~/wiki-data/enwork/stats/wiki-00100220.stats
 
 # Sorting the statistics:
-batch/analysis/combinestats -outfile ~/wiki-data/enwork/sorted_stats/all_sorted.stat \
-    -outdir ~/wiki-data/enwork/sorted_stats_temp/ ~/wiki-data/enwork/stats/
+batch/analysis/combinestats \
+    -bucket_dir ~/wiki-data/enwork/buckets/ \
+    -input_dir ~/wiki-data/enwork/stats/ \
+    -n_digits 4 -use_subdirs
 
 # Computing the reputations (whole histories):
 batch/analysis/generate_reputation -use_reputation_cap -use_nix -nix_interval 100000 \
