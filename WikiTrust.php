@@ -35,11 +35,11 @@ define(WIKITRUST_WARN, 10);
 define(WIKITRUST_ERROR, 20);
 
 global $wgWikiTrustLog, $wgWikiTrustDebugLog;
-$wgWikiTrustLog = "/tmp/{$wgDBname}-trust.log";
-$wgWikiTrustDebugLog = "/tmp/{$wgDBname}-trust-debug.log";
+#$wgWikiTrustLog = "/tmp/{$wgDBname}-trust.log";
+#$wgWikiTrustDebugLog = "/tmp/{$wgDBname}-trust-debug.log";
 $wgWikiTrustDebugVerbosity = WIKITRUST_WARN; // how much information to write;
-#$wgWikiTrustLog = "/dev/null";
-#$wgWikiTrustDebugLog = "/dev/null";
+$wgWikiTrustLog = "/dev/null";
+$wgWikiTrustDebugLog = "/dev/null";
 global $wgWikiTrustCmd, $wgWikiTrustCmdExtraArgs, $wgWikiTrustColorPath,
 	$wgWikiTrustRepSpeed, $wgWikiTrustApiURL;
 $wgWikiTrustCmd = dirname(__FILE__) . "/eval_online_wiki";

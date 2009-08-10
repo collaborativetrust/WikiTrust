@@ -6,18 +6,20 @@
     | batch/analysis/evalwiki -compute_stats -si ~/wiki-data/enwork/stats/wiki-00100220.stats
 
 # Sorting the statistics:
-batch/analysis/combinestats -outfile ~/wiki-data/enwork/sorted_stats/all_sorted.stat \
-    -outdir ~/wiki-data/enwork/sorted_stats_temp/ ~/wiki-data/enwork/stats/
+batch/analysis/combinestats \
+    -bucket_dir ~/wiki-data/enwork/buckets/ \
+    -input_dir ~/wiki-data/enwork/stats/ \
+    -n_digits 4 -use_subdirs
 
 # Computing the reputations (whole histories):
 batch/analysis/generate_reputation -use_reputation_cap -use_nix -nix_interval 100000 \
     -local_global_algo -u ~/wiki-data/enwork/reps/rep_history.txt \
-    ~/wiki-data/enwork/sorted_stats/all_sorted.stat
+    -buckets ~/wiki-data/enwork/buckets/ 
 
 # Computing the reputations (only the final ones):
 batch/analysis/generate_reputation -use_reputation_cap -use_nix -nix_interval 100000 \
     -local_global_algo -u ~/wiki-data/enwork/reps/rep_history.txt \
-    -write_final_reps ~/wiki-data/enwork/sorted_stats/all_sorted.stat
+    -write_final_reps -buckets ~/wiki-data/enwork/buckets/ 
 
 # Generating the colored pages and the sql file for batch-online:
 batch/analysis/evalwiki -trust_for_online \

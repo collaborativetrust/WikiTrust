@@ -91,7 +91,7 @@ The command you need is:
 ./evalwiki -d ~/work/wiki-data/stats/ -compute_stats ~/work/wiki-data/split_wikis/enwiki-20070206_00066.xml.gz
 
 The above command puts the result in the stats/ directory.  The result
-is a file called enwiki-20070206_00066.out . The file contains
+is a file called enwiki-20070206_00066.stats . The file contains
 statistics sorted in page order, not in cronological order. 
 
 For small files, you can sort them in chronological order as follows: 
