@@ -278,7 +278,7 @@ object(self)
   method fetch_all_revs (req_page_id: int option) (max_revs_to_return: int) : revision_t list = 
     let wr = match req_page_id with
 	None -> ""
-      | Some p_id -> Printf.sprintf "WHERE page_id = %s" (ml2int p_id) 
+      | Some p_id -> Printf.sprintf "WHERE rev_page = %s" (ml2int p_id) 
     in
     let s = Printf.sprintf  "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM %srevision %s ORDER BY rev_timestamp ASC, rev_id ASC LIMIT %s" 
       db_prefix wr (ml2int max_revs_to_return) in
@@ -661,27 +661,28 @@ object(self)
     let results = ref [] in
     while !n_attempts < n_retries do 
       begin 
-	try begin 
-	  self#start_transaction;
-	  let s = Printf.sprintf "SELECT page_id, page_title FROM %swikitrust_queue WHERE processed = 'unprocessed' ORDER BY requested_on ASC LIMIT %s" 
-	    db_prefix (ml2int max_to_get) in
-	  let get_id row : int = (not_null int2ml row.(0)) in
-	  let get_title row : string = (not_null str2ml row.(1)) in
-	  let get_pair row = (get_id row, get_title row) in 
-	  results := Mysql.map (self#db_exec mediawiki_dbh s) get_pair;
-	  let mark_as_processing (page_id, _) = 
-	    let s = Printf.sprintf "UPDATE %swikitrust_queue SET processed = 'processing' WHERE page_id = %s" db_prefix (ml2int page_id) in
-	    ignore (self#db_exec mediawiki_dbh s)
-	  in
-	  List.iter mark_as_processing !results
-	end with _ -> begin 
-	  (* Roll back *)
-	  self#rollback_transaction;
-	  n_attempts := !n_attempts + 1
-	end
+	      try begin 
+	        self#start_transaction;
+	        let s = Printf.sprintf "SELECT page_id, page_title FROM %swikitrust_queue WHERE processed = 'unprocessed' ORDER BY requested_on ASC LIMIT %s" 
+	          db_prefix (ml2int max_to_get) in
+	        let get_id row : int = (not_null int2ml row.(0)) in
+	        let get_title row : string = (not_null str2ml row.(1)) in
+	        let get_pair row = (get_id row, get_title row) in 
+	          results := Mysql.map (self#db_exec mediawiki_dbh s) get_pair;
+	          let mark_as_processing (page_id, _) = 
+	            let s = Printf.sprintf "UPDATE %swikitrust_queue SET processed = 'processing' WHERE page_id = %s" db_prefix (ml2int page_id) in
+	              ignore (self#db_exec mediawiki_dbh s)
+	          in
+	            List.iter mark_as_processing !results;
+              (* HACK -- but we need to end this loop. *)
+              n_attempts := n_retries   
+	      end with _ -> begin 
+	        (* Roll back *)
+	        self#rollback_transaction;
+	        n_attempts := !n_attempts + 1
+	      end
       end done; (* End of the multiple attempts at the transaction *)
-    !results
-
+      !results
 
   (** [erase_cached_rev_text page_id rev_id rev_time_string] does nothing; 
       it does something only in the subclass that uses the exec api. *)

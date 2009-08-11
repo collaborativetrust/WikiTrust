@@ -122,7 +122,8 @@ class WikiTrustBase {
     }
 
     if (!$colored_text) {
-      wfWikiTrustDebug(__FILE__.": "__LINE__." $rev_id: colored text not found.");
+      wfWikiTrustDebug(__FILE__ . ": "
+          . __LINE__ . " $rev_id: colored text not found.");
       // text not found.
       global $wgUser, $wgParser, $wgTitle;
       $options = ParserOptions::newFromUser($wgUser);

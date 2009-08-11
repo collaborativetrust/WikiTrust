@@ -60,20 +60,20 @@ VOTE = 0
 TEXT = 5
 EDIT = 10
 
-PAGE_ID = 1
-PAGE_TITLE = "testing title"
+PAGE_ID = 86589
+PAGE_TITLE = "Olwen"
 
-events = [{'type':TEXT,'rev_id':1,'page_id':PAGE_ID,'user_id':1,'v_time':'10',
+events = [{'type':TEXT,'rev_id':1,'page_id':PAGE_ID,'user_id':1,'v_time':'20020306020412',
            'page_title':PAGE_TITLE},
-          {'type':TEXT,'rev_id':2,'page_id':PAGE_ID,'user_id':2,'v_time':'15',
+          {'type':TEXT,'rev_id':2,'page_id':PAGE_ID,'user_id':2,'v_time':'20020306020422',
            'page_title':PAGE_TITLE},
-          {'type':EDIT,'rev_id':3,'page_id':PAGE_ID,'user_id':3,'v_time':'20',
+          {'type':EDIT,'rev_id':3,'page_id':PAGE_ID,'user_id':3,'v_time':'20020306020432',
            'page_title':PAGE_TITLE},
-          {'type':VOTE,'rev_id':4,'page_id':PAGE_ID,'user_id':3,'v_time':'25',
+          {'type':VOTE,'rev_id':4,'page_id':PAGE_ID,'user_id':3,'v_time':'20020306020442',
            'page_title':PAGE_TITLE},
-          {'type':VOTE,'rev_id':5,'page_id':PAGE_ID,'user_id':4,'v_time':'30',
+          {'type':VOTE,'rev_id':5,'page_id':PAGE_ID,'user_id':4,'v_time':'20020306020452',
            'page_title':PAGE_TITLE},
-          {'type':TEXT,'rev_id':6,'page_id':PAGE_ID,'user_id':5,'v_time':'35',
+          {'type':TEXT,'rev_id':6,'page_id':PAGE_ID,'user_id':5,'v_time':'20020306020463',
            'page_title':PAGE_TITLE}]
 
 ## Use the methods defined in the server.py file
@@ -161,7 +161,7 @@ curs = connection.cursor()
 
 DB_PREFIX = ini_config.get('db', 'prefix')
 
-print "Deleting all entries from the DB......."
+print "Deleting all entries from the DB......." + ini_config.get('db', 'db')
 
 curs.execute("delete from "+ini_config.get('db', 'prefix')+"wikitrust_global")
 curs.execute("delete from "+ini_config.get('db', 'prefix')+"wikitrust_page")     
@@ -173,6 +173,7 @@ curs.execute("delete from "+ini_config.get('db', 'prefix')+"wikitrust_user")
 curs.execute("delete from "+ini_config.get('db', 'prefix')+\
              "wikitrust_missing_revs")
 curs.execute("delete from "+ini_config.get('db', 'prefix')+"wikitrust_sigs")
+curs.execute("delete from "+ini_config.get('db', 'prefix')+"wikitrust_queue")
 
 connection.commit()
 
@@ -182,7 +183,6 @@ print "DB Cleared\n"
 event_functions = {VOTE: addVote,
                    TEXT: addTextRequest,
                    EDIT: addEdit}
-                   
 
 for event in events:
   event_functions.get(event.get('type'))(
@@ -192,4 +192,5 @@ for event in events:
       event.get('v_time'),
       event.get('page_title'),
       )
-      
+  
+print "Events Added\n"      
