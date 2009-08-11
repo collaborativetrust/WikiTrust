@@ -686,9 +686,9 @@ let separate_table_tags (v: piece_t Vec.t) : piece_t Vec.t =
 
 
 (* Takes care of whitespace and line breaks *)
-let whitespace = "\\([ \n\t]+\\)\\|\\(''+\\)"
+let whitespace = "\\([,;.: \n\t]+\\)\\|\\(''+\\)"
 let whitespace_r = Str.regexp whitespace
-let inline_whitespace_r = Str.regexp "[ \t]+"
+let inline_whitespace_r = Str.regexp "[,;.: \t]+"
 let line_break_whitespace_r = Str.regexp "[ \n\t]*\n[ \n\t]*"
 (* Armored xml tags *)
 let xml_entity = "\\(&amp;#?[a-zA-Z0-9]+;\\)\\|\\(&#?[a-zA-Z0-9]+;\\)"
@@ -793,6 +793,15 @@ let normalize_ws (s: string) : string =
     let end_idx   = if s'.[n-1] = ' ' then n - 1 else n in 
     String.sub s' start_idx (end_idx - start_idx) 
   end
+
+(* This function normalizes a word of the wiki, turning it into lowercase,
+   and eliminating any whitespace and punctuation that it might contain. *)
+(* Things I do NOT renormalize so far: ?, !, (), other parentheses, and more. 
+   These all seem too important to renormalize. *)
+let word_renormalize_chars_r = Str.regexp "[.:;,-]+"
+let renormalize_word (s: string) : string =
+  let s' = Str.global_replace word_renormalize_chars_r "" s in
+  String.lowercase s'
 
 
 (* This function splits a Vec.t of strings respecting the wiki markup language.
@@ -974,8 +983,8 @@ let split_into_words_seps_and_info (arm: bool) (text_v: string Vec.t)
       end
     | TXT_word s -> begin 
 	sep_v := Vec.append (Word (s, !word_idx)) !sep_v; 
-	(* the viword is just the original string s *)
-	word_v := Vec.append s !word_v; 
+	(* the viword is the renormalized, lowercase word *)
+	word_v := Vec.append (renormalize_word s) !word_v; 
 	word_trust_v := Vec.append !trust !word_trust_v; 
 	word_origin_v := Vec.append !origin !word_origin_v; 
 	word_author_v := Vec.append !author !word_author_v;
@@ -1019,11 +1028,11 @@ let split_into_words (arm: bool) (text_v: string Vec.t) : word array =
 (* Unit testing *)
 
 if false then begin
-  let s0 = "\n[[image:Charles Lyell.jpg|thumb|Charles Lyell]]\n[[Image:Lyell Principles frontispiece.jpg|thumb|The frontispiece from ''Principles of Geology'']]\n'''Sir Charles Lyell, 1st Baronet''', [[Order of the Thistle|KT]], ([[November 14]], [[1797]] &ndash; [[February 22]], [[1875]]), [[Scotland|Scottish]] [[lawyer]], [[geologist]], and populariser of [[Uniformitarianism (science)|uniformitarianism]].\n\nHe won the [[Copley Medal]] in 1858 and the [[Wollaston Medal]] in 1866.  After the [[Great Chicago Fire]], Lyell was one of the first to donate books to help found the [[Chicago Public Library]].\n\nUpon his death in 1875, he was buried in [[Westminster Abbey]].\n" in
+  let s0 = "\n[[image:Charles Lyell.jpg|thumb|Charles Lyell]]\n[[Image:Lyell Principles frontispiece.jpg|thumb|The frontispiece from ''Principles of Geology'']]\n'''Sir Charles Lyell, 1st Baronet''', [[Order of the Thistle|KT]], ([[November 14]], [[1797]] &ndash; [[February 22]], [[1875]]), [[Scotland|Scottish]] [[lawyer]], [[geologist]], and populariser of [[Uniformitarianism (science)|uniformitarianism]].\n\nHe won the [[Copley Medal]] in 1858 and the [[Wollaston Medal]] in 1866.  After the [[Great Chicago Fire]], Lyell was one of the first to donate books, to help found the [[Chicago Public Library]].\n\nUpon his death in 1875, he was buried in [[Westminster Abbey]].\n" in
   let s1 = "\n#REDIRECT [[Pollo con piselli]]\n== Titolo == \n<pre> Codice con [[markup[[ bla ]] boh]] e \n == titolo ==\n</pre>\n ==titolo2.\n=========== \n========\n == title ==" in
   let s2 = "\n{{to:,,\"Luca\"}}\n{| class=\"toccolours\"  border=1 cellpadding=2 cellspacing=2 style=\"width: 700px; margin: 0 0 1em 1em; border-collapse: collapse; border: 1px solid #E2E2E2;\"\n\n|-\n! bgcolor=\"#E7EBEE\" | 1972 Debut Tour<br><br>Roy Wood's only live ELO tour.<br>After the tour, Wood, Hunt&auml;d and <br>McDowell leave ELO and form Wizzard.\n| \n* [[Roy Wood]] - [[vocals]], [[cello]], [[bass guitar]], [[guitar]], [[woodwind]]\n* [[Jeff Lynne]] - [[vocals]], [[lead guitar]], [[piano]]\n|-\n! bgcolor=\"#E7EBEE\" | 1972 - 1973 ELO 2 Tour<br><br>Bassist Mike de Albuquerque and cellist Colin Walker join ELO after the departure of Wood, Hunt, McDowell, Craig and Smith.\n| \n* [[Jeff Lynne]] - [[Vocals]], [[lead guitar]]\n* [[Bev Bevan]] - [[drums]], [[percussion]]\n|}\n" in 
   let s3 = "\n[[Adapa]] U-an ([[Berossus' ''[[Oannes]]''), " in 
-  let s4 = "\n==Title of a page== \n# bullet 1\n# ''bullet2\n indent''\n{| table\n | able\n |able\n|}\n Con altra roba dopo [http://gatto.matto gatto bello] mi piace" in
+  let s4 = "\n==Title of a page== \n# bullet 1\n# ''bullet2\n indent''\n{| table\n | able\n |able\n|}\n Con altra roba dopo [http://gatto.matto gatto bello] mi piace." in
   let s5 = "\n &lt;pre polla&gt; bla bla &lt;/pre &gt; &lt;blah /&gt;\n<a href=\"pollo.html\">con il pollo <pre> non</a> si fa molto </pre> di <boh /> nuovo." in
   let s6 = "\nBello ''[[link]]'' '''con''' {{stub}} e [[link]] e {{stub}} <a href=8>Mangio</a>" in 
   let s7 = "\n=== Titolo ===\nBello [[link||{{stub}} as a [[name]] long]] {{stub}} &lt;div bah=\"gog\" &gt; [[link]] </div> borom &lt;/div&gt;" in 
@@ -1039,7 +1048,7 @@ if false then begin
   let s17 = "\n&amp;nbsp; &lt;br&gt;gatto <br> pollo&lt;br&gt;gatto &lt;br&gt; gotto &lt;br/&gt;pollo &lt;br/&gt;pollo &lt;br&gt; pollo &lt;br/&gt;" in 
   let s18 = "* Bullet \n*: cont \n::: ecco \n \n \n**:: non so \n##: fatto" in
   let s19 = "{{#t:3,2,milappo}} Gatto {{#t:0.12,4,canicola}} posso {{#t:5,94854,\"ganzoide\"}} {{#t:0.12,34,\"pappafico\"}} cane {{#t:3,43,hellicola}} gatto {{#t:3,,hoi}} uccello {{#t:3,4,}} zecca" in 
-  let s20 = "Quando vado a\n[[storia]]\ndi amore\nnon so cosa fare.\n" in 
+  let s20 = "Quando vado, a\n[[storia]]\ndi amore\nnon so cosa fare.\n" in 
 
   let l = [s0; s1; s2; s3; s4; s5; s6; s7; s8; s9; s10; s11; s12; s13; s14; s15; s16; s17; s18; s19; s20] in
 
