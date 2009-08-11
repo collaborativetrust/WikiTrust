@@ -77,7 +77,7 @@ class WikiTrustBase {
 
     $user_id = self::user_getIdFName($dbr, $userName);
 
-    return self::vote_recordVote($dbr, $user_id, $page_id, $rev_id);
+    return WikiTrust::vote_recordVote($dbr, $user_id, $page_id, $rev_id);
   }
 
 
@@ -117,7 +117,7 @@ class WikiTrustBase {
     $rev_id = self::util_getRevFOut($out);
     $colored_text = self::$colored_text;
     if (!self::$colored_text_loaded){
-      $colored_text = self::color_getColorData($rev_id);
+      $colored_text = WikiTrust::color_getColorData($rev_id);
       self::color_fixup($colored_text);
     }
 
@@ -384,7 +384,7 @@ if (1) {
     // We need to know if the colored text is missing or not, and just getting
     // it seems like the easiest way to figure this out.
     $rev_id = self::util_getRev();
-    $colored_text = self::color_getColorData($rev_id);
+    $colored_text = WikiTrust::color_getColorData($rev_id);
     self::color_fixup($colored_text);
     self::$colored_text = $colored_text;
     self::$colored_text_loaded = true;
@@ -393,7 +393,7 @@ if (1) {
     //   for this page.
     // Reasons for this are missing text or a vote which needs to be 
     //   processed still.
-    if (!self::$colored_text || self::voteToProcess($rev_id)){
+    if (!self::$colored_text || WikiTrust::voteToProcess($rev_id)){
       $modified_times['page'] = wfTimestampNow();
       wfWikiTrustDebug(__FILE__.": ".__LINE__
                        .": new times - ".print_r($modified_times, true));
