@@ -264,7 +264,7 @@ def handler(req):
     if is_vote:
       handle_vote(req, rev_id, page_id, user_id, time_str, page_title)
     elif is_edit:
-       handle_edit(req, rev_id, page_id, user_id, time_str, page_title);
+      handle_edit(req, rev_id, page_id, user_id, time_str, page_title);
     else:
       handle_text_request(req, rev_id, page_id, user_id, time_str, page_title)
 

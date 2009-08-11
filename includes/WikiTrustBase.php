@@ -64,24 +64,28 @@ class WikiTrustBase {
 			     $rev_id_raw = 0, $page_title_raw = "")
   {
     
-    
+    wfWikiTrustDebug(__FILE__.":".__LINE__
+        . ": Handling vote from $user_name_raw $page_title_raw");
     $dbr =& wfGetDB( DB_SLAVE );
     
     $userName = $dbr->strencode($user_name_raw, $dbr);
     $page_id = $dbr->strencode($page_id_raw, $dbr);
     $rev_id = $dbr->strencode($rev_id_raw, $dbr);
-    
+    $pageTitle = $dbr->strencode($page_title_raw, $dbr);
 
-    if(!$page_id || !$user_id || !$rev_id)
+    if(!$page_id || !$userName || !$rev_id || !$pageTitle)
       return new AjaxResponse("0");
 
     $user_id = self::user_getIdFName($dbr, $userName);
+    if(!$user_id)
+      $user_id = 0;
+    wfWikiTrustDebug(__FILE__.":".__LINE__.": UserId: $user_id");
 
-    return WikiTrust::vote_recordVote($dbr, $user_id, $page_id, $rev_id);
+    return WikiTrust::vote_recordVote($dbr, $user_id, $page_id, $rev_id, $pageTitle);
   }
 
 
-  static function vote_recordVote(&$dbr, $user_id, $page_id, $rev_id)
+  static function vote_recordVote(&$dbr, $user_id, $page_id, $rev_id, $pageTitle)
   {
     // Now see if this user has not already voted, 
     // and count the vote if its the first time though.
@@ -95,7 +99,8 @@ class WikiTrustBase {
     $dbr->freeResult($res);
     if ($row['revision_id']) return new AjaxResponse("Already Voted");
 
-    $insert_vals = array("revision_id" => $rev_id,
+    $insert_vals = array(
+       "revision_id" => $rev_id,
 			 "page_id" => $page_id ,
 			 "voter_id" => $user_id,
 			 "voted_on" => wfTimestampNow()

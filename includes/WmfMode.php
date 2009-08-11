@@ -40,7 +40,7 @@ class WikiTrust extends WikiTrustBase {
     }
   }
   
-  static function vote_recordVote(&$response, $user_id, $page_id, $rev_id)
+  static function vote_recordVote(&$response, $user_id, $page_id, $rev_id, $page_title)
   {
     global $wgWikiTrustContentServerURL;
     $ctx = stream_context_create(
@@ -128,8 +128,21 @@ class WikiTrust extends WikiTrustBase {
     $page_title = $article->getTitle()->getDBkey();
     $user_id = $user->getID();
     $parentId = $revision->getParentId();
+
+    wfWikiTrustDebug(__FILE__.": ".__LINE__.": New article id $rev_id");
 		
     global $wgWikiTrustContentServerURL;
+
+    wfWikiTrustDebug(__FILE__.": ".__LINE__.": ".
+       $wgWikiTrustContentServerURL 
+			 ."edit=1&rev=".urlencode($rev_id)
+			 ."&page=".urlencode($page_id)
+			 ."&user=".urlencode($user_id)
+			 ."&parentId".urlencode($parentId)
+			 ."&text=".urlencode($text)
+			 ."&page_title=".urlencode($page_title)
+       ."&time=".urlencode(wfTimestampNow()));
+
     $colored_text = self::file_post_contents($wgWikiTrustContentServerURL 
 			 ."edit=1&rev=".urlencode($rev_id)
 			 ."&page=".urlencode($page_id)
