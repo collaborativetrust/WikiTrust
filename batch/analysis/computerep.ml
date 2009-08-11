@@ -113,7 +113,6 @@ class users
 	end else begin
 	  (* New user *)
 	  let u = {
-	    uname = username;
 	    rep = initial_reputation; 
 	    contrib = 0.0;
 	    cnt = 0.0; 
@@ -150,7 +149,6 @@ class users
             else begin
               (* New user *)
               let u = {
-                uname = username;
 		rep = initial_reputation; 
                 contrib = delta *. longevity;
 		cnt = 0.0; 
@@ -172,7 +170,6 @@ class users
             begin
               (* New user *)
               let u = {
-                uname = "PlaceHolder";
                 rep = 0.0; 
                 contrib = 0.0; 
                 cnt = 1.0; 
@@ -257,8 +254,8 @@ class users
       in
         Hashtbl.iter insert_user tbl;
         let write_contrib (uid, v) =
-          Printf.fprintf out_ch "Uid %d    Name %S    Reputation %f    Contribution %f\n" 
-            uid v.uname v.rep v.contrib
+          Printf.fprintf out_ch "Uid %d    Reputation %f    Contribution %f\n" 
+            uid v.rep v.contrib
         in
           Vec.iter write_contrib !vec_of_users
 
