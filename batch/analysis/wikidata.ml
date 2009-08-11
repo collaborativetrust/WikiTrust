@@ -176,7 +176,8 @@ let read_data
 	  (* Printf.printf "%s\n" l; *) (* debug *)
 	  (* if !data_ord mod 100000 = 0 then Printf.printf "%d read\n" !data_ord; 
 	  flush stdout; *) (* debug *)
-          if String.length l > 7 then 
+	  (* To guard against disk data corruption, I have to avoid using lines containing \000 *)
+          if (String.length l > 7) && not (String.contains l '\000') then 
             begin
               (* Now we must figure out which line l is *)
               if (String.sub l 0 7) = "EditInc" then 
