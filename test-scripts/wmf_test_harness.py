@@ -60,21 +60,22 @@ VOTE = 0
 TEXT = 5
 EDIT = 10
 
-PAGE_ID = 1
-PAGE_TITLE = "testing title"
+PAGE_ID = 86589
+PAGE_TITLE = "Olwen"
+REV_IDS = [300163107, 298263125, 298194927, 288143790, 279447417, 279194140]
 
-events = [{'type':TEXT,'rev_id':1,'page_id':PAGE_ID,'user_id':1,'v_time':'10',
-           'page_title':PAGE_TITLE},
-          {'type':TEXT,'rev_id':2,'page_id':PAGE_ID,'user_id':2,'v_time':'15',
-           'page_title':PAGE_TITLE},
-          {'type':EDIT,'rev_id':3,'page_id':PAGE_ID,'user_id':3,'v_time':'20',
-           'page_title':PAGE_TITLE},
-          {'type':VOTE,'rev_id':4,'page_id':PAGE_ID,'user_id':3,'v_time':'25',
-           'page_title':PAGE_TITLE},
-          {'type':VOTE,'rev_id':5,'page_id':PAGE_ID,'user_id':4,'v_time':'30',
-           'page_title':PAGE_TITLE},
-          {'type':TEXT,'rev_id':6,'page_id':PAGE_ID,'user_id':5,'v_time':'35',
-           'page_title':PAGE_TITLE}]
+events = [{'type':TEXT,'rev_id':REV_IDS[0],'page_id':PAGE_ID,'user_id':1
+           ,'v_time':'20020306020412','page_title':PAGE_TITLE},
+          {'type':TEXT,'rev_id':REV_IDS[1],'page_id':PAGE_ID,'user_id':2
+           ,'v_time':'20020306020422','page_title':PAGE_TITLE},
+          {'type':EDIT,'rev_id':REV_IDS[2],'page_id':PAGE_ID,'user_id':3
+           ,'v_time':'20020306020432','page_title':PAGE_TITLE},
+          {'type':VOTE,'rev_id':REV_IDS[3],'page_id':PAGE_ID,'user_id':3
+           ,'v_time':'20020306020442','page_title':PAGE_TITLE},
+          {'type':VOTE,'rev_id':REV_IDS[4],'page_id':PAGE_ID,'user_id':4
+           ,'v_time':'20020306020452','page_title':PAGE_TITLE},
+          {'type':TEXT,'rev_id':REV_IDS[5],'page_id':PAGE_ID,'user_id':5
+           ,'v_time':'20020306020463','page_title':PAGE_TITLE}]
 
 ## Use the methods defined in the server.py file
 sys.path.append(BASE_DIR + "../remote/analysis")
@@ -161,7 +162,7 @@ curs = connection.cursor()
 
 DB_PREFIX = ini_config.get('db', 'prefix')
 
-print "Deleting all entries from the DB......."
+print "Deleting all entries from the DB......." + ini_config.get('db', 'db')
 
 curs.execute("delete from "+ini_config.get('db', 'prefix')+"wikitrust_global")
 curs.execute("delete from "+ini_config.get('db', 'prefix')+"wikitrust_page")     
@@ -173,6 +174,10 @@ curs.execute("delete from "+ini_config.get('db', 'prefix')+"wikitrust_user")
 curs.execute("delete from "+ini_config.get('db', 'prefix')+\
              "wikitrust_missing_revs")
 curs.execute("delete from "+ini_config.get('db', 'prefix')+"wikitrust_sigs")
+curs.execute("delete from "+ini_config.get('db', 'prefix')+"wikitrust_queue")
+curs.execute("delete from "+ini_config.get('db', 'prefix')+"text")
+curs.execute("delete from "+ini_config.get('db', 'prefix')+"revision")
+curs.execute("delete from "+ini_config.get('db', 'prefix')+"page")
 
 connection.commit()
 
@@ -182,7 +187,6 @@ print "DB Cleared\n"
 event_functions = {VOTE: addVote,
                    TEXT: addTextRequest,
                    EDIT: addEdit}
-                   
 
 for event in events:
   event_functions.get(event.get('type'))(
@@ -192,4 +196,5 @@ for event in events:
       event.get('v_time'),
       event.get('page_title'),
       )
-      
+  
+print "Events Added\n"      

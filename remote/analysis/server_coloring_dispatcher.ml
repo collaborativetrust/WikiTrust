@@ -51,6 +51,9 @@ POSSIBILITY OF SUCH DAMAGE.
    Missing coloring:
    * Insert the page in the wikiturst_queue table.
 
+   Debug:
+   ocamldebug -I `ocamlfind query mysql` -I `ocamlfind query sexplib` -I 'ocamlfind query vec' -I ../../analysis -I ../../batch/analysis [other options]
+
  *)
 
 open Online_command_line
@@ -176,13 +179,14 @@ let main_loop () =
       Hashtbl.iter check_subprocess_termination working_children
     end else begin
       let pages_to_process = db#fetch_work_from_queue
-	(max (max_concurrent_procs - Hashtbl.length working_children) 0) 
-	!times_to_retry_trans
-      in dispatch_page pages_to_process
+	      (max (max_concurrent_procs - Hashtbl.length working_children) 0) 
+	      !times_to_retry_trans
+      in
+        dispatch_page pages_to_process
     end;
     Unix.sleep sleep_time_sec;
     if !synch_log then flush Pervasives.stdout;
-  done
+  done 
 in
 
 main_loop ()

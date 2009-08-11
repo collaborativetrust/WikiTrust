@@ -6,14 +6,13 @@ def mark_for_coloring (rev_id, page_id, user_id, rev_time, page_title, r_type,
                        connection, DB_PREFIX):
 
   curs = connection.cursor()
-  sql = """SELECT revision_id FROM """ + DB_PREFIX + """wikitrust_missing_revs WHERE revision_id = %(rid)s AND processed <> 'processed'"""
-  args = {'rid':rev_id}
+  sql = """SELECT page_id FROM """ + DB_PREFIX + """wikitrust_queue WHERE page_id = %(pid)s AND processed <> 'processed'"""
+  args = {'pid':page_id}
   curs.execute(sql, args)
   numRows = curs.execute(sql, args)
 
   if (numRows <= 0):
-     sql = """INSERT INTO """ + DB_PREFIX + """wikitrust_missing_revs (revision_id, page_id, page_title, rev_time, user_id, type) VALUES (%(rid)s, %(pid)s, %(title)s, %(time)s, %(vid)s, %(ty)s) ON DUPLICATE KEY UPDATE requested_on = now(), processed = 'unprocessed', type=%(ty)s"""
-     args = {'rid':rev_id, 'pid':page_id, 'title':page_title, 
-             'time':rev_time, 'vid':user_id, 'ty':r_type}
+     sql = """INSERT INTO """ + DB_PREFIX + """wikitrust_queue (page_id, page_title) VALUES (%(pid)s, %(title)s) ON DUPLICATE KEY UPDATE requested_on = now(), processed = 'unprocessed'"""
+     args = {'pid':page_id, 'title':page_title}
      curs.execute(sql, args)
      connection.commit()
