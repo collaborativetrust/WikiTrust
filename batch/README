@@ -1,40 +1,35 @@
 PREREQUISITES:
 =============
 
-WikiTrust is written in Ocaml.  You will need Ocaml-8.10.0 or later. 
-
-You also need to get, and install, OcamlLdaLibs. 
-These libraries are distributed from http://trust.cse.ucsc.edu/ 
-
-
-BUILDING THE CODE:
-=================
-
-First, you need to make and install OcamlLdaLibs. 
-Look at the README file in that directory for instructions on how to
-proceed. 
-
-To build all the WikiTrust executable, do: 
-
-make all 
-
--or- 
-
-make allopt
-
-The [opt] versions of the command use the Ocaml optimizing compiler,
-which is necessary if you plan to run the code on any extensive
-collection of data. 
-The non-opt versions genrates the code that is suitable to the Ocaml
-debugger ocamldebug. 
-
-
-GETTING HELP:
-============
+See the main README file for how to build WikiTrust. 
+Do a "make allopt" from the top level, as described there. 
 
 To have more information on any command, use: 
 
 <command> --help
+
+ANALYZING LARGE WIKI DUMPSS WITH WIKITRUST:
+==========================================
+
+In general, to use WikiTrust on a wiki wiki dump you have two choices. 
+
+One is to install the wiki as usual, install the WikiTrust extension,
+use mwdumper to load the wiki dump in the database, and use
+eval_online_wiki as explained in the top-level README file.  The
+advantage of this approach is that it is simple.  On the other hand,
+if you have many revisions (say, more than 100,000) in the wiki, the
+approach causes quite a bit of database traffic, and overall, is not
+very efficient.  You should expect a speed of 20 to 60 revisions per
+second, depending on the disks available to the database.
+
+The other approach consists in analyzing the dump file first, and then
+loading it into the database once the analysis is complete.  This is
+what is covered in this README file. 
+
+Note that this is work in progress: we are modifying the code to
+ensure that even a wiki as large as the English Wikipedia can be
+analyzed in this fashion.  If you require help, contact the developers
+at wikitrust-devel@googlegroups.com . 
 
 
 SPLITTING THE WIKI DUMP:
@@ -43,118 +38,90 @@ SPLITTING THE WIKI DUMP:
 For reasons of practicality, we split a Wikipedia dump into smaller
 dumps before processing.  
 
-gunzip -c ~/work/wiki-data/wikis/enwiki-20070206.xml.gz | ./splitwiki -n 100 -p ~/work/wiki-data/split_wikis/enwiki-20070206_
+mkdir ~/work/wiki-data/split_wikis
+gunzip -c ~/work/wiki-data/wikis/my-big-wiki.xml.gz | \
+   ./splitwiki -n 100 -p ~/work/wiki-data/split_wikis
 
 This splits a wiki in chunks of 100 pages, compressing with gzip the
-results (compression with other programs, such as 7z, turned out to be
-too slow). 
-Obviously, use the appropriate decompress program above; the intent is
-to decompress to standard output. 
-
-EXTRACTING A SUBSET OF PAGES FROM THE WIKI DUMP:
-=======================
-
-We can also extract a subset of pages based on page id from a
-Wikipedia dump before processing.  
-
-gunzip -c ~/work/wiki-data/wikis/enwiki-20070206.xml.gz | extract_wiki_subset -t good-ids -o enwiki-20070206-subset
-
-or (for a 7za style archive)
-
-7za e -so ../../wiki-dumps-ian/kuwiki-20080801-pages-meta-history.xml.7z | extract_wiki_subset -t good-ids -o kuwiki-20080801-subset
-
-These both extract the pages who's page id is found in the file
-good-ids, compressing with gzip the results (compression with other
-programs, such as 7z, turned out to be too slow). 
-
-Obviously, use the appropriate decompress program above; the intent is
-to decompress to standard output. 
-
-The page id's file expects 1 page id per line.
-
-For example, to extract the page numbers 444 and 888 from a dump, the
-file would look like
-
-444
-888
-
-The ordering of page ids does not matter.
+results. Obviously, use the appropriate decompress program above; the
+intent is to decompress to standard output.
 
 COMPUTING THE REDUCED STATISTCS:
 ===============================
 
-First, we need to compute the "reduced statistics" for a wiki file. 
-This is a concise summary of the text distances and new text added in
-each revision. 
-The command you need is: 
+The reduced statistics are a concise summary of the actions by authors
+on wiki text.  They can be used to find out whose contributions are
+preserved, and whose contributions are reverted.  To compute them, do
+something like this for each of the 100-article chunks (or, if you
+wish, for the whole wiki at once!): 
 
-./evalwiki -d ~/work/wiki-data/stats/ -compute_stats ~/work/wiki-data/split_wikis/enwiki-20070206_00066.xml.gz
+/bin/gunzip -c /home/luca/wiki-data/split_wiki/000/wiki-00000000.xml.gz \
+    | batch/analysis/evalwiki -compute_stats -si ~/wiki-data/enwork/stats/wiki-00000000.stats
 
-The above command puts the result in the stats/ directory.  The result
-is a file called enwiki-20070206_00066.stats . The file contains
-statistics sorted in page order, not in cronological order. 
+If you have multiple CPU cores, you can speed up the process by
+adapting the script in util/do_all_en.py . This is not yet properly
+documented, but it is fairly easy to figure out how to use the
+script. 
 
-For small files, you can sort them in chronological order as follows: 
+SORTING THE REDUCED STATISTICS:
+==============================
 
-sort -n -k 2,2 -o <sorted_file> <file>
+batch/analysis/combinestats \
+    -bucket_dir ~/wiki-data/enwork/buckets/ \
+    -input_dir ~/wiki-data/enwork/stats/ \
+    -n_digits 4 -use_subdirs
 
-For bigger files, you can use a bucket merge/sort procedure we wrote in Ocaml
-called combinestats:
-
-./combinestats -outfile <single-stats-file> <dir where stats files are stored>
-
-Note that combinestats generates a directory called ./SORTEDSTATS to store 
-the stat buckets. 
+This gives you roughly 20,000 files, and is suited to large wikis. 
+For smaller wikis, use -n_digits 5 , which leads to 2,000 files.
 
 
 COMPUTING THE REPUTATION FROM A STATISTICS FILE: 
 ===============================================
 
-To compute a chronological history of user reputations, you can use
-the following command: 
-
-./generate_reputation -local_global_algo -u ~/work/wiki-data/temp/reph.txt ~/work/wiki-data/temp/enwiki-20070206_00066.stats 
+batch/analysis/generate_reputation -use_reputation_cap -use_nix -nix_interval 100000 \
+    -local_global_algo -u ~/wiki-data/enwork/reps/rep_history.txt \
+    -write_final_reps -buckets ~/wiki-data/enwork/buckets/ 
 
 Don't worry about the output; it is some testing information we use 
 to judge the performance of the reputation.  Disregard it. 
-The important thing is that the command generates a user reputation 
-history file in ~/work/wiki-data/temp/reph.txt.  This is the file you
-need to color the revision according to text trust. 
 
-Note: The code will give a warning if the statistics file is not
-properly sorted. 
 
-Note: you cannot compute author reputations from only part of the
-statistics file, like the ones corresponding to a 100-article block
-only.  This would be equivalent to computing reputation histories of
-authors, as if only those articles existed in the wiki! 
-You need to do this for all articles at once. 
 
-With this, you can produce a history of user reputations over the
-Wikipedia; I will assume that this will be called 
 
-rep-histories/enwiki-20070206-rel1.0-users
+### This README was revised up to here.  Please wait for the
+### developers to update the part below before proceeding.
 
-If users are anonymous, the reputation of their domains can be computed 
-using the following additional commands to generate_reputation -
 
--domains
 
-The parameter -domains will ensure that anonymous user domains is included
-in the computation of reputations. In such cases, a unique user id is
-generated from their domain ip addresses.
 
--ip_nbytes <n>
 
-The parameter -ip_nbytes can be used to specify the number of bytes [1, 4]
-that should be used to generate the unique user ids. For instance, the 
-address 172.162.56.61, with -ip_nbytes set to 1, will generate as user id
--172, whereas the same address with -ip_nbytes set to 3, will generate
-a user id -11313720.
 
-The generate_reputation program has many command-line options, some of
-them referring to the algorithms to be used for reputation
-computation; do ./generate_reputation -help for more information. 
+
+
+
+NOTES (optional reading!): 
+    If users are anonymous, the reputation of their domains can be computed 
+    using the following additional commands to generate_reputation:
+
+    -domains
+
+    The parameter -domains will ensure that anonymous user domains is included
+    in the computation of reputations. In such cases, a unique user id is
+    generated from their domain ip addresses.
+
+    -ip_nbytes <n>
+
+    The parameter -ip_nbytes can be used to specify the number of bytes [1, 4]
+    that should be used to generate the unique user ids. For instance, the 
+    address 172.162.56.61, with -ip_nbytes set to 1, will generate as user id
+    -172, whereas the same address with -ip_nbytes set to 3, will generate
+    a user id -11313720.
+
+    The generate_reputation program has many command-line options, some of
+    them referring to the algorithms to be used for reputation
+    computation; do ./generate_reputation -help for more information.
+    These options are not documented here. 
+
 
 COLORING A WIKI ACCORDING TO TRUST: 
 ==================================

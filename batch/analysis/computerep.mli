@@ -82,6 +82,7 @@ class rep :
   (* n_edit_judging *) int -> 
   (* gen_almost_truthful_rep *) bool -> 
   (* gen_truthful_rep *) bool -> 
+  (* do_compute_rep *) bool ->
   object
     method add_data : Evaltypes.wiki_data_t -> unit
     method compute_stats : out_channel option -> out_channel -> Evaltypes.stats_t * Evaltypes.stats_t

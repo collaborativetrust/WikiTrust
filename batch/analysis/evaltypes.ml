@@ -124,7 +124,6 @@ type time_intv_t = {
 };;
 
 type user_data_t = {
-  mutable uname : string;
   mutable rep: float; 
   mutable contrib: float; 
   mutable cnt: float; 
