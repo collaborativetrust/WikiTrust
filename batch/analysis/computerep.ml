@@ -78,64 +78,64 @@ class users
 
     method inc_rep (uid: int) (username: string) (q: float) (timestamp: Rephist.RepHistory.key) : unit = 
       let user_id = self#generate_user_id uid username in
-	if Hashtbl.mem tbl user_id then 
-	  begin
-	    let u = Hashtbl.find tbl user_id in 
-	      if debug then Printf.printf "Uid %d rep: %f " user_id u.rep; 
-	      if debug then Printf.printf "inc: %f\n" (q /. rep_scaling);
-	      u.rep <- max 0.0 (min max_rep (u.rep +. (q /. rep_scaling)));
-	      let new_weight = log (1.0 +. (max 0.0 u.rep)) in 
-	      let new_bin = int_of_float new_weight in
-	      let old_bin = u.rep_bin in
-	      if write_final_reps then begin
-		(* Simply updates the bin *)
-		u.rep_bin <- new_bin
-	      end else begin 
-		match user_history_file with 
-		  None -> ()
-		| Some f -> begin 
-		    if new_weight > (float_of_int old_bin) +. 1.1
-		      || new_weight < (float_of_int old_bin) -. 0.2 
-		      || gen_exact_rep
-		    then begin (* must write out the change in reputation *)
-		      (* Updates the bin *)
-		      u.rep_bin <- new_bin;
-		      if gen_exact_rep then
-			Printf.fprintf f "%f %7d %2d %2d %f\n" timestamp user_id old_bin new_bin u.rep
-		      else
-			Printf.fprintf f "%f %7d %2d %2d\n" timestamp user_id old_bin new_bin;
-		    end
-		  end
-	      end;  (* If not write_final_reps *)
-	      if user_id = single_debug_id && single_debug then 
-		Printf.printf "Rep of %d: %f\n" user_id u.rep
-	  end
-	else 
-	  begin
-	    (* New user *)
-	    let u = {
-	      uname = username;
-	      rep = initial_reputation; 
-	      contrib = 0.0;
-	      cnt = 0.0; 
-	      rep_bin = 0
-	    } in 
-	    u.rep <- max 0.0 (min max_rep (u.rep +. (q /. rep_scaling)));
-	    let new_weight = log (1.0 +. (max 0.0 u.rep)) in 
-	    let new_bin = int_of_float new_weight in 
-	    u.rep_bin <- new_bin;
-	    if (not write_final_reps) then begin
-	      match user_history_file with 
-		None -> ()
-	      | Some f -> begin 
+      (* We do nothing for anon users (domain generate their own negative username) *)
+      if user_id <> 0 then begin
+	if Hashtbl.mem tbl user_id then begin
+	  let u = Hashtbl.find tbl user_id in 
+	  if debug then Printf.printf "Uid %d rep: %f " user_id u.rep; 
+	  if debug then Printf.printf "inc: %f\n" (q /. rep_scaling);
+	  u.rep <- max 0.0 (min max_rep (u.rep +. (q /. rep_scaling)));
+	  let new_weight = log (1.0 +. (max 0.0 u.rep)) in 
+	  let new_bin = int_of_float new_weight in
+	  let old_bin = u.rep_bin in
+	  if write_final_reps then begin
+	    (* Simply updates the bin *)
+	    u.rep_bin <- new_bin
+	  end else begin 
+	    match user_history_file with 
+	      None -> ()
+	    | Some f -> begin 
+		if new_weight > (float_of_int old_bin) +. 1.1
+		  || new_weight < (float_of_int old_bin) -. 0.2 
+		  || gen_exact_rep
+		then begin (* must write out the change in reputation *)
+		  (* Updates the bin *)
+		  u.rep_bin <- new_bin;
 		  if gen_exact_rep then
-		    Printf.fprintf f "%f %7d %2d %2d %f\n" timestamp user_id (-1) new_bin u.rep
+		    Printf.fprintf f "%f %7d %2d %2d %f\n" timestamp user_id old_bin new_bin u.rep
 		  else
-		    Printf.fprintf f "%f %7d %2d %2d\n" timestamp user_id (-1) new_bin;
-		end;
-		  Hashtbl.add tbl user_id u; 
-	    end
-	  end
+		    Printf.fprintf f "%f %7d %2d %2d\n" timestamp user_id old_bin new_bin;
+		end
+	      end
+	  end;  (* If not write_final_reps *)
+	  if user_id = single_debug_id && single_debug then 
+	    Printf.printf "Rep of %d: %f\n" user_id u.rep
+	end else begin
+	  (* New user *)
+	  let u = {
+	    uname = username;
+	    rep = initial_reputation; 
+	    contrib = 0.0;
+	    cnt = 0.0; 
+	    rep_bin = 0
+	  } in 
+	  u.rep <- max 0.0 (min max_rep (u.rep +. (q /. rep_scaling)));
+	  let new_weight = log (1.0 +. (max 0.0 u.rep)) in 
+	  let new_bin = int_of_float new_weight in 
+	  u.rep_bin <- new_bin;
+	  if (not write_final_reps) then begin
+	    match user_history_file with 
+	      None -> ()
+	    | Some f -> begin 
+		if gen_exact_rep then
+		  Printf.fprintf f "%f %7d %2d %2d %f\n" timestamp user_id (-1) new_bin u.rep
+		else
+		  Printf.fprintf f "%f %7d %2d %2d\n" timestamp user_id (-1) new_bin;
+	      end
+	  end;
+	  Hashtbl.add tbl user_id u; 
+	end
+      end
 
     method inc_contrib (uid: int) (username: string) (delta: float) (longevity: float) (include_anons: bool) : unit = 
       if (uid <> 0 || include_anons || include_domains) then 
@@ -297,6 +297,7 @@ class rep
   (n_edit_judging: int) (* n. of edit judges for each revision; used for nixing *)
   (gen_almost_truthful_rep: bool) (* use algorithm for almost truthful reputation *)
   (gen_truthful_rep: bool) (* use strict algorithm for truthful reputation only *)
+  (do_compute_stats: bool) (* really computes statistics *)
   =
 object (self)
   (* This is the object keeping track of all users *)
@@ -318,8 +319,9 @@ object (self)
     let date = 
       match datum with 
 	EditLife e -> begin
-          let uid = e.edit_life_uid0 in 
-          let uname = e.edit_life_uname0 in
+	  if do_compute_stats then begin
+            let uid = e.edit_life_uid0 in 
+            let uname = e.edit_life_uname0 in
             if (uid <> 0 || include_anons || include_domains) 
 	      && e.edit_life_delta > 0. 
               && e.edit_life_time >= rep_intv.start_time
@@ -338,29 +340,32 @@ object (self)
 	        (e.edit_life_delta *. (float_of_int e.edit_life_n_judges)) (* weight of data point *)
 	        (normalize e.edit_life_avg_specq); (* edit longevity *)
               user_data#inc_contrib uid uname e.edit_life_delta e.edit_life_avg_specq include_anons
-	    end;
-	    e.edit_life_time
+	    end
+	  end; (* if gen_stats *)
+	  e.edit_life_time
 	end
-      | TextLife t -> begin 
-          let uid = t.text_life_uid0 in 
-          if (uid <> 0 || include_anons || include_domains)
-            && t.text_life_time >= rep_intv.start_time
-            && t.text_life_time <= rep_intv.end_time 
-	    && t.text_life_new_text > 0 
-	  then begin 
-	    if debug then begin
-	      Printf.printf "Textlife T: %f rep_weight: %f data_weight: %f spec_q: %f\n"
+      | TextLife t -> begin
+	  if do_compute_stats then begin
+            let uid = t.text_life_uid0 in 
+            if (uid <> 0 || include_anons || include_domains)
+              && t.text_life_time >= rep_intv.start_time
+              && t.text_life_time <= rep_intv.end_time 
+	      && t.text_life_new_text > 0 
+	    then begin 
+	      if debug then begin
+		Printf.printf "Textlife T: %f rep_weight: %f data_weight: %f spec_q: %f\n"
+		  t.text_life_time
+		  (user_data#get_weight uid)
+		  (float_of_int t.text_life_new_text)
+		  (normalize t.text_life_text_decay) (* debug *)
+	      end; 
+	      stat_text#add_event 
 		t.text_life_time
 		(user_data#get_weight uid)
 		(float_of_int t.text_life_new_text)
-		(normalize t.text_life_text_decay) (* debug *)
-	    end; 
-	    stat_text#add_event 
-	      t.text_life_time
-	      (user_data#get_weight uid)
-	      (float_of_int t.text_life_new_text)
-              (normalize t.text_life_text_decay)
-	  end;
+		(normalize t.text_life_text_decay)
+	    end
+	  end; (* if gen_stats *)
 	  t.text_life_time
 	end
       | EditInc e -> begin 
@@ -460,21 +465,23 @@ object (self)
     | TextInc t -> t.text_inc_time
     in 
     (* Checks whether we have to print precision and recall at the end of the month *)
-    let (new_year, new_month, _, _, _, _) = Timeconv.float_to_time date in 
-    if new_month <> last_month && print_monthly_stats then begin 
-      last_month <- new_month; 
-      let null_ch = open_out ("/dev/null") in 
-      let se = stat_edit#compute_stats false null_ch in 
-      let st = stat_text#compute_stats true  null_ch in 
-      Printf.fprintf output_channel "%2d/%4d %f %12.1f %6.3f %7.5f %7.5f %12.1f %6.3f %7.5f %7.5f\n" 
-	new_month new_year date 
-	se.stat_total_weight se.stat_bad_perc se.stat_bad_precision se.stat_bad_recall 
-	st.stat_total_weight st.stat_bad_perc st.stat_bad_precision st.stat_bad_recall; 
-      flush output_channel; 
-      (* If the statistics are not cumulative, then resets them *)
-      if not do_cumulative_months then begin
-	stat_text <- new Computestats.stats params eval_intv;
-	stat_edit <- new Computestats.stats params eval_intv
+    if do_compute_stats then begin
+      let (new_year, new_month, _, _, _, _) = Timeconv.float_to_time date in 
+      if new_month <> last_month && print_monthly_stats then begin 
+	last_month <- new_month; 
+	let null_ch = open_out ("/dev/null") in 
+	let se = stat_edit#compute_stats false null_ch in 
+	let st = stat_text#compute_stats true  null_ch in 
+	Printf.fprintf output_channel "%2d/%4d %f %12.1f %6.3f %7.5f %7.5f %12.1f %6.3f %7.5f %7.5f\n" 
+	  new_month new_year date 
+	  se.stat_total_weight se.stat_bad_perc se.stat_bad_precision se.stat_bad_recall 
+	  st.stat_total_weight st.stat_bad_perc st.stat_bad_precision st.stat_bad_recall; 
+	flush output_channel; 
+	(* If the statistics are not cumulative, then resets them *)
+	if not do_cumulative_months then begin
+	  stat_text <- new Computestats.stats params eval_intv;
+	  stat_edit <- new Computestats.stats params eval_intv
+	end
       end
     end
 
@@ -493,11 +500,11 @@ object (self)
     Printf.fprintf out_ch "%d Revisions out of %d nixed -- %f percent."
       (Hashtbl.length nixed) total_revs (float_of_int (Hashtbl.length nixed) /.
         float_of_int total_revs) ;
-      Printf.fprintf out_ch "\nEdit Stats:\n"; 
-      let edit_s = stat_edit#compute_stats false out_ch in 
-      Printf.fprintf out_ch "\nText Stats:\n";
-      let text_s = stat_text#compute_stats true  out_ch in 
-      (edit_s, text_s) 
+    Printf.fprintf out_ch "\nEdit Stats:\n"; 
+    let edit_s = stat_edit#compute_stats false out_ch in 
+    Printf.fprintf out_ch "\nText Stats:\n";
+    let text_s = stat_text#compute_stats true  out_ch in 
+    (edit_s, text_s) 
 
   method get_users : (int, Evaltypes.user_data_t) Hashtbl.t = user_data#get_users
 
