@@ -64,24 +64,28 @@ class WikiTrustBase {
 			     $rev_id_raw = 0, $page_title_raw = "")
   {
     
-    
+    wfWikiTrustDebug(__FILE__.":".__LINE__
+        . ": Handling vote from $user_name_raw $page_title_raw");
     $dbr =& wfGetDB( DB_SLAVE );
     
     $userName = $dbr->strencode($user_name_raw, $dbr);
     $page_id = $dbr->strencode($page_id_raw, $dbr);
     $rev_id = $dbr->strencode($rev_id_raw, $dbr);
-    
+    $pageTitle = $dbr->strencode($page_title_raw, $dbr);
 
-    if(!$page_id || !$user_id || !$rev_id)
+    if(!$page_id || !$userName || !$rev_id || !$pageTitle)
       return new AjaxResponse("0");
 
     $user_id = self::user_getIdFName($dbr, $userName);
+    if(!$user_id)
+      $user_id = 0;
+    wfWikiTrustDebug(__FILE__.":".__LINE__.": UserId: $user_id");
 
-    return self::vote_recordVote($dbr, $user_id, $page_id, $rev_id);
+    return WikiTrust::vote_recordVote($dbr, $user_id, $page_id, $rev_id, $pageTitle);
   }
 
 
-  static function vote_recordVote(&$dbr, $user_id, $page_id, $rev_id)
+  static function vote_recordVote(&$dbr, $user_id, $page_id, $rev_id, $pageTitle)
   {
     // Now see if this user has not already voted, 
     // and count the vote if its the first time though.
@@ -95,7 +99,8 @@ class WikiTrustBase {
     $dbr->freeResult($res);
     if ($row['revision_id']) return new AjaxResponse("Already Voted");
 
-    $insert_vals = array("revision_id" => $rev_id,
+    $insert_vals = array(
+       "revision_id" => $rev_id,
 			 "page_id" => $page_id ,
 			 "voter_id" => $user_id,
 			 "voted_on" => wfTimestampNow()
@@ -117,12 +122,13 @@ class WikiTrustBase {
     $rev_id = self::util_getRevFOut($out);
     $colored_text = self::$colored_text;
     if (!self::$colored_text_loaded){
-      $colored_text = self::color_getColorData($rev_id);
+      $colored_text = WikiTrust::color_getColorData($rev_id);
       self::color_fixup($colored_text);
     }
 
     if (!$colored_text) {
-      wfWikiTrustDebug(__FILE__.":".__LINE__.": $rev_id: colored text not found.");
+      wfWikiTrustDebug(__FILE__ . ":"
+          . __LINE__ . " $rev_id: colored text not found.");
       // text not found.
       global $wgUser, $wgParser, $wgTitle;
       $options = ParserOptions::newFromUser($wgUser);
@@ -386,7 +392,7 @@ if(0) {
     // We need to know if the colored text is missing or not, and just getting
     // it seems like the easiest way to figure this out.
     $rev_id = self::util_getRev();
-    $colored_text = self::color_getColorData($rev_id);
+    $colored_text = WikiTrust::color_getColorData($rev_id);
     self::color_fixup($colored_text);
     self::$colored_text = $colored_text;
     self::$colored_text_loaded = true;
@@ -395,7 +401,7 @@ if(0) {
     //   for this page.
     // Reasons for this are missing text or a vote which needs to be 
     //   processed still.
-    if (!self::$colored_text || self::voteToProcess($rev_id)){
+    if (!self::$colored_text || WikiTrust::voteToProcess($rev_id)){
       $modified_times['page'] = wfTimestampNow();
       wfWikiTrustDebug(__FILE__.":".__LINE__
                        .": new times - ".print_r($modified_times, true));

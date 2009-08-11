@@ -40,19 +40,27 @@ class WikiTrust extends WikiTrustBase {
     }
   }
   
-  static function vote_recordVote(&$response, $user_id, $page_id, $rev_id)
+  static function vote_recordVote(&$response, $user_id, $page_id, $rev_id, $page_title)
   {
+    global $wgWikiTrustContentServerURL;
     $ctx = stream_context_create(
 	      array('http' => array('timeout' => self::TRUST_TIMEOUT))
 	    );
 
-    // TODO: we need a shared key!
-    $colored_text = file_get_contents($wgWikiTrustContentServerURL 
+    wfWikiTrustDebug(__FILE__.__LINE__.": ".$wgWikiTrustContentServerURL 
 		. "vote=1&rev=".urlencode($rev_id)
-		."&page=".urlencode($page_id)
-		."&user=".urlencode($user_id)
-		."&page_title=".urlencode($page_title)
-		."&time=".urlencode(wfTimestampNow()), 0
+		. "&page=".urlencode($page_id)
+		. "&user=".urlencode($user_id)
+		. "&page_title=".urlencode($page_title)
+    . "&time=".urlencode(wfTimestampNow()));
+
+    // TODO: we need a shared key!
+    $colored_text = @file_get_contents($wgWikiTrustContentServerURL 
+		. "vote=1&rev=".urlencode($rev_id)
+		. "&page=".urlencode($page_id)
+		. "&user=".urlencode($user_id)
+		. "&page_title=".urlencode($page_title)
+		. "&time=".urlencode(wfTimestampNow()), 0
 	    , $ctx);
     $response = new AjaxResponse($vote_str);	   
     return $response;
@@ -65,19 +73,25 @@ class WikiTrust extends WikiTrustBase {
 		 array('http' => array('timeout' => self::TRUST_TIMEOUT))
 	 );
 
-    global $wgTitle, $wgUser;
+    global $wgTitle, $wgUser, $wgWikiTrustContentServerURL;
     $page_id = $wgTitle->getArticleID();
     $page_title = $wgTitle->getDBkey();
     $user_id = $wgUser->getID();
     
-    $colored_raw = (file_get_contents($wgWikiTrustContentServerURL .
-                        "rev=" .  urlencode($rev_id) . 
+    wfWikiTrustDebug(__FILE__.__LINE__.": ".$wgWikiTrustContentServerURL .
+      "rev=" .  urlencode($rev_id) . 
 			"&page=".urlencode($page_id) .
 			"&page_title=" . urlencode($page_title) .
-                        "&time=" . urlencode(wfTimestampNow()) .
+      "&time=" . urlencode(wfTimestampNow()) .
+      "&user=" . urlencode($user_id));
+
+    $colored_raw = (@file_get_contents($wgWikiTrustContentServerURL .
+      "rev=" .  urlencode($rev_id) . 
+			"&page=".urlencode($page_id) .
+			"&page_title=" . urlencode($page_title) .
+      "&time=" . urlencode(wfTimestampNow()) .
 			"&user=" . urlencode($user_id),
                 0, $ctx));
-
 
     if (!$colored_raw
 	|| $colored_raw == self::NOT_FOUND_TEXT_TOKEN
@@ -114,8 +128,21 @@ class WikiTrust extends WikiTrustBase {
     $page_title = $article->getTitle()->getDBkey();
     $user_id = $user->getID();
     $parentId = $revision->getParentId();
+
+    wfWikiTrustDebug(__FILE__.": ".__LINE__.": New article id $rev_id");
 		
     global $wgWikiTrustContentServerURL;
+
+    wfWikiTrustDebug(__FILE__.": ".__LINE__.": ".
+       $wgWikiTrustContentServerURL 
+			 ."edit=1&rev=".urlencode($rev_id)
+			 ."&page=".urlencode($page_id)
+			 ."&user=".urlencode($user_id)
+			 ."&parentId".urlencode($parentId)
+			 ."&text=".urlencode($text)
+			 ."&page_title=".urlencode($page_title)
+       ."&time=".urlencode(wfTimestampNow()));
+
     $colored_text = self::file_post_contents($wgWikiTrustContentServerURL 
 			 ."edit=1&rev=".urlencode($rev_id)
 			 ."&page=".urlencode($page_id)
