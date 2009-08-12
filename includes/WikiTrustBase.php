@@ -265,6 +265,13 @@ if(0) {
 				$count);
 }
 
+    // fix trust tags around categories/templates
+    $colored_text = preg_replace_callback("/\{\{#t:(\d+),(\d+),([^}]+)\}\}\s*\[\[([^\]]++.*?)\]\]\s*(?=\{\{#t:|$)/D",
+				"WikiTrust::regex_fixBracketTrust",
+				$colored_text,
+				-1,
+				$count);
+
     $options = ParserOptions::newFromUser($wgUser);
     $parsed = $wgParser->parse($colored_text, $wgTitle, $options);
     $text = $parsed->getText();
@@ -279,11 +286,12 @@ if(0) {
 
     // Update the trust tags
     $text = preg_replace_callback("/\{\{#t:(\d+),(\d+),([^}]+)\}\}([^\{<]++[^<]*?)(?=\{\{#t:|<|$)/D",
-				"WikiTrust::regex_Trust2Span",
+				"WikiTrust::regex_fixTextTrust",
 				$text,
 				-1,
 				$count);
-      
+
+
     // Remove all of the trust tags which we can not handle at the moment.
     $text = preg_replace("/\{\{#t:\d+,\d+,[^}]+\}\}/",
 				"",
@@ -312,7 +320,7 @@ if(0) {
     return "title=\"Edit section: $result\">";
   }
 
-  static function regex_Trust2Span($matches){
+  static function regex_fixTextTrust($matches){
 
     //print_r($matches);
 
@@ -342,16 +350,36 @@ if(0) {
     return $output;
   }
 
+  static function regex_fixBracketTrust($matches){
+    $normalized_value = min(self::MAX_TRUST_VALUE, 
+			    max(self::MIN_TRUST_VALUE, 
+				(($matches[1] + .5) * 
+				 self::TRUST_MULTIPLIER) 
+				/ self::$median));
+    $class = self::$COLORS[$normalized_value];
+    $output = self::TRUST_OPEN_TOKEN . "span class=\"$class\"" 
+      . " onmouseover=\"Tip('".str_replace("&#39;","\\'",$matches[3])
+      ."')\" onmouseout=\"UnTip()\""
+      . " onclick=\"showOrigin(" 
+      . $matches[2] . ")\"" . self::TRUST_CLOSE_TOKEN
+      . "[[" . $matches[4] . "]]"
+      . self::TRUST_OPEN_TOKEN . "/span" . self::TRUST_CLOSE_TOKEN;
+    
+    return $output;
+  }
+
   static function color_t2trust($matches){
     return "{{#trust:".$matches[1].",".$matches[2].",".$matches[3]."}}";
   }
 
   static function color_fixup(&$colored_text)
   {
+if (0) {
     // First, make sure that there are not any instances of our tokens in 
     // the colored_text
     $colored_text = str_replace(self::TRUST_OPEN_TOKEN, "", $colored_text);
     $colored_text = str_replace(self::TRUST_CLOSE_TOKEN, "", $colored_text);
+}
 
     // TODO: I think these replacements are from broken XML parser?
 	// Still needed?  (Luca working on fixing unpacking...) -Bo
