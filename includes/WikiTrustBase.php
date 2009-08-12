@@ -13,12 +13,6 @@ class WikiTrustBase {
   const MIN_TRUST_VALUE = 0;
   const TRUST_MULTIPLIER = 10;
   
-  ## Token to be replaed with <
-  const TRUST_OPEN_TOKEN = "<";
-  
-  ## Token to be replaed with >
-  const TRUST_CLOSE_TOKEN = ">";
-
   ## Server forms
   const NOT_FOUND_TEXT_TOKEN = "TEXT_NOT_FOUND";
 
@@ -330,23 +324,13 @@ if(0) {
 				 self::TRUST_MULTIPLIER) 
 				/ self::$median));
     $class = self::$COLORS[$normalized_value];
-    $output = self::TRUST_OPEN_TOKEN . "span class=\"$class\"" 
+    $output = "<span class=\"$class\"" 
       . " onmouseover=\"Tip('".str_replace("&#39;","\\'",$matches[3])
       ."')\" onmouseout=\"UnTip()\""
       . " onclick=\"showOrigin(" 
-      . $matches[2] . ")\"" . self::TRUST_CLOSE_TOKEN . $matches[4]
-      . self::TRUST_OPEN_TOKEN . "/span" . self::TRUST_CLOSE_TOKEN;
-    
+      . $matches[2] . ")\">" . $matches[4]
+      . "</span>";
 
-
-    /**
-    if (self::$first_span){
-      self::$first_span = false;
-    } else {
-      $output = self::TRUST_OPEN_TOKEN . "/span" . self::TRUST_CLOSE_TOKEN . $output;
-    }
-    */
-    
     return $output;
   }
 
@@ -357,13 +341,13 @@ if(0) {
 				 self::TRUST_MULTIPLIER) 
 				/ self::$median));
     $class = self::$COLORS[$normalized_value];
-    $output = self::TRUST_OPEN_TOKEN . "span class=\"$class\"" 
+    $output = "<span class=\"$class\"" 
       . " onmouseover=\"Tip('".str_replace("&#39;","\\'",$matches[3])
       ."')\" onmouseout=\"UnTip()\""
       . " onclick=\"showOrigin(" 
-      . $matches[2] . ")\"" . self::TRUST_CLOSE_TOKEN
+      . $matches[2] . ")\">"
       . "[[" . $matches[4] . "]]"
-      . self::TRUST_OPEN_TOKEN . "/span" . self::TRUST_CLOSE_TOKEN;
+      . "</span>";
     
     return $output;
   }
@@ -374,21 +358,12 @@ if(0) {
 
   static function color_fixup(&$colored_text)
   {
-if (0) {
-    // First, make sure that there are not any instances of our tokens in 
-    // the colored_text
-    $colored_text = str_replace(self::TRUST_OPEN_TOKEN, "", $colored_text);
-    $colored_text = str_replace(self::TRUST_CLOSE_TOKEN, "", $colored_text);
-}
-
     // TODO: I think these replacements are from broken XML parser?
 	// Still needed?  (Luca working on fixing unpacking...) -Bo
     $colored_text = preg_replace("/&apos;/", "'", $colored_text, -1);      
     $colored_text = preg_replace("/&amp;/", "&", $colored_text, -1);
-    $colored_text = preg_replace("/&lt;/", self::TRUST_OPEN_TOKEN, 
-			       $colored_text, -1);
-    $colored_text = preg_replace("/&gt;/", self::TRUST_CLOSE_TOKEN, 
-			       $colored_text, -1);
+    $colored_text = preg_replace("/&lt;/", "<", $colored_text, -1);
+    $colored_text = preg_replace("/&gt;/", ">", $colored_text, -1);
   }
 			
 
