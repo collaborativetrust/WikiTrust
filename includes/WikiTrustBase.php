@@ -60,7 +60,7 @@ class WikiTrustBase {
    Records the vote.
    Called via ajax, so this must be static.
   */
-  static function handleVote($user_name_raw, $page_id_raw = 0, 
+  static function ajax_recordVote($user_name_raw, $page_id_raw = 0, 
 			     $rev_id_raw = 0, $page_title_raw = "")
   {
     
@@ -92,8 +92,11 @@ class WikiTrustBase {
     $res = $dbr->select('wikitrust_vote', array('revision_id'),
 		array('revision_id' => $rev_id, 'voter_id' => $user_id),
 		array());
-    if (!$res || $dbr->numRows($res) == 0) return new AjaxResponse("0");
+    if (!$res || $dbr->numRows($res) == 0) {
 	// TODO: do we also need to $dbr->freeResult($res)?
+	$dbr->freeResult($res);
+	return new AjaxResponse("0");
+    }
 
     $row = $dbr->fetchRow($res);
     $dbr->freeResult($res);
@@ -454,6 +457,37 @@ if(0) {
       $content_actions['trust']['href'] .= '';
     }
     return true;
+  }
+
+	/**
+   Returns colored markup.
+	 
+   @return colored markup.
+  */
+  static function ajax_getColoredText($page_title_raw,
+				 $page_id_raw = NULL, 
+				 $rev_id_raw = NULL){
+    wfLoadExtensionMessages('WikiTrust');
+
+    $colored_text = WikiTrust::color_getColorData($rev_id);
+    self::color_fixup($colored_text);
+    $text = '';
+
+    if (!$colored_text) {
+      wfWikiTrustDebug(__FILE__ . ":"
+          . __LINE__ . " $rev_id: colored text not found.");
+      // text not found.
+      global $wgUser, $wgParser, $wgTitle;
+      $options = ParserOptions::newFromUser($wgUser);
+      $msg = $wgParser->parse(wfMsgNoTrans("wgNoTrustExplanation"), 
+				$wgTitle, 
+				$options);
+      $text = $msg->getText() . $text;
+    } else {
+      self::color_Wiki2Html($colored_text, $text);
+      self::vote_showButton($text);
+    }
+    return new AjaxResponse($text);
   }
 
   /** 

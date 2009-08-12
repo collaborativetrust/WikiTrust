@@ -101,8 +101,8 @@ function wfWikiTrustSetup() {
 
     global $wgAjaxExportList, $wgUseAjax;
     if ($wgUseAjax) {
-	$wgAjaxExportList[] = 'WikiTrust::handleVote';
-	$wgAjaxExportList[] = 'WikiTrust::getColoredText';
+	$wgAjaxExportList[] = 'WikiTrust::ajax_recordVote';
+	$wgAjaxExportList[] = 'WikiTrust::ajax_getColoredText';
     }
 
     # Is the user opting to use wikitrust?
