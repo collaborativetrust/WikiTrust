@@ -270,7 +270,7 @@ if(0) {
     $text = $parsed->getText();
 
     // Update the trust tags
-    $text = preg_replace_callback("/\{\{#t:(\d+),(\d+),([-a-zA-Z0-9.,!? ]+?)\}\}([\w,.!? ]+)/",
+    $text = preg_replace_callback("/\{\{#t:(\d+),(\d+),([^}]+)\}\}([^\{<]++[^<]*?)(?=\{\{#t:|<|$)/D",
 				"WikiTrust::color_handleParserRe",
 				$text,
 				-1,
@@ -283,7 +283,7 @@ if(0) {
         ">", $text, -1, $count);
 
     // Remove all of the trust tags which we can not handle at the moment.
-    $text = preg_replace("/\{\{#t:(\d+),(\d+),(.+?)\}\}/",
+    $text = preg_replace("/\{\{#t:\d+,\d+,[^}]+\}\}/",
 				"",
 				$text,
 				-1,
