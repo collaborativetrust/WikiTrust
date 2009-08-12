@@ -213,6 +213,8 @@ class WikiTrustBase {
       $page_id = $wgTitle->getArticleID();
       $file = self::util_getRevFilename($page_id, $rev_id);
       // TODO: Bo -- what is this all about?
+      // TODO: file_get_contents() didn't used to support BINARY
+	// what version of PHP are we requiring?  -Bo
 if (1) {
       $gzdata = @file_get_contents($file, FILE_BINARY, NULL);
 } else {
