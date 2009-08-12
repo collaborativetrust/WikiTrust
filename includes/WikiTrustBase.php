@@ -358,12 +358,14 @@ if(0) {
 
   static function color_fixup(&$colored_text)
   {
+if (0) {
     // TODO: I think these replacements are from broken XML parser?
 	// Still needed?  (Luca working on fixing unpacking...) -Bo
     $colored_text = preg_replace("/&apos;/", "'", $colored_text, -1);      
     $colored_text = preg_replace("/&amp;/", "&", $colored_text, -1);
     $colored_text = preg_replace("/&lt;/", "<", $colored_text, -1);
     $colored_text = preg_replace("/&gt;/", ">", $colored_text, -1);
+}
   }
 			
 
