@@ -269,9 +269,17 @@ if(0) {
     $parsed = $wgParser->parse($colored_text, $wgTitle, $options);
     $text = $parsed->getText();
 
+    // Fix edit section links    
+    $text = preg_replace_callback(
+        "/title=\"Edit section: (.*?)\">/",
+	"WikiTrust::regex_fixSectionEdit",
+        $text,
+        -1,
+        $count);
+
     // Update the trust tags
     $text = preg_replace_callback("/\{\{#t:(\d+),(\d+),([^}]+)\}\}([^\{<]++[^<]*?)(?=\{\{#t:|<|$)/D",
-				"WikiTrust::color_handleParserRe",
+				"WikiTrust::regex_Trust2Span",
 				$text,
 				-1,
 				$count);
@@ -283,13 +291,6 @@ if(0) {
 				-1,
 				$count);
 
-    // Fix edit section links    
-    $text = preg_replace(
-        "/title=\"Edit section: <span class=\"trust(.*?)>(.*?)<\/a>/",
-        "title=\"Edit section\">edit</a>",
-        $text,
-        -1,
-        $count);
 
     global $wgScriptPath;
     $text = '<script type="text/javascript" src="'
@@ -302,8 +303,17 @@ if(0) {
     $text .= $msg->getText();
   }
 
-  static function color_handleParserRe($matches){
-    
+  static function regex_fixSectionEdit($matches){
+    $result = preg_replace("/\{\{#t:\d+,\d+,[^}]+\}\}/",
+				"",
+				$matches[1],
+				-1,
+				$count);
+    return "title=\"Edit section: $result\">";
+  }
+
+  static function regex_Trust2Span($matches){
+
     //print_r($matches);
 
     $normalized_value = min(self::MAX_TRUST_VALUE, 
