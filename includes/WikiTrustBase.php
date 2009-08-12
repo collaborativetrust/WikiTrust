@@ -270,7 +270,7 @@ if(0) {
     $text = $parsed->getText();
 
     // Update the trust tags
-    $text = preg_replace_callback("/\{\{#t:(\d+),(\d+),(.*?)\}\}/",
+    $text = preg_replace_callback("/\{\{#t:(\d+),(\d+),([-a-zA-Z0-9.,!? ]+?)\}\}([\w,.!? ]+)/",
 				"WikiTrust::color_handleParserRe",
 				$text,
 				-1,
@@ -278,22 +278,24 @@ if(0) {
       
     // Update open, close, images, and links.
     $text = preg_replace('/' . self::TRUST_OPEN_TOKEN . '/', 
-			 "<", $text, -1, $count);  
+		    "<", $text, -1, $count);  
     $text = preg_replace('/' . self::TRUST_CLOSE_TOKEN .'/', 
-			 ">", $text, -1, $count);
-    $text = preg_replace('/<\/p>/', "</span></p>", $text, -1, $count);
-    $text = preg_replace('/<p><\/span>/', "<p>", $text, -1, $count);
-    $text = preg_replace('/<li><\/span>/', "<li>", $text, -1, $count);
-    $text = preg_replace('/<\/dd><\/dl>/', "</span></dd></dl><span>", $text, -1, $count);
+        ">", $text, -1, $count);
 
-    // Fix edit section links
-    $text = preg_replace_callback("/<span class=\"editsection\">\[(.*?)Edit section: <\/span>(.*?)\">edit<\/a>\]<\/span>/",
-		"WikiTrust::color_handleFixSection",
-		$text,
-		-1,
-		$count
-	      );
+    // Remove all of the trust tags which we can not handle at the moment.
+    $text = preg_replace("/\{\{#t:(\d+),(\d+),(.+?)\}\}/",
+				"",
+				$text,
+				-1,
+				$count);
 
+    // Fix edit section links    
+    $text = preg_replace(
+        "/title=\"Edit section: <span class=\"trust(.*?)>(.*?)<\/a>/",
+        "title=\"Edit section\">edit</a>",
+        $text,
+        -1,
+        $count);
 
     global $wgScriptPath;
     $text = '<script type="text/javascript" src="'
@@ -308,6 +310,8 @@ if(0) {
 
   static function color_handleParserRe($matches){
     
+    //print_r($matches);
+
     $normalized_value = min(self::MAX_TRUST_VALUE, 
 			    max(self::MIN_TRUST_VALUE, 
 				(($matches[1] + .5) * 
@@ -318,26 +322,24 @@ if(0) {
       . " onmouseover=\"Tip('".str_replace("&#39;","\\'",$matches[3])
       ."')\" onmouseout=\"UnTip()\""
       . " onclick=\"showOrigin(" 
-      . $matches[2] . ")\"" . self::TRUST_CLOSE_TOKEN;
+      . $matches[2] . ")\"" . self::TRUST_CLOSE_TOKEN . $matches[4]
+      . self::TRUST_OPEN_TOKEN . "/span" . self::TRUST_CLOSE_TOKEN;
+    
+
+
+    /**
     if (self::$first_span){
       self::$first_span = false;
     } else {
       $output = self::TRUST_OPEN_TOKEN . "/span" . self::TRUST_CLOSE_TOKEN . $output;
     }
+    */
+    
     return $output;
   }
 
   static function color_t2trust($matches){
     return "{{#trust:".$matches[1].",".$matches[2].",".$matches[3]."}}";
-  }
-
-
-  static function color_handleFixSection($matches)
-  {
-    return "<span class=\"editsection\">[" .
-	    $matches[1].
-	    "Edit section: \">" .
-	    "edit</a>]</span>";
   }
 
   static function color_fixup(&$colored_text)

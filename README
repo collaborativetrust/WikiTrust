@@ -155,13 +155,22 @@ require_once( $IP . "/extensions/WikiTrust/WikiTrust.php" );
      $ ./create_db.php "path_to_mediawiki" "mysql_root_user_name"
 
 7) If there are already revisions in the wiki, you should first
-   analyze their trust, via: 
+   analyze their trust.  If your wiki contains already many revisions
+   (say, 100,000 or more), you might want to consider using the batch
+   method, as explained in batch/REAME.  Otherwise, you can analyze the
+   revisions via: 
 
      $ ./eval_online_wiki -db_user <username> -db_pass <pwd> -db_name <db_name>
 
-   The above command analyzes all revisions in a single sweep.  If you
-   prefer, you can limit each invocation of the command to a certain
-   number of revisions, for example 1000, by doing:
+   The above command analyzes all revisions in a single sweep.  You
+   should expect a speed of between 10 to 60 revisions per second,
+   depending on your hardware.  You can launch multiple
+   eval_online_wiki in parallel, and they play nicely with each other.
+   We fould that the performance increased up to 4 or 5 simultanous
+   processes; beyond that, the database is the bottleneck.  This is
+   however very hardware dependent.  If you prefer, you can limit each
+   invocation of the command to a certain number of revisions, for
+   example 1000, by doing:
 
      $ ./eval_online_wiki -n_events 1000 -db_user <username> -db_pass <pwd> -db_name <db_name>
 
