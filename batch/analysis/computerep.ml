@@ -40,10 +40,33 @@ POSSIBILITY OF SUCH DAMAGE.
 open Evaltypes;;
 open Rephist;;
 
+TYPE_CONV_PATH "UCSC_WIKI_RESEARCH"
+
 let initial_reputation = 0.1
 let debug = false
 let single_debug = false
 let single_debug_id = 57
+
+(* Map on user ids = integers *)
+module Umap = Map.Make (
+  struct
+    type t = int
+    let compare: int -> int -> int = compare
+  end);;
+
+(* Hashtable look-alike, implemented on top of Map *)
+module Table = struct
+  let create _ = ref Umap.empty
+  let add t k v = (t := Umap.add k v !t)
+  let mem t k = Umap.mem k !t
+  let find t k = Umap.find k !t
+  let iter f t = Umap.iter f !t
+end
+
+(* The two choices below are: 
+   Tbl = Hashtbl , to obtain a hashtable-based implementation;
+   Tbl = Table , to obtain a map-based implementation. *)
+module Tbl = Table
 
 class users 
   (rep_scaling: float) 
@@ -55,7 +78,7 @@ class users
   (write_final_reps: bool)
   =
   object (self)
-    val tbl = Hashtbl.create 1000 
+    val tbl = Tbl.create 1000 
 
     (* This method, when called for anonymous users returns a user id generated
        from the user ip address, if we want to include user domains in computing
@@ -80,8 +103,8 @@ class users
       let user_id = self#generate_user_id uid username in
       (* We do nothing for anon users (domain generate their own negative username) *)
       if user_id <> 0 then begin
-	if Hashtbl.mem tbl user_id then begin
-	  let u = Hashtbl.find tbl user_id in 
+	if Tbl.mem tbl user_id then begin
+	  let u = Tbl.find tbl user_id in 
 	  if debug then Printf.printf "Uid %d rep: %f " user_id u.rep; 
 	  if debug then Printf.printf "inc: %f\n" (q /. rep_scaling);
 	  u.rep <- max 0.0 (min max_rep (u.rep +. (q /. rep_scaling)));
@@ -132,7 +155,7 @@ class users
 		  Printf.fprintf f "%f %7d %2d %2d\n" timestamp user_id (-1) new_bin;
 	      end
 	  end;
-	  Hashtbl.add tbl user_id u; 
+	  Tbl.add tbl user_id u; 
 	end
       end
 
@@ -140,9 +163,9 @@ class users
       if (uid <> 0 || include_anons || include_domains) then 
         begin
 	  let user_id = self#generate_user_id uid username in
-            if Hashtbl.mem tbl user_id then begin
+            if Tbl.mem tbl user_id then begin
 	      (* Existing user *)
-              let u = Hashtbl.find tbl user_id in 
+              let u = Tbl.find tbl user_id in 
 	      if debug then Printf.printf "Uid %d rep: %f " user_id u.rep; 
               u.contrib <- u.contrib +. (delta *. longevity);
             end
@@ -154,16 +177,16 @@ class users
 		cnt = 0.0; 
 		rep_bin = 0
 	      } in 
-              Hashtbl.add tbl user_id u; 
+              Tbl.add tbl user_id u; 
             end
         end
 
     method inc_count (uid: int) (timestamp: float) : unit = 
       if (uid <> 0 || include_domains) then 
         begin
-          if Hashtbl.mem tbl uid then 
+          if Tbl.mem tbl uid then 
             begin
-              let u = Hashtbl.find tbl uid in 
+              let u = Tbl.find tbl uid in 
               u.cnt <- u.cnt +. 1.0
             end
           else 
@@ -175,7 +198,7 @@ class users
                 cnt = 1.0; 
                 rep_bin = 0
 	      } in 
-              Hashtbl.add tbl uid u
+              Tbl.add tbl uid u
             end
         end
 
@@ -184,9 +207,9 @@ class users
       then initial_reputation
       else
         begin
-          if Hashtbl.mem tbl uid then 
+          if Tbl.mem tbl uid then 
             begin
-              let u = Hashtbl.find tbl uid in 
+              let u = Tbl.find tbl uid in 
               u.rep 
             end
           else
@@ -198,9 +221,9 @@ class users
       then 0.0
       else
         begin
-          if Hashtbl.mem tbl uid then 
+          if Tbl.mem tbl uid then 
             begin
-              let u = Hashtbl.find tbl uid in 
+              let u = Tbl.find tbl uid in 
               u.contrib
             end
           else
@@ -216,17 +239,15 @@ class users
       then 0.0 
       else 
         begin
-          if Hashtbl.mem tbl uid then 
+          if Tbl.mem tbl uid then 
             begin
-              let u = Hashtbl.find tbl uid in 
+              let u = Tbl.find tbl uid in 
               u.cnt
             end
           else
             0.0
         end
       
-    method get_users : (int, Evaltypes.user_data_t) Hashtbl.t = tbl
-
     method print_contributions (out_ch: out_channel) (order_asc: bool) : unit =
       let vec_of_users = ref Vec.empty in
       let insert_user uid u =
@@ -252,7 +273,7 @@ class users
               inserted := true;
           done
       in
-        Hashtbl.iter insert_user tbl;
+        Tbl.iter insert_user tbl;
         let write_contrib (uid, v) =
           Printf.fprintf out_ch "Uid %d    Reputation %f    Contribution %f\n" 
             uid v.rep v.contrib
@@ -266,11 +287,13 @@ class users
 	| Some f -> begin
 	    let prt id u =
 	      if u.rep_bin > 0 then Printf.fprintf f "%f %7d %2d %2d\n" 0. id (-1) u.rep_bin
-	    in Hashtbl.iter prt tbl
+	    in Tbl.iter prt tbl
 	  end
       end
 	
   end (* class users *)
+
+
 
 class rep 
   (params: params_t) (* The parameters used for evaluation *)
@@ -502,7 +525,5 @@ object (self)
     Printf.fprintf out_ch "\nText Stats:\n";
     let text_s = stat_text#compute_stats true  out_ch in 
     (edit_s, text_s) 
-
-  method get_users : (int, Evaltypes.user_data_t) Hashtbl.t = user_data#get_users
 
 end;; (* class rep *)

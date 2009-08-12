@@ -51,7 +51,6 @@ class users :
     method private generate_user_id : int -> string -> int
     method get_count : int -> float
     method get_rep : int -> float
-    method get_users : (int, Evaltypes.user_data_t) Hashtbl.t
     method get_contrib : int -> float
     method get_weight : int -> float
     method inc_count : int -> Rephist.RepHistory.key -> unit
@@ -86,5 +85,4 @@ class rep :
   object
     method add_data : Evaltypes.wiki_data_t -> unit
     method compute_stats : out_channel option -> out_channel -> Evaltypes.stats_t * Evaltypes.stats_t
-    method get_users : (int, Evaltypes.user_data_t) Hashtbl.t
   end
