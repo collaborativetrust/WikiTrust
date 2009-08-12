@@ -69,8 +69,6 @@ let time_intv = ref {
 let user_file = ref None
 let bucket_dir = ref ""
 let set_user_file s = user_file := Some (Fileinfo.open_info_out s)
-let user_contrib_file = ref None
-let set_user_contrib_file s = user_contrib_file := Some (Fileinfo.open_info_out s)
 let write_final_reps = ref false
 let do_compute_stats = ref false
 let noop s = ()
@@ -112,10 +110,6 @@ let command_line_format =
   "Include user domains for anonymous users in computing reputation");
   ("-ip_nbytes", Arg.Int set_ip_nbytes, 
   "<n>: generate user ids using the first n bytes of their ip address. n should be in [1,4]");
-  ("-u_contrib", Arg.String set_user_contrib_file,
-  "<contrib_file>: produce a file with user contribution data");
-  ("-u_contrib_order_asc", Arg.Set (user_contrib_order_asc),
-  "Ascending order of user contributions (default: descending)");
   ("-gen_exact_rep", Arg.Set (gen_exact_rep),
   "Generate an extra column in the user reputation file with exact reputation values");
   ("-use_reputation_cap", Arg.Set use_reputation_cap, "Use reputation cap.");
@@ -201,12 +195,8 @@ for file_idx = 0 to (Array.length file_names_a) - 1 do begin
 end done;;
 
 (* And prints the results *)
-r#compute_stats !user_contrib_file stdout;;
+r#compute_stats stdout;;
 
-(* Closes the output file *)
-match !user_contrib_file with 
-  Some f -> Fileinfo.close_info_out f
-| None -> ();;
 match !user_file with 
   Some f -> Fileinfo.close_info_out f
 | None -> ();;
