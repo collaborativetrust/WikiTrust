@@ -14,10 +14,10 @@ class WikiTrustBase {
   const TRUST_MULTIPLIER = 10;
   
   ## Token to be replaed with <
-  const TRUST_OPEN_TOKEN = "QQampo:";
+  const TRUST_OPEN_TOKEN = "<";
   
   ## Token to be replaed with >
-  const TRUST_CLOSE_TOKEN = ":ampc:";
+  const TRUST_CLOSE_TOKEN = ">";
 
   ## Server forms
   const NOT_FOUND_TEXT_TOKEN = "TEXT_NOT_FOUND";
@@ -276,12 +276,6 @@ if(0) {
 				-1,
 				$count);
       
-    // Update open, close, images, and links.
-    $text = preg_replace('/' . self::TRUST_OPEN_TOKEN . '/', 
-		    "<", $text, -1, $count);  
-    $text = preg_replace('/' . self::TRUST_CLOSE_TOKEN .'/', 
-        ">", $text, -1, $count);
-
     // Remove all of the trust tags which we can not handle at the moment.
     $text = preg_replace("/\{\{#t:\d+,\d+,[^}]+\}\}/",
 				"",
