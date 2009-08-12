@@ -191,7 +191,13 @@ class users
 	  None -> ()
 	| Some f -> begin
 	    let prt id u =
-	      if u.rep_bin > 0 then Printf.fprintf f "%f %7d %2d %2d\n" 0. id (-1) u.rep_bin
+	      if gen_exact_rep
+	      then begin
+		if u.rep_bin > 0 || u.rep > 0 then 
+		  Printf.fprintf f "%f %d %d %d %f\n" 0. id (-1) u.rep_bin ((float_of_int u.rep) /. 100.)
+	      end else begin
+		if u.rep_bin > 0 then Printf.fprintf f "%f %d %d %d\n" 0. id (-1) u.rep_bin
+	      end
 	    in Tbl.iter prt tbl
 	  end
       end
@@ -223,6 +229,7 @@ class rep
   (gen_almost_truthful_rep: bool) (* use algorithm for almost truthful reputation *)
   (gen_truthful_rep: bool) (* use strict algorithm for truthful reputation only *)
   (do_compute_stats: bool) (* really computes statistics *)
+  (init_rep_file: string option) (* optional file name of reputation file to read at the beginning. *)
   =
 object (self)
   (* This is the object keeping track of all users *)
@@ -236,6 +243,23 @@ object (self)
   val nixed : (int, unit) Hashtbl.t = Hashtbl.create 1000
     (* Which revisions were never nixed. *) 
   val not_nixed : (int, unit) Hashtbl.t = Hashtbl.create 1000
+
+  initializer 
+    (* If a reputation file has been specified, reads it. *)
+    match init_rep_file with
+      None -> ()
+    | Some f_name -> begin
+	let f = open_in f_name in
+	try while true do begin
+	  let l = input_line f in
+	  let l_pieces = Str.split (Str.regexp "[ \t]+") l in
+	  let uid = int_of_string (List.nth l_pieces 1) in
+	  let b   = int_of_string (List.nth l_pieces 3) in
+	  let r   = float_of_string (List.nth l_pieces 4) in
+	  user_data#store_rep uid r;
+	  user_data#store_bin uid b
+	end done with End_of_file -> close_in f
+      end
 
   method add_data (datum: wiki_data_t) : unit = 
     (* quality normalization function *)

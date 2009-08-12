@@ -21,6 +21,8 @@ batch/analysis/generate_reputation -use_reputation_cap -use_nix -nix_interval 10
     -local_global_algo -u ~/wiki-data/enwork/reps/rep_history.txt \
     -write_final_reps -buckets ~/wiki-data/enwork/buckets/ 
 
+
+
 # Generating the colored pages and the sql file for batch-online:
 batch/analysis/evalwiki -trust_for_online \
     -historyfile ~/wiki-data/enwork/reps/rep_history.txt \
