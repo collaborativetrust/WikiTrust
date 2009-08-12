@@ -12,16 +12,12 @@ batch/analysis/combinestats \
     -n_digits 4 -use_subdirs
 
 # Computing the reputations (whole histories):
-batch/analysis/generate_reputation -use_reputation_cap -use_nix -nix_interval 100000 \
-    -local_global_algo -u ~/wiki-data/enwork/reps/rep_history.txt \
-    -buckets ~/wiki-data/enwork/buckets/ 
+batch/analysis/generate_reputation -u ~/wiki-data/enwork/reps/rep_history.txt \
+    -buckets -gen_exact_rep ~/wiki-data/enwork/buckets/ 
 
 # Computing the reputations (only the final ones):
-batch/analysis/generate_reputation -use_reputation_cap -use_nix -nix_interval 100000 \
-    -local_global_algo -u ~/wiki-data/enwork/reps/rep_history.txt \
-    -write_final_reps -buckets ~/wiki-data/enwork/buckets/ 
-
-
+batch/analysis/generate_reputation -u ~/wiki-data/enwork/reps/rep_history.txt \
+    -buckets ~/wiki-data/enwork/buckets/ -gen_exact_rep -write_final_reps
 
 # Generating the colored pages and the sql file for batch-online:
 batch/analysis/evalwiki -trust_for_online \
