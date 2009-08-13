@@ -1,3 +1,6 @@
+# This script is not meant to be run!
+# It is simply a collection of commands, to be used as a reminder.
+
 # Computing the statistics (can be parallelized):
 /bin/gunzip -c /home/luca/wiki-data/enwiki/wiki-00100000.xml.gz \
     | batch/analysis/evalwiki -compute_stats -si ~/wiki-data/enwork/stats/wiki-00100000.stats
@@ -5,7 +8,7 @@
 /bin/gunzip -c /home/luca/wiki-data/enwiki/wiki-00100220.xml.gz \
     | batch/analysis/evalwiki -compute_stats -si ~/wiki-data/enwork/stats/wiki-00100220.stats
 
-# Sorting the statistics:
+# Sorting the statistics (use -n_digits 5 for small wikis):
 batch/analysis/combinestats \
     -bucket_dir ~/wiki-data/enwork/buckets/ \
     -input_dir ~/wiki-data/enwork/stats/ \
@@ -40,4 +43,6 @@ batch/analysis/evalwiki -trust_for_online \
 cd test-scripts 
 python load_data.py --clear_db /home/luca/wiki-data/enwiki/wiki-00100000.xml /home/luca/wiki-data/enwiki/wiki-00100220.xml
 
-# Now loads the 
+# Loads the reputations in the wiki db:
+
+# Loads the sql in the wiki db:
