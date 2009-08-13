@@ -429,36 +429,22 @@ if (0) {
   public static function ucscTrustTemplate($skin, &$content_actions)
   {
     global $wgRequest;
-    if (($wgRequest->getVal('action') 
-         && ($wgRequest->getVal('action') != 'purge')) 
-        || $wgRequest->getVal('diff')) {
-      // we don't want trust for actions which are not purges or diffs.
-      return true;
+
+    $url = $_SERVER[REQUEST_URI];
+    wfWikiTrustDebug(__FILE__ . ":" . __LINE__ . ": Original URL: $url");
+    if (!preg_match("/[?&]trust\b/", $url)) {
+      $url = preg_replace("/&?action=\w+\b/", '', $url);
+      $url = preg_replace("/&?diff=\d+\b/", '', $url);
+      $connector = '&';
+      if (!preg_match("/\?/", $url)) $connector = '?';
+      $url = $url . $connector . 'trust';
     }
 
-    // Builds up the query string for when a user clicks on the show 
-    // trust button. 
-    $trust_qs = $_SERVER['QUERY_STRING'];
-    wfWikiTrustDebug(__FILE__ . ":" . __LINE__ . ": Query String: $trust_qs");
-    if ($trust_qs) {
-      // If there is already something after the ? in the page url:
-      if (!stristr($trust_qs, "trust")){
-        // If there is not a trust=t, add it.
-        $trust_qs = "?" . $trust_qs . "&trust";
-      } else {
-        // Otherwise, just add a ? back.
-        $trust_qs = "?" . $trust_qs;
-      }
-    } else {
-      // If there is nothing after the ?, add what we need.
-      $trust_qs = "?trust"; 
-    }
-    
     wfLoadExtensionMessages('WikiTrust');
     $content_actions['trust'] = array (
 				    'class' => '',
 				    'text' => wfMsgNoTrans("wgTrustTabText"),
-				    'href' => $_SERVER['PHP_SELF'] . $trust_qs
+				    'href' => $url
 				);
     
     $use_trust = $wgRequest->getVal('trust'); 
