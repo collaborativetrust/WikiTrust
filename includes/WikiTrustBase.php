@@ -525,12 +525,10 @@ if (0) {
 	      2 => array("file", escapeshellcmd($wgWikiTrustDebugLog), "a")
 	  );
 
-      wfWikiTrustDebug(__FILE__ . ":" . __LINE__ . ": $command");
-      
       $cwd = '/tmp';
       $env = array();
       wfWikiTrustDebug(__FILE__.":".__LINE__ 
-        . ": wikitrustbase.php calling " . $command);
+        . ": runEvalEdit: " . $command);
       $process = proc_open($command, $descriptorspec, $pipes, $cwd, $env);
 
       return $process; 
