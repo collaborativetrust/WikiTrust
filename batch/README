@@ -78,9 +78,8 @@ For smaller wikis, use -n_digits 5 , which leads to 2,000 files.
 COMPUTING THE REPUTATION FROM A STATISTICS FILE: 
 ===============================================
 
-batch/analysis/generate_reputation -use_reputation_cap -use_nix -nix_interval 100000 \
-    -local_global_algo -u ~/wiki-data/enwork/reps/rep_history.txt \
-    -write_final_reps -buckets ~/wiki-data/enwork/buckets/ 
+batch/analysis/generate_reputation -u ~/wiki-data/enwork/reps/rep_history.txt \
+    -write_final_reps -gen_exact_rep -buckets ~/wiki-data/enwork/buckets/ 
 
 Don't worry about the output; it is some testing information we use 
 to judge the performance of the reputation.  Disregard it. 

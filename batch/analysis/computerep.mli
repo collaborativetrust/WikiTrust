@@ -39,27 +39,6 @@ val initial_reputation : float
 val debug : bool
 val single_debug : bool
 val single_debug_id : int
-class users :
-  float ->
-  float ->
-  bool ->
-  bool ->
-  int ->
-  out_channel option ->
-  bool ->
-  object
-    method private generate_user_id : int -> string -> int
-    method get_count : int -> float
-    method get_rep : int -> float
-    method get_users : (int, Evaltypes.user_data_t) Hashtbl.t
-    method get_contrib : int -> float
-    method get_weight : int -> float
-    method inc_count : int -> Rephist.RepHistory.key -> unit
-    method inc_rep : int -> string -> float -> Rephist.RepHistory.key -> unit
-    method inc_contrib : int -> string -> float -> float -> bool -> unit
-    method print_contributions : out_channel -> bool -> unit
-    method write_user_bins : unit
-  end
 class rep :
   (* parameters *) Evaltypes.params_t ->
   (* include_anons *) bool ->
@@ -83,8 +62,8 @@ class rep :
   (* gen_almost_truthful_rep *) bool -> 
   (* gen_truthful_rep *) bool -> 
   (* do_compute_rep *) bool ->
+  (* init_rep_file *) string option ->
   object
     method add_data : Evaltypes.wiki_data_t -> unit
-    method compute_stats : out_channel option -> out_channel -> Evaltypes.stats_t * Evaltypes.stats_t
-    method get_users : (int, Evaltypes.user_data_t) Hashtbl.t
+    method compute_stats : out_channel -> Evaltypes.stats_t * Evaltypes.stats_t
   end

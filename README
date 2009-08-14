@@ -155,10 +155,7 @@ require_once( $IP . "/extensions/WikiTrust/WikiTrust.php" );
      $ ./create_db.php "path_to_mediawiki" "mysql_root_user_name"
 
 7) If there are already revisions in the wiki, you should first
-   analyze their trust.  If your wiki contains already many revisions
-   (say, 100,000 or more), you might want to consider using the batch
-   method, as explained in batch/REAME.  Otherwise, you can analyze the
-   revisions via: 
+   analyze their trust, via:
 
      $ ./eval_online_wiki -db_user <username> -db_pass <pwd> -db_name <db_name>
 

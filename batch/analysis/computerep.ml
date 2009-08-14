@@ -40,10 +40,33 @@ POSSIBILITY OF SUCH DAMAGE.
 open Evaltypes;;
 open Rephist;;
 
+TYPE_CONV_PATH "UCSC_WIKI_RESEARCH"
+
 let initial_reputation = 0.1
 let debug = false
 let single_debug = false
 let single_debug_id = 57
+
+(* Map on user ids = integers *)
+module Umap = Map.Make (
+  struct
+    type t = int
+    let compare: int -> int -> int = compare
+  end);;
+
+(* Hashtable look-alike, implemented on top of Map *)
+module Table = struct
+  let create _ = ref Umap.empty
+  let add t k v = (t := Umap.add k v !t)
+  let mem t k = Umap.mem k !t
+  let find t k = Umap.find k !t
+  let iter f t = Umap.iter f !t
+end
+
+(* The two choices below are: 
+   Tbl = Hashtbl , to obtain a hashtable-based implementation;
+   Tbl = Table , to obtain a map-based implementation. *)
+module Tbl = Table
 
 class users 
   (rep_scaling: float) 
@@ -55,7 +78,7 @@ class users
   (write_final_reps: bool)
   =
   object (self)
-    val tbl = Hashtbl.create 1000 
+    val tbl = Tbl.create 1000 
 
     (* This method, when called for anonymous users returns a user id generated
        from the user ip address, if we want to include user domains in computing
@@ -76,201 +99,112 @@ class users
 	-(accumulate ip_nbytes (Str.split (Str.regexp_string ".") ip_addr))
       end else uid
 
+    method get_rep (uid: int) : float = 
+      if uid = 0 then initial_reputation
+      else begin
+        if Tbl.mem tbl uid then begin
+          let u = Tbl.find tbl uid in 
+          (float_of_int u.rep) /. 100. 
+        end else initial_reputation
+      end
+
+    method get_bin (uid: int) : int = 
+      if uid = 0 then 0
+      else begin
+	if Tbl.mem tbl uid then begin
+	  let u = Tbl.find tbl uid in u.rep_bin
+	end else 0
+      end
+
+    method store_rep (uid: int) (r: float) : unit = 
+      let u = 
+	if Tbl.mem tbl uid
+	then Tbl.find tbl uid 
+	else begin
+	  let u' = {
+	    rep = int_of_float (initial_reputation *. 100.);
+	    rep_bin = 0
+	  } in
+	  Tbl.add tbl uid u';
+	  u'
+	end
+      in
+      let r_bounded = max 0. (min max_rep r) in
+      let r_int = int_of_float (r_bounded *. 100.) in
+      u.rep <- r_int
+
+    method store_bin (uid: int) (b: int) : unit = 
+      let u = 
+	if Tbl.mem tbl uid
+	then Tbl.find tbl uid 
+	else begin
+	  let u' = {
+	    rep = int_of_float (initial_reputation *. 100.);
+	    rep_bin = 0
+	  } in
+	  Tbl.add tbl uid u';
+	  u'
+	end
+      in u.rep_bin <- b
+
     method inc_rep (uid: int) (username: string) (q: float) (timestamp: Rephist.RepHistory.key) : unit = 
       let user_id = self#generate_user_id uid username in
       (* We do nothing for anon users (domain generate their own negative username) *)
       if user_id <> 0 then begin
-	if Hashtbl.mem tbl user_id then begin
-	  let u = Hashtbl.find tbl user_id in 
-	  if debug then Printf.printf "Uid %d rep: %f " user_id u.rep; 
-	  if debug then Printf.printf "inc: %f\n" (q /. rep_scaling);
-	  u.rep <- max 0.0 (min max_rep (u.rep +. (q /. rep_scaling)));
-	  let new_weight = log (1.0 +. (max 0.0 u.rep)) in 
-	  let new_bin = int_of_float new_weight in
-	  let old_bin = u.rep_bin in
-	  if write_final_reps then begin
-	    (* Simply updates the bin *)
-	    u.rep_bin <- new_bin
-	  end else begin 
-	    match user_history_file with 
-	      None -> ()
-	    | Some f -> begin 
-		if new_weight > (float_of_int old_bin) +. 1.1
-		  || new_weight < (float_of_int old_bin) -. 0.2 
-		  || gen_exact_rep
-		then begin (* must write out the change in reputation *)
-		  (* Updates the bin *)
-		  u.rep_bin <- new_bin;
-		  if gen_exact_rep then
-		    Printf.fprintf f "%f %7d %2d %2d %f\n" timestamp user_id old_bin new_bin u.rep
-		  else
-		    Printf.fprintf f "%f %7d %2d %2d\n" timestamp user_id old_bin new_bin;
+	let u_rep = self#get_rep user_id in 
+	if debug then Printf.printf "Uid %d rep: %f " user_id u_rep; 
+	if debug then Printf.printf "inc: %f\n" (q /. rep_scaling);
+	let new_rep = max 0. (min max_rep (u_rep +. (q /. rep_scaling))) in
+	self#store_rep user_id new_rep;
+	let new_weight = log (1.0 +. (max 0.0 new_rep)) in 
+	let new_bin = int_of_float new_weight in
+	let old_bin = self#get_bin user_id in
+	if write_final_reps then begin
+	  (* Simply updates the bin *)
+	  self#store_bin user_id new_bin
+	end else begin 
+	  match user_history_file with 
+	    None -> ()
+	  | Some f -> begin 
+	      if new_weight > (float_of_int old_bin) +. 1.1
+		|| new_weight < (float_of_int old_bin) -. 0.2 
+		|| gen_exact_rep
+	      then begin (* must write out the change in reputation *)
+		self#store_bin user_id new_bin;
+		if gen_exact_rep 
+		then Printf.fprintf f "%f %7d %2d %2d %f\n" timestamp user_id old_bin new_bin new_rep
+		else Printf.fprintf f "%f %7d %2d %2d\n" timestamp user_id old_bin new_bin;
 		end
 	      end
-	  end;  (* If not write_final_reps *)
-	  if user_id = single_debug_id && single_debug then 
-	    Printf.printf "Rep of %d: %f\n" user_id u.rep
-	end else begin
-	  (* New user *)
-	  let u = {
-	    rep = initial_reputation; 
-	    contrib = 0.0;
-	    cnt = 0.0; 
-	    rep_bin = 0
-	  } in 
-	  u.rep <- max 0.0 (min max_rep (u.rep +. (q /. rep_scaling)));
-	  let new_weight = log (1.0 +. (max 0.0 u.rep)) in 
-	  let new_bin = int_of_float new_weight in 
-	  u.rep_bin <- new_bin;
-	  if (not write_final_reps) then begin
-	    match user_history_file with 
-	      None -> ()
-	    | Some f -> begin 
-		if gen_exact_rep then
-		  Printf.fprintf f "%f %7d %2d %2d %f\n" timestamp user_id (-1) new_bin u.rep
-		else
-		  Printf.fprintf f "%f %7d %2d %2d\n" timestamp user_id (-1) new_bin;
-	      end
-	  end;
-	  Hashtbl.add tbl user_id u; 
-	end
-      end
-
-    method inc_contrib (uid: int) (username: string) (delta: float) (longevity: float) (include_anons: bool) : unit = 
-      if (uid <> 0 || include_anons || include_domains) then 
-        begin
-	  let user_id = self#generate_user_id uid username in
-            if Hashtbl.mem tbl user_id then begin
-	      (* Existing user *)
-              let u = Hashtbl.find tbl user_id in 
-	      if debug then Printf.printf "Uid %d rep: %f " user_id u.rep; 
-              u.contrib <- u.contrib +. (delta *. longevity);
-            end
-            else begin
-              (* New user *)
-              let u = {
-		rep = initial_reputation; 
-                contrib = delta *. longevity;
-		cnt = 0.0; 
-		rep_bin = 0
-	      } in 
-              Hashtbl.add tbl user_id u; 
-            end
-        end
-
-    method inc_count (uid: int) (timestamp: float) : unit = 
-      if (uid <> 0 || include_domains) then 
-        begin
-          if Hashtbl.mem tbl uid then 
-            begin
-              let u = Hashtbl.find tbl uid in 
-              u.cnt <- u.cnt +. 1.0
-            end
-          else 
-            begin
-              (* New user *)
-              let u = {
-                rep = 0.0; 
-                contrib = 0.0; 
-                cnt = 1.0; 
-                rep_bin = 0
-	      } in 
-              Hashtbl.add tbl uid u
-            end
-        end
-
-    method get_rep (uid: int) : float = 
-      if uid = 0 
-      then initial_reputation
-      else
-        begin
-          if Hashtbl.mem tbl uid then 
-            begin
-              let u = Hashtbl.find tbl uid in 
-              u.rep 
-            end
-          else
-            initial_reputation
-        end
-
-    method get_contrib (uid: int) : float =
-      if uid = 0 
-      then 0.0
-      else
-        begin
-          if Hashtbl.mem tbl uid then 
-            begin
-              let u = Hashtbl.find tbl uid in 
-              u.contrib
-            end
-          else
-            0.0
-        end
+	end;  (* If not write_final_reps *)
+	if user_id = single_debug_id && single_debug then 
+	  Printf.printf "Rep of %d: %f\n" user_id new_rep
+      end 
 
     method get_weight (uid: int) : float = 
       let r = self#get_rep uid in 
       log (1.0 +. (max 0.0 r))
         
-    method get_count (uid: int) : float = 
-      if uid = 0 
-      then 0.0 
-      else 
-        begin
-          if Hashtbl.mem tbl uid then 
-            begin
-              let u = Hashtbl.find tbl uid in 
-              u.cnt
-            end
-          else
-            0.0
-        end
-      
-    method get_users : (int, Evaltypes.user_data_t) Hashtbl.t = tbl
-
-    method print_contributions (out_ch: out_channel) (order_asc: bool) : unit =
-      let vec_of_users = ref Vec.empty in
-      let insert_user uid u =
-        let inserted = ref false in
-        let index = ref 0 in
-          while not !inserted do
-            try
-              let (id, v) = Vec.get !index !vec_of_users in
-                if order_asc then begin
-                  if v.contrib >= u.contrib then begin
-                    vec_of_users := Vec.insert !index (uid, u) !vec_of_users;
-                    inserted := true;
-                  end
-                end else begin
-                  if v.contrib < u.contrib then begin
-                    vec_of_users := Vec.insert !index (uid, u) !vec_of_users;
-                    inserted := true;
-                  end
-                end;
-                index := !index + 1
-            with Vec.Vec_index_out_of_bounds -> 
-              vec_of_users := Vec.insert !index (uid, u) !vec_of_users;
-              inserted := true;
-          done
-      in
-        Hashtbl.iter insert_user tbl;
-        let write_contrib (uid, v) =
-          Printf.fprintf out_ch "Uid %d    Reputation %f    Contribution %f\n" 
-            uid v.rep v.contrib
-        in
-          Vec.iter write_contrib !vec_of_users
-
     method write_user_bins : unit =
       if write_final_reps then begin
 	match user_history_file with 
 	  None -> ()
 	| Some f -> begin
 	    let prt id u =
-	      if u.rep_bin > 0 then Printf.fprintf f "%f %7d %2d %2d\n" 0. id (-1) u.rep_bin
-	    in Hashtbl.iter prt tbl
+	      if gen_exact_rep
+	      then begin
+		if u.rep_bin > 0 || u.rep > 0 then 
+		  Printf.fprintf f "%f %d %d %d %f\n" 0. id (-1) u.rep_bin ((float_of_int u.rep) /. 100.)
+	      end else begin
+		if u.rep_bin > 0 then Printf.fprintf f "%f %d %d %d\n" 0. id (-1) u.rep_bin
+	      end
+	    in Tbl.iter prt tbl
 	  end
       end
 	
   end (* class users *)
+
+
 
 class rep 
   (params: params_t) (* The parameters used for evaluation *)
@@ -295,6 +229,7 @@ class rep
   (gen_almost_truthful_rep: bool) (* use algorithm for almost truthful reputation *)
   (gen_truthful_rep: bool) (* use strict algorithm for truthful reputation only *)
   (do_compute_stats: bool) (* really computes statistics *)
+  (init_rep_file: string option) (* optional file name of reputation file to read at the beginning. *)
   =
 object (self)
   (* This is the object keeping track of all users *)
@@ -309,6 +244,23 @@ object (self)
     (* Which revisions were never nixed. *) 
   val not_nixed : (int, unit) Hashtbl.t = Hashtbl.create 1000
 
+  initializer 
+    (* If a reputation file has been specified, reads it. *)
+    match init_rep_file with
+      None -> ()
+    | Some f_name -> begin
+	let f = open_in f_name in
+	try while true do begin
+	  let l = input_line f in
+	  let l_pieces = Str.split (Str.regexp "[ \t]+") l in
+	  let uid = int_of_string (List.nth l_pieces 1) in
+	  let b   = int_of_string (List.nth l_pieces 3) in
+	  let r   = float_of_string (List.nth l_pieces 4) in
+	  user_data#store_rep uid r;
+	  user_data#store_bin uid b
+	end done with End_of_file -> close_in f
+      end
+
   method add_data (datum: wiki_data_t) : unit = 
     (* quality normalization function *)
     let normalize x = max (min x 1.0) (-. 1.0) in 
@@ -318,7 +270,6 @@ object (self)
 	EditLife e -> begin
 	  if do_compute_stats then begin
             let uid = e.edit_life_uid0 in 
-            let uname = e.edit_life_uname0 in
             if (uid <> 0 || include_anons || include_domains) 
 	      && e.edit_life_delta > 0. 
               && e.edit_life_time >= rep_intv.start_time
@@ -336,7 +287,6 @@ object (self)
 	        (user_data#get_weight uid) (* weight of user reputation *)
 	        (e.edit_life_delta *. (float_of_int e.edit_life_n_judges)) (* weight of data point *)
 	        (normalize e.edit_life_avg_specq); (* edit longevity *)
-              user_data#inc_contrib uid uname e.edit_life_delta e.edit_life_avg_specq include_anons
 	    end
 	  end; (* if gen_stats *)
 	  e.edit_life_time
@@ -484,15 +434,9 @@ object (self)
 
 
   (* This method computes the statistics, and returns the edit_stats * text_stats *)
-  method compute_stats (contrib_out_ch: out_channel option) (out_ch: out_channel) : stats_t * stats_t = 
+  method compute_stats (out_ch: out_channel) : stats_t * stats_t = 
     (* First writes all final user reputations. *)
     user_data#write_user_bins;
-    (* Prints contributions, if requested. *)
-    begin
-      match contrib_out_ch with
-        Some f -> user_data#print_contributions f user_contrib_order_asc
-      | None -> ()
-    end;
     let total_revs = (Hashtbl.length nixed) + (Hashtbl.length not_nixed) in
     Printf.fprintf out_ch "%d Revisions out of %d nixed -- %f percent."
       (Hashtbl.length nixed) total_revs (float_of_int (Hashtbl.length nixed) /.
@@ -502,7 +446,5 @@ object (self)
     Printf.fprintf out_ch "\nText Stats:\n";
     let text_s = stat_text#compute_stats true  out_ch in 
     (edit_s, text_s) 
-
-  method get_users : (int, Evaltypes.user_data_t) Hashtbl.t = user_data#get_users
 
 end;; (* class rep *)

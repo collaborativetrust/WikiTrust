@@ -69,10 +69,9 @@ let time_intv = ref {
 let user_file = ref None
 let bucket_dir = ref ""
 let set_user_file s = user_file := Some (Fileinfo.open_info_out s)
-let user_contrib_file = ref None
-let set_user_contrib_file s = user_contrib_file := Some (Fileinfo.open_info_out s)
 let write_final_reps = ref false
 let do_compute_stats = ref false
+let init_rep_file = ref ""
 let noop s = ()
 
 let set_ip_nbytes i = 
@@ -112,10 +111,6 @@ let command_line_format =
   "Include user domains for anonymous users in computing reputation");
   ("-ip_nbytes", Arg.Int set_ip_nbytes, 
   "<n>: generate user ids using the first n bytes of their ip address. n should be in [1,4]");
-  ("-u_contrib", Arg.String set_user_contrib_file,
-  "<contrib_file>: produce a file with user contribution data");
-  ("-u_contrib_order_asc", Arg.Set (user_contrib_order_asc),
-  "Ascending order of user contributions (default: descending)");
   ("-gen_exact_rep", Arg.Set (gen_exact_rep),
   "Generate an extra column in the user reputation file with exact reputation values");
   ("-use_reputation_cap", Arg.Set use_reputation_cap, "Use reputation cap.");
@@ -133,6 +128,7 @@ let command_line_format =
   ("-local_algo", Arg.Set gen_truthful_rep, "Use algorithm for truthful reputation.");
   ("-write_final_reps", Arg.Set write_final_reps, "Write reputations only at the end.");
   ("-do_compute_stats", Arg.Set do_compute_stats, "Computes reputation statistics (otherwise, invalid results are printed).");
+  ("-init_rep_file", Arg.Set_string init_rep_file, "File name containing user reputations used for initialization.");
 ]
 
 let _ = Arg.parse command_line_format noop "Usage: generate_reputation\n"
@@ -153,8 +149,11 @@ if (!gen_almost_truthful_rep || !gen_truthful_rep) then begin
   use_reputation_cap := true
 end
 
+let init_rep_file_opt = 
+  if !init_rep_file = "" then None else Some (!init_rep_file)
+
 (* This is the reputation evaluator *)
-let r = new Computerep.rep params !include_anon all_time_intv !time_intv !user_file !write_final_reps !do_monthly !do_cumulative !do_localinc !gen_exact_rep !user_contrib_order_asc !include_domains !ip_nbytes stdout !use_reputation_cap !use_nix !use_weak_nix !nix_interval !n_edit_judging !gen_almost_truthful_rep !gen_truthful_rep !do_compute_stats;;
+let r = new Computerep.rep params !include_anon all_time_intv !time_intv !user_file !write_final_reps !do_monthly !do_cumulative !do_localinc !gen_exact_rep !user_contrib_order_asc !include_domains !ip_nbytes stdout !use_reputation_cap !use_nix !use_weak_nix !nix_interval !n_edit_judging !gen_almost_truthful_rep !gen_truthful_rep !do_compute_stats init_rep_file_opt;;
 
 (* Reads the data, and passes it to the function that updates user reputations. *)
 
@@ -201,12 +200,8 @@ for file_idx = 0 to (Array.length file_names_a) - 1 do begin
 end done;;
 
 (* And prints the results *)
-r#compute_stats !user_contrib_file stdout;;
+r#compute_stats stdout;;
 
-(* Closes the output file *)
-match !user_contrib_file with 
-  Some f -> Fileinfo.close_info_out f
-| None -> ();;
 match !user_file with 
   Some f -> Fileinfo.close_info_out f
 | None -> ();;
