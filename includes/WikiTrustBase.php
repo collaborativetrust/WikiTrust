@@ -466,7 +466,6 @@ if (0) {
 				 $page_id_raw = NULL, 
 				 $rev_id_raw = NULL)
   {
-    // TODO: don't actually need title or page_id -- all comes from rev_id
     global $wgTitle;
     wfWikiTrustDebug(__FILE__.":".__LINE__
         . ": ajax_getColoredText($page_title_raw, $page_id_raw, $rev_id_raw)");
@@ -474,10 +473,24 @@ if (0) {
     wfLoadExtensionMessages('WikiTrust');
 
     $dbr =& wfGetDB( DB_SLAVE );
-    $rev = Revision::loadFromId($dbr, $rev_id_raw);
-    $page_id = $rev->getPage();
+
     // $wgTitle isn't set correctly in AJAX mode, so we create one
-    $wgTitle = Title::newFromID($page_id);
+    if (!$rev_id_raw) {
+      if ($page_id_raw)
+	$wgTitle = Title::newFromID($page_id_raw);
+      else
+	$wgTitle = Title::newFromText($page_title_raw);
+      $article = new Article($wgTitle);
+      $page_id_raw = $wgTitle->getArticleID();
+      $rev_id_raw = $article->getLatest();
+    } else {
+      $rev = Revision::loadFromId($dbr, $rev_id_raw);
+      $page_id = $rev->getPage();
+      $wgTitle = Title::newFromID($page_id);
+    }
+
+    wfWikiTrustDebug(__FILE__.":".__LINE__
+        . ": computed=($page_title_raw, $page_id_raw, $rev_id_raw)");
 
     $colored_text = WikiTrust::color_getColorData($rev_id_raw);
     self::color_fixup($colored_text);
