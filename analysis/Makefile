@@ -36,7 +36,7 @@ OUR_LIBS = evalwiki.cma
 OUR_LIBS_OPT = evalwiki.cmxa
 INCLUDES = -I ../batch/analysis
 
-OCAMLC=ocamlfind ocamlc -package $(PACKAGES) -syntax $(SYNTAX)
+OCAMLC=ocamlfind ocamlc -dtypes -package $(PACKAGES) -syntax $(SYNTAX)
 OCAMLOPT=ocamlfind ocamlopt -package $(PACKAGES) -syntax $(SYNTAX)
 
 OCAMLDEP=ocamlfind ocamldep -package $(PACKAGES) -syntax $(SYNTAX)

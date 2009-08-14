@@ -43,7 +43,7 @@ OUR_LIBS_OPT = evalwiki.cmxa online_types.cmx online_log.cmx online_db.cmx \
 
 INCLUDES = -I ../../batch/analysis -I ../../analysis
 
-OCAMLC=ocamlfind ocamlc -package $(PACKAGES) -syntax $(SYNTAX)
+OCAMLC=ocamlfind ocamlc -dtypes -package $(PACKAGES) -syntax $(SYNTAX)
 OCAMLOPT=ocamlfind ocamlopt -package $(PACKAGES) -syntax $(SYNTAX)
 
 OCAMLDEP=ocamlfind ocamldep -package $(PACKAGES) -syntax $(SYNTAX)
