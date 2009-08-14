@@ -192,10 +192,9 @@ class WikiTrustBase {
 
     $dbr =& wfGetDB( DB_SLAVE );
 
-    wfWikiTrustDebug(__FILE__.":".__LINE__ . ": Looks in the database.");
-
     global $wgWikiTrustColorPath;
     if (!$wgWikiTrustColorPath) {
+      wfWikiTrustDebug(__FILE__.":".__LINE__ . ": Looks in the database.");
       $res = $dbr->select('wikitrust_colored_markup', 'revision_text',
 			array( 'revision_id' => $rev_id ), 
 			array());
@@ -212,7 +211,7 @@ class WikiTrustBase {
       global $wgTitle;
       $page_id = $wgTitle->getArticleID();
       $file = self::util_getRevFilename($page_id, $rev_id);
-      // TODO: Bo -- what is this all about?
+      wfWikiTrustDebug(__FILE__.":".__LINE__ . ": Fetching from disk; file=[$file]");
       // TODO: file_get_contents() didn't used to support BINARY
 	// what version of PHP are we requiring?  -Bo
 if (1) {
@@ -465,10 +464,22 @@ if (0) {
   */
   static function ajax_getColoredText($page_title_raw,
 				 $page_id_raw = NULL, 
-				 $rev_id_raw = NULL){
+				 $rev_id_raw = NULL)
+  {
+    // TODO: don't actually need title or page_id -- all comes from rev_id
+    global $wgTitle;
+    wfWikiTrustDebug(__FILE__.":".__LINE__
+        . ": ajax_getColoredText($page_title_raw, $page_id_raw, $rev_id_raw)");
+
     wfLoadExtensionMessages('WikiTrust');
 
-    $colored_text = WikiTrust::color_getColorData($rev_id);
+    $dbr =& wfGetDB( DB_SLAVE );
+    $rev = Revision::loadFromId($dbr, $rev_id_raw);
+    $page_id = $rev->getPage();
+    // $wgTitle isn't set correctly in AJAX mode, so we create one
+    $wgTitle = Title::newFromID($page_id);
+
+    $colored_text = WikiTrust::color_getColorData($rev_id_raw);
     self::color_fixup($colored_text);
     $text = '';
 
