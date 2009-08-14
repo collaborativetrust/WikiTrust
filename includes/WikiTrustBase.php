@@ -158,7 +158,7 @@ class WikiTrustBase {
       $text = "<div id='vote-button'><input type='button' name='vote' "
 		. "value='" 
 		. wfMsgNoTrans("wgTrustVote")
-		. "' onclick='startVote()' /></div><div id='vote-button-done'>"
+		. "' onclick='startVote()' /></div><div id='vote-button-done' style='display: none'>"
 		. wfMsgNoTrans("wgTrustVoteDone") 
 		. "</div>"
 		. $text;
@@ -230,6 +230,8 @@ if (1) {
       }
       $colored_text = gzinflate(substr($gzdata, 10));
     }
+
+    wfWikiTrustDebug(__FILE__ . ":" . __LINE__ . "/* $colored_text */");
 
     $res = $dbr->select('wikitrust_global', 'median', array(), array());
     if ($res && $dbr->numRows($res) > 0) {
