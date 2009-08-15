@@ -1275,14 +1275,14 @@ class page
 	      self#read_page_revisions_edit; 
 	      
 	      (* Computes the edit distances *)
-	      if debug then !Online_log.online_logger#log "   Computing edit lists...\n";
+	      !Online_log.online_logger#log "   Computing edit lists...\n";
 	      self#compute_edit_lists; 
 	      (* Computes, and writes to disk, the trust of the newest revision *)
-	      if debug then !Online_log.online_logger#log "   Computing trust...\n";
+	      !Online_log.online_logger#log "   Computing trust...\n";
 	      self#compute_trust;
 	      
 	      (* We now process the reputation update. *)
-	      if debug then !Online_log.online_logger#log "   Computing edit incs...\n";
+	      !Online_log.online_logger#log "   Computing edit incs...\n";
 	      self#compute_edit_inc;
 	      
 	      (* Inserts the revision in the list of high rep or high trust revisions, 
@@ -1292,7 +1292,7 @@ class page
 	      db#write_page_chunks_info page_id del_chunks_list page_info;
 
 	      (* We write back to disk the information of all revisions *)
-	      if debug then !Online_log.online_logger#log "   Writing the quality information...\n";
+	      !Online_log.online_logger#log "   Writing the quality information...\n";
 	      let f r = r#write_quality_to_db in 
 	      Vec.iter f revs;
 
@@ -1319,10 +1319,10 @@ class page
       if !needs_coloring then begin 
 
 	(* We write to disk all reputation changes *)
-	if debug then !Online_log.online_logger#log "   Writing the reputations...\n";
+	!Online_log.online_logger#log "   Writing the reputations...\n";
 	self#write_all_reps;
 	
-	if debug then !Online_log.online_logger#log "   All done!\n";
+	!Online_log.online_logger#log "   All done!\n";
       end; (* needs coloring *)
 
       (* Writes the new histogram *)
@@ -1370,7 +1370,7 @@ class page
 	begin 
 	  try 
 	    db#start_transaction;
-	    if debug then !Online_log.online_logger#log "Start vote for revision...\n";
+	    !Online_log.online_logger#log "Start vote for revision...\n";
 	    (* Reads the page information and the revision *)
 	    self#read_page_revisions_vote; 
 	    (* Increases the trust of the revision, and writes the 

@@ -231,7 +231,7 @@ if (1) {
       $colored_text = gzinflate(substr($gzdata, 10));
     }
 
-    wfWikiTrustDebug(__FILE__ . ":" . __LINE__ . "/* $colored_text */");
+    // wfWikiTrustDebug(__FILE__ . ":" . __LINE__ . "/* $colored_text */");
 
     $res = $dbr->select('wikitrust_global', 'median', array(), array());
     if ($res && $dbr->numRows($res) > 0) {
