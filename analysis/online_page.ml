@@ -1334,6 +1334,7 @@ class page
 		db#start_transaction;
 		db#write_histogram delta_hist new_hi_median;
 		db#commit;
+		histogram_updated <- false;
 		n_attempts := n_retries
 	      end 
 	    with Online_db.DB_TXN_Bad -> 
