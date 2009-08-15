@@ -78,6 +78,13 @@ function wfWikiTrustSetup() {
     global $wgExtensionMessagesFiles;
     $wgExtensionMessagesFiles['WikiTrust'] = $dir.'/WikiTrust.i18n.php';
 
+    // Fixes the command-line options for eval_online_wiki.
+    global $wgWikiTrustColorPath, $wgWikiTrustCmdExtraArgs;
+    if ($wgWikiTrustColorPath) {
+       $wgWikiTrustCmdExtraArgs = $wgWikiTrustCmdExtraArgs . 
+	 " -wt_db_colored_base_path " . $wgWikiTrustColorPath;
+    }
+
     global $wgAutoloadClasses, $wgHooks, $wgWikiTrustVersion;
     $wgAutoloadClasses['WikiTrustBase'] = $dir . 'WikiTrustBase.php';
     $wgAutoloadClasses['WikiTrustUpdate'] = $dir . 'WikiTrustUpdate.php';
