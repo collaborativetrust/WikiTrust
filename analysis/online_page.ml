@@ -908,6 +908,8 @@ class page
       match work_revision_opt with
 	None -> raise Missing_work_revision
       | Some rev0 -> begin
+    try rev0#read_words_trust_origin_sigs with 
+      | Online_db.DB_Not_Found -> raise (Missing_trust rev0);
 	  let rev0_id = rev0#get_id in
 	  let rev0_t = rev0#get_words in 
 	  let rev0_l = Array.length rev0_t in 

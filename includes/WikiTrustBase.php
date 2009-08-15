@@ -192,10 +192,9 @@ class WikiTrustBase {
 
     $dbr =& wfGetDB( DB_SLAVE );
 
-    wfWikiTrustDebug(__FILE__.":".__LINE__ . ": Looks in the database.");
-
     global $wgWikiTrustColorPath;
     if (!$wgWikiTrustColorPath) {
+      wfWikiTrustDebug(__FILE__.":".__LINE__ . ": Looks in the database.");
       $res = $dbr->select('wikitrust_colored_markup', 'revision_text',
 			array( 'revision_id' => $rev_id ), 
 			array());
@@ -212,7 +211,7 @@ class WikiTrustBase {
       global $wgTitle;
       $page_id = $wgTitle->getArticleID();
       $file = self::util_getRevFilename($page_id, $rev_id);
-      // TODO: Bo -- what is this all about?
+      wfWikiTrustDebug(__FILE__.":".__LINE__ . ": Fetching from disk; file=[$file]");
       // TODO: file_get_contents() didn't used to support BINARY
 	// what version of PHP are we requiring?  -Bo
 if (1) {
@@ -231,6 +230,8 @@ if (1) {
       }
       $colored_text = gzinflate(substr($gzdata, 10));
     }
+
+    wfWikiTrustDebug(__FILE__ . ":" . __LINE__ . "/* $colored_text */");
 
     $res = $dbr->select('wikitrust_global', 'median', array(), array());
     if ($res && $dbr->numRows($res) > 0) {
@@ -429,36 +430,22 @@ if (0) {
   public static function ucscTrustTemplate($skin, &$content_actions)
   {
     global $wgRequest;
-    if (($wgRequest->getVal('action') 
-         && ($wgRequest->getVal('action') != 'purge')) 
-        || $wgRequest->getVal('diff')) {
-      // we don't want trust for actions which are not purges or diffs.
-      return true;
+
+    $url = $_SERVER[REQUEST_URI];
+    wfWikiTrustDebug(__FILE__ . ":" . __LINE__ . ": Original URL: $url");
+    if (!preg_match("/[?&]trust\b/", $url)) {
+      $url = preg_replace("/&?action=\w+\b/", '', $url);
+      $url = preg_replace("/&?diff=\d+\b/", '', $url);
+      $connector = '&';
+      if (!preg_match("/\?/", $url)) $connector = '?';
+      $url = $url . $connector . 'trust';
     }
 
-    // Builds up the query string for when a user clicks on the show 
-    // trust button. 
-    $trust_qs = $_SERVER['QUERY_STRING'];
-    wfWikiTrustDebug(__FILE__ . ":" . __LINE__ . ": Query String: $trust_qs");
-    if ($trust_qs) {
-      // If there is already something after the ? in the page url:
-      if (!stristr($trust_qs, "trust")){
-        // If there is not a trust=t, add it.
-        $trust_qs = "?" . $trust_qs . "&trust";
-      } else {
-        // Otherwise, just add a ? back.
-        $trust_qs = "?" . $trust_qs;
-      }
-    } else {
-      // If there is nothing after the ?, add what we need.
-      $trust_qs = "?trust"; 
-    }
-    
     wfLoadExtensionMessages('WikiTrust');
     $content_actions['trust'] = array (
 				    'class' => '',
 				    'text' => wfMsgNoTrans("wgTrustTabText"),
-				    'href' => $_SERVER['PHP_SELF'] . $trust_qs
+				    'href' => $url
 				);
     
     $use_trust = $wgRequest->getVal('trust'); 
@@ -479,10 +466,35 @@ if (0) {
   */
   static function ajax_getColoredText($page_title_raw,
 				 $page_id_raw = NULL, 
-				 $rev_id_raw = NULL){
+				 $rev_id_raw = NULL)
+  {
+    global $wgTitle;
+    wfWikiTrustDebug(__FILE__.":".__LINE__
+        . ": ajax_getColoredText($page_title_raw, $page_id_raw, $rev_id_raw)");
+
     wfLoadExtensionMessages('WikiTrust');
 
-    $colored_text = WikiTrust::color_getColorData($rev_id);
+    $dbr =& wfGetDB( DB_SLAVE );
+
+    // $wgTitle isn't set correctly in AJAX mode, so we create one
+    if (!$rev_id_raw) {
+      if ($page_id_raw)
+	$wgTitle = Title::newFromID($page_id_raw);
+      else
+	$wgTitle = Title::newFromText($page_title_raw);
+      $article = new Article($wgTitle);
+      $page_id_raw = $wgTitle->getArticleID();
+      $rev_id_raw = $article->getLatest();
+    } else {
+      $rev = Revision::loadFromId($dbr, $rev_id_raw);
+      $page_id = $rev->getPage();
+      $wgTitle = Title::newFromID($page_id);
+    }
+
+    wfWikiTrustDebug(__FILE__.":".__LINE__
+        . ": computed=($page_title_raw, $page_id_raw, $rev_id_raw)");
+
+    $colored_text = WikiTrust::color_getColorData($rev_id_raw);
     self::color_fixup($colored_text);
     $text = '';
 
@@ -539,12 +551,10 @@ if (0) {
 	      2 => array("file", escapeshellcmd($wgWikiTrustDebugLog), "a")
 	  );
 
-      wfWikiTrustDebug(__FILE__ . ":" . __LINE__ . ": $command");
-      
       $cwd = '/tmp';
       $env = array();
       wfWikiTrustDebug(__FILE__.":".__LINE__ 
-        . ": wikitrustbase.php calling " . $command);
+        . ": runEvalEdit: " . $command);
       $process = proc_open($command, $descriptorspec, $pipes, $cwd, $env);
 
       return $process; 
