@@ -478,27 +478,16 @@ object(self)
   (** [write_colored_markup page_id rev_id markup createdon] writes the "colored"
       text [markup] of a revision.
       The [markup] represents the main text of the revision, annotated with trust 
-      and origin information; it is what the "colored revisions" of our 
-      batch demo are. 
-      When visitors want the "colored" version of a wiki page, it is this chunk 
-      they want to see.  Therefore, it is very important that this chunk is 
-      easy and efficient to read.  A filesystem implementation, for small wikis, 
-      may be highly advisable. *)
-  (* This is currently a first cut, which will be hopefully optimized later *)
+      and origin information. *)
   method write_colored_markup (page_id: int) (rev_id : int) (markup : string) : unit =
-    let db_mkup = match colored_base_path with
-	Some _ -> "''"
-      | None -> ml2str markup
-    in 
-    let s = Printf.sprintf "INSERT INTO %swikitrust_colored_markup (revision_id, revision_text) VALUES (%s, %s) ON DUPLICATE KEY UPDATE revision_text = %s"
-      db_prefix
-      (ml2int rev_id) db_mkup db_mkup in 
-    ignore (self#db_exec mediawiki_dbh s);
-    begin
-      match colored_base_path with
-	Some b -> Filesystem_store.write_revision b page_id rev_id markup 
-      | None -> ()
-    end
+    match colored_base_path with 
+      Some b -> Filesystem_store.write_revision b page_id rev_id markup
+    | None -> begin
+	let db_mkup = ml2str markup in 
+	let s = Printf.sprintf "INSERT INTO %swikitrust_colored_markup (revision_id, revision_text) VALUES (%s, %s) ON DUPLICATE KEY UPDATE revision_text = %s"
+	  db_prefix (ml2int rev_id) db_mkup db_mkup in 
+	ignore (self#db_exec mediawiki_dbh s);
+      end
 
 
   (** [read_colored_markup rev_id] reads the text markup of a revision with id
