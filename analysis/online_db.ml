@@ -391,12 +391,13 @@ object(self)
   (* Revision methods. *) 
 
   (** [revision_needs_coloring rev_id] checks whether a revision has already been 
-      colored for trust. *)
-  method revision_needs_coloring (rev_id: int) : bool = 
-    let s = Printf.sprintf "SELECT quality_info FROM %swikitrust_revision WHERE revision_id = %s" db_prefix (ml2int rev_id) in 
-    match fetch (self#db_exec mediawiki_dbh s) with
-      None -> true
-    | Some _ -> false
+      colored for trust.  The only safe thing to do is to see whether the 
+      colored text is present, since that is what the user wants to see. *)
+  method revision_needs_coloring (page_id: int) (rev_id: int) : bool = 
+    try
+      ignore (self#read_colored_markup page_id rev_id);
+      false
+    with DB_Not_Found -> true
 
   (** [read_wikitrust_revision rev_id] reads a revision from the 
       wikitrust_revision table. *)
@@ -491,7 +492,7 @@ object(self)
 
 
   (** [read_colored_markup rev_id] reads the text markup of a revision with id
-      [rev_id].  The markup is the text of the revision, annontated with trust
+      [rev_id].  The markup is the text of the revision, annotated with trust
       and origin information. *)
   method read_colored_markup (page_id: int) (rev_id : int) : string =
     match colored_base_path with 

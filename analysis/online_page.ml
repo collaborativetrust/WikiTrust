@@ -49,9 +49,8 @@ exception Missing_work_revision
 (* This flag causes debugging info to be printed *)
 let debug = true
 
-(** This is a class representing a page, or article, at a high level. 
-    Most of the functions implementing an online edit are implemented 
-    in this file. See the mli file for the call parameters. *)    
+(** This class contains the methods for computing the trust, author, and 
+    origin of text for a revision of a page. *)
 
 class page 
   (db: Online_db.db) 
@@ -1267,7 +1266,7 @@ class page
 	    db#start_transaction;
 	    
 	    (* We do something only if the revision needs coloring *)
-	    needs_coloring := db#revision_needs_coloring revision_id;
+	    needs_coloring := db#revision_needs_coloring page_id revision_id;
 	    if !needs_coloring then begin
 	      
 	      (* Reads the previous revisions *)
