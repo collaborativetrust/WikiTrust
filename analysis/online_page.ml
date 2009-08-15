@@ -118,7 +118,9 @@ class page
       (* Reads the revision voted on. *)
       begin 
 	try
-	  work_revision_opt <- Some (Online_revision.read_wikitrust_revision db revision_id)
+	  let r = Online_revision.read_wikitrust_revision db revision_id in 
+	  r#read_words_trust_origin_sigs;
+	  work_revision_opt <- Some r
 	with Online_db.DB_Not_Found -> raise Missing_work_revision
       end
 
@@ -908,8 +910,6 @@ class page
       match work_revision_opt with
 	None -> raise Missing_work_revision
       | Some rev0 -> begin
-    try rev0#read_words_trust_origin_sigs with 
-      | Online_db.DB_Not_Found -> raise (Missing_trust rev0);
 	  let rev0_id = rev0#get_id in
 	  let rev0_t = rev0#get_words in 
 	  let rev0_l = Array.length rev0_t in 
