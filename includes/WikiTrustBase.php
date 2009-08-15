@@ -158,7 +158,7 @@ class WikiTrustBase {
       $text = "<div id='vote-button'><input type='button' name='vote' "
 		. "value='" 
 		. wfMsgNoTrans("wgTrustVote")
-		. "' onclick='startVote()' /></div><div id='vote-button-done' style='display: none'>"
+		. "' onclick='startVote()' /></div><div id='vote-button-done'>"
 		. wfMsgNoTrans("wgTrustVoteDone") 
 		. "</div>"
 		. $text;
