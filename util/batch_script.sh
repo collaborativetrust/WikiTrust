@@ -23,14 +23,14 @@ batch/analysis/generate_reputation -u ~/wiki-data/enwork/reps/rep_history.txt \
     -buckets ~/wiki-data/enwork/buckets/ -gen_exact_rep -write_final_reps
 
 # ONLY IF NEEDED, remove previous version trees and sql.
+rm -rf /home/luca/wiki-data/enwork/coltree
 rm -rf /home/luca/wiki-data/enwork/sigtree
-rm -rf /home/luca/wiki-data/enwork/revtree
 rm -f /home/luca/wiki-data/enwork/sql/*
 
 # Generating the colored pages and the sql file for batch-online:
 batch/analysis/evalwiki -trust_for_online \
     -historyfile ~/wiki-data/enwork/reps/rep_history.txt \
-    -rev_base_path ~/wiki-data/enwork/revtree \
+    -rev_base_path ~/wiki-data/enwork/coltree \
     -sig_base_path ~/wiki-data/enwork/sigtree \
     -n_sigs 8 \
     -d ~/wiki-data/enwork/sql \
@@ -38,7 +38,7 @@ batch/analysis/evalwiki -trust_for_online \
 
 batch/analysis/evalwiki -trust_for_online \
     -historyfile ~/wiki-data/enwork/reps/rep_history.txt \
-    -rev_base_path ~/wiki-data/enwork/revtree \
+    -rev_base_path ~/wiki-data/enwork/coltree \
     -sig_base_path ~/wiki-data/enwork/sigtree \
     -n_sigs 8 \
     -d ~/wiki-data/enwork/sql \
