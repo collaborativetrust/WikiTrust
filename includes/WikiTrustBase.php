@@ -86,10 +86,11 @@ class WikiTrustBase {
     $res = $dbr->select('wikitrust_vote', array('revision_id'),
 		array('revision_id' => $rev_id, 'voter_id' => $user_id),
 		array());
-    if (!$res || $dbr->numRows($res) == 0) {
-	// TODO: do we also need to $dbr->freeResult($res)?
-	$dbr->freeResult($res);
-	return new AjaxResponse("0");
+
+    if (!$res) {
+	    // TODO: do we also need to $dbr->freeResult($res)?
+	    $dbr->freeResult($res);
+	    return new AjaxResponse("0");
     }
 
     $row = $dbr->fetchRow($res);
