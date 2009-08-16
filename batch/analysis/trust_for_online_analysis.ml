@@ -115,7 +115,7 @@ object(self)
       let page_id = ml2int r#get_page_id in
       (* We don't have the text_id, so we put 0 in place. *)
       let text_id = ml2int 0 in
-      let time_string = ml2str r#get_timestamp in
+      let time_string = ml2str (Timeconv.compact_time_string r#get_timestamp) in
       let user_id = ml2int r#get_user_id in
       let username = ml2str r#get_user_name in
       let is_minor = ml2int (if r#get_is_minor then 1 else 0) in 

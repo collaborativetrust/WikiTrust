@@ -87,6 +87,16 @@ let float_to_time f =
   let tm = Unix.localtime f in 
   ((1900 + tm.tm_year), (1 + tm.tm_mon), tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);;
 
+(* Conversion from time string in xml dump to time string in database *)
+let compact_time_string (s: string) : string =
+  let yy = String.sub s  0 4 in 
+  let mm = String.sub s  5 2 in 
+  let dd = String.sub s  8 2 in 
+  let h  = String.sub s 11 2 in 
+  let m  = String.sub s 14 2 in 
+  let s  = String.sub s 17 2 in 
+  yy ^ mm ^ dd ^ h ^ m ^ s
+
 (* Conversion of time in xml dump *)
 let convert_time str =
   let year   = (try (int_of_string 

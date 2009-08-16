@@ -35,7 +35,7 @@ SYNTAX = camlp4o
 
 # OCAMLC=ocamlc
 # OCAMLOPT=ocamlopt
-OCAMLC=ocamlfind ocamlc -package $(PACKAGES) -syntax $(SYNTAX)
+OCAMLC=ocamlfind ocamlc -dtypes -package $(PACKAGES) -syntax $(SYNTAX)
 OCAMLOPT=ocamlfind ocamlopt -package $(PACKAGES) -syntax $(SYNTAX)
 
 OCAMLDEP=ocamlfind ocamldep -package $(PACKAGES) -syntax $(SYNTAX)

@@ -48,7 +48,7 @@ INI_FILE = BASE_DIR + "db_access_data.ini"
 
 ## Usage method
 def usage():
-  print "Usage: python load_reputations.py [-h, --help, --clear_reputations] reputation_file"
+  print "Usage: python load_reputations.py [-h, --help, --clear_db] reputation_file"
 
 
 
@@ -90,13 +90,13 @@ for f_name in rep_files:
   f = open (f_name, "r")
   while True:
     l = f.readline ()
-    if l = "": break
+    if l == "": break
     l_p = l.split ()
-    uid = l_p [1]
-    rep = l_p [4]
-    curs.execute ("""insert into %swikitrust_user (user_id, user_rep) values 
-                  ( %s , %s ) on duplicate key update user_rep = %s""", 
-                  (ini_config.get('db', 'prefix'), uid, rep, rep) )
+    uid = int (l_p [1])
+    rep = float (l_p [4])
+    curs.execute ("insert into " + ini_config.get('db', 'prefix') +
+                  "wikitrust_user (user_id, user_rep) values ( %s , %s ) on duplicate key update user_rep = %s", 
+                  (uid, rep, rep) )
   connection.commit ()
   f.close ()
 

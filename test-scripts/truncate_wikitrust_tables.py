@@ -1,9 +1,10 @@
-(*
+#!/usr/bin/python
 
+"""
 Copyright (c) 2007-2008 The Regents of the University of California
 All rights reserved.
 
-Authors: Luca de Alfaro
+Authors: Ian Pye, Luca de Alfaro
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -31,12 +32,48 @@ CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
 
- *)
+"""
+
+## sets up a test run
+import MySQLdb
+import sys
+import getopt
+import os
+import ConfigParser
+
+## const globals
+DB_ENGINE = "mysql"
+BASE_DIR = "./"   
+INI_FILE = BASE_DIR + "db_access_data.ini"
+
+## Usage method
+def usage():
+  print "Usage: python truncate_wikitrust_tables.py"
 
 
-val time_to_float : int -> int -> int -> int -> int -> int -> float
-val time_string_to_float : string -> float
-val time_string_to_timestamp : string -> (int * int * int * int * int * int)
-val float_to_time : float -> int * int * int * int * int * int 
-val cmp : float -> float -> int
-val convert_time : string -> float
+## parse the ini file
+ini_config = ConfigParser.ConfigParser()
+ini_config.readfp(open(INI_FILE))
+
+## init the DB
+connection = MySQLdb.connect(host=ini_config.get('db', 'host'),
+user=ini_config.get('db', 'user'), passwd=ini_config.get('db', 'pass') \
+    , db=ini_config.get('db', 'db') )
+curs = connection.cursor()
+
+curs.execute("delete from "+ini_config.get('db', 'prefix')+"wikitrust_global")
+curs.execute("delete from "+ini_config.get('db', 'prefix')+"wikitrust_page")
+curs.execute("delete from "+ini_config.get('db', 'prefix')+"wikitrust_vote")
+curs.execute("delete from "+ini_config.get('db', 'prefix')+"wikitrust_revision")
+curs.execute("delete from "+ini_config.get('db', 'prefix')+"wikitrust_colored_markup")
+curs.execute("delete from "+ini_config.get('db', 'prefix')+"wikitrust_sigs")
+curs.execute("delete from "+ini_config.get('db', 'prefix')+"wikitrust_user")
+curs.execute("delete from "+ini_config.get('db', 'prefix')+"wikitrust_queue")
+curs.execute("delete from "+ini_config.get('db', 'prefix')+"wikitrust_text_cache")
+
+connection.commit()
+
+
+
+    
+

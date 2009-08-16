@@ -86,11 +86,10 @@ class WikiTrustBase {
     $res = $dbr->select('wikitrust_vote', array('revision_id'),
 		array('revision_id' => $rev_id, 'voter_id' => $user_id),
 		array());
-
     if (!$res) {
-	    // TODO: do we also need to $dbr->freeResult($res)?
-	    $dbr->freeResult($res);
-	    return new AjaxResponse("0");
+	// TODO: do we also need to $dbr->freeResult($res)?
+	$dbr->freeResult($res);
+	return new AjaxResponse("0");
     }
 
     $row = $dbr->fetchRow($res);
@@ -236,7 +235,7 @@ if (1) {
       $colored_text = gzinflate(substr($gzdata, 10));
     }
 
-    wfWikiTrustDebug(__FILE__ . ":" . __LINE__ . "/* $colored_text */");
+    // wfWikiTrustDebug(__FILE__ . ":" . __LINE__ . "/* $colored_text */");
 
     $res = $dbr->select('wikitrust_global', 'median', array(), array());
     if ($res && $dbr->numRows($res) > 0) {

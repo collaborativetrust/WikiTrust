@@ -49,9 +49,8 @@ exception Missing_work_revision
 (* This flag causes debugging info to be printed *)
 let debug = true
 
-(** This is a class representing a page, or article, at a high level. 
-    Most of the functions implementing an online edit are implemented 
-    in this file. See the mli file for the call parameters. *)    
+(** This class contains the methods for computing the trust, author, and 
+    origin of text for a revision of a page. *)
 
 class page 
   (db: Online_db.db) 
@@ -119,7 +118,9 @@ class page
       (* Reads the revision voted on. *)
       begin 
 	try
-	  work_revision_opt <- Some (Online_revision.read_wikitrust_revision db revision_id)
+	  let r = Online_revision.read_wikitrust_revision db revision_id in 
+	  r#read_words_trust_origin_sigs;
+	  work_revision_opt <- Some r
 	with Online_db.DB_Not_Found -> raise Missing_work_revision
       end
 
@@ -909,8 +910,6 @@ class page
       match work_revision_opt with
 	None -> raise Missing_work_revision
       | Some rev0 -> begin
-    try rev0#read_words_trust_origin_sigs with 
-      | Online_db.DB_Not_Found -> raise (Missing_trust rev0);
 	  let rev0_id = rev0#get_id in
 	  let rev0_t = rev0#get_words in 
 	  let rev0_l = Array.length rev0_t in 
@@ -1269,21 +1268,21 @@ class page
 	    db#start_transaction;
 	    
 	    (* We do something only if the revision needs coloring *)
-	    needs_coloring := db#revision_needs_coloring revision_id;
+	    needs_coloring := db#revision_needs_coloring page_id revision_id;
 	    if !needs_coloring then begin
 	      
 	      (* Reads the previous revisions *)
 	      self#read_page_revisions_edit; 
 	      
 	      (* Computes the edit distances *)
-	      if debug then !Online_log.online_logger#log "   Computing edit lists...\n";
+	      !Online_log.online_logger#log "   Computing edit lists...\n";
 	      self#compute_edit_lists; 
 	      (* Computes, and writes to disk, the trust of the newest revision *)
-	      if debug then !Online_log.online_logger#log "   Computing trust...\n";
+	      !Online_log.online_logger#log "   Computing trust...\n";
 	      self#compute_trust;
 	      
 	      (* We now process the reputation update. *)
-	      if debug then !Online_log.online_logger#log "   Computing edit incs...\n";
+	      !Online_log.online_logger#log "   Computing edit incs...\n";
 	      self#compute_edit_inc;
 	      
 	      (* Inserts the revision in the list of high rep or high trust revisions, 
@@ -1293,7 +1292,7 @@ class page
 	      db#write_page_chunks_info page_id del_chunks_list page_info;
 
 	      (* We write back to disk the information of all revisions *)
-	      if debug then !Online_log.online_logger#log "   Writing the quality information...\n";
+	      !Online_log.online_logger#log "   Writing the quality information...\n";
 	      let f r = r#write_quality_to_db in 
 	      Vec.iter f revs;
 
@@ -1320,10 +1319,10 @@ class page
       if !needs_coloring then begin 
 
 	(* We write to disk all reputation changes *)
-	if debug then !Online_log.online_logger#log "   Writing the reputations...\n";
+	!Online_log.online_logger#log "   Writing the reputations...\n";
 	self#write_all_reps;
 	
-	if debug then !Online_log.online_logger#log "   All done!\n";
+	!Online_log.online_logger#log "   All done!\n";
       end; (* needs coloring *)
 
       (* Writes the new histogram *)
@@ -1336,6 +1335,7 @@ class page
 		db#start_transaction;
 		db#write_histogram delta_hist new_hi_median;
 		db#commit;
+		histogram_updated <- false;
 		n_attempts := n_retries
 	      end 
 	    with Online_db.DB_TXN_Bad -> 
@@ -1370,7 +1370,7 @@ class page
 	begin 
 	  try 
 	    db#start_transaction;
-	    if debug then !Online_log.online_logger#log "Start vote for revision...\n";
+	    !Online_log.online_logger#log "Start vote for revision...\n";
 	    (* Reads the page information and the revision *)
 	    self#read_page_revisions_vote; 
 	    (* Increases the trust of the revision, and writes the 

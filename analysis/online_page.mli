@@ -46,7 +46,7 @@ POSSIBILITY OF SUCH DAMAGE.
     [coeff] contains the coefficients to be used for the evaluation. 
 
     The methods of this class, such as [vote] and [eval], should be 
-    called NO MORE THAN ONCE. 
+    called just once (more is useless).
  *)
 
 exception Missing_trust of Online_revision.revision

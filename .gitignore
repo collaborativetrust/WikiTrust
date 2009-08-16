@@ -16,6 +16,11 @@ pickwiki
 *.cmi
 *.cmx
 *.o
+*.annot
+*.a
+*.cma
+*.cmxa
+filesystem_store
 .depends
 eval_online_wiki
 vote_revision
