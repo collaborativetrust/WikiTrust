@@ -102,6 +102,10 @@ class WikiTrustBase {
 			 "voter_id" => $user_id,
 			 "voted_on" => wfTimestampNow()
 		   );
+
+    wfWikiTrustDebug(__FILE__ . ":"
+        . __LINE__ . " Inserting vote values: ".print_r($insert_vals, true));
+
     $dbw =& wfGetDB( DB_MASTER );
     if ($dbw->insert( 'wikitrust_vote', $insert_vals)) {
       $dbw->commit();
