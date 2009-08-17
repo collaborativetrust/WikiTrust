@@ -106,9 +106,9 @@ let set_times_to_retry_trans n = times_to_retry_trans := n
 let dump_db_calls = ref false
 let eval_type = ref EVENT
 let set_vote () = eval_type := VOTE
-let requested_voter_id = ref None.
+let requested_voter_id = ref None
 let set_requested_voter_id f = requested_voter_id := Some f
-let requested_page_id = ref None.
+let requested_page_id = ref None
 let set_requested_page_id f = requested_page_id := Some f
 
 (* API params *)
