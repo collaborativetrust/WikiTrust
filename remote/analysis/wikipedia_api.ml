@@ -208,6 +208,9 @@ let process_rev ((key, rev) : (string * result_tree)) : wiki_revision_t =
   } 
   in r
 
+let check_for_download_error ((key, page): (string * result_tree)) =
+  if key = "-1" then raise API_error_noretry
+  else (key, page)
 
 (** [process_page page] takes as input a structure representing a page,
     and returns a pair consisting of a wiki_page_t structure, and a 
@@ -305,7 +308,8 @@ let fetch_page_and_revs_after (selector : string)
   | Some pages -> begin
       let pagelist = get_children pages in
       let first = List.hd pagelist in
-      let (page_info, rev_info) = process_page first in
+      let validfirst = check_for_download_error first in
+      let (page_info, rev_info) = process_page validfirst in
       let nextrev = get_descendant api ["query-continue"; "revisions"] in
       match nextrev with
 	  None -> (Some page_info, rev_info, None)
