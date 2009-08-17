@@ -72,7 +72,8 @@ val get_revs_from_api : string -> int ->
     int option
 
 (** Downloads all revisions of a page, given the title, and sticks them into the db. *)
-val download_page : Online_db.db -> string -> unit
+val download_page : Online_db.db -> string -> int -> unit
+val download_page_starting_with : Online_db.db -> string -> int -> unit
 
 val get_revs_from_pageid : int -> int -> int ->
     (Online_types.wiki_page_t option * Online_types.wiki_revision_t list * int option)

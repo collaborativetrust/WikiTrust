@@ -394,24 +394,23 @@ let rec get_revs_from_api (page_title: string) (last_id: int)
   end
  | API_error_noretry -> raise API_error
 
+let rec download_page_starting_with (db: Online_db.db) (title: string) (last_rev: int) : unit =
+  let next_rev = get_revs_from_api title last_rev db 50 in 
+  let _ = Unix.sleep sleep_time_sec in
+  match next_rev with
+    Some next_id -> begin
+      !logger#log (Printf.sprintf "Loading next batch: %s -> %d\n" title next_id);
+      download_page_starting_with title next_id
+    end
+  | None -> ()
 
 (** Downloads all revisions of a page, given the title, and sticks them into the db. *)
 let download_page (db: Online_db.db) (title: string) : unit = 
-  let rec download_page_helper title last_rev =
-    let next_rev = get_revs_from_api title last_rev db 50 in 
-    let _ = Unix.sleep sleep_time_sec in
-    match next_rev with
-      Some next_id -> begin
-	!logger#log (Printf.sprintf "Loading next batch: %s -> %d\n" title next_id);
-	download_page_helper title next_id
-      end
-    | None -> ()
-  in
   let lastid =
     try
       db#get_latest_rev_id title
     with Online_db.DB_Not_Found -> 0
-  in download_page_helper title lastid
+  in download_page_starting_with title lastid
 
 (**
    [get_revs_from_pageid page_id last_id 50] reads 
