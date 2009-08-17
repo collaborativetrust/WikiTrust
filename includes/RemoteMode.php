@@ -45,7 +45,7 @@ class WikiTrust extends WikiTrustBase {
 	 
    @return colored markup.
   */
-  static function color_getColoredText($page_title_raw,
+  static function ajax_getColoredText($page_title_raw,
 				 $page_id_raw = NULL, 
 				 $rev_id_raw = NULL){
     global $wgParser, $wgWikiTrustContentServerURL, $wgWikiTrustApiURL, $wgUser;

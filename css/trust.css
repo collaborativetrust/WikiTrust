@@ -44,19 +44,12 @@
 
 #vote-button-done {
   visibility: hidden;
-  position: absolute;
-  top: 10px;
-  left: 500px;
+  position: relative;
+  text-align: right;
 }
 
 #vote-button {
-  position: absolute;
-  top: 10px;
-  left: 500px;
+  position: relative;
+  text-align: right;
 }
 
-#text-button {
-  position: absolute;
-  top: 10px;
-  left: 300px;
-}

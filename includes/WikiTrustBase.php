@@ -13,12 +13,6 @@ class WikiTrustBase {
   const MIN_TRUST_VALUE = 0;
   const TRUST_MULTIPLIER = 10;
   
-  ## Token to be replaed with <
-  const TRUST_OPEN_TOKEN = "QQampo:";
-  
-  ## Token to be replaed with >
-  const TRUST_CLOSE_TOKEN = ":ampc:";
-
   ## Server forms
   const NOT_FOUND_TEXT_TOKEN = "TEXT_NOT_FOUND";
 
@@ -60,7 +54,7 @@ class WikiTrustBase {
    Records the vote.
    Called via ajax, so this must be static.
   */
-  static function handleVote($user_name_raw, $page_id_raw = 0, 
+  static function ajax_recordVote($user_name_raw, $page_id_raw = 0, 
 			     $rev_id_raw = 0, $page_title_raw = "")
   {
     
@@ -92,8 +86,11 @@ class WikiTrustBase {
     $res = $dbr->select('wikitrust_vote', array('revision_id'),
 		array('revision_id' => $rev_id, 'voter_id' => $user_id),
 		array());
-    if (!$res || $dbr->numRows($res) == 0) return new AjaxResponse("0");
+    if (!$res) {
 	// TODO: do we also need to $dbr->freeResult($res)?
+	$dbr->freeResult($res);
+	return new AjaxResponse("0");
+    }
 
     $row = $dbr->fetchRow($res);
     $dbr->freeResult($res);
@@ -105,6 +102,10 @@ class WikiTrustBase {
 			 "voter_id" => $user_id,
 			 "voted_on" => wfTimestampNow()
 		   );
+
+    wfWikiTrustDebug(__FILE__ . ":"
+        . __LINE__ . " Inserting vote values: ".print_r($insert_vals, true));
+
     $dbw =& wfGetDB( DB_MASTER );
     if ($dbw->insert( 'wikitrust_vote', $insert_vals)) {
       $dbw->commit();
@@ -195,10 +196,9 @@ class WikiTrustBase {
 
     $dbr =& wfGetDB( DB_SLAVE );
 
-    wfWikiTrustDebug(__FILE__.":".__LINE__ . ": Looks in the database.");
-
     global $wgWikiTrustColorPath;
     if (!$wgWikiTrustColorPath) {
+      wfWikiTrustDebug(__FILE__.":".__LINE__ . ": Looks in the database.");
       $res = $dbr->select('wikitrust_colored_markup', 'revision_text',
 			array( 'revision_id' => $rev_id ), 
 			array());
@@ -215,7 +215,9 @@ class WikiTrustBase {
       global $wgTitle;
       $page_id = $wgTitle->getArticleID();
       $file = self::util_getRevFilename($page_id, $rev_id);
-      // TODO: Bo -- what is this all about?
+      wfWikiTrustDebug(__FILE__.":".__LINE__ . ": Fetching from disk; file=[$file]");
+      // TODO: file_get_contents() didn't used to support BINARY
+	// what version of PHP are we requiring?  -Bo
 if (1) {
       $gzdata = @file_get_contents($file, FILE_BINARY, NULL);
 } else {
@@ -232,6 +234,8 @@ if (1) {
       }
       $colored_text = gzinflate(substr($gzdata, 10));
     }
+
+    // wfWikiTrustDebug(__FILE__ . ":" . __LINE__ . "/* $colored_text */");
 
     $res = $dbr->select('wikitrust_global', 'median', array(), array());
     if ($res && $dbr->numRows($res) > 0) {
@@ -262,34 +266,39 @@ if(0) {
 				$count);
 }
 
+    // fix trust tags around categories/templates
+    $colored_text = preg_replace_callback("/\{\{#t:(\d+),(\d+),([^}]+)\}\}\s*\[\[([^\]]++.*?)\]\]\s*(?=\{\{#t:|$)/D",
+				"WikiTrust::regex_fixBracketTrust",
+				$colored_text,
+				-1,
+				$count);
+
     $options = ParserOptions::newFromUser($wgUser);
     $parsed = $wgParser->parse($colored_text, $wgTitle, $options);
     $text = $parsed->getText();
 
+    // Fix edit section links    
+    $text = preg_replace_callback(
+        "/title=\"Edit section: (.*?)\">/",
+	"WikiTrust::regex_fixSectionEdit",
+        $text,
+        -1,
+        $count);
+
     // Update the trust tags
-    $text = preg_replace_callback("/\{\{#t:(\d+),(\d+),(.*?)\}\}/",
-				"WikiTrust::color_handleParserRe",
+    $text = preg_replace_callback("/\{\{#t:(\d+),(\d+),([^}]+)\}\}([^\{<]++[^<]*?)(?=\{\{#t:|<|$)/D",
+				"WikiTrust::regex_fixTextTrust",
 				$text,
 				-1,
 				$count);
-      
-    // Update open, close, images, and links.
-    $text = preg_replace('/' . self::TRUST_OPEN_TOKEN . '/', 
-			 "<", $text, -1, $count);  
-    $text = preg_replace('/' . self::TRUST_CLOSE_TOKEN .'/', 
-			 ">", $text, -1, $count);
-    $text = preg_replace('/<\/p>/', "</span></p>", $text, -1, $count);
-    $text = preg_replace('/<p><\/span>/', "<p>", $text, -1, $count);
-    $text = preg_replace('/<li><\/span>/', "<li>", $text, -1, $count);
-    $text = preg_replace('/<\/dd><\/dl>/', "</span></dd></dl><span>", $text, -1, $count);
 
-    // Fix edit section links
-    $text = preg_replace_callback("/<span class=\"editsection\">\[(.*?)Edit section: <\/span>(.*?)\">edit<\/a>\]<\/span>/",
-		"WikiTrust::color_handleFixSection",
-		$text,
-		-1,
-		$count
-	      );
+
+    // Remove all of the trust tags which we can not handle at the moment.
+    $text = preg_replace("/\{\{#t:\d+,\d+,[^}]+\}\}/",
+				"",
+				$text,
+				-1,
+				$count);
 
 
     global $wgScriptPath;
@@ -303,24 +312,50 @@ if(0) {
     $text .= $msg->getText();
   }
 
-  static function color_handleParserRe($matches){
-    
+  static function regex_fixSectionEdit($matches){
+    $result = preg_replace("/\{\{#t:\d+,\d+,[^}]+\}\}/",
+				"",
+				$matches[1],
+				-1,
+				$count);
+    return "title=\"Edit section: $result\">";
+  }
+
+  static function regex_fixTextTrust($matches){
+
+    //print_r($matches);
+
     $normalized_value = min(self::MAX_TRUST_VALUE, 
 			    max(self::MIN_TRUST_VALUE, 
 				(($matches[1] + .5) * 
 				 self::TRUST_MULTIPLIER) 
 				/ self::$median));
     $class = self::$COLORS[$normalized_value];
-    $output = self::TRUST_OPEN_TOKEN . "span class=\"$class\"" 
+    $output = "<span class=\"$class\"" 
       . " onmouseover=\"Tip('".str_replace("&#39;","\\'",$matches[3])
       ."')\" onmouseout=\"UnTip()\""
       . " onclick=\"showOrigin(" 
-      . $matches[2] . ")\"" . self::TRUST_CLOSE_TOKEN;
-    if (self::$first_span){
-      self::$first_span = false;
-    } else {
-      $output = self::TRUST_OPEN_TOKEN . "/span" . self::TRUST_CLOSE_TOKEN . $output;
-    }
+      . $matches[2] . ")\">" . $matches[4]
+      . "</span>";
+
+    return $output;
+  }
+
+  static function regex_fixBracketTrust($matches){
+    $normalized_value = min(self::MAX_TRUST_VALUE, 
+			    max(self::MIN_TRUST_VALUE, 
+				(($matches[1] + .5) * 
+				 self::TRUST_MULTIPLIER) 
+				/ self::$median));
+    $class = self::$COLORS[$normalized_value];
+    $output = "<span class=\"$class\"" 
+      . " onmouseover=\"Tip('".str_replace("&#39;","\\'",$matches[3])
+      ."')\" onmouseout=\"UnTip()\""
+      . " onclick=\"showOrigin(" 
+      . $matches[2] . ")\">"
+      . "[[" . $matches[4] . "]]"
+      . "</span>";
+    
     return $output;
   }
 
@@ -328,30 +363,16 @@ if(0) {
     return "{{#trust:".$matches[1].",".$matches[2].",".$matches[3]."}}";
   }
 
-
-  static function color_handleFixSection($matches)
-  {
-    return "<span class=\"editsection\">[" .
-	    $matches[1].
-	    "Edit section: \">" .
-	    "edit</a>]</span>";
-  }
-
   static function color_fixup(&$colored_text)
   {
-    // First, make sure that there are not any instances of our tokens in 
-    // the colored_text
-    $colored_text = str_replace(self::TRUST_OPEN_TOKEN, "", $colored_text);
-    $colored_text = str_replace(self::TRUST_CLOSE_TOKEN, "", $colored_text);
-
+if (0) {
     // TODO: I think these replacements are from broken XML parser?
 	// Still needed?  (Luca working on fixing unpacking...) -Bo
     $colored_text = preg_replace("/&apos;/", "'", $colored_text, -1);      
     $colored_text = preg_replace("/&amp;/", "&", $colored_text, -1);
-    $colored_text = preg_replace("/&lt;/", self::TRUST_OPEN_TOKEN, 
-			       $colored_text, -1);
-    $colored_text = preg_replace("/&gt;/", self::TRUST_CLOSE_TOKEN, 
-			       $colored_text, -1);
+    $colored_text = preg_replace("/&lt;/", "<", $colored_text, -1);
+    $colored_text = preg_replace("/&gt;/", ">", $colored_text, -1);
+}
   }
 			
 
@@ -413,36 +434,22 @@ if(0) {
   public static function ucscTrustTemplate($skin, &$content_actions)
   {
     global $wgRequest;
-    if (($wgRequest->getVal('action') 
-         && ($wgRequest->getVal('action') != 'purge')) 
-        || $wgRequest->getVal('diff')) {
-      // we don't want trust for actions which are not purges or diffs.
-      return true;
+
+    $url = $_SERVER[REQUEST_URI];
+    wfWikiTrustDebug(__FILE__ . ":" . __LINE__ . ": Original URL: $url");
+    if (!preg_match("/[?&]trust\b/", $url)) {
+      $url = preg_replace("/&?action=\w+\b/", '', $url);
+      $url = preg_replace("/&?diff=\d+\b/", '', $url);
+      $connector = '&';
+      if (!preg_match("/\?/", $url)) $connector = '?';
+      $url = $url . $connector . 'trust';
     }
 
-    // Builds up the query string for when a user clicks on the show 
-    // trust button. 
-    $trust_qs = $_SERVER['QUERY_STRING'];
-    wfWikiTrustDebug(__FILE__ . ":" . __LINE__ . ": Query String: $trust_qs");
-    if ($trust_qs) {
-      // If there is already something after the ? in the page url:
-      if (!stristr($trust_qs, "trust")){
-        // If there is not a trust=t, add it.
-        $trust_qs = "?" . $trust_qs . "&trust";
-      } else {
-        // Otherwise, just add a ? back.
-        $trust_qs = "?" . $trust_qs;
-      }
-    } else {
-      // If there is nothing after the ?, add what we need.
-      $trust_qs = "?trust"; 
-    }
-    
     wfLoadExtensionMessages('WikiTrust');
     $content_actions['trust'] = array (
 				    'class' => '',
 				    'text' => wfMsgNoTrans("wgTrustTabText"),
-				    'href' => $_SERVER['PHP_SELF'] . $trust_qs
+				    'href' => $url
 				);
     
     $use_trust = $wgRequest->getVal('trust'); 
@@ -454,6 +461,62 @@ if(0) {
       $content_actions['trust']['href'] .= '';
     }
     return true;
+  }
+
+	/**
+   Returns colored markup.
+	 
+   @return colored markup.
+  */
+  static function ajax_getColoredText($page_title_raw,
+				 $page_id_raw = NULL, 
+				 $rev_id_raw = NULL)
+  {
+    global $wgTitle;
+    wfWikiTrustDebug(__FILE__.":".__LINE__
+        . ": ajax_getColoredText($page_title_raw, $page_id_raw, $rev_id_raw)");
+
+    wfLoadExtensionMessages('WikiTrust');
+
+    $dbr =& wfGetDB( DB_SLAVE );
+
+    // $wgTitle isn't set correctly in AJAX mode, so we create one
+    if (!$rev_id_raw) {
+      if ($page_id_raw)
+	$wgTitle = Title::newFromID($page_id_raw);
+      else
+	$wgTitle = Title::newFromText($page_title_raw);
+      $article = new Article($wgTitle);
+      $page_id_raw = $wgTitle->getArticleID();
+      $rev_id_raw = $article->getLatest();
+    } else {
+      $rev = Revision::loadFromId($dbr, $rev_id_raw);
+      $page_id = $rev->getPage();
+      $wgTitle = Title::newFromID($page_id);
+    }
+
+    wfWikiTrustDebug(__FILE__.":".__LINE__
+        . ": computed=($page_title_raw, $page_id_raw, $rev_id_raw)");
+
+    $colored_text = WikiTrust::color_getColorData($rev_id_raw);
+    self::color_fixup($colored_text);
+    $text = '';
+
+    if (!$colored_text) {
+      wfWikiTrustDebug(__FILE__ . ":"
+          . __LINE__ . " $rev_id: colored text not found.");
+      // text not found.
+      global $wgUser, $wgParser, $wgTitle;
+      $options = ParserOptions::newFromUser($wgUser);
+      $msg = $wgParser->parse(wfMsgNoTrans("wgNoTrustExplanation"), 
+				$wgTitle, 
+				$options);
+      $text = $msg->getText() . $text;
+    } else {
+      self::color_Wiki2Html($colored_text, $text);
+      self::vote_showButton($text);
+    }
+    return new AjaxResponse($text);
   }
 
   /** 
@@ -492,12 +555,10 @@ if(0) {
 	      2 => array("file", escapeshellcmd($wgWikiTrustDebugLog), "a")
 	  );
 
-      wfWikiTrustDebug(__FILE__ . ":" . __LINE__ . ": $command");
-      
       $cwd = '/tmp';
       $env = array();
       wfWikiTrustDebug(__FILE__.":".__LINE__ 
-        . ": wikitrustbase.php calling " . $command);
+        . ": runEvalEdit: " . $command);
       $process = proc_open($command, $descriptorspec, $pipes, $cwd, $env);
 
       return $process; 

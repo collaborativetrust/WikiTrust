@@ -197,9 +197,9 @@ class db :
     (* Revision methods.  We assume we have a lock on the page to which 
        the revision belongs when calling these methods. *)
 
-    (** [revision_needs_coloring rev_id] checks whether a revision has already been 
+    (** [revision_needs_coloring page_id rev_id] checks whether a revision has already been 
 	colored for trust. *)
-    method revision_needs_coloring : int -> bool
+    method revision_needs_coloring : int -> int -> bool
 
     (** [read_wikitrust_revision rev_id] reads a revision from the 
 	wikitrust_revision table. *)

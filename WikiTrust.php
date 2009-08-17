@@ -41,10 +41,11 @@ $wgWikiTrustDebugVerbosity = WIKITRUST_WARN; // how much information to write;
 $wgWikiTrustLog = "/dev/null";
 $wgWikiTrustDebugLog = "/dev/null";
 global $wgWikiTrustCmd, $wgWikiTrustCmdExtraArgs, $wgWikiTrustColorPath,
-	$wgWikiTrustRepSpeed, $wgWikiTrustApiURL;
+  $wgWikiTrustSigPath, $wgWikiTrustRepSpeed, $wgWikiTrustApiURL;
 $wgWikiTrustCmd = dirname(__FILE__) . "/eval_online_wiki";
 $wgWikiTrustCmdExtraArgs = "";
 $wgWikiTrustColorPath = NULL;
+$wgWikiTrustSigPath = NULL;
 $wgWikiTrustRepSpeed = 1.0;
 $wgWikiTrustApiURL = "http://en.wikipedia.org/w/api.php?";
 
@@ -78,6 +79,17 @@ function wfWikiTrustSetup() {
     global $wgExtensionMessagesFiles;
     $wgExtensionMessagesFiles['WikiTrust'] = $dir.'/WikiTrust.i18n.php';
 
+    // Fixes the command-line options for eval_online_wiki.
+    global $wgWikiTrustColorPath, $wgWikiTrustSigPath, $wgWikiTrustCmdExtraArgs;
+    if ($wgWikiTrustColorPath) {
+       $wgWikiTrustCmdExtraArgs = $wgWikiTrustCmdExtraArgs . 
+	 " -wt_db_colored_base_path " . $wgWikiTrustColorPath;
+    }
+    if ($wgWikiTrustSigPath) {
+      $wgWikiTrustCmdExtraArgs = $wgWikiTrustCmdExtraArgs .
+	" -wt_db_sig_base_path " . $wgWikiTrustSigPath;
+    }
+
     global $wgAutoloadClasses, $wgHooks, $wgWikiTrustVersion;
     $wgAutoloadClasses['WikiTrustBase'] = $dir . 'WikiTrustBase.php';
     $wgAutoloadClasses['WikiTrustUpdate'] = $dir . 'WikiTrustUpdate.php';
@@ -101,8 +113,8 @@ function wfWikiTrustSetup() {
 
     global $wgAjaxExportList, $wgUseAjax;
     if ($wgUseAjax) {
-	$wgAjaxExportList[] = 'WikiTrust::handleVote';
-	$wgAjaxExportList[] = 'WikiTrust::getColoredText';
+	$wgAjaxExportList[] = 'WikiTrust::ajax_recordVote';
+	$wgAjaxExportList[] = 'WikiTrust::ajax_getColoredText';
     }
 
     # Is the user opting to use wikitrust?
