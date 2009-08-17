@@ -43,7 +43,7 @@ exception API_error_noretry
 
 Random.self_init ()
 
-let sleep_time_sec = 1
+let sleep_time_sec = 0
 let times_to_retry = 3
 let retry_delay_sec = 60
 
