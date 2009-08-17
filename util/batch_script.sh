@@ -58,6 +58,7 @@ python load_reputations.py --clear_db ~/wiki-data/enwork/reps/rep_history.txt
 
 # Loads the sql in the wiki db:
 mysql wikidb -u wikiuser -p < ~/wiki-data/enwork/sql/wiki-00100000.sql
+mysql wikidb -u wikiuser -p < ~/wiki-data/enwork/sql/wiki-00100220.sql
 
 # Then, try to edit some pages.  If you want to run the command 
 # eval_online_wiki manually, do something like:
