@@ -400,7 +400,7 @@ let rec download_page_starting_with (db: Online_db.db) (title: string) (last_rev
   match next_rev with
     Some next_id -> begin
       !logger#log (Printf.sprintf "Loading next batch: %s -> %d\n" title next_id);
-      download_page_starting_with title next_id
+      download_page_starting_with db title next_id
     end
   | None -> ()
 
@@ -410,7 +410,7 @@ let download_page (db: Online_db.db) (title: string) : unit =
     try
       db#get_latest_rev_id title
     with Online_db.DB_Not_Found -> 0
-  in download_page_starting_with title lastid
+  in download_page_starting_with db title lastid
 
 (**
    [get_revs_from_pageid page_id last_id 50] reads 
