@@ -43,7 +43,7 @@ exception API_error_noretry
 
 Random.self_init ()
 
-let sleep_time_sec = 1
+let sleep_time_sec = 0
 let times_to_retry = 3
 let retry_delay_sec = 60
 
@@ -208,6 +208,9 @@ let process_rev ((key, rev) : (string * result_tree)) : wiki_revision_t =
   } 
   in r
 
+let check_for_download_error ((key, page): (string * result_tree)) =
+  if key = "-1" then raise API_error_noretry
+  else (key, page)
 
 (** [process_page page] takes as input a structure representing a page,
     and returns a pair consisting of a wiki_page_t structure, and a 
@@ -305,7 +308,8 @@ let fetch_page_and_revs_after (selector : string)
   | Some pages -> begin
       let pagelist = get_children pages in
       let first = List.hd pagelist in
-      let (page_info, rev_info) = process_page first in
+      let validfirst = check_for_download_error first in
+      let (page_info, rev_info) = process_page validfirst in
       let nextrev = get_descendant api ["query-continue"; "revisions"] in
       match nextrev with
 	  None -> (Some page_info, rev_info, None)
@@ -394,24 +398,23 @@ let rec get_revs_from_api (page_title: string) (last_id: int)
   end
  | API_error_noretry -> raise API_error
 
+let rec download_page_starting_with (db: Online_db.db) (title: string) (last_rev: int) : unit =
+  let next_rev = get_revs_from_api title last_rev db 50 in 
+  let _ = Unix.sleep sleep_time_sec in
+  match next_rev with
+    Some next_id -> begin
+      !logger#log (Printf.sprintf "Loading next batch: %s -> %d\n" title next_id);
+      download_page_starting_with db title next_id
+    end
+  | None -> ()
 
 (** Downloads all revisions of a page, given the title, and sticks them into the db. *)
 let download_page (db: Online_db.db) (title: string) : unit = 
-  let rec download_page_helper title last_rev =
-    let next_rev = get_revs_from_api title last_rev db 50 in 
-    let _ = Unix.sleep sleep_time_sec in
-    match next_rev with
-      Some next_id -> begin
-	!logger#log (Printf.sprintf "Loading next batch: %s -> %d\n" title next_id);
-	download_page_helper title next_id
-      end
-    | None -> ()
-  in
   let lastid =
     try
       db#get_latest_rev_id title
     with Online_db.DB_Not_Found -> 0
-  in download_page_helper title lastid
+  in download_page_starting_with db title lastid
 
 (**
    [get_revs_from_pageid page_id last_id 50] reads 
