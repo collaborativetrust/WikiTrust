@@ -7,7 +7,7 @@ import commands, sys
 source_prefix = "/notbackedup/wikitrust1/enwiki-20080103/"
 dest_prefix   = "/notbackedup/wikitrust2/enwiki-20080103-sql/"
 sig_prefix    = "/notbackedup/wikitrust2/enwiki-20080103-sigs/"
-rev_prefix    = "/notbackedup/wikitrust1/enwiki-20080103-colrevs/"
+rev_prefix    = "/notbackedup/wikitrust2/enwiki-20080103-colrevs/"
 cmd_dir       = "/cse/faculty/luca/WikiTrust/batch/analysis/"
 history_file  = "/notbackedup/wikitrust2/en_20080103_reputations.txt"
 
