@@ -214,6 +214,7 @@ class WikiTrustBase {
     } else {
       global $wgTitle;
       $page_id = $wgTitle->getArticleID();
+      if ($page_id == 0) return '';
       $file = self::util_getRevFilename($page_id, $rev_id);
       wfWikiTrustDebug(__FILE__.":".__LINE__ . ": Fetching from disk; file=[$file]");
       // TODO: file_get_contents() didn't used to support BINARY
@@ -491,15 +492,22 @@ if (0) {
       $rev_id_raw = $article->getLatest();
     } else {
       $rev = Revision::loadFromId($dbr, $rev_id_raw);
-      $page_id = $rev->getPage();
-      $wgTitle = Title::newFromID($page_id);
+      if ($rev) {
+	$page_id = $rev->getPage();
+	$wgTitle = Title::newFromID($page_id);
+      }
     }
 
     wfWikiTrustDebug(__FILE__.":".__LINE__
         . ": computed=($page_title_raw, $page_id_raw, $rev_id_raw)");
 
-    $colored_text = WikiTrust::color_getColorData($rev_id_raw);
-    self::color_fixup($colored_text);
+    try {
+      $colored_text = WikiTrust::color_getColorData($rev_id_raw);
+      self::color_fixup($colored_text);
+    } catch (Exception $e) {
+      wfWikiTrustDebug(__FILE__.":".__LINE__
+        . ": exception caught: " . $e->getMessage() );
+    }
     $text = '';
 
     if (!$colored_text) {
