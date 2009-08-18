@@ -63,7 +63,6 @@ for subdir_idx in xrange(114):
                        + " -sig_base_path " + sig_prefix
                        + " -n_sigs 8 -d " + dest_prefix + arg_list)
                 # Debug
-                print cmd
                 print "Processing", arg_list
                 sys.stdout.flush ()
                 if True:
