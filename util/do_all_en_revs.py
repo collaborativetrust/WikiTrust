@@ -5,41 +5,43 @@
 import commands, sys
 
 source_prefix = "/notbackedup/wikitrust1/enwiki-20080103/"
-dest_prefix   = "/notbackedup/wikitrust2/enwiki-20080103-sql"
-sig_prefix    = "/notbackedup/wikitrust2/enwiki-20080103-sigs"
-rev_prefix    = "/notbackedup/wikitrust1/enwiki-20080103-colrevs/"
-cmd_dir = "/cse/faculty/luca/WikiTrust/batch/analysis/"
+dest_prefix   = "/notbackedup/wikitrust2/enwiki-20080103-sql/"
+sig_prefix    = "/notbackedup/wikitrust2/enwiki-20080103-sigs/"
+rev_prefix    = "/notbackedup/wikitrust2/enwiki-20080103-colrevs/"
+cmd_dir       = "/cse/faculty/luca/WikiTrust/batch/analysis/"
+history_file  = "/notbackedup/wikitrust2/en_20080103_reputations.txt"
 
 # Loops for each bunch of files
 
 for subdir_idx in xrange(114):
-    source_dir = source_prefix + "%03d" % subdir_idx
-    dest_dir   = dest_prefix   + "%03d" % subdir_idx
+    bundle_name = "%03d/" % subdir_idx
+    source_dir = source_prefix + bundle_name
+    dest_dir   = dest_prefix   + bundle_name
 
     commands.getoutput ("mkdir " + dest_dir)
     files = commands.getoutput ("ls " + source_dir).split ()
 
     if subdir_idx < 2:
         step = 1
-    elif subdir_idx < 10:
+    elif subdir_idx < 4:
         step = 2
-    elif subdir_idx < 20:
+    elif subdir_idx < 10:
         step = 5
-    elif subdir_idx < 40:
+    elif subdir_idx < 20:
         step = 10
-    elif subdir_idx < 70:
+    elif subdir_idx < 40:
         step = 20
     else: 
         step = 25
 
     # Now processes each file, unless it already exists in the destination.
-    for file_idx in xrange (0, len(files), step):
+    for file_idx in xrange (0, len (files), step):
         source_file = files [file_idx]
         # gets the filename root and makes the input file names
         file_root = (source_file.split ("."))[0]
-        dest_file = file_root + ".stats"
-        full_source_file = source_dir + "/" + source_file
-        full_dest_file   = dest_dir   + "/" + dest_file
+        dest_file = file_root + ".sql"
+        full_source_file = source_dir + source_file
+        full_dest_file   = dest_dir   + dest_file
 
         # Tries to process the file if it does not exist
         (missing, _) = commands.getstatusoutput ("test -f " + full_dest_file)
@@ -51,13 +53,22 @@ for subdir_idx in xrange(114):
             if not lock:
                 # Ok, it's not locked.
                 # Constructs the sequence of files to be processed.
-                file_list = source_file
-                
-
-                print "Processing", file_root
+                arg_list = ""
+                i = file_idx;
+                while i < len(files) and i < file_idx + step:
+                    arg_list += " " + source_dir + files [i]
+                    i += 1
+                # Builds the command.
+                cmd = (cmd_dir + "evalwiki -trust_for_online -historyfile " + history_file
+                       + " -rev_base_path " + rev_prefix
+                       + " -sig_base_path " + sig_prefix
+                       + " -n_sigs 8 -d " + dest_dir + arg_list)
+                # Debug
+                print "Processing", arg_list
+                print cmd
                 sys.stdout.flush ()
                 if True:
-                    (err, s) = commands.getstatusoutput ("/bin/gunzip -c " + full_source_file + " | " + cmd_dir + "evalwiki -compute_stats -si " + full_dest_file)
+                    (err, s) = commands.getstatusoutput (cmd)
                     if err > 0:
                         print "*** Error:", err, s
                         sys.stdout.flush ()
