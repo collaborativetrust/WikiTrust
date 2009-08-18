@@ -36,6 +36,8 @@ POSSIBILITY OF SUCH DAMAGE.
 open Online_command_line
 open Online_types
 
+exception Bad_Line of string
+
 (* Every batch corresponds to 50 revisions, so this will do 1000 at most. *)
 let max_batches_to_do = 20
 let max_concurrent_procs = 10
@@ -61,12 +63,23 @@ let db = Online_db.create_db false !db_prefix mediawiki_dbh !mw_db_name
   !wt_db_rev_base_path !wt_db_sig_base_path !wt_db_colored_base_path 
   !dump_db_calls in
 
+let tabsplit = Str.split_delim (Str.regexp "\t") in
+
+let splitLine2TitleRev line =
+    let vals = tabsplit line in
+    match vals with
+	| [title; rev] -> (title, (int_of_string rev))
+	| [title] -> (title, 0)
+	| _ -> raise (Bad_Line line)
+    in
+
 let main_loop () =
   try
     while true do begin
-      let title = input_line stdin in
+      let line = input_line stdin in
+      let (title, start_rev) = splitLine2TitleRev line in
       try
-	Wikipedia_api.download_page db title
+	Wikipedia_api.download_page_starting_with db title start_rev
       with
 	Wikipedia_api.API_error ->
 	  (!Online_log.online_logger)#log (Printf.sprintf "ERROR: %s\n" title);
