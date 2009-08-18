@@ -14,8 +14,9 @@ history_file  = "/notbackedup/wikitrust2/en_20080103_reputations.txt"
 # Loops for each bunch of files
 
 for subdir_idx in xrange(114):
-    source_dir = source_prefix + "%03d" % subdir_idx
-    dest_dir   = dest_prefix   + "%03d" % subdir_idx
+    bundle_name = "%03d/" % subdir_idx
+    source_dir = source_prefix + bundle_name
+    dest_dir   = dest_prefix   + bundle_name
 
     commands.getoutput ("mkdir " + dest_dir)
     files = commands.getoutput ("ls " + source_dir).split ()
@@ -39,8 +40,8 @@ for subdir_idx in xrange(114):
         # gets the filename root and makes the input file names
         file_root = (source_file.split ("."))[0]
         dest_file = file_root + ".sql"
-        full_source_file = source_dir + "/" + source_file
-        full_dest_file   = dest_dir   + "/" + dest_file
+        full_source_file = source_dir + source_file
+        full_dest_file   = dest_dir   + dest_file
 
         # Tries to process the file if it does not exist
         (missing, _) = commands.getstatusoutput ("test -f " + full_dest_file)
@@ -55,15 +56,16 @@ for subdir_idx in xrange(114):
                 arg_list = ""
                 i = file_idx;
                 while i < len(files) and i < file_idx + step:
-                    arg_list += " " + source_dir + "/" + files [i]
+                    arg_list += " " + source_dir + files [i]
                     i += 1
                 # Builds the command.
                 cmd = (cmd_dir + "evalwiki -trust_for_online -historyfile " + history_file
                        + " -rev_base_path " + rev_prefix
                        + " -sig_base_path " + sig_prefix
-                       + " -n_sigs 8 -d " + dest_prefix + arg_list)
+                       + " -n_sigs 8 -d " + dest_dir + arg_list)
                 # Debug
                 print "Processing", arg_list
+                print cmd
                 sys.stdout.flush ()
                 if True:
                     (err, s) = commands.getstatusoutput (cmd)
