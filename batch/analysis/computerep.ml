@@ -66,7 +66,7 @@ end
 (* The two choices below are: 
    Tbl = Hashtbl , to obtain a hashtable-based implementation;
    Tbl = Table , to obtain a map-based implementation. *)
-module Tbl = Table
+module Tbl = Hashtbl
 
 class users 
   (rep_scaling: float) 
@@ -78,7 +78,7 @@ class users
   (write_final_reps: bool)
   =
   object (self)
-    val tbl = Tbl.create 1000 
+    val tbl = Tbl.create 1000000 
 
     (* This method, when called for anonymous users returns a user id generated
        from the user ip address, if we want to include user domains in computing
