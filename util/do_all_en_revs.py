@@ -38,7 +38,7 @@ for subdir_idx in xrange(114):
         source_file = files [file_idx]
         # gets the filename root and makes the input file names
         file_root = (source_file.split ("."))[0]
-        dest_file = file_root + ".stats"
+        dest_file = file_root + ".sql"
         full_source_file = source_dir + "/" + source_file
         full_dest_file   = dest_dir   + "/" + dest_file
 
