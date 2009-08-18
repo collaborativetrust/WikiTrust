@@ -94,8 +94,8 @@ CREATE INDEX " . $wgDBprefix . "wikitrust_usernames_idx ON "
 
 $create_scripts[$wgDBprefix.'wikitrust_queue'] = array("
 CREATE TABLE ".$wgDBprefix."wikitrust_queue (
-       page_id         int PRIMARY KEY,
-       page_title      varchar(255) NOT NULL,
+       page_id         int NOT NULL,
+       page_title      varchar(255) PRIMARY KEY,
        requested_on    timestamp DEFAULT now(),
        processed       ENUM('unprocessed', 'processing', 'processed') NOT NULL DEFAULT 'unprocessed'
 ) ENGINE=InnoDB","

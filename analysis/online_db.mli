@@ -262,6 +262,10 @@ class db :
 	signatures for [rev_id] of [page_id]. *)
     method delete_author_sigs : int -> int -> unit
 
+    (** [update_queue_page page_title] updates the default page_id to a real 
+    one. *)
+    method update_queue_page : string -> int
+
     (* ================================================================ *)
     (* User methods. *)
 
