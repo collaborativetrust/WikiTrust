@@ -251,6 +251,13 @@ if (1) {
     return $colored_text;
   }
 
+  static function color_parseWiki($colored_text, &$options)
+  {
+    global $wgTitle, $wgParser;
+    $parsed = $wgParser->parse($colored_text, $wgTitle, $options);
+    return $parsed->getText();
+  }
+
   static function color_Wiki2Html(&$colored_text, &$text)
   {
     global $wgParser, $wgUser, $wgTitle;
@@ -275,8 +282,7 @@ if(0) {
 				$count);
 
     $options = ParserOptions::newFromUser($wgUser);
-    $parsed = $wgParser->parse($colored_text, $wgTitle, $options);
-    $text = $parsed->getText();
+    $text = WikiTrust::color_parseWiki($colored_text, $options);
 
     // Fix edit section links    
     $text = preg_replace_callback(
