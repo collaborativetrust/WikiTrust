@@ -6,8 +6,8 @@ def mark_for_coloring (rev_id, page_id, user_id, rev_time, page_title, r_type,
                        connection, DB_PREFIX):
 
   curs = connection.cursor()
-  sql = """SELECT page_id FROM """ + DB_PREFIX + """wikitrust_queue WHERE page_id = %(pid)s AND processed <> 'processed'"""
-  args = {'pid':page_id}
+  sql = """SELECT page_title FROM """ + DB_PREFIX + """wikitrust_queue WHERE page_title = %(pid)s AND processed <> 'processed'"""
+  args = {'pid':page_title}
   curs.execute(sql, args)
   numRows = curs.execute(sql, args)
 

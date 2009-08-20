@@ -103,7 +103,7 @@ in
    This function cleans out the hashtable working_children, removing all of the 
    entries which correspond to child processes which have stopped working.
 *)
-let check_subprocess_termination (page_id: int) (process_id: int) = 
+let check_subprocess_termination (page_title: string) (process_id: int) = 
   let stat = Unix.waitpid [Unix.WNOHANG] process_id in
   begin
     match (stat) with
@@ -113,7 +113,7 @@ let check_subprocess_termination (page_id: int) (process_id: int) =
 	(* TODO(Luca): release the db lock! *)
     | (_, Unix.WEXITED s) 
     | (_, Unix.WSIGNALED s) 
-    | (_, Unix.WSTOPPED s) -> Hashtbl.remove working_children page_id
+    | (_, Unix.WSTOPPED s) -> Hashtbl.remove working_children page_title
   end
 in
 
@@ -128,13 +128,14 @@ let process_page (page_id: int) (page_title: string) =
   (* If I am using the WikiMedia API, I need to first download any new
      revisions of the page. *)
   if !use_wikimedia_api then Wikipedia_api.download_page child_db page_title;
+  let new_page_id = child_db#update_queue_page page_title in  
   (* Creates a new updater. *)
   let processor = new Updater.updater child_db
     trust_coeff !times_to_retry_trans each_event_delay every_n_events_delay in
   (* Brings the page up to date.  This will take care also of the page lock. *)
-  processor#update_page page_id;
+  processor#update_page new_page_id;
   (* Marks the page as processed. *)
-  child_db#mark_page_as_processed page_id
+  child_db#mark_page_as_processed new_page_id
   (* End of page processing. *)
 in
 
@@ -149,17 +150,17 @@ let dispatch_page (pages : (int * string) list) =
        Given a page_id, forks a child which brings the page up to date. *)
   let launch_processing (page_id, page_title) = begin
     (* If the page is currently being processed, does nothing. *)
-    if not (Hashtbl.mem working_children page_id) then begin
+    if not (Hashtbl.mem working_children page_title) then begin
       let new_pid = Unix.fork () in
       match new_pid with 
       | 0 -> begin
 	        logger#log (Printf.sprintf 
-                        "I'm the child\n Running on page %d\n" page_id); 
+                        "I'm the child\n Running on page %s\n" page_title); 
 	        process_page page_id page_title;
 	      end
       | _ -> begin
 	        logger#log (Printf.sprintf "Parent of pid %d\n" new_pid);  
-	        Hashtbl.add working_children page_id (new_pid)
+	        Hashtbl.add working_children page_title (new_pid)
 	      end
     end  (* if the page is already begin processed *)
   end in

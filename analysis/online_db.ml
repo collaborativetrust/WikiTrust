@@ -569,6 +569,23 @@ object(self)
     | Some b -> Filesystem_store.delete_revision b rev_id page_id
 
 
+  (** [update_queue_page page_title] updates the default page_id to a real 
+      one. *)
+  method update_queue_page (page_title : string) : int =
+    let s = Printf.sprintf "SELECT page_id FROM %spage WHERE page_title = %s" 
+        db_prefix (ml2str page_title) in
+    let result = self#db_exec mediawiki_dbh s in
+    match Mysql.fetch result with 
+      None -> 0
+    | Some x -> (
+        let page_id = not_null int2ml x.(0) in
+        let u = Printf.sprintf "UPDATE %swikitrust_queue SET page_id = %s WHERE page_title = %s" 
+          db_prefix
+          (ml2int page_id) (ml2str page_title) in 
+          ignore (self#db_exec mediawiki_dbh u);
+          page_id
+      )
+
   (* ================================================================ *)
   (* User methods. *)
 
