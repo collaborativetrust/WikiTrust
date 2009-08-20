@@ -57,7 +57,8 @@ class WikiTrustBase {
   static function ajax_recordVote($user_name_raw, $page_id_raw = 0, 
 			     $rev_id_raw = 0, $page_title_raw = "")
   {
-    
+
+    global $wgMemc;
     wfWikiTrustDebug(__FILE__.":".__LINE__
         . ": Handling vote from $user_name_raw $page_title_raw");
     $dbr =& wfGetDB( DB_SLAVE );
@@ -74,6 +75,10 @@ class WikiTrustBase {
     if(!$user_id)
       $user_id = 0;
     wfWikiTrustDebug(__FILE__.":".__LINE__.": UserId: $user_id");
+
+    // Invalidate the cache.
+    $memcKey = wfMemcKey( 'revisiontext', 'revid', $rev_id);
+    $wgMemc->delete($memcKey);
 
     return WikiTrust::vote_recordVote($dbr, $user_id, $page_id, $rev_id, $pageTitle);
   }
@@ -480,7 +485,7 @@ if (0) {
 				 $page_id = 0, 
 				 $rev_id = 0)
   {
-    global $wgTitle;
+    global $wgTitle, $wgMemc;
     wfWikiTrustDebug(__FILE__.":".__LINE__
         . ": ajax_getColoredText($page_title, $page_id, $rev_id)");
 
@@ -489,6 +494,21 @@ if (0) {
     list($page_title, $page_id, $rev_id) = self::util_ResolveRevSpec($page_title, $page_id, $rev_id);
 
     wfWikiTrustDebug(__FILE__.":".__LINE__ . ": computed=($page_title, $page_id, $rev_id)");
+
+    // See if we have a cached version of the colored text, or if 
+    // we need to generate new text.
+    $memcKey = wfMemcKey( 'revisiontext', 'revid', $rev_id);
+    $cached_text = $wgMemc->get($memcKey);
+    if($cached_text){
+      wfWikiTrustDebug(__FILE__ . ":"
+          . __LINE__ . " $rev_id: using cached text.");
+      $response = new AjaxResponse("");
+      $response->addText($cached_text);
+      return $response;
+    }
+
+    wfWikiTrustDebug(__FILE__ . ":"
+        . __LINE__ . " $memcKey: not cached.");
 
     try {
       $colored_text = WikiTrust::color_getColorData($page_title, $page_id, $rev_id);
@@ -512,6 +532,10 @@ if (0) {
     } else {
       self::color_Wiki2Html($colored_text, $text);
       self::vote_showButton($text);
+      // Save the finished text in the cache.
+      $wgMemc->set($memcKey, $text);
+      wfWikiTrustDebug(__FILE__ . ":"
+          . __LINE__ . " $memcKey: saving to cache. ");
     }
     return new AjaxResponse($text);
   }
