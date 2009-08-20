@@ -160,7 +160,7 @@ class WikiTrustBase {
     global $wgWikiTrustShowVoteButton, $wgUseAjax;
 
     if ($wgWikiTrustShowVoteButton && $wgUseAjax){
-      $text = "<div id='vote-button'><input type='button' name='vote' "
+      $text = "<div id='vote-button'><input id='wt-vote-button' type='button' name='vote' "
 		. "value='" 
 		. wfMsgNoTrans("wgTrustVote")
 		. "' onclick='startVote()' /></div><div id='vote-button-done'>"
