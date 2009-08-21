@@ -48,7 +48,7 @@ INI_FILE = BASE_DIR + "db_access_data.ini"
 
 ## Usage method
 def usage():
-  print "Usage: python load_reputations.py [-h, --help, --clear_db] reputation_file"
+  print "Usage: python load_reputations.py [-h, --help, --clear_db, --set_histogram] reputation_file"
 
 
 
@@ -64,13 +64,17 @@ curs = connection.cursor()
 
 ## Reads the command-line options.
 try:
-  opts, args = getopt.gnu_getopt(sys.argv[1:], "h", ["help", "clear_db"])
+  opts, args = getopt.gnu_getopt(sys.argv[1:], "h", ["help", "clear_db", "set_histogram"])
 except getopt.GetoptError:
   usage()
   sys.exit(2)
 
 rep_files = []
 do_clear = False
+set_histogram = False
+histogram = [0 for i in xrange(10)]
+median = 9  # True for large wikis
+
 for a in args:
   rep_files.append(a)
 for o, a in opts:
@@ -79,6 +83,9 @@ for o, a in opts:
     sys.exit(2)
   if o in ("--clear_db"):
     do_clear = True
+  if o in ("--set_histogram"):
+    set_histogram = True
+
 
 # Clear out the user reputations if requested.
 if do_clear: 
@@ -94,12 +101,26 @@ for f_name in rep_files:
     l_p = l.split ()
     uid = int (l_p [1])
     rep = float (l_p [4])
+    weight = int (l_p [3])
+    histogram [weight] += 1
     curs.execute ("insert into " + ini_config.get('db', 'prefix') +
                   "wikitrust_user (user_id, user_rep) values ( %s , %s ) on duplicate key update user_rep = %s", 
                   (uid, rep, rep) )
   connection.commit ()
   f.close ()
+  # Writes the histogram if requested.
+  if set_histogram:
+    curs.execute ("delete from "+ini_config.get('db', 'prefix')+"wikitrust_global")
+    curs.execute ("insert into " + ini_config.get('db', 'prefix') +
+                  "wikitrust_global (median, rep_0, rep_1, rep_2, rep_3, rep_4, rep_5, rep_6, rep_7, rep_8, rep_9) values ( %s , %s , %s , %s , %s , %s , %s , %s , %s , %s , %s )",
+                  (median, 
+                   histogram [0], histogram [1], histogram [2], 
+                   histogram [3], histogram [4], histogram [5], 
+                   histogram [6], histogram [7], histogram [8], 
+                   histogram [9]) )
+    connection.commit ()
 
+                   
 
     
 
