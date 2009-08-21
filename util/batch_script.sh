@@ -1,5 +1,5 @@
 # This script is not meant to be run!
-# It is simply a collection of commands, to be used as a reminder.
+# It is simply a collection of commands, copied here as a reminder.
 
 # Computing the statistics (can be parallelized):
 /bin/gunzip -c /home/luca/wiki-data/enwiki/wiki-00100000.xml.gz \
@@ -60,5 +60,3 @@ python load_reputations.py --clear_db --set_histogram ~/wiki-data/enwork/reps/re
 mysql wikidb -u wikiuser -p < ~/wiki-data/enwork/sql/wiki-00100000.sql
 mysql wikidb -u wikiuser -p < ~/wiki-data/enwork/sql/wiki-00100220.sql
 
-# Then, try to edit some pages.  If you want to run the command 
-# eval_online_wiki manually, do something like:
