@@ -54,7 +54,7 @@ python load_data.py --clear_db /home/luca/wiki-data/enwiki/wiki-00100000.xml
 python truncate_wikitrust_tables.py
 
 # Loads the reputations in the wiki db:
-python load_reputations.py --clear_db ~/wiki-data/enwork/reps/rep_history.txt
+python load_reputations.py --clear_db --set_histogram ~/wiki-data/enwork/reps/rep_history.txt
 
 # Loads the sql in the wiki db:
 mysql wikidb -u wikiuser -p < ~/wiki-data/enwork/sql/wiki-00100000.sql
