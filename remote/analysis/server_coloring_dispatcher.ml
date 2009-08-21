@@ -128,7 +128,7 @@ let process_page (page_id: int) (page_title: string) =
   (* If I am using the WikiMedia API, I need to first download any new
      revisions of the page. *)
   if !use_wikimedia_api then Wikipedia_api.download_page child_db page_title;
-  let new_page_id = child_db#update_queue_page page_title in  
+  let new_page_id = child_db#update_queue_page page_title page_id in  
   (* Creates a new updater. *)
   let processor = new Updater.updater child_db
     trust_coeff !times_to_retry_trans each_event_delay every_n_events_delay in

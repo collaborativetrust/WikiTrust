@@ -57,7 +57,8 @@ class WikiTrustBase {
   static function ajax_recordVote($user_name_raw, $page_id_raw = 0, 
 			     $rev_id_raw = 0, $page_title_raw = "")
   {
-    
+
+    global $wgMemc;
     wfWikiTrustDebug(__FILE__.":".__LINE__
         . ": Handling vote from $user_name_raw $page_title_raw");
     $dbr =& wfGetDB( DB_SLAVE );
@@ -74,6 +75,10 @@ class WikiTrustBase {
     if(!$user_id)
       $user_id = 0;
     wfWikiTrustDebug(__FILE__.":".__LINE__.": UserId: $user_id");
+
+    // Invalidate the cache.
+    $memcKey = wfMemcKey( 'revisiontext', 'revid', $rev_id);
+    $wgMemc->delete($memcKey);
 
     return WikiTrust::vote_recordVote($dbr, $user_id, $page_id, $rev_id, $pageTitle);
   }
@@ -123,7 +128,8 @@ class WikiTrustBase {
     $rev_id = self::util_getRevFOut($out);
     $colored_text = self::$colored_text;
     if (!self::$colored_text_loaded){
-      $colored_text = WikiTrust::color_getColorData($rev_id);
+      list($page_title, $page_id, $rev_id) = self::util_ResolveRevSpec(NULL, 0, $rev_id);
+      $colored_text = WikiTrust::color_getColorData($page_title, $page_id, $rev_id);
       self::color_fixup($colored_text);
     }
 
@@ -159,7 +165,7 @@ class WikiTrustBase {
     global $wgWikiTrustShowVoteButton, $wgUseAjax;
 
     if ($wgWikiTrustShowVoteButton && $wgUseAjax){
-      $text = "<div id='vote-button'><input type='button' name='vote' "
+      $text = "<div id='vote-button'><input id='wt-vote-button' type='button' name='vote' "
 		. "value='" 
 		. wfMsgNoTrans("wgTrustVote")
 		. "' onclick='startVote()' /></div><div id='vote-button-done'>"
@@ -186,9 +192,10 @@ class WikiTrustBase {
     return $voteToProcess;
   }
 
-  static function color_getColorData($rev_id)
+  static function color_getColorData($page_title, $page_id=0, $rev_id=0)
   {
     wfWikiTrustDebug(__FILE__.":".__LINE__ . ": " . __METHOD__);
+
     if (!$rev_id)
       return '';
 
@@ -212,9 +219,7 @@ class WikiTrustBase {
       $colored_text = $row[0];
       $dbr->freeResult( $res ); 
     } else {
-      global $wgTitle;
-      $page_id = $wgTitle->getArticleID();
-      if ($page_id == 0) return '';
+      if (!$page_id) return '';
       $file = self::util_getRevFilename($page_id, $rev_id);
       wfWikiTrustDebug(__FILE__.":".__LINE__ . ": Fetching from disk; file=[$file]");
       // TODO: file_get_contents() didn't used to support BINARY
@@ -251,6 +256,13 @@ if (1) {
     return $colored_text;
   }
 
+  static function color_parseWiki($colored_text, &$options)
+  {
+    global $wgTitle, $wgParser;
+    $parsed = $wgParser->parse($colored_text, $wgTitle, $options);
+    return $parsed->getText();
+  }
+
   static function color_Wiki2Html(&$colored_text, &$text)
   {
     global $wgParser, $wgUser, $wgTitle;
@@ -275,8 +287,7 @@ if(0) {
 				$count);
 
     $options = ParserOptions::newFromUser($wgUser);
-    $parsed = $wgParser->parse($colored_text, $wgTitle, $options);
-    $text = $parsed->getText();
+    $text = WikiTrust::color_parseWiki($colored_text, $options);
 
     // Fix edit section links    
     $text = preg_replace_callback(
@@ -414,7 +425,8 @@ if (0) {
     // We need to know if the colored text is missing or not, and just getting
     // it seems like the easiest way to figure this out.
     $rev_id = self::util_getRev();
-    $colored_text = WikiTrust::color_getColorData($rev_id);
+    list($page_title, $page_id, $rev_id) = self::util_ResolveRevSpec(NULL, 0, $rev_id);
+    $colored_text = WikiTrust::color_getColorData($page_title, $page_id, $rev_id);
     self::color_fixup($colored_text);
     self::$colored_text = $colored_text;
     self::$colored_text_loaded = true;
@@ -469,40 +481,37 @@ if (0) {
 	 
    @return colored markup.
   */
-  static function ajax_getColoredText($page_title_raw,
-				 $page_id_raw = NULL, 
-				 $rev_id_raw = NULL)
+  static function ajax_getColoredText($page_title,
+				 $page_id = 0, 
+				 $rev_id = 0)
   {
-    global $wgTitle;
+    global $wgTitle, $wgMemc;
     wfWikiTrustDebug(__FILE__.":".__LINE__
-        . ": ajax_getColoredText($page_title_raw, $page_id_raw, $rev_id_raw)");
+        . ": ajax_getColoredText($page_title, $page_id, $rev_id)");
 
     wfLoadExtensionMessages('WikiTrust');
 
-    $dbr =& wfGetDB( DB_SLAVE );
+    list($page_title, $page_id, $rev_id) = self::util_ResolveRevSpec($page_title, $page_id, $rev_id);
 
-    // $wgTitle isn't set correctly in AJAX mode, so we create one
-    if (!$rev_id_raw) {
-      if ($page_id_raw)
-	$wgTitle = Title::newFromID($page_id_raw);
-      else
-	$wgTitle = Title::newFromText($page_title_raw);
-      $article = new Article($wgTitle);
-      $page_id_raw = $wgTitle->getArticleID();
-      $rev_id_raw = $article->getLatest();
-    } else {
-      $rev = Revision::loadFromId($dbr, $rev_id_raw);
-      if ($rev) {
-	$page_id = $rev->getPage();
-	$wgTitle = Title::newFromID($page_id);
-      }
+    wfWikiTrustDebug(__FILE__.":".__LINE__ . ": computed=($page_title, $page_id, $rev_id)");
+
+    // See if we have a cached version of the colored text, or if 
+    // we need to generate new text.
+    $memcKey = wfMemcKey( 'revisiontext', 'revid', $rev_id);
+    $cached_text = $wgMemc->get($memcKey);
+    if($cached_text){
+      wfWikiTrustDebug(__FILE__ . ":"
+          . __LINE__ . " $rev_id: using cached text.");
+      $response = new AjaxResponse("");
+      $response->addText($cached_text);
+      return $response;
     }
 
-    wfWikiTrustDebug(__FILE__.":".__LINE__
-        . ": computed=($page_title_raw, $page_id_raw, $rev_id_raw)");
+    wfWikiTrustDebug(__FILE__ . ":"
+        . __LINE__ . " $memcKey: not cached.");
 
     try {
-      $colored_text = WikiTrust::color_getColorData($rev_id_raw);
+      $colored_text = WikiTrust::color_getColorData($page_title, $page_id, $rev_id);
       self::color_fixup($colored_text);
     } catch (Exception $e) {
       wfWikiTrustDebug(__FILE__.":".__LINE__
@@ -523,6 +532,10 @@ if (0) {
     } else {
       self::color_Wiki2Html($colored_text, $text);
       self::vote_showButton($text);
+      // Save the finished text in the cache.
+      $wgMemc->set($memcKey, $text);
+      wfWikiTrustDebug(__FILE__ . ":"
+          . __LINE__ . " $memcKey: saving to cache. ");
     }
     return new AjaxResponse($text);
   }
@@ -590,6 +603,37 @@ if (0) {
 
     return $user_id;
   }
+
+  static function util_ResolveRevSpec($page_title, $page_id=0, $rev_id=0)
+  {
+    global $wgTitle;
+
+    $dbr =& wfGetDB( DB_SLAVE );
+
+    if ($rev_id && !$page_id) {
+      $rev = Revision::loadFromId($dbr, $rev_id);
+      if ($rev) $page_id = $rev->getPage();
+    }
+    if ($page_id && !$page_title)
+      $wgTitle = Title::newFromID($page_id);
+    if ($page_title)
+      $wgTitle = Title::newFromDBkey($page_title);
+
+    $article = new Article($wgTitle);
+    $title_db = $wgTitle->getDBkey();
+    $page_id_db = $wgTitle->getArticleID();
+    $rev_id_db = $article->getLatest();
+    if (!$page_id) $page_id = $page_id_db;
+    if (!$rev_id) $rev_id = $rev_id_db;
+    if (!$page_title) $page_title = $title_db;
+    if ($page_id != $page_id_db)
+      wfWikiTrustWarn(__FILE__.":".__LINE__.": mismatched pageId: $page_id != $page_id_db");
+    if ($page_title != $title_db)
+      wfWikiTrustWarn(__FILE__.":".__LINE__.": mismatched title: $page_title != $title_db");
+
+    return array($page_title, $page_id, $rev_id);
+  }
+
       
   /* Utility function which returns the revid of the revision which is 
    * currently being displayed.

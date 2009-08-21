@@ -65,25 +65,37 @@ class WikiTrust extends WikiTrustBase {
     $response = new AjaxResponse($vote_str);	   
     return $response;
   }
-  
 
-  static function color_getColorData($rev_id)
+  static function color_parseWiki($colored_text, &$options)
+  {
+    global $wgWikiTrustAPI;
+    $raw_text = self::file_post_contents($wgWikiTrustAPI 
+			 ."action=parse"
+			 ."&format=json"
+       ."&text=".urlencode($colored_text));
+    $body = json_decode(array_pop(explode("\n", $raw_text)), true);
+    $text = $body["parse"]["text"]["*"];
+ 
+    return $text;
+  }
+  
+  static function color_getColorData($page_title, $page_id = 0, $rev_id = 0)
   {
     $ctx = stream_context_create(
 		 array('http' => array('timeout' => self::TRUST_TIMEOUT))
 	 );
 
-    global $wgTitle, $wgUser, $wgWikiTrustContentServerURL;
-    $page_id = $wgTitle->getArticleID();
-    $page_title = $wgTitle->getDBkey();
+    global $wgUser, $wgWikiTrustContentServerURL;
     $user_id = $wgUser->getID();
+
+    $url = $wgWikiTrustContentServerURL
+	+ "rev=" + urlencode($rev_id)
+	+ "&page=" + urlencode($page_id)
+	+ "&page_title=" + urlencode($page_title)
+	+ "&time=" + urlencode(wfTimestampNow())
+	+ "&user=" + urlencode($user_id);
     
-    wfWikiTrustDebug(__FILE__.__LINE__.": ".$wgWikiTrustContentServerURL .
-      "rev=" .  urlencode($rev_id) . 
-			"&page=".urlencode($page_id) .
-			"&page_title=" . urlencode($page_title) .
-      "&time=" . urlencode(wfTimestampNow()) .
-      "&user=" . urlencode($user_id));
+    wfWikiTrustDebug(__FILE__.__LINE__.": $url");
 
     $colored_raw = (@file_get_contents($wgWikiTrustContentServerURL .
       "rev=" .  urlencode($rev_id) . 

@@ -264,7 +264,7 @@ class db :
 
     (** [update_queue_page page_title] updates the default page_id to a real 
     one. *)
-    method update_queue_page : string -> int
+    method update_queue_page : string -> int -> int
 
     (* ================================================================ *)
     (* User methods. *)
