@@ -146,9 +146,26 @@ class WikiTrustBase {
     } else {
       self::color_Wiki2Html($colored_text, $text);
       self::vote_showButton($text);
+      self::color_addTracker($text);
     }
 
     return true;
+  }
+
+  // Add a Google Analytics tracker if one is set.
+  static function color_addTracker(&$text){
+    global $wgWikiTrustGATag;
+    if ($wgWikiTrustGATag){
+      $text .= "
+<script type=\"text/javascript\">
+				var gaJsHost = ((\"https:\" == document.location.protocol) ? \"https://ssl.\" : \"http://www.\");
+				document.write(unescape(\"%3Cscript src='\" + gaJsHost + \"google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E\"));
+				</script>
+				<script type=\"text/javascript\">
+				var pageTracker = _gat._getTracker(\"" . $wgWikiTrustGATag . "\");
+				pageTracker._trackPageview();
+</script>";
+    }
   }
 
   static function color_addFileRefs(&$out) {
@@ -532,6 +549,7 @@ if (0) {
     } else {
       self::color_Wiki2Html($colored_text, $text);
       self::vote_showButton($text);
+      self::color_addTracker($text);
       // Save the finished text in the cache.
       $wgMemc->set($memcKey, $text);
       wfWikiTrustDebug(__FILE__ . ":"
