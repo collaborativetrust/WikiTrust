@@ -264,10 +264,10 @@ class updater
 	    None -> do_more := false
 	  | Some (event_timestamp, page_id, event) -> begin 
 	      (* We have an event to process *)
-	      match event with 
-		Event_feed.Revision_event r -> self#evaluate_revision r
-	      | Event_feed.Vote_event (revision_id, voter_id) -> 
-		  self#evaluate_vote page_id revision_id voter_id
+	      match event with
+		      | Event_feed.Revision_event r -> self#evaluate_revision r
+	        | Event_feed.Vote_event (revision_id, voter_id) -> 
+		          self#evaluate_vote page_id revision_id voter_id
 	    end (* event that needs processing *)
 	end done (* Loop as long as we need to do events *)
 
