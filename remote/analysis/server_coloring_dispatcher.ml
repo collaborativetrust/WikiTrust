@@ -106,8 +106,6 @@ in
 let check_subprocess_termination (page_title: string) (process_id: int) = 
   let stat = Unix.waitpid [Unix.WNOHANG] process_id in
     begin
-      Printf.printf "Checking: %s %d\n" page_title process_id;
-      flush_all ();
     match (stat) with
       (* Process not yet done. *)
     | (0,_) -> () 
