@@ -51,7 +51,7 @@ let main () =
 	Wikipedia_api.get_revs_from_pageid !page_id !last_rev 50
     in
     match wiki_page' with
-      None -> raise Wikipedia_api.API_error
+      None -> raise (Wikipedia_api.API_error "fetch_all_revs_after: No such page")
     | Some wiki_page -> begin
 	let process_rev rev =
 	  Printf.printf "%d:%d:%s\n" wiki_page.page_id rev.revision_id rev.revision_timestamp

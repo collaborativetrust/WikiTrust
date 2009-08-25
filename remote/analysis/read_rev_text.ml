@@ -49,7 +49,7 @@ let main () =
 	Wikipedia_api.get_rev_from_revid !rev_id
     in
     match wiki_page' with
-      None -> raise Wikipedia_api.API_error
+      None -> raise (Wikipedia_api.API_error "read_rev_text: No such page")
     | Some wiki_page -> begin
 	let process_rev rev =
 	  print_string rev.revision_content
