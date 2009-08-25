@@ -83,7 +83,7 @@ GRANT ALL ON ".$wgDBprefix."wikitrust_sigs TO $wgDBuser
 
 $create_scripts[$wgDBprefix.'wikitrust_user'] = array("
 CREATE TABLE ".$wgDBprefix."wikitrust_user (
-       user_id     int PRIMARY KEY,
+       user_id     serial PRIMARY KEY,
        username    varchar(255),
        user_rep    float DEFAULT 0.0
 ) ENGINE=InnoDB","
