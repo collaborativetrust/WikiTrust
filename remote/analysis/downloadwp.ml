@@ -81,8 +81,8 @@ let main_loop () =
       try
 	Wikipedia_api.download_page_starting_with db title start_rev
       with
-	Wikipedia_api.API_error ->
-	  (!Online_log.online_logger)#log (Printf.sprintf "ERROR: %s\n" title);
+	Wikipedia_api.API_error msg ->
+	  (!Online_log.online_logger)#log (Printf.sprintf "ERROR: %s\nmsg=%s\n" title msg);
       | Failure x ->
 	  (!Online_log.online_logger)#log (Printf.sprintf "ERROR: %s\n" title);
     end done

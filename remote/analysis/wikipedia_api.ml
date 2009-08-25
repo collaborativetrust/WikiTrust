@@ -38,8 +38,8 @@ POSSIBILITY OF SUCH DAMAGE.
 open Online_types;;
 open Json_type;;
 
-exception API_error
-exception API_error_noretry
+exception API_error of string;;
+exception API_error_noretry of string;;
 
 Random.self_init ()
 
@@ -94,12 +94,12 @@ let get_url (url: string) : string =
 		Tmpfile.remove_tmp_file tmp_file;
 		match decoded_body with
 		    Some str -> str
-		  | None -> raise API_error
+		  | None -> raise (API_error "get_url: no body")
 	      end
-	    | _ -> raise API_error
+	    | _ -> raise (API_error "get_url: unknown encoding")
 	with Not_found -> call#response_body#value
       end
-    | _ -> raise API_error
+    | _ -> raise (API_error "get_url: bad result from url")
 
 
 type result_tree =
@@ -115,7 +115,7 @@ let get_children (node: result_tree): (string * result_tree) list =
       match jnode with
 	  Object children -> List.map jsonify children
 	| Array children -> List.map jsonify2 children
-	| _ -> raise API_error
+	| _ -> raise (API_error "get_children: unknown node type")
     end
   | XML xnode -> begin
       let xmlify n = ((Xml.tag n), XML n) in
@@ -146,9 +146,10 @@ let rec get_descendant (node: result_tree) (tag_list: string list) : result_tree
 
 
 let get_property (node: result_tree) (key: string) (defval: string option): string =
+  let api_errmsg msg = Printf.sprintf "get_property: key=[%s], %s" key msg in
   let default () : string =
     match defval with
-	None -> raise API_error
+	None -> raise (API_error (api_errmsg "property not found"))
       | Some str -> str
   in
   match node with
@@ -167,11 +168,11 @@ let get_property (node: result_tree) (key: string) (defval: string option): stri
 		      match v with
 			| Int i -> string_of_int i
 			| String s -> s
-			| _ -> raise API_error
+			| _ -> raise (API_error (api_errmsg "unknown base type"))
 		    else find_first rest
 		  end
 	      in find_first proplist
-	  | _ -> raise API_error
+	  | _ -> raise (API_error (api_errmsg "unknown type"))
       end
 
 
@@ -200,7 +201,7 @@ let process_rev ((key, rev) : (string * result_tree)) : wiki_revision_t =
     revision_user = -1;
     revision_user_text = get_property rev "user" None;
     revision_timestamp = api_ts2mw_ts (get_property rev "timestamp" None);
-    revision_minor_edit = if minor_attr = "" then false else raise API_error;	
+    revision_minor_edit = if minor_attr = "" then false else raise (API_error "process_rev: minor edit has value");
     revision_deleted = false;
     revision_len = int_of_string (get_property rev "size" (Some "0"));
     revision_parent_id = 0;
@@ -209,7 +210,7 @@ let process_rev ((key, rev) : (string * result_tree)) : wiki_revision_t =
   in r
 
 let check_for_download_error ((key, page): (string * result_tree)) =
-  if key = "-1" then raise API_error_noretry
+  if key = "-1" then raise (API_error_noretry "check_for_download_error: got -1")
   else (key, page)
 
 (** [process_page page] takes as input a structure representing a page,
@@ -347,7 +348,7 @@ let rec get_revs_from_api (page_title: string) (last_id: int)
     (db: Online_db.db)
     (rev_lim: int) : (int option) =
   try begin
-    if rev_lim = 0 then raise API_error;
+    if rev_lim = 0 then raise (API_error "get_revs_from_api: couldn't find working rev_lim value");
     !logger#log (Printf.sprintf "Getting revs from api for page '%s'\n" page_title);
     (* Retrieve a page and revision list from mediawiki. *)
     let (wiki_page', wiki_revs, next_id) = 
@@ -358,18 +359,18 @@ let rec get_revs_from_api (page_title: string) (last_id: int)
     | Some wiki_page -> begin
 	let the_page_id = try
 	    let db_pageid = db#get_page_id wiki_page.page_title in
-	    if db_pageid <> wiki_page.page_id then raise API_error_noretry
+	    if db_pageid <> wiki_page.page_id then raise (API_error_noretry "get_revs_from_api: mismatched page_id")
 	    else wiki_page.page_id
 	  with Online_db.DB_Not_Found -> wiki_page.page_id
 	in
 	let the_page_title = try
 	    let db_pagetitle = db#get_page_title the_page_id in
-	    if db_pagetitle <> wiki_page.page_title then raise API_error_noretry
+	    if db_pagetitle <> wiki_page.page_title then raise (API_error_noretry "get_revs_from_api: mismatched page_title")
 	    else wiki_page.page_title
 	  with Online_db.DB_Not_Found -> wiki_page.page_title
 	in
 	(* Write the updated or new page info to the page table. *)
-	!logger#log (Printf.sprintf "Got page titled %S\n" the_page_title);
+	!logger#log (Printf.sprintf "Got page titled %s\n" the_page_title);
 	(* Write the new page to the page table. *)
 	db#write_page wiki_page;
 	(* Writes the revisions to the db. *)
@@ -383,14 +384,14 @@ let rec get_revs_from_api (page_title: string) (last_id: int)
 	(* Finally, return the next id to read *)
 	next_id
       end
-  end with API_error -> begin
+  end with API_error msg -> begin
     if rev_lim > 2 then begin
-      !logger#log (Printf.sprintf "Page load error for page %S. Trying again\n" page_title);
+      !logger#log (Printf.sprintf "Page load error for page %s.  msg=%s\nTrying again\n" page_title msg);
       Unix.sleep retry_delay_sec;
       get_revs_from_api page_title last_id db (rev_lim / 2);
-    end else raise API_error
+    end else raise (API_error "get_revs_from_api: no good rev_lim available")
   end
- | API_error_noretry -> raise API_error
+ | API_error_noretry msg -> raise (API_error msg)
 
 let rec download_page_starting_with (db: Online_db.db) (title: string) (last_rev: int) : unit =
   let next_rev = get_revs_from_api title last_rev db 50 in 
@@ -422,19 +423,19 @@ let download_page (db: Online_db.db) (title: string) : unit =
 let rec get_revs_from_pageid (page_id: int) (last_id: int) (rev_lim: int)
     : (wiki_page_t option * wiki_revision_t list * int option) =
   try begin
-    if rev_lim = 0 then raise API_error;
+    if rev_lim = 0 then raise (API_error "get_revs_from_pageid: bad rev_lim");
     !logger#log (Printf.sprintf "Getting revs from api for page '%d'\n" page_id);
     (* Retrieve a page and revision list from mediawiki. *)
     let selector = page_selector page_id last_id rev_lim in
     fetch_page_and_revs_after selector
-  end with API_error -> begin
+  end with API_error msg -> begin
     if rev_lim > 2 then begin
-      !logger#log (Printf.sprintf "Page load error for page %d. Trying again\n" page_id);
+      !logger#log (Printf.sprintf "Page load error for page %d.\n  msg=%s\nTrying again\n" page_id msg);
       Unix.sleep retry_delay_sec;
       get_revs_from_pageid page_id last_id (rev_lim / 2);
-    end else raise API_error
+    end else raise (API_error msg)
   end
- | API_error_noretry -> raise API_error
+ | API_error_noretry msg -> raise (API_error msg)
 
 (**
    [get_rev_from_revid rev_id] reads 
