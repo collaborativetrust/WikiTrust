@@ -910,7 +910,8 @@ class page
       match work_revision_opt with
 	None -> raise Missing_work_revision
       | Some rev0 -> begin
-	  let rev0_id = rev0#get_id in
+    rev0#read_words_trust_origin_sigs;
+    let rev0_id = rev0#get_id in
 	  let rev0_t = rev0#get_words in 
 	  let rev0_l = Array.length rev0_t in 
 	  let rev0_seps = rev0#get_seps in 

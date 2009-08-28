@@ -33,8 +33,8 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
-exception API_error
-exception API_error_noretry
+exception API_error of string;;
+exception API_error_noretry of string;;
 
 (* 19700201000000 *) 
 val default_timestamp : string

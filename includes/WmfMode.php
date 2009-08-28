@@ -85,32 +85,41 @@ class WikiTrust extends WikiTrustBase {
 		 array('http' => array('timeout' => self::TRUST_TIMEOUT))
 	 );
 
+    $MAX_TIMES_THROUGH = 2;
+    $times_though=0;
     global $wgUser, $wgWikiTrustContentServerURL;
     $user_id = $wgUser->getID();
 
     $url = $wgWikiTrustContentServerURL
-	+ "rev=" + urlencode($rev_id)
-	+ "&page=" + urlencode($page_id)
-	+ "&page_title=" + urlencode($page_title)
-	+ "&time=" + urlencode(wfTimestampNow())
-	+ "&user=" + urlencode($user_id);
-    
-    wfWikiTrustDebug(__FILE__.__LINE__.": $url");
+      . "rev=" . urlencode($rev_id)
+      . "&page=" . urlencode($page_id)
+      . "&page_title=" . urlencode($page_title)
+      . "&time=" . urlencode(wfTimestampNow())
+      . "&user=" . urlencode($user_id);
 
-    $colored_raw = (@file_get_contents($wgWikiTrustContentServerURL .
-      "rev=" .  urlencode($rev_id) . 
-			"&page=".urlencode($page_id) .
-			"&page_title=" . urlencode($page_title) .
-      "&time=" . urlencode(wfTimestampNow()) .
-			"&user=" . urlencode($user_id),
-                0, $ctx));
+    // There's some strange caching going on on the python end.
+    // TODO -- fixme
+    // Doing this twice though works for now.
+    do{
+      $times_though++;
+      wfWikiTrustDebug(__FILE__.":".__LINE__.": $url");
+
+      $colored_raw = (file_get_contents($url, 0, $ctx));
+      if ($colored_raw
+        && $colored_raw != self::NOT_FOUND_TEXT_TOKEN
+        && $colored_raw != "bad")
+      {
+        break;
+      }
+    } while ($times_though < $MAX_TIMES_THROUGH);
 
     if (!$colored_raw
-	|| $colored_raw == self::NOT_FOUND_TEXT_TOKEN
-	|| $colored_raw == "bad")
-    {
-      return '';
-    }
+        || $colored_raw == self::NOT_FOUND_TEXT_TOKEN
+        || $colored_raw == "bad")
+      {
+        return '';
+      }
+    
 
     // Inflate. Pick off the first 10 bytes for python-php conversion.
     $colored_raw = gzinflate(substr($colored_raw, 10));
@@ -125,6 +134,7 @@ class WikiTrust extends WikiTrustBase {
       if ($colored_data[0] == 0)
 	self::$median = self::TRUST_DEFAULT_MEDIAN;
     }
+
     return $colored_text;
   }
 

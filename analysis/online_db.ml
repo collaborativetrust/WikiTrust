@@ -255,14 +255,19 @@ object(self)
       with revision id at least [rev_id], up to the maximim number [limit]. 
       If [req_page_id] specifies a page, then only that page is considered.
       If [req_rev_id] specifies a revision, then that revision is included in the result. *)
-  method fetch_all_revs_after (req_page_id: int option) (req_rev_id: int option) 
-    (timestamp : string) (rev_id: int) (max_revs_to_return: int) : revision_t list =  
+  method fetch_all_revs_after
+    (req_page_id: int option) 
+    (req_rev_id: int option) 
+    (timestamp : string) 
+    (rev_id : int) 
+    (max_revs_to_return : int)
+    : revision_t list =  
     let wr = match req_page_id with
-	None -> ""
-      | Some p_id -> Printf.sprintf "AND page_id = %s" (ml2int p_id) 
+	    | None -> ""
+      | Some p_id -> Printf.sprintf "AND rev_page = %s" (ml2int p_id) 
     in
     let rr = match req_rev_id with
-	None -> ""
+      | None -> ""
       | Some r_id -> Printf.sprintf "rev_id = %s OR" (ml2int r_id)
     in
     let s = Printf. sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM %srevision WHERE %s (rev_timestamp, rev_id) > (%s, %s) %s ORDER BY rev_timestamp ASC, rev_id ASC LIMIT %s" 
@@ -836,7 +841,7 @@ object(self)
   method fetch_all_revs_after (req_page_id: int option) (req_rev_id: int option) 
     (timestamp : string) (rev_id: int) (max_revs_to_return: int) : revision_t list =  
     (* For now it just uses the super method. *)
-    super#fetch_all_revs_after req_rev_id req_rev_id timestamp rev_id max_revs_to_return
+    super#fetch_all_revs_after req_page_id req_rev_id timestamp rev_id max_revs_to_return
 
 end (* class db_exec_api *)
 

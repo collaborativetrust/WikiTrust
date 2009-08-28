@@ -105,7 +105,7 @@ in
 *)
 let check_subprocess_termination (page_title: string) (process_id: int) = 
   let stat = Unix.waitpid [Unix.WNOHANG] process_id in
-  begin
+    begin
     match (stat) with
       (* Process not yet done. *)
     | (0,_) -> () 
@@ -135,8 +135,10 @@ let process_page (page_id: int) (page_title: string) =
   (* Brings the page up to date.  This will take care also of the page lock. *)
   processor#update_page new_page_id;
   (* Marks the page as processed. *)
-  child_db#mark_page_as_processed new_page_id
+  child_db#mark_page_as_processed new_page_id;
   (* End of page processing. *)
+    Printf.printf "Done with %s.\n" page_title; flush_all ();
+    exit 0;
 in
 
 

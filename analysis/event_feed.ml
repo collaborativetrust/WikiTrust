@@ -134,10 +134,11 @@ object (self)
 		  in
 		  begin 
 		    match last_colored with 
-		      Some (last_timestamp, last_id) ->
-			db#fetch_all_revs_after requested_page_id requested_rev_id
-			  last_timestamp last_id n_events_to_read
-		    | None -> db#fetch_all_revs requested_page_id n_events_to_read
+		      Some (last_timestamp, last_id) -> (
+			      db#fetch_all_revs_after requested_page_id requested_rev_id
+			        last_timestamp last_id n_events_to_read
+          )
+		      | None -> db#fetch_all_revs requested_page_id n_events_to_read
 		  end
 		end
 	      in 
