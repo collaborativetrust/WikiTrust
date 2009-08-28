@@ -73,10 +73,9 @@ GRANT ALL ON ".$wgDBprefix."wikitrust_colored_markup TO ".$wgDBuser,"
 CREATE INDEX ".$wgDBprefix."wikitrust_colored_markup_createdon_idx ON ".$wgDBprefix."wikitrust_colored_markup (revision_createdon)
 ");
 
-$create_scripts[$wgDBprefix.'wikitrust_sigs'] = array("
 CREATE TABLE ".$wgDBprefix."wikitrust_sigs (
-       revision_id      int PRIMARY KEY,
-       revision_data    longtext NOT NULL
+       page_id          int PRIMARY KEY,
+       sigs             longtext NOT NULL
 ) ENGINE=InnoDB","
 GRANT ALL ON ".$wgDBprefix."wikitrust_sigs TO $wgDBuser
 ");

@@ -79,6 +79,9 @@ type sig_t = {
   sig_a: Author_sig.packed_author_signature_t array;
 } with sexp
 
+(* This is the internal type for sets of signatures, which can be serialized *)
+type page_sig_disk_t = (int * sig_t) list with sexp
+
 (** These are the coefficients used for the evaluation. *)
 type trust_coeff_t = {
   (** Number of revision to use for trust computation *)
