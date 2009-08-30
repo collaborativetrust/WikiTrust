@@ -324,7 +324,8 @@ class page_factory
       | Trust_color -> new Trust_analysis.page id title xml_file rep_histories
 	  trust_coeff_lends_rep trust_coeff_read_all 
 	    trust_coeff_cut_rep_radius trust_coeff_kill_decrease
-	  n_rev_to_output !equate_anons 
+	    n_rev_to_output !equate_anons 
+	    robots trust_coeff_edit_time_constant 
       | Trust_syntactregion_color -> begin
 	  if !do_origin 
 	  then new Trust_origin_analysis.page id title xml_file 
@@ -332,17 +333,20 @@ class page_factory
 	    trust_coeff_read_part trust_coeff_local_decay
 	    trust_coeff_cut_rep_radius trust_coeff_kill_decrease 
 	    n_rev_to_output !equate_anons 
+	    robots trust_coeff_edit_time_constant 
 	  else new Trust_local_color_analysis.page id title xml_file 
 	    rep_histories trust_coeff_lends_rep trust_coeff_read_all 
 	    trust_coeff_read_part trust_coeff_local_decay 
 	    trust_coeff_cut_rep_radius trust_coeff_kill_decrease 
 	    n_rev_to_output !equate_anons
+	    robots trust_coeff_edit_time_constant 
 	end
       | Trust_and_origin -> new Trust_origin_analysis.page id title xml_file 
 	  rep_histories trust_coeff_lends_rep trust_coeff_read_all 
 	    trust_coeff_read_part trust_coeff_local_decay 
 	    trust_coeff_cut_rep_radius trust_coeff_kill_decrease 
 	    n_rev_to_output !equate_anons 
+	    robots trust_coeff_edit_time_constant 
       | Trust_for_online -> new Trust_for_online_analysis.page id title 
 	  xml_file sql_file rev_base_path sig_base_path db_prefix rep_histories
 	    trust_coeff_lends_rep trust_coeff_read_all trust_coeff_read_part 

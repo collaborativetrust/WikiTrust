@@ -1,6 +1,6 @@
 (*
 
-Copyright (c) 2007-2008 The Regents of the University of California
+Copyright (c) 2007-2009 The Regents of the University of California
 All rights reserved.
 
 Authors: Luca de Alfaro
@@ -55,13 +55,15 @@ class page
   (trust_coeff_kill_decrease: float)
   (n_rev_to_color: int) 
   (equate_anons: bool) 
+  (robots: Read_robots.robot_set_t)
+  (edit_time_constant: float)
   =
   object (self) 
     inherit Trust_analysis.page 
       id title out_file rep_histories
       trust_coeff_lends_rep trust_coeff_read_all 
       trust_coeff_cut_rep_radius trust_coeff_kill_decrease
-      n_rev_to_color equate_anons 
+      n_rev_to_color equate_anons robots edit_time_constant
 
     (* Signatures of authors who raised the word trust *)
     val mutable chunks_authorsig_a : Author_sig.packed_author_signature_t array array = [| [| |] |] 
@@ -71,9 +73,9 @@ class page
       let rev_idx = (Vec.length revs) - 1 in 
       let rev = Vec.get rev_idx revs in 
       let uid = rev#get_user_id in 
-      let t = rev#get_time in 
+      let rev_time = rev#get_time in 
       (* Gets the reputation of the author of the current revision *)
-      let rep = rep_histories#get_rep uid t in 
+      let rep = rep_histories#get_rep uid rev_time in 
       let new_wl = rev#get_words in 
       (* Calls the function that analyzes the difference 
          between revisions. Data relative to the previous revision
@@ -83,10 +85,33 @@ class page
 	 in the text (both live text, and dead text). *)
       let rep_float = float_of_int rep in 
 
-      let (new_chunks_trust_a, new_chunks_authorsig_a) = Compute_robust_trust.compute_robust_trust 
-	chunks_trust_a chunks_authorsig_a new_chunks_a rev#get_seps medit_l rep_float uid
-	trust_coeff_lends_rep trust_coeff_kill_decrease trust_coeff_cut_rep_radius 
-	trust_coeff_read_all trust_coeff_read_part trust_coeff_local_decay in 
+      (* Fixes the coefficients of trust incease depending on whether
+	 the user is a bot... *)
+      let (read_all', read_part') = 
+	if Hashtbl.mem robots rev#get_user_name 
+	then (0., 0.)
+	else (trust_coeff_read_all, trust_coeff_read_part)
+      in
+      (* ...and depending on the time interval wrt. the previous edit *)
+      let (read_all, read_part) =
+	if rev_idx = 0
+	then (read_all', read_part')
+	else begin
+	  let prev_rev = Vec.get (rev_idx - 1) revs in
+	  let prev_time = prev_rev#get_time in
+	  let delta_time = max 0. (rev_time -. prev_time) in
+	  let time_factor = 1. -. exp (0. -. delta_time /. edit_time_constant) 
+	  in
+	  (read_all' *. time_factor, read_part' *. time_factor)
+	end
+      in
+	
+      let (new_chunks_trust_a, new_chunks_authorsig_a) = 
+	Compute_robust_trust.compute_robust_trust 
+	  chunks_trust_a chunks_authorsig_a new_chunks_a rev#get_seps medit_l
+	  rep_float uid trust_coeff_lends_rep trust_coeff_kill_decrease 
+	  trust_coeff_cut_rep_radius read_all 
+	  read_part trust_coeff_local_decay in 
 
       (* Now, replaces chunks_trust_a and chunks_a for the next iteration *)
       chunks_trust_a <- new_chunks_trust_a;
