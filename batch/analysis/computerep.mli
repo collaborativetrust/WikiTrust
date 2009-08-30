@@ -63,6 +63,7 @@ class rep :
   (* gen_truthful_rep *) bool -> 
   (* do_compute_rep *) bool ->
   (* init_rep_file *) string option ->
+  (* robots *) Read_robots.robot_set_t ->
   object
     method add_data : Evaltypes.wiki_data_t -> unit
     method compute_stats : out_channel -> Evaltypes.stats_t * Evaltypes.stats_t

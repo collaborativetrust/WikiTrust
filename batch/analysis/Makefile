@@ -97,10 +97,12 @@ OUR_OPT_EVALWIKI_OBJS = textbuf.cmx text.cmx prioq.cmx filesystem_store.cmx \
 # Generate_Reputation computes the reputation histories
 
 OUR_GENERATE_REPUTATION_OBJS = timeconv.cmo textbuf.cmo text.cmo \
+	read_robots.cmo \
 	eval_defs.cmo rephist.cmo evaltypes.cmo wikidata.cmo \
 	computestats.cmo computerep.cmo generate_reputation.cmo 
 
 OUR_OPT_GENERATE_REPUTATION_OBJS = timeconv.cmx textbuf.cmx text.cmx \
+	read_robots.cmx \
 	eval_defs.cmx rephist.cmx  evaltypes.cmx wikidata.cmx \
 	computestats.cmx computerep.cmx generate_reputation.cmx 
 
