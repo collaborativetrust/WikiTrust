@@ -279,7 +279,7 @@ object(self)
       let sig_list : page_sig_disk_t = Vec.fold f revs [] in
       let sig_string = 
 	string_of__of__sexp_of sexp_of_page_sig_disk_t sig_list in
-      Filesystem_store.write_revision sig_base_path page_id 0
+      Filesystem_store.write_revision sig_base_path page_id 0 sig_string
 
 
     (** This method is called when there are no more revisions to evaluate. 
