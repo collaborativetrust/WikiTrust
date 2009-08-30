@@ -45,6 +45,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
 
 type word = string 
+open Online_types
 
 exception MissingRevisionPath of string
 
@@ -83,7 +84,8 @@ class page = object
     (username: string) (* name of the user *)
     (is_minor: bool) 
     (comment: string)
-    (text_init: string Vec.t) (* Text of the revision, still to be split into words *)
+    (text_init: string Vec.t) (* Text of the revision, still to be split 
+				 into words *)
     : unit = ()
   method eval : unit = ()
   method print_id_title : unit = ()
@@ -103,41 +105,46 @@ class page_factory
     val mutable be_precise = false
       (* These store the reputation histories of the users of the Wikipedia. *)
     val mutable rep_histories = new Rephist.rephist
-      (* This hash table associates with each revision its edit longevity, which
-	 provides a measure of its quality. *)
+      (* This hash table associates with each revision its edit
+	 longevity, which provides a measure of its quality. *)
     val mutable revision_quality : (int, float) Hashtbl.t = Hashtbl.create 100
-      (* Revisions with a quality below this value are considered "bad" from a 
-	 statistical viewpoint. *)
+      (* Revisions with a quality below this value are considered
+	 "bad" from a statistical viewpoint. *)
     val mutable bad_rev_threshold = -0.7 
-      (* This coefficient says how much an author can lend reputation to text he/she
-	 creates.  For example, if the coefficient is 0.5, then an author of reputation 
-	 9 can create text of trust 4.5.  The purpose of this coefficient is to ensure 
-	 that even a high-reputation author needs some validation for his/her 
+      (* This coefficient says how much an author can lend reputation
+	 to text he/she creates.  For example, if the coefficient is
+	 0.5, then an author of reputation 9 can create text of trust
+	 4.5.  The purpose of this coefficient is to ensure that even
+	 a high-reputation author needs some validation for his/her
 	 contributions. *)
-    val mutable trust_coeff_lends_rep = 0.3 
-      (* Coefficient by which the whole text of a page grows in trust after revision
-	 by a high-reputation editor.  This is one of the most important parameters. *)
-    val mutable trust_coeff_read_all = 0.25
+    val mutable trust_coeff_lends_rep = default_trust_coeff.lends_rep
+      (* Coefficient by which the whole text of a page grows in trust
+	 after revision by a high-reputation editor.  This is one of
+	 the most important parameters. *)
+    val mutable trust_coeff_read_all = default_trust_coeff.read_all
       (* Coefficient by which the text of an edited section of a page
-	 (a paragraph unit, a bullet point) grows in trust after revision
-	 by a high-reputation editor.  This is one of the most important parameters. *)
-    val mutable trust_coeff_read_part = 0.5 
+	 (a paragraph unit, a bullet point) grows in trust after
+	 revision by a high-reputation editor.  This is one of the
+	 most important parameters. *)
+    val mutable trust_coeff_read_part = default_trust_coeff.read_part
       (* Distance, in number of words, for which the local effect of trust 
 	 extends outside of a syntactic unit to the adjacent ones. *)
-    val mutable trust_coeff_part_radius = 10.0 
+    val mutable trust_coeff_local_decay = default_trust_coeff.local_decay
       (* Distance, measured in number of words, that is the decay distance
 	 for the edge effect in text trust. *)
-    val mutable trust_coeff_cut_rep_radius = 1.0
+    val mutable trust_coeff_cut_rep_radius = default_trust_coeff.cut_rep_radius
       (* Factor used to scale down reputation of killed text. 
 	 With this choice, text killed by a rep=9 user has its 
 	 trust halved. *)
-    val mutable trust_coeff_kill_decrease = (log 2.0) /. 9.0
+    val mutable trust_coeff_kill_decrease = default_trust_coeff.kill_decrease
       (* Whether to consider also text in reputation analysis *)
     val do_text = ref false
       (* N. of revisions to evaluate for text life *)
     val mutable n_text_judging = 12
       (* N. of revisions to evaluate for edit life *)
-    val mutable n_edit_judging = 12 (* This default is the same as n_edit_judging in generate_reputation.ml *)
+      (* This default is the same as n_edit_judging in
+	 generate_reputation.ml *)
+    val mutable n_edit_judging = 12 
       (* Number of revisions to color for trust *)
     val mutable n_rev_to_output = 100 
       (* Do we equate all anonymous, regardless of IP? *)
@@ -168,7 +175,7 @@ class page_factory
     (* Database prefix *)
     val mutable db_prefix = ""
     (* N. of signatures to write *)
-    val mutable n_sigs = 0
+    val mutable n_sigs = 0 (* FIXME *)
 
     (* Files for output *)
     val mutable out_file : out_channel = stderr (* also used for eval_file *)
@@ -221,14 +228,18 @@ class page_factory
     method set_trust_coeff_lends_rep (f : float) = trust_coeff_lends_rep <- f
     method set_trust_coeff_read_all (f : float) = trust_coeff_read_all <- f
     method set_trust_coeff_read_part (f : float) = trust_coeff_read_part <- f
-    method set_trust_coeff_part_radius (f : float) = trust_coeff_part_radius <- f
-    method set_trust_coeff_cut_rep_radius (f : float) = trust_coeff_cut_rep_radius <- f
-    method set_trust_coeff_kill_decrease (f : float) = trust_coeff_kill_decrease <- f 
+    method set_trust_coeff_local_decay (f : float) = 
+      trust_coeff_local_decay <- f
+    method set_trust_coeff_cut_rep_radius (f : float) = 
+      trust_coeff_cut_rep_radius <- f
+    method set_trust_coeff_kill_decrease (f : float) = 
+      trust_coeff_kill_decrease <- f 
     method set_bad_value (f : float) = bad_rev_threshold <- f
     method set_n_text_judging (n: int) = n_text_judging <- n 
     method set_n_edit_judging (n: int) = n_edit_judging <- n 
     method set_n_rev_to_output (n: int) = n_rev_to_output <- n 
-    method set_keep_rev_after (n: string) = keep_rev_after <- Timeconv.convert_time n  
+    method set_keep_rev_after (n: string) = 
+      keep_rev_after <- Timeconv.convert_time n  
     method set_rev_base_path (n: string) = rev_base_path <- Some n 
     method set_sig_base_path (n: string) = sig_base_path <- Some n 
     method set_db_prefix (n: string) = db_prefix <- n
@@ -258,7 +269,7 @@ class page_factory
        ("-rep_lends_trust", Arg.Float self#set_trust_coeff_lends_rep, "<float>: how much of an author trust is lent as text reputation."); 
        ("-trust_read_all", Arg.Float self#set_trust_coeff_read_all, "<float>: how much an article's trust can increase due to someone editing anywere in the article."); 
        ("-trust_read_part", Arg.Float self#set_trust_coeff_read_part, "<float>: how much an article's trust can increase due to someone editing in the same syntactic unit (paragraph, itemization point)."); 
-       ("-trust_part_radius", Arg.Float self#set_trust_coeff_part_radius, "<float>: how much (n. of words) local trust percolates in adjacent syntactic regions.");
+       ("-trust_local_decay", Arg.Float self#set_trust_coeff_local_decay, "<float>: local deay coefficient for how much local trust percolates in adjacent syntactic regions.");
        ("-trust_radius", Arg.Float self#set_trust_coeff_cut_rep_radius, "<float>: trust radius of influence of edits."); 
        ("-kill_decrease", Arg.Float self#set_trust_coeff_kill_decrease, "<float>: trust decrease when text is deleted.");
        ("-bad_qual_thrs", Arg.Float self#set_bad_value, "<float>: edit quality threshold below which a revision is considered bad.");
@@ -304,26 +315,26 @@ class page_factory
 	  n_rev_to_output !equate_anons 
       | Trust_syntactregion_color -> begin
 	  if !do_origin 
-	  then new Trust_origin_analysis.page id title xml_file rep_histories
-	    trust_coeff_lends_rep trust_coeff_read_all trust_coeff_read_part 
-	    trust_coeff_part_radius 
+	  then new Trust_origin_analysis.page id title xml_file 
+	    rep_histories trust_coeff_lends_rep trust_coeff_read_all 
+	    trust_coeff_read_part trust_coeff_local_decay
 	    trust_coeff_cut_rep_radius trust_coeff_kill_decrease 
 	    n_rev_to_output !equate_anons 
 	  else new Trust_local_color_analysis.page id title xml_file 
 	    rep_histories trust_coeff_lends_rep trust_coeff_read_all 
-	    trust_coeff_read_part trust_coeff_part_radius 
+	    trust_coeff_read_part trust_coeff_local_decay 
 	    trust_coeff_cut_rep_radius trust_coeff_kill_decrease 
 	    n_rev_to_output !equate_anons
 	end
       | Trust_and_origin -> new Trust_origin_analysis.page id title xml_file 
 	  rep_histories trust_coeff_lends_rep trust_coeff_read_all 
-	    trust_coeff_read_part trust_coeff_part_radius 
+	    trust_coeff_read_part trust_coeff_local_decay 
 	    trust_coeff_cut_rep_radius trust_coeff_kill_decrease 
 	    n_rev_to_output !equate_anons 
       | Trust_for_online -> new Trust_for_online_analysis.page id title 
 	  xml_file sql_file rev_base_path sig_base_path db_prefix rep_histories
 	    trust_coeff_lends_rep trust_coeff_read_all trust_coeff_read_part 
-	    trust_coeff_part_radius trust_coeff_cut_rep_radius 
+	    trust_coeff_local_decay trust_coeff_cut_rep_radius 
 	    trust_coeff_kill_decrease n_sigs
       | Revcount_analysis -> begin 
 	  let n = page_seq_number in 

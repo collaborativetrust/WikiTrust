@@ -118,7 +118,7 @@ class page_factory :
     method set_trust_coeff_lends_rep : float -> unit
     method set_trust_coeff_read_all : float -> unit
     method set_trust_coeff_read_part : float -> unit
-    method set_trust_coeff_part_radius : float -> unit
+    method set_trust_coeff_local_decay : float -> unit
     method set_bad_value : float -> unit
     method set_n_edit_judging : int -> unit
     method set_n_rev_to_output : int -> unit

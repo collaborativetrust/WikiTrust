@@ -90,11 +90,13 @@ type trust_coeff_t = {
   mutable len_hi_rep_revs: int; 
   (** Length of list of previous high trust versions of the page *)
   mutable len_hi_trust_revs: int; 
-  (** Threshold of reputation for an author to be included in a hi-reputation list *)
+  (** Threshold of reputation for an author to be included in a
+      hi-reputation list *)
   mutable hi_rep_list_threshold: float;
   (** Max time a chunk can be deleted before it is discarded *)
   mutable max_del_time_chunk : float; 
-  (** max n. of revisions for which a chunk can be deleted before being discarded *)
+  (** max n. of revisions for which a chunk can be deleted before
+      being discarded *)
   mutable max_del_revs_chunk : int; 
   (** Max n. of words in a deleted chunk (if longer, it is truncated) *)
   mutable max_dead_chunk_len : int;
@@ -103,17 +105,19 @@ type trust_coeff_t = {
   (** how much the text of revised articles raises in trust towards the 
       reputation of the editor *)
   mutable read_all : float; 
-  (** how much the text of revised articles, in the portion of article directly edited, 
-      raises in trust towards the reputation of the editor *)
+  (** how much the text of revised articles, in the portion of article
+      directly edited, raises in trust towards the reputation of the
+      editor *)
   mutable read_part: float; 
   (** how much the trust of text is lost when text is deleted *)
   mutable kill_decrease: float; 
   (** how much trust propagates from the edges of block moves *)
   mutable cut_rep_radius: float; 
-  (** the text of revised articles that is local to an edit increases more in trust
-      when revised (see read_part).  This coefficient says how fast this "locality" 
-      effect decays at the border of a local area, into the non-local area.  A value
-      of 0 is perfectly fine. *)
+  (** The text of revised articles that is local to an edit increases
+      more in trust when revised (see read_part).  This coefficient
+      says how fast this "locality" effect decays at the border of a
+      local area, into the non-local area.  A value of 0 is perfectly
+      fine. *)
   mutable local_decay: float; 
   (** scaling for reputation increments *)
   mutable rep_scaling: float; 
@@ -138,8 +142,9 @@ type trust_coeff_t = {
 (* Number of past revisions to consider *)
 let n_past_revs = 6;;
 
-(* We compute the reputation scaling dynamically taking care of the size of the recent_revision list and 
-   the union of the recent revision list, hig reputation list and high trust list *)
+(* We compute the reputation scaling dynamically taking care of the
+   size of the recent_revision list and the union of the recent
+   revision list, hig reputation list and high trust list *)
 let default_dynamic_rep_scaling n_recent_revs max_n_recent_revs = 
   let n_revs_judged = min (n_recent_revs - 2) (max_n_recent_revs / 2) in 
   1. /. (float_of_int n_revs_judged)
@@ -153,10 +158,10 @@ let default_trust_coeff = {
   max_del_revs_chunk = 100;
   max_dead_chunk_len = 10000;
   lends_rep = 0.4;
-  read_all = 0.2;
+  read_all = 0.15;
   read_part = 0.2;
   kill_decrease = (log 2.0) /. 9.0;
-  cut_rep_radius = 4.0;
+  cut_rep_radius = 2.0;
   local_decay = 0.5 ** (1. /. 10.); 
   (* The reputation scaling is 73.24 when we use n_revs_to_consider = 12, 
      and varies quadratically with n_revs_to_consider - 1. *)
