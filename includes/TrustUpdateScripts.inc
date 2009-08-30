@@ -73,6 +73,7 @@ GRANT ALL ON ".$wgDBprefix."wikitrust_colored_markup TO ".$wgDBuser,"
 CREATE INDEX ".$wgDBprefix."wikitrust_colored_markup_createdon_idx ON ".$wgDBprefix."wikitrust_colored_markup (revision_createdon)
 ");
 
+$create_scripts[$wgDBprefix.'wikitrust_sigs'] = array("
 CREATE TABLE ".$wgDBprefix."wikitrust_sigs (
        page_id          int PRIMARY KEY,
        sigs             longtext NOT NULL
@@ -94,12 +95,12 @@ CREATE INDEX " . $wgDBprefix . "wikitrust_usernames_idx ON "
 $create_scripts[$wgDBprefix.'wikitrust_queue'] = array("
 CREATE TABLE ".$wgDBprefix."wikitrust_queue (
        page_id         int NOT NULL,
-       page_title      varchar(255) PRIMARY KEY,
+       page_title      varchar(255) PRIMARY KEY, 
        requested_on    timestamp DEFAULT now(),
        processed       ENUM('unprocessed', 'processing', 'processed') NOT NULL DEFAULT 'unprocessed'
 ) ENGINE=InnoDB","
 GRANT ALL ON ".$wgDBprefix."wikitrust_queue TO $wgDBuser", "
-CREATE INDEX " . $wgDBprefix . "wikitrust_queue_idx ON "
+CREATE INDEX " . $wgDBprefix . "wikitrust_queue_idx ON " 
        	       . $wgDBprefix . "wikitrust_queue (processed, requested_on)
 ");
 
