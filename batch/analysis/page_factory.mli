@@ -119,6 +119,7 @@ class page_factory :
     method set_trust_coeff_read_all : float -> unit
     method set_trust_coeff_read_part : float -> unit
     method set_trust_coeff_local_decay : float -> unit
+    method set_edit_time_constant : float -> unit
     method set_bad_value : float -> unit
     method set_n_edit_judging : int -> unit
     method set_n_rev_to_output : int -> unit
@@ -132,6 +133,7 @@ class page_factory :
     method set_sig_base_path : string -> unit
     method set_db_prefix : string -> unit
     method set_n_sigs : int -> unit
+    method set_robots : string -> unit
 
   end
 

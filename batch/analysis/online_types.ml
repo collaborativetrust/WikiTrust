@@ -137,6 +137,11 @@ type trust_coeff_t = {
   (** This is a similar median, but is used to renormalize the weights of 
       authors during the initial phase of a wiki *)
   mutable hi_median_perc_boost: float;
+  (** This is the characteristic time, in seconds, of an edit.
+      If the time is much shorter than this, the effect on text trust is
+      proportionately diminished; if the characteristic time is greater, 
+      the effect on text trust is the full effect. *)
+  mutable edit_time_constant: float
 };;
 
 (* Number of past revisions to consider *)
@@ -173,6 +178,7 @@ let default_trust_coeff = {
   nix_threshold = 0.1;
   hi_median_perc = 0.9;
   hi_median_perc_boost = 0.7;
+  edit_time_constant = 10. *. 60.; (* 10 minutes *)
 };;
  
 let get_default_coeff : trust_coeff_t = default_trust_coeff ;;
