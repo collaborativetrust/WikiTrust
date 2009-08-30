@@ -76,9 +76,9 @@ OCAMLOPT_FLAGS=$(INCLUDES)
 
 universe: all allopt
 
-all: downloadwp dispatcher read_rev_text fetch_all_revs_after
+all: downloadwp dispatcher read_rev_text fetch_all_revs_after bot_reader
 
-allopt: downloadwpopt dispatcheropt read_rev_textopt fetch_all_revs_afteropt
+allopt: downloadwpopt dispatcheropt read_rev_textopt fetch_all_revs_afteropt bot_reader
 
 # Here are the objects that we want to build. 
 # We need two lines of these, one for the debugging compilation,
@@ -111,9 +111,14 @@ dispatcher: $(OUR_ONLINE_OBJS)
 dispatcheropt: $(OUR_OPT_ONLINE_OBJS)
 	$(OCAMLOPT) -linkpkg -o dispatcher $(OCAMLOPT_FLAGS) $(OUR_LIBS_OPT) $(OUR_OPT_ONLINE_OBJS) server_coloring_dispatcher.ml
 
+bot_reader: $(OUR_ONLINE_OBJS) 
+	$(OCAMLC) -linkpkg -o bot_reader $(OCAML_CFLAGS) $(OUR_LIBS) $(OUR_ONLINE_OBJS) bot_reader.ml 
+
+bot_readeropt: $(OUR_OPT_ONLINE_OBJS)
+	$(OCAMLOPT) -linkpkg -o bot_reader $(OCAMLOPT_FLAGS) $(OUR_LIBS_OPT) $(OUR_OPT_ONLINE_OBJS) bot_reader.ml
 
 clean:
-	rm -f *.o *.cmo *.cmx *.cmi .depends dispatcher
+	rm -f *.o *.cmo *.cmx *.cmi .depends dispatcher bot_reader
 
 # Boilerplate code for building ocaml dependencies.
 
