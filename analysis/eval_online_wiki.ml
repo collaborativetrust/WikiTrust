@@ -100,7 +100,9 @@ end;
 
 (* Creates an event processor *)
 let processor = new Updater.updater 
-  db trust_coeff !times_to_retry_trans each_event_delay every_n_events_delay in
+  db trust_coeff !times_to_retry_trans each_event_delay every_n_events_delay 
+  !robots 
+in
 
 (* Processes the event, as requested. *)
 begin

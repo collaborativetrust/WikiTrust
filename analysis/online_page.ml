@@ -59,6 +59,7 @@ class page
   (work_revision_opt_init: rev_t option)
   (trust_coeff: trust_coeff_t) 
   (n_retries: int) 
+  (robots: Read_robots.robot_set_t)
 
 = 
 
@@ -139,9 +140,10 @@ class page
       end;
       (* Reads the most recent revisions *)
       
-      (* This is a hashtable from revision id to revision, for the revisions that 
-         have been read from disc.  This hash table contains all revisions, whether 
-         it is the last in a block by the same author, or not. *)
+      (* This is a hashtable from revision id to revision, for the
+         revisions that have been read from disc.  This hash table
+         contains all revisions, whether it is the last in a block by
+         the same author, or not. *)
       let revid_to_rev: (int, rev_t) Hashtbl.t = 
 	Hashtbl.create trust_coeff.n_revs_to_consider in
       (* First, puts in the latest revision. *)
@@ -320,10 +322,11 @@ class page
 	end
       end
 
-    (** Write all new reputations to the db.  We write to the db reputation increments,
-        so that we do not need to acquire locks: the writes from different 
-        processes will merge without problems.
-        TODO(Luca): Check that the use of a transaction is needed. *)
+    (** Write all new reputations to the db.  We write to the db
+        reputation increments, so that we do not need to acquire
+        locks: the writes from different processes will merge without
+        problems.  TODO(Luca): Check that the use of a transaction is
+        needed. *)
     method private write_all_reps : unit = 
       let f uid = function 
 	  (old_r, Some r) ->  if abs_float (r -. old_r) > 0.001 then begin 
@@ -351,10 +354,10 @@ class page
     method private weight (r: float) : float = log (1.2 +. r)
 
 
-    (** [insert_revision_in_lists] inserts the revision in the 
-	list of high rep or high trust revisions if needed, and erases also 
-	old signatures from revisions whose author signatures will no longer be 
-	considered. *)
+    (** [insert_revision_in_lists] inserts the revision in the list of
+	high rep or high trust revisions if needed, and erases also
+	old signatures from revisions whose author signatures will no
+	longer be considered. *)
     method private insert_revision_in_lists : unit = 
       (* Gets info on the current revision. *)
       let cur_rev = match work_revision_opt with
@@ -382,8 +385,10 @@ class page
 	else (ref [], recent_ids)
       in 
       
-      (* Trust first.  For trust, we keep the highest trust revisions so far. *)
-      (* Finds the minimum of the trust for the revisions in the list, and their index *)
+      (* Trust first.  For trust, we keep the highest trust revisions
+	 so far. *)
+      (* Finds the minimum of the trust for the revisions in the list,
+	 and their index *)
       page_info.past_hi_trust_revs <- 
 	if page_info.past_hi_trust_revs = []
 	then [(cur_id, cur_trust)]
@@ -408,7 +413,8 @@ class page
 	    (* We insert the current revision *)
 	    let shorter_list = 
 	      if (Vec.length hi_trust_revs) = trust_coeff.len_hi_trust_revs then begin 
-		(* We throw out the minimum revision if needed to keep list bounded *)
+		(* We throw out the minimum revision if needed to keep
+		   list bounded *)
 		thrown_out := min_rev_id :: !thrown_out; 
 		Vec.remove !min_trust_idx hi_trust_revs
 	      end else hi_trust_revs
@@ -430,7 +436,8 @@ class page
 	  let shorter_list = 
 	    match Vec.find (function (_, u, _) -> u = cur_uid) 0 hi_rep_revs with 
 	      Some (i, (rid, uid, rep)) -> begin
-		(* Yes, the same user id already was in the list.  Replace it. *)
+		(* Yes, the same user id already was in the list.
+		   Replace it. *)
 		let ((out, _, _), shorter) = Vec.pop i hi_rep_revs in 
 		thrown_out := out :: !thrown_out; 
 		shorter
@@ -451,8 +458,8 @@ class page
 	  page_info.past_hi_rep_revs
 	end;
 
-      (* We remove the signatures of the thrown out revisions, unless they appear 
-	 in some list *)
+      (* We remove the signatures of the thrown out revisions, unless
+	 they appear in some list *)
       let is_in_some_list id = 
 	(List.exists (function (i, _) -> i = id) page_info.past_hi_trust_revs)
 	|| 
@@ -474,13 +481,15 @@ class page
       let n_revs = Vec.length revs in 
       (* If there is only one revision, there is nothing to do. *)
       if n_revs > 1 then begin 
-        (* Now reads or computes all the triangle distances.
-	   It computes the distance between rev1 and all the previous revisions. 
-	   We take rev1 to be the one-before-last revision, and we gradually progress
-	   rev1 towards the most recent revision, that of index 0. 
-	   This because, to compute the distance between rev1 and a previous revision rev2, 
-	   we will often use information about intermediate revisions revm, so the 
-	   chosen order of computation ensures that the distance between rev2 and revm is known. *)
+        (* Now reads or computes all the triangle distances.  It
+	   computes the distance between rev1 and all the previous
+	   revisions.  We take rev1 to be the one-before-last
+	   revision, and we gradually progress rev1 towards the most
+	   recent revision, that of index 0.  This because, to compute
+	   the distance between rev1 and a previous revision rev2, we
+	   will often use information about intermediate revisions
+	   revm, so the chosen order of computation ensures that the
+	   distance between rev2 and revm is known. *)
         let last_idx = n_revs - 1 in 
         for rev1_idx = last_idx - 1 downto 0 do begin 
           let rev1 = Vec.get rev1_idx revs in 
@@ -488,10 +497,11 @@ class page
           let rev1_l = Array.length rev1_t in 
           let rev1_id = rev1#get_id in 
           let rev1_i = Chdiff.make_index_diff rev1_t in 
-          (* We now must read or compute the distance between rev1_idx and all previous
-             revisions.  I iterate with rev_2_idx that goes from most recent, to oldest, 
-             as it is easier and better to compute distances over shorer time and revision
-             spans than longer ones. *)
+          (* We now must read or compute the distance between rev1_idx
+             and all previous revisions.  I iterate with rev_2_idx
+             that goes from most recent, to oldest, as it is easier
+             and better to compute distances over shorer time and
+             revision spans than longer ones. *)
           for rev2_idx = rev1_idx + 1 to last_idx do begin 
             let rev2 = Vec.get rev2_idx revs in 
             let rev2_t = rev2#get_words in 
@@ -508,19 +518,21 @@ class page
                 let d      = Editlist.edit_distance edits (max rev1_l rev2_l) in 
                 (edits, d)
               end else begin 
-                (* We will choose the intermediary which gives the best coverage *)
+                (* We will choose the intermediary which gives the
+                   best coverage *)
                 let best_middle_idx = ref (-1) in 
-                (* for best_coverage, the smaller, the better: measures uncovered amount *)
+                (* for best_coverage, the smaller, the better:
+                   measures uncovered amount *)
                 let best_coverage   = ref (rev1_l + rev2_l + 1) in 
                 for revm_idx = rev1_idx + 1 to rev2_idx - 1 do begin 
 		  let revm = Vec.get revm_idx revs in 
 		  let revm_id = revm#get_id in
-		  (* We have that: 
-		     edit_list (revm_id, rev1_id) is defined, as it was computed in a previous 
-                     iteration of for rev2_idx 
-		     edit_list (rev2_id, revm_id) is defined, as it was computed in a previous 
-                     iteration of for rev1_idx 
-		     So any Not_found here indicate an algorithm error. *)
+		  (* We have that: edit_list (revm_id, rev1_id) is
+		     defined, as it was computed in a previous
+		     iteration of for rev2_idx edit_list (rev2_id,
+		     revm_id) is defined, as it was computed in a
+		     previous iteration of for rev1_idx So any
+		     Not_found here indicate an algorithm error. *)
 		  let (_, _, rev1_e) = Hashtbl.find edit_list (revm_id, rev1_id) in 
 		  let (_, _, rev2_e) = Hashtbl.find edit_list (rev2_id, revm_id) in 
 		  (* Computes a zipped edit list from rev1 to rev2 *)
@@ -534,7 +546,8 @@ class page
 		  let perc1 = (float_of_int (unc1 + 1)) /. (float_of_int (rev1_l + 1)) in 
 		  let perc2 = (float_of_int (unc2 + 1)) /. (float_of_int (rev2_l + 1)) in 
 		  let perc  = min perc1 perc2 in 
-		  (* If it qualifies, and if it is better than the best, use it *)
+		  (* If it qualifies, and if it is better than the
+		     best, use it *)
 		  if perc <= max_perc_to_zip && unc <= max_uncovered_to_zip && unc < !best_coverage then begin 
 		    best_coverage := unc; 
 		    best_middle_idx := revm_idx
@@ -551,8 +564,9 @@ class page
 		  let d = Editlist.edit_distance edits (max rev1_l rev2_l) in 
 		  (edits, d)
                 end else begin 
-		  (* Nothing suitable found, uses the brute-force approach of computing 
-		     the edit distance from direct text comparison. ¯*)
+		  (* Nothing suitable found, uses the brute-force
+		     approach of computing the edit distance from
+		     direct text comparison. ¯*)
 		  let edits   = Chdiff.edit_diff rev2_t rev1_t rev1_i in 
 		  let d = Editlist.edit_distance edits (max rev1_l rev2_l) in 
 		  (edits, d)
@@ -607,15 +621,15 @@ class page
       (chunks_a, trust_a, sigs_a, origin_a, author_a, age_a, time_a)
 
 
-    (** This method computes the list of dead chunks, updating appropriately their age and 
-        count, and selects the ones that are not too old. 
-        [compute_dead_chunk_list new_chunks_a new_trust_a new_sigs_a 
-	new_origin_a new_author_a original_chunk_l 
-        medit_l previous_time current_time] computes
-        [(live_chunk, live_trust, live_origin, chunk_l)]. 
-        [previous_time] is the time of the revision preceding the one whose list of 
-                        dead chunks is being computed; 
-        [current_time] is the current time. *)
+    (** This method computes the list of dead chunks, updating
+        appropriately their age and count, and selects the ones that
+        are not too old.  [compute_dead_chunk_list new_chunks_a
+        new_trust_a new_sigs_a new_origin_a new_author_a
+        original_chunk_l medit_l previous_time current_time] computes
+        [(live_chunk, live_trust, live_origin, chunk_l)].
+        [previous_time] is the time of the revision preceding the one
+        whose list of dead chunks is being computed; [current_time] is
+        the current time. *)
     method private compute_dead_chunk_list 
       (new_chunks_a: word array array)
       (new_trust_a: float array array) 
@@ -626,8 +640,9 @@ class page
       (medit_l: Editlist.medit list) 
       (previous_time: float)
       (current_time: float)
-        : chunk_t list = 
-      (* First of all, makes a Vec of chunk_t, and copies there the information. *)
+      : chunk_t list = 
+      (* First of all, makes a Vec of chunk_t, and copies there the
+	 information. *)
       let chunk_v = ref Vec.empty in 
       for i = 1 to Array.length (new_chunks_a) - 1 do begin 
 	(* If the chunk is too long, we truncate it. *)
@@ -661,8 +676,9 @@ class page
         | Editlist.Mmov (_, src_idx, _, dst_idx, _) -> begin 
             (* if the destination is a dead chunk *)
             if dst_idx > 0 then begin 
-              (* The (dst_idx - 1) is because in the destination, the live chunk is not 
-                 present.  Similarly for the source. *)
+              (* The (dst_idx - 1) is because in the destination, the
+                 live chunk is not present.  Similarly for the
+                 source. *)
               let c = Vec.get (dst_idx - 1) !chunk_v in 
               (* Was the source a live chunk? *)
               if src_idx = 0 then begin 
@@ -708,26 +724,28 @@ class page
       let rep_user = self#get_rep rev0_uid in 
       let weight_user = self#weight (rep_user) in 
 
-      (* Now we proceed by cases, depending on whether this is the first revision of the 
-         page, or whether there have been revisions before. *)
+      (* Now we proceed by cases, depending on whether this is the
+         first revision of the page, or whether there have been
+         revisions before. *)
       if n_revs = 1 then begin 
 
-        (* It's the first revision.  Then all trust is simply inherited from the 
-           author's reputation.  The revision trust will consist of only one chunk, 
-           with the trust as computed. *)
+        (* It's the first revision.  Then all trust is simply
+           inherited from the author's reputation.  The revision trust
+           will consist of only one chunk, with the trust as
+           computed. *)
         let new_text_trust = weight_user *. trust_coeff.lends_rep in 
         let chunk_0_trust = Array.make rev0_l new_text_trust in 
         let chunk_0_origin = Array.make rev0_l rev0_id in 
         let chunk_0_author = Array.make rev0_l rev0_uname in 
-	(* Produces the correct author signature; the function f is mapped on the 
-	   array of words rev0_t *)
+	(* Produces the correct author signature; the function f is
+	   mapped on the array of words rev0_t *)
 	let chunk_0_sigs = 
 	  let f (w: string) : Author_sig.packed_author_signature_t = 
-	      Author_sig.add_author rev0_uid w Author_sig.empty_sigs
+	    Author_sig.add_author rev0_uid w Author_sig.empty_sigs
 	  in Array.map f rev0_t
 	in 
-        (* Produces the live chunk, consisting of the text of the revision, annotated
-           with trust and origin information *)
+        (* Produces the live chunk, consisting of the text of the
+           revision, annotated with trust and origin information *)
         let buf = Revision.produce_annotated_markup 
 	  rev0_seps chunk_0_trust chunk_0_origin chunk_0_author false true true in 
         (* And writes it out to the db *)
@@ -748,6 +766,23 @@ class page
         let rev1 = Vec.get 1 revs in 
         let rev1_id = rev1#get_id in 
 	let rev1_time = rev1#get_time in 
+	
+        (* Prepares the coefficients to compute the trust increase. *)
+	(* Fixes the coefficients of trust incease depending on whether
+	   the user is a bot... *)
+	let (read_all', read_part') = 
+	  if Hashtbl.mem robots rev0_uname
+	  then (0., 0.)
+	  else (trust_coeff.read_all, trust_coeff.read_part)
+	in
+	(* ...and depending on the time interval wrt. the previous edit *)
+	let (read_all'', read_part'') = begin
+	  let delta_time = max 0. (rev0_time -. rev1_time) in
+	  let time_factor = 
+	    1. -. exp (0. -. delta_time /. trust_coeff.edit_time_constant) 
+	  in (read_all' *. time_factor, read_part' *. time_factor)
+	end in
+
         (* Makes the arrays of deleted chunks of words, trust, and origin, 
            leaving position 0 free, for the live page. *)
         let (chunks_a, trust_a, sig_a, origin_a, author_a, age_a, timestamp_a) = 
@@ -781,26 +816,28 @@ class page
 	sig_a.(0)    <- rev1#get_sigs;
         origin_a.(0) <- rev1#get_origin;
 	author_a.(0) <- rev1#get_author;
-        (* Calls the function that analyzes the difference 
-           between revisions rev1_id --> rev0_id. Data relative to the previous revision
-           is stored in the instance fields chunks_a *)
+        (* Calls the function that analyzes the difference between
+           revisions rev1_id --> rev0_id. Data relative to the
+           previous revision is stored in the instance fields chunks_a
+         *)
         let (new_chunks_10_a, medit_10_l) = Chdiff.text_tracking chunks_a rev0_t in 
 	(* Computes origin *)
 	let (new_origin_10_a, new_author_10_a) = 
 	  Compute_robust_trust.compute_origin 
 	    origin_a author_a new_chunks_10_a medit_10_l rev0_id rev0_uname in 
-	(* Computes trust *)
-        (* If the author is the same, we do not increase the reputation 
-	   of exisiting text, to thwart a trivial attack. *)
+	(* Computes the trust *)
         let (c_read_all, c_read_part) = 
           if rev0#get_user_id = rev1#get_user_id 
           then (0., 0.) 
-          else (trust_coeff.read_all, trust_coeff.read_part)
+          else (read_all'', read_part'')
         in 
-        let (new_trust_10_a, new_sigs_10_a) = Compute_robust_trust.compute_robust_trust 
-          trust_a sig_a new_chunks_10_a rev0_seps medit_10_l
-          weight_user rev0_uid trust_coeff.lends_rep trust_coeff.kill_decrease 
-          trust_coeff.cut_rep_radius c_read_all c_read_part trust_coeff.local_decay
+        let (new_trust_10_a, new_sigs_10_a) = 
+	  Compute_robust_trust.compute_robust_trust 
+            trust_a sig_a new_chunks_10_a rev0_seps medit_10_l
+            weight_user rev0_uid trust_coeff.lends_rep 
+	    trust_coeff.kill_decrease 
+            trust_coeff.cut_rep_radius c_read_all c_read_part 
+	    trust_coeff.local_decay
         in 
 	(* Now we have an estimate of trust, sigs, origin, author from
 	   the latest revision, and the chunk lists already computed.
@@ -838,7 +875,8 @@ class page
 	  sig_dual_a.(1)   <- rev1#get_sigs;
 	  origin_dual_a.(1) <- rev1#get_origin;
 	  author_dual_a.(1) <- rev1#get_author;
-	  (* ... while rev2, the most similar one, is considered to be the live one *)
+	  (* ... while rev2, the most similar one, is considered to be
+	     the live one *)
 	  chunks_dual_a.(0) <- rev2#get_words;
 	  trust_dual_a.(0)  <- rev2#get_trust;
 	  sig_dual_a.(0)   <- rev2#get_sigs;
@@ -855,17 +893,18 @@ class page
 	  new_author_10_a.(0) <- new_author_20_a.(0);
 
           (* Computes the trust *)
-          (* If the author is the same, we do not increase the reputation of exisiting text, 
-             to thwart a trivial attack. *)
           let (c_read_all, c_read_part) = 
             if rev0#get_user_id = rev2#get_user_id 
             then (0., 0.) 
-            else (trust_coeff.read_all, trust_coeff.read_part)
+            else (read_all'', read_part'')
           in 
-          let (new_trust_20_a, new_sigs_20_a) = Compute_robust_trust.compute_robust_trust
-            trust_dual_a sig_dual_a new_chunks_20_a rev0_seps medit_20_l
-            weight_user rev0_uid trust_coeff.lends_rep trust_coeff.kill_decrease 
-            trust_coeff.cut_rep_radius c_read_all c_read_part trust_coeff.local_decay
+          let (new_trust_20_a, new_sigs_20_a) = 
+	    Compute_robust_trust.compute_robust_trust
+              trust_dual_a sig_dual_a new_chunks_20_a rev0_seps medit_20_l
+              weight_user rev0_uid trust_coeff.lends_rep 
+	      trust_coeff.kill_decrease 
+              trust_coeff.cut_rep_radius c_read_all c_read_part 
+	      trust_coeff.local_decay
           in
           (* The trust of each word is the max of the trust under both edits;
 	     the signature is the signature of the max. *)
@@ -921,8 +960,8 @@ class page
 	  let voter_rep = self#get_rep voter_uid in 
 	  let voter_weight = self#weight (voter_rep) in 
 	  (* Prepares the arguments for a call to compute_robust_trust *)
-	  (* Prepares the arrays trust_a, sig_a as if they were for the previous
-	     revision. *)
+	  (* Prepares the arrays trust_a, sig_a as if they were for
+	     the previous revision. *)
 	  let trust_a =  [| rev0#get_trust |] in 
 	  let sig_a   =  [| rev0#get_sigs  |] in 
 	  (* New chunks array *)
@@ -930,6 +969,8 @@ class page
 	  (* Builds the edit list *)
 	  let medit_l = [ Editlist.Mmov (0, 0, 0, 0, rev0_l) ] in 
 	  (* Computes the new trust and signatures *)
+
+
 	  let (new_trust_a, new_sigs_a) = Compute_robust_trust.compute_robust_trust 
             trust_a 
 	    sig_a
@@ -984,16 +1025,18 @@ class page
 	 r_c2 (the closest in distance to rev2 but prior to rev1).
        *)
 
-      (* In the array of recent revisions, which one is the oldest to be judged? 
+      (* In the array of recent revisions, which one is the oldest to be 
+	 judged? 
 	 There are two cases: 
 	 - If n_recent_revs < trust_coeff.n_revs_to_consider, this means that 
 	   among the recent revisions is also the initial revision of the page.
 	   In this case, we have to analize it, so the index of the oldest one
 	   we analize is n_recent_revs - 1.
-	   To analize this old revision, we compare with a virtual, empty initial
-	   revision. 
-	 - Otherwise, the oldest to be judged is n_recent_revs - 2, and we compare
-	   it to the one of index n_recent_revs - 1 and perhaps others as well.
+	   To analize this old revision, we compare with a virtual, empty 
+	   initial revision. 
+	 - Otherwise, the oldest to be judged is n_recent_revs - 2, and we 
+	   compare it to the one of index n_recent_revs - 1 and perhaps 
+	   others as well.
        *)
       let (include_initial_empty_rev, oldest_judged_idx) = 
 	(* The test n_revs = n_recent_revs is there just for safety *)
@@ -1005,243 +1048,252 @@ class page
 
         let rev2 = Vec.get 0 revs in 
         let rev2_id    = rev2#get_id in 
+
         let rev2_uid   = rev2#get_user_id in 
         let rev2_uname = rev2#get_user_name in
         let rev2_time  = rev2#get_time in 
 	let rev2_rep   = self#get_rep rev2_uid in 
 	let rev2_weight = self#weight rev2_rep in 
 
-	(* Reads the histogram of reputations, and the high median, and uses them
-	   to renormalize the weight of the judging user.
-	   NOTE: this implementation is thread-safe but not thread correct. 
-	   Precisely, the histogram is updated correctly, but the median that is 
-	   written out may not correspond to the correct median. 
-	   This is done in order to avoid locking: as the median is used even for 
-	   serving pages, we certainly do not want to write-lock the histogram 
-	   information while updating it.  Any small inconsistency in the median 
-	   value is temporary, and is largely irrelevant. *)
-        (* In order to renormalize, we need to find out a lower bound for the work 
-	   done by rev2; this is equal to the distance between rev2 and its closest
-	   predecessor. *)
-	let revp = Vec.get 1 revs in 
-	let revp_id = revp#get_id in 
-	let min_dist_to_2 = ref (Hashtbl.find edit_dist (revp_id, rev2_id)) in 
-	for i = 2 to n_revs - 1 do begin 
-	  let r = Vec.get i revs in 
-	  let r_id = r#get_id in 
-	  let dist_to_2 = Hashtbl.find edit_dist (r_id, rev2_id) in 
-	  if dist_to_2 < !min_dist_to_2 then min_dist_to_2 := dist_to_2
-	end done;
-	(* The minimum distance from rev2 is now !min_dist_to_2 *)
+	(* If the judge revision is a robot, we do not do anything. *)
+	if not (Hashtbl.mem robots rev2_uname) then begin
 
-	(* Renormalizes the reputation *)
-	let (histogram, hi_median) = db#get_histogram in 
-	let hi_median_boost = self#compute_hi_median histogram trust_coeff.hi_median_perc_boost in
-	let renorm_w' = rev2_weight *. ((float_of_int max_rep_val) /. hi_median_boost) ** 1.0 in 
-	let renorm_w = max rev2_weight (min renorm_w' (float_of_int max_rep_val)) in 
+	  (* Reads the histogram of reputations, and the high median,
+	     and uses them to renormalize the weight of the judging
+	     user.  NOTE: this implementation is thread-safe but not
+	     thread correct.  Precisely, the histogram is updated
+	     correctly, but the median that is written out may not
+	     correspond to the correct median.  This is done in order to
+	     avoid locking: as the median is used even for serving
+	     pages, we certainly do not want to write-lock the histogram
+	     information while updating it.  Any small inconsistency in
+	     the median value is temporary, and is largely
+	     irrelevant. *)
+	  (* In order to renormalize, we need to find out a lower bound
+	     for the work done by rev2; this is equal to the distance
+	     between rev2 and its closest predecessor. *)
+	  let revp = Vec.get 1 revs in 
+	  let revp_id = revp#get_id in 
+	  let min_dist_to_2 = ref (Hashtbl.find edit_dist (revp_id, rev2_id)) in 
+	  for i = 2 to n_revs - 1 do begin 
+	    let r = Vec.get i revs in 
+	    let r_id = r#get_id in 
+	    let dist_to_2 = Hashtbl.find edit_dist (r_id, rev2_id) in 
+	    if dist_to_2 < !min_dist_to_2 then min_dist_to_2 := dist_to_2
+	  end done;
+	  (* The minimum distance from rev2 is now !min_dist_to_2 *)
 
-	(* If the author is not anonymous, updates the histogram *)
-	if not_anonymous rev2_uid then begin 
-	  (* Increments the histogram according to the work of the judge *)
-	  let slot = max 0 (min 9 (int_of_float rev2_weight)) in 
-	  histogram.(slot) <- histogram.(slot) +. !min_dist_to_2; 
-	  !Online_log.online_logger#log (Printf.sprintf "\n Incrementing histogram slot %d by %f" 
-	    slot !min_dist_to_2);
-	  let new_hi_median' = self#compute_hi_median histogram trust_coeff.hi_median_perc in 
-	  new_hi_median <- max hi_median new_hi_median';
-	  (* Produces the array of differences *)
-	  delta_hist.(slot) <- !min_dist_to_2;
-	  histogram_updated <- true;
-	end;
+	  (* Renormalizes the reputation *)
+	  let (histogram, hi_median) = db#get_histogram in 
+	  let hi_median_boost = self#compute_hi_median histogram trust_coeff.hi_median_perc_boost in
+	  let renorm_w' = rev2_weight *. ((float_of_int max_rep_val) /. hi_median_boost) ** 1.0 in 
+	  let renorm_w = max rev2_weight (min renorm_w' (float_of_int max_rep_val)) in 
 
-	(* We compute the reputation scaling dynamically taking care
-	   of the size of the recent_revision list and the union of
-	   the recent revision list, high reputation list and high
-	   trust list. *)
-	let dynamic_rep_scaling_factor = trust_coeff.dynamic_rep_scaling n_recent_revs 
-	  trust_coeff.n_revs_to_consider in
+	  (* If the author is not anonymous, updates the histogram *)
+	  if not_anonymous rev2_uid then begin 
+	    (* Increments the histogram according to the work of the judge *)
+	    let slot = max 0 (min 9 (int_of_float rev2_weight)) in 
+	    histogram.(slot) <- histogram.(slot) +. !min_dist_to_2; 
+	    !Online_log.online_logger#log (Printf.sprintf "\n Incrementing histogram slot %d by %f" 
+	      slot !min_dist_to_2);
+	    let new_hi_median' = self#compute_hi_median histogram trust_coeff.hi_median_perc in 
+	    new_hi_median <- max hi_median new_hi_median';
+	    (* Produces the array of differences *)
+	    delta_hist.(slot) <- !min_dist_to_2;
+	    histogram_updated <- true;
+	  end;
 
-	for rev1_idx = 1 to oldest_judged_idx do begin 
-	  (* Remembers if rev1 is the first one of the page *)
-	  let rev1_is_first_page_revision = (rev1_idx = oldest_judged_idx) && include_initial_empty_rev in 
-          let rev1 = Vec.get rev1_idx revs in 
-          let rev1_uid   = rev1#get_user_id in 
-	  (* We work only on non-anonymous rev1; otherwise, there is nothing to be updated. 
-	     Moreover, rev1 and rev2 need to be by different authors. *)
-	  if (not_anonymous rev1_uid) && (rev1_uid <> rev2_uid) then begin 
-            let rev1_id    = rev1#get_id in 
-            let rev1_uname = rev1#get_user_name in 
-            let rev1_time  = rev1#get_time in 
-	    let rev1_nix   = ref (rev1#get_nix) in 
-	    let rev1_rep   = self#get_rep rev1_uid in 
-	    let d12        = Hashtbl.find edit_dist (rev2_id, rev1_id) in 
+	  (* We compute the reputation scaling dynamically taking care
+	     of the size of the recent_revision list and the union of
+	     the recent revision list, high reputation list and high
+	     trust list. *)
+	  let dynamic_rep_scaling_factor = trust_coeff.dynamic_rep_scaling n_recent_revs 
+	    trust_coeff.n_revs_to_consider in
 
-	    (* The revision r_c2 is the revision prior to rev1, and closest to rev2.
-	       We compute some quantities for it. *)
-	    let (r_c2_id, r_c2_uid, r_c2_username, r_c2_rep, d_c2_1, d_c2_2, delta) = 
-	      if rev1_is_first_page_revision then begin 
-		(* If we are analyzing the first revision, r_c2 is the empty revision that 
-		   implicitly precedes rev1. *)
-		let len1 = Array.length (rev1#get_words) in 
-		(0,  (* The id is 0, so we track it in the log output *)
-		0,   (* The uid is 0 (what else?) *)
-		"Virtual_empty_initial_revision",  (* username *)
-		(* The empty revision is empty with very high
-		   reputation!  This means that, for the reputation
-		   cap formulas, the only reputations that matter are
-		   those for the revisions that follow it. *)
-		trust_coeff.max_rep,
-		(* The distance between the empty revision, and rev1,
-		   is the length of rev1... *)
-		float_of_int len1, 
-		(* and similarly for the distance to rev2. *)
-		float_of_int (Array.length (rev2#get_words)),
-		(* delta is obviously len1 *)
-		float_of_int len1
-		)
-	      end else begin 
-		(* If we are not analyzing the first revision, searches for r_c2 *)
-		let revp = Vec.get (rev1_idx + 1) revs in 
-		let revp_id = revp#get_id in 
-		let min_dist_to_1 = ref (Hashtbl.find edit_dist (revp_id, rev1_id)) in 
-		let min_dist_to_2 = ref (Hashtbl.find edit_dist (revp_id, rev2_id)) in 
-		let r_c1  = ref revp in 
-		let r_c2  = ref revp in 
-		for i = rev1_idx + 2 to n_revs - 1 do begin 
-		  let r = Vec.get i revs in 
-		  let r_id = r#get_id in 
-		  let dist_to_1 = Hashtbl.find edit_dist (r_id, rev1_id) in 
-		  let dist_to_2 = Hashtbl.find edit_dist (r_id, rev2_id) in 
-		  if dist_to_1 < !min_dist_to_1 then begin 
-		    min_dist_to_1 := dist_to_1;
-		    r_c1  := r
-		  end;
-		  if dist_to_2 < !min_dist_to_2 then begin 
-		    min_dist_to_2 := dist_to_2;
-		    r_c2  := r
-		  end
-		end done;
-		let r_c2_id = (!r_c2)#get_id in
-		let r_c2_uid = (!r_c2)#get_user_id in 
-		(* outputs the results *)
-		(r_c2_id,
-		r_c2_uid,
-		(!r_c2)#get_user_name,
-		self#get_rep r_c2_uid, 
-		Hashtbl.find edit_dist (r_c2_id, rev1_id), 
-		!min_dist_to_2,
-		!min_dist_to_1
-		)
-	      end 
-	    in 
-	    (* Computes the quality due to r_c2, rev1, rev2 *)
-	    let q = qual d_c2_1 d12 d_c2_2 in 
+	  for rev1_idx = 1 to oldest_judged_idx do begin 
+	    (* Remembers if rev1 is the first one of the page *)
+	    let rev1_is_first_page_revision = (rev1_idx = oldest_judged_idx) && include_initial_empty_rev in 
+	    let rev1 = Vec.get rev1_idx revs in 
+	    let rev1_uid   = rev1#get_user_id in 
+	    (* We work only on non-anonymous rev1; otherwise, there is
+	       nothing to be updated.  Moreover, rev1 and rev2 need to
+	       be by different authors. *)
+	    if (not_anonymous rev1_uid) && (rev1_uid <> rev2_uid) then begin 
+	      let rev1_id    = rev1#get_id in 
+	      let rev1_uname = rev1#get_user_name in 
+	      let rev1_time  = rev1#get_time in 
+	      let rev1_nix   = ref (rev1#get_nix) in 
+	      let rev1_rep   = self#get_rep rev1_uid in 
+	      let d12        = Hashtbl.find edit_dist (rev2_id, rev1_id) in 
 
-	    (* computes the nixing bit *)
-	    let oldest_of_recent_revs = Vec.get (n_recent_revs - 1) revs in 
-	    let oldest_of_recent_revs_time = oldest_of_recent_revs#get_time in 
-	    if (not !rev1_nix) && (rev2_time -. rev1_time < trust_coeff.nix_interval) then begin 
-	      (* You can be nixed in two ways. *)
-	      if 
-		(* First reason: if the quality is below the threshold *)
-		(q <= trust_coeff.nix_threshold) ||
-		  (* Second reason: too many revisions in too short a time *)
-		  ((not include_initial_empty_rev) && 
-		  (rev1_time -. oldest_of_recent_revs_time < trust_coeff.nix_interval))
-	      then begin 
-		(* Nix it *)
-		rev1_nix := true;
-		rev1#set_nix_bit;
-		let s = 
-		  if (q <= trust_coeff.nix_threshold)
-		  then Printf.sprintf "\n\nRevision %d has been nixed due to quality" rev1_id
-		  else Printf.sprintf "\n\nRevision %d has been nixed due to too frequent edits" rev1_id
-		in !Online_log.online_logger#log s
-	      end
-	    end;
+	      (* The revision r_c2 is the revision prior to rev1, and
+		 closest to rev2.  We compute some quantities for it. *)
+	      let (r_c2_id, r_c2_uid, r_c2_username, r_c2_rep, d_c2_1, d_c2_2, delta) = 
+		if rev1_is_first_page_revision then begin 
+		  (* If we are analyzing the first revision, r_c2 is the
+		     empty revision that implicitly precedes rev1. *)
+		  let len1 = Array.length (rev1#get_words) in 
+		  (0,  (* The id is 0, so we track it in the log output *)
+		  0,   (* The uid is 0 (what else?) *)
+		  "Virtual_empty_initial_revision",  (* username *)
+		  (* The empty revision is empty with very high
+		     reputation!  This means that, for the reputation
+		     cap formulas, the only reputations that matter are
+		     those for the revisions that follow it. *)
+		  trust_coeff.max_rep,
+		  (* The distance between the empty revision, and rev1,
+		     is the length of rev1... *)
+		  float_of_int len1, 
+		  (* and similarly for the distance to rev2. *)
+		  float_of_int (Array.length (rev2#get_words)),
+		  (* delta is obviously len1 *)
+		  float_of_int len1
+		  )
+		end else begin 
+		  (* If we are not analyzing the first revision,
+		     searches for r_c2 *)
+		  let revp = Vec.get (rev1_idx + 1) revs in 
+		  let revp_id = revp#get_id in 
+		  let min_dist_to_1 = ref (Hashtbl.find edit_dist (revp_id, rev1_id)) in 
+		  let min_dist_to_2 = ref (Hashtbl.find edit_dist (revp_id, rev2_id)) in 
+		  let r_c1  = ref revp in 
+		  let r_c2  = ref revp in 
+		  for i = rev1_idx + 2 to n_revs - 1 do begin 
+		    let r = Vec.get i revs in 
+		    let r_id = r#get_id in 
+		    let dist_to_1 = Hashtbl.find edit_dist (r_id, rev1_id) in 
+		    let dist_to_2 = Hashtbl.find edit_dist (r_id, rev2_id) in 
+		    if dist_to_1 < !min_dist_to_1 then begin 
+		      min_dist_to_1 := dist_to_1;
+		      r_c1  := r
+		    end;
+		    if dist_to_2 < !min_dist_to_2 then begin 
+		      min_dist_to_2 := dist_to_2;
+		      r_c2  := r
+		    end
+		  end done;
+		  let r_c2_id = (!r_c2)#get_id in
+		  let r_c2_uid = (!r_c2)#get_user_id in 
+		  (* outputs the results *)
+		  (r_c2_id,
+		  r_c2_uid,
+		  (!r_c2)#get_user_name,
+		  self#get_rep r_c2_uid, 
+		  Hashtbl.find edit_dist (r_c2_id, rev1_id), 
+		  !min_dist_to_2,
+		  !min_dist_to_1
+		  )
+		end 
+	      in 
+	      (* Computes the quality due to r_c2, rev1, rev2 *)
+	      let q = qual d_c2_1 d12 d_c2_2 in 
 
-            (* We compute the reputation increment by the local
-               feedback for rev1, where rev1_prev is the immediate
-               previous revision of rev1. In this case, we always apply
-               the repuation cap, where the cap is the minimum of the
-               repuation of the judging revision rev2 and the rev1_prev
-               (this is because the previous version rev1_prev can be
-               under control of the author of rev1).  The reputation
-               after local feedback is obtained as rev1_local, and we
-               take the maximum of the local feedback and the
-               reputation computation by improve-the-past
-               algorithm. Since both are robust, the robust of the
-               algorithm is ensured *)
-            (* Computes reputation after local feedback*) 
-	    let rev1_local = 
-	      if rev1_is_first_page_revision then begin
-		(* This is basically a no-op *)
-		rev1_rep 
-	      end else begin  
-		let rev1_prev        = Vec.get (rev1_idx + 1) revs in 
-		let rev1_prev_id     = rev1_prev#get_id in 
-		let rev1_prev_uid    = rev1_prev#get_user_id in 
-		let rev1_prev_rep    = self#get_rep rev1_prev_uid in 
-		let dist_prev1       = Hashtbl.find edit_dist (rev1_prev_id, rev1_id) in 
-		let dist_prev2       = Hashtbl.find edit_dist (rev1_prev_id, rev2_id) in 
-		let q_local          = qual dist_prev1 d12 dist_prev2 in 
-		let delta_local      = dist_prev1 in
-		let rep_inc_local    = dynamic_rep_scaling_factor *. delta_local *. q_local *. renorm_w in
-		let cap_rep_local    = min rev2_rep rev1_prev_rep in
-		let capped_rep_local = min cap_rep_local (rev1_rep +. rep_inc_local) in 
-		max rev1_rep capped_rep_local
-	      end
-	    in
-	    (* Computes the uncapped reputation increment *)
-	    let rep_inc = dynamic_rep_scaling_factor *. delta *. q *. renorm_w in
-	       
-	    (* Applies the reputation increment according to reputation cap *)
-	    let new_rep = 
-	      if rep_inc < 0. then begin
-		(* Negative increment.  Reputation cannot become negative *)
-		max 0. (rev1_rep +. rep_inc)
-	      end else begin
-		(* Positive increment. *)
-		if (!rev1_nix || rev2_time -. rev1_time < trust_coeff.nix_interval) 
-		  && rep_inc > 0. then begin 
-		    (* Short term or nixed: caps the reputation increment. 
-		       The reputation of rev2 is always used as a cap. 
-		       The reputation of r_c2 is used as a cap only if it is 
-		       more recent than the nixing interval. *)
-		    let r_c2_cap_rep = 
-		      if rev2_time -. oldest_of_recent_revs_time < trust_coeff.nix_interval
-		      then r_c2_rep
-		      else rev2_rep
-		    in
-		    let cap_rep = min rev2_rep r_c2_cap_rep in
-		    let capped_rep = min cap_rep (rev1_rep +. rep_inc) in 
-		    max (max rev1_rep rev1_local) capped_rep    
-		  end else begin 
-		    (* uncapped reputation increment *)
-		    max rev1_local (rev1_rep +. rep_inc)      
-		  end
-	      end
-	    in 
-	    self#set_rep rev1_uid new_rep;
+	      (* computes the nixing bit *)
+	      let oldest_of_recent_revs = Vec.get (n_recent_revs - 1) revs in 
+	      let oldest_of_recent_revs_time = oldest_of_recent_revs#get_time in 
+	      if (not !rev1_nix) && (rev2_time -. rev1_time < trust_coeff.nix_interval) then begin 
+		(* You can be nixed in two ways. *)
+		if 
+		  (* First reason: if the quality is below the threshold *)
+		  (q <= trust_coeff.nix_threshold) ||
+		    (* Second reason: too many revisions in too short a time *)
+		    ((not include_initial_empty_rev) && 
+		    (rev1_time -. oldest_of_recent_revs_time < trust_coeff.nix_interval))
+		then begin 
+		  (* Nix it *)
+		  rev1_nix := true;
+		  rev1#set_nix_bit;
+		  let s = 
+		    if (q <= trust_coeff.nix_threshold)
+		    then Printf.sprintf "\n\nRevision %d has been nixed due to quality" rev1_id
+		    else Printf.sprintf "\n\nRevision %d has been nixed due to too frequent edits" rev1_id
+		  in !Online_log.online_logger#log s
+		end
+	      end;
 
-	    (* Adds quality information for the revision *)
-	    rev1#add_edit_quality_info delta q (new_rep -. rev1_rep) ; 
+	      (* We compute the reputation increment by the local
+		 feedback for rev1, where rev1_prev is the immediate
+		 previous revision of rev1. In this case, we always apply
+		 the repuation cap, where the cap is the minimum of the
+		 repuation of the judging revision rev2 and the rev1_prev
+		 (this is because the previous version rev1_prev can be
+		 under control of the author of rev1).  The reputation
+		 after local feedback is obtained as rev1_local, and we
+		 take the maximum of the local feedback and the
+		 reputation computation by improve-the-past
+		 algorithm. Since both are robust, the robust of the
+		 algorithm is ensured *)
+	      (* Computes reputation after local feedback*) 
+	      let rev1_local = 
+		if rev1_is_first_page_revision then begin
+		  (* This is basically a no-op *)
+		  rev1_rep 
+		end else begin  
+		  let rev1_prev        = Vec.get (rev1_idx + 1) revs in 
+		  let rev1_prev_id     = rev1_prev#get_id in 
+		  let rev1_prev_uid    = rev1_prev#get_user_id in 
+		  let rev1_prev_rep    = self#get_rep rev1_prev_uid in 
+		  let dist_prev1       = Hashtbl.find edit_dist (rev1_prev_id, rev1_id) in 
+		  let dist_prev2       = Hashtbl.find edit_dist (rev1_prev_id, rev2_id) in 
+		  let q_local          = qual dist_prev1 d12 dist_prev2 in 
+		  let delta_local      = dist_prev1 in
+		  let rep_inc_local    = dynamic_rep_scaling_factor *. delta_local *. q_local *. renorm_w in
+		  let cap_rep_local    = min rev2_rep rev1_prev_rep in
+		  let capped_rep_local = min cap_rep_local (rev1_rep +. rep_inc_local) in 
+		  max rev1_rep capped_rep_local
+		end
+	      in
+	      (* Computes the uncapped reputation increment *)
+	      let rep_inc = dynamic_rep_scaling_factor *. delta *. q *. renorm_w in
 
-            (* For logging purposes, produces the Edit_inc line *)
-            !Online_log.online_logger#log (Printf.sprintf "\n\nEditInc %10.0f PageId: %d Inc: %.4f Capd_inc: %.4f q: %.4f Delta: %.2f" 
-	      (* time and page id *)
-	      rev2_time page_id rep_inc (new_rep -. rev1_rep) q delta);
-	    (* revision and user ids *)
-	    !Online_log.online_logger#log (Printf.sprintf "\n  rev_c2: %d uid_c2: %d uname_c2: %S rev_c2_rep: %.3f" 
-	      r_c2_id r_c2_uid r_c2_username r_c2_rep); 
-	    !Online_log.online_logger#log (Printf.sprintf "\n  rev1: %d uid1: %d uname1: %S r1_rep: %.3f Nixed: %B" 
-	      rev1_id rev1_uid rev1_uname rev1_rep rev1#get_nix); 
-	    !Online_log.online_logger#log (Printf.sprintf "\n  rev2: %d uid2: %d uname2: %S r2_rep: %.3f w2_renorm: %.3f" 
-	      rev2_id rev2_uid rev2_uname rev2_rep renorm_w); 
-	    !Online_log.online_logger#log (Printf.sprintf "\n  d_c1_1: %.2f d_c2_1: %.2f d_c2_2: %.2f d12: %.2f rev_1_to_2_time: %.3f\n"
-	      delta d_c2_1 d_c2_2 d12 ((rev2_time -. rev1_time) /. (3600. *. 24.))); 
-	  end (* rev1 is by non_anonymous *)
-	end done (* for rev1_idx *)
+	      (* Applies the reputation increment according to reputation cap *)
+	      let new_rep = 
+		if rep_inc < 0. then begin
+		  (* Negative increment.  Reputation cannot become negative *)
+		  max 0. (rev1_rep +. rep_inc)
+		end else begin
+		  (* Positive increment. *)
+		  if (!rev1_nix || rev2_time -. rev1_time < trust_coeff.nix_interval) 
+		    && rep_inc > 0. then begin 
+		      (* Short term or nixed: caps the reputation increment. 
+			 The reputation of rev2 is always used as a cap. 
+			 The reputation of r_c2 is used as a cap only if it is 
+			 more recent than the nixing interval. *)
+		      let r_c2_cap_rep = 
+			if rev2_time -. oldest_of_recent_revs_time < trust_coeff.nix_interval
+			then r_c2_rep
+			else rev2_rep
+		      in
+		      let cap_rep = min rev2_rep r_c2_cap_rep in
+		      let capped_rep = min cap_rep (rev1_rep +. rep_inc) in 
+		      max (max rev1_rep rev1_local) capped_rep    
+		    end else begin 
+		      (* uncapped reputation increment *)
+		      max rev1_local (rev1_rep +. rep_inc)      
+		    end
+		end
+	      in 
+	      self#set_rep rev1_uid new_rep;
+
+	      (* Adds quality information for the revision *)
+	      rev1#add_edit_quality_info delta q (new_rep -. rev1_rep) ; 
+
+	      (* For logging purposes, produces the Edit_inc line *)
+	      !Online_log.online_logger#log (Printf.sprintf "\n\nEditInc %10.0f PageId: %d Inc: %.4f Capd_inc: %.4f q: %.4f Delta: %.2f" 
+		(* time and page id *)
+		rev2_time page_id rep_inc (new_rep -. rev1_rep) q delta);
+	      (* revision and user ids *)
+	      !Online_log.online_logger#log (Printf.sprintf "\n  rev_c2: %d uid_c2: %d uname_c2: %S rev_c2_rep: %.3f" 
+		r_c2_id r_c2_uid r_c2_username r_c2_rep); 
+	      !Online_log.online_logger#log (Printf.sprintf "\n  rev1: %d uid1: %d uname1: %S r1_rep: %.3f Nixed: %B" 
+		rev1_id rev1_uid rev1_uname rev1_rep rev1#get_nix); 
+	      !Online_log.online_logger#log (Printf.sprintf "\n  rev2: %d uid2: %d uname2: %S r2_rep: %.3f w2_renorm: %.3f" 
+		rev2_id rev2_uid rev2_uname rev2_rep renorm_w); 
+	      !Online_log.online_logger#log (Printf.sprintf "\n  d_c1_1: %.2f d_c2_1: %.2f d_c2_2: %.2f d12: %.2f rev_1_to_2_time: %.3f\n"
+		delta d_c2_1 d_c2_2 d12 ((rev2_time -. rev1_time) /. (3600. *. 24.))); 
+	    end (* rev1 is by non_anonymous *)
+	  end done (* for rev1_idx *)
+	end (* If the voter is not a bot *)
       end (* if oldest_judged_idx > 0 , and method compute_edit_inc *)
 
 
@@ -1322,8 +1374,8 @@ class page
 	  end
 	end done; (* End of the multiple attempts at the transaction *)
 
-      (* If the revision needed coloring, we need to write reputations and revision 
-	 quality information to disk *)
+      (* If the revision needed coloring, we need to write reputations
+	 and revision quality information to disk *)
       if !needs_coloring then begin 
 
 	(* We write to disk all reputation changes *)
