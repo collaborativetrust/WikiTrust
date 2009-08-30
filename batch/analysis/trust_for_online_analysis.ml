@@ -55,12 +55,14 @@ open Sexplib
 class page 
   (page_id: int)
   (title: string)
+  (* File to use for xml colored revision output *)
+  (xml_file: out_channel)
   (* File to use for sql command output *)
   (sql_file: out_channel)
-  (* Base path for filesystem revision storage *)
-  (colored_base_path: string)
-  (* Base path for filesystem signature storage *)
-  (sig_base_path: string)
+  (* Base path for filesystem revision storage, if requested. *)
+  (colored_base_path: string option)
+  (* Base path for filesystem signature storage, if requested. *)
+  (sig_base_path: string option)
   (* Prefix for db tables *)
   (db_prefix: string)
   (* History of user reputations *)
@@ -105,8 +107,14 @@ object(self)
     val mutable chunks_sig_a : Author_sig.packed_author_signature_t array array = [| [| |] |]
 
 
-      (* No titles printed! *)
-    method print_id_title = ()
+    (* We print the page information in the xml file *)
+    method print_id_title : unit =
+      match colored_base_path with
+	Some b -> ()
+      | None -> begin
+	  Printf.fprintf xml_file "<page>\n<title>%s</title>\n" title; 
+	  Printf.fprintf xml_file "<id>%d</id>\n" page_id;
+	end
 
 
     (** Writes the SQL code for writing the wikitrust_revision to the db. *)
@@ -151,10 +159,12 @@ object(self)
 	db_prefix rev_id page_id text_id time_string user_id username is_minor comment q1 aq2 q3 q1 aq2 q3
 	
 
-    (** Processes a new revision, computing trust, author, and origin, and outputting:
-	- The colored revision text, compressed, in the filesystem.
+    (** Processes a new revision, computing trust, author, and origin, 
+	and outputting:
+	- The colored revision text, compressed, in the filesystem, if 
+	  requested.
 	- The sql code for the online system metadata.
-	- The revision metadata in an xml file, just in case. *)
+	- The colored revisions in an xml file. *)
     method private eval_newest : unit = 
       let rev_idx = (Vec.length revs) - 1 in 
       let rev = Vec.get rev_idx revs in 
@@ -167,35 +177,49 @@ object(self)
          between revisions. Data relative to the previous revision
          is stored in the instance fields chunks_a and chunks_attr_a *)
       let (new_chunks_a, medit_l) = Chdiff.text_tracking chunks_a new_wl in 
-      (* Constructs new_chunks_attr_a, which contains the reputation range of the 
-         author of each word in the text. *)
-      let rep_float = float_of_int rep in 
 
       (* Computes the trust, and the sigs *)
-      let (new_chunks_trust_a, new_chunks_sig_a) = Compute_robust_trust.compute_robust_trust
-	chunks_trust_a chunks_sig_a new_chunks_a rev#get_seps medit_l rep_float uid 
-	trust_coeff_lends_rep trust_coeff_kill_decrease trust_coeff_cut_rep_radius
-	trust_coeff_read_all trust_coeff_read_part default_trust_coeff.local_decay in
-
+      let rep_float = float_of_int rep in 
+      let (new_chunks_trust_a, new_chunks_sig_a) = 
+	Compute_robust_trust.compute_robust_trust
+	  chunks_trust_a chunks_sig_a new_chunks_a 
+	  rev#get_seps medit_l rep_float uid 
+	  trust_coeff_lends_rep trust_coeff_kill_decrease 
+	  trust_coeff_cut_rep_radius trust_coeff_read_all 
+	  trust_coeff_read_part default_trust_coeff.local_decay 
+      in
       (* Computes the origin of the words in the new revision. *)
-      let (new_chunks_origin_a, new_chunks_author_a) = Compute_robust_trust.compute_origin
-	chunks_origin_a chunks_author_a new_chunks_a medit_l rev#get_id rev#get_user_name in 
-
+      let (new_chunks_origin_a, new_chunks_author_a) = 
+	Compute_robust_trust.compute_origin 
+	  chunks_origin_a chunks_author_a new_chunks_a medit_l 
+	  rev#get_id rev#get_user_name 
+      in 
       (* Replaces the chunks for the next iteration *)
       chunks_trust_a <- new_chunks_trust_a;
       chunks_origin_a <- new_chunks_origin_a; 
       chunks_author_a <- new_chunks_author_a;
       chunks_sig_a <- new_chunks_sig_a;
       chunks_a <- new_chunks_a;
-      (* Also notes in the revision the reputations and the origins, as well as the sigs. *)
+      (* Also notes in the revision the reputations and the origins,
+	 as well as the author_sigs. *)
       rev#set_word_trust new_chunks_trust_a.(0);
       rev#set_word_origin new_chunks_origin_a.(0);
       rev#set_word_author new_chunks_author_a.(0);
       rev#set_word_sig new_chunks_sig_a.(0);
 
-      (* Outputs the colored text *)
-      let colored_text = rev#get_colored_text in
-      Filesystem_store.write_revision colored_base_path rev#get_page_id rev#get_id colored_text;
+      (* Outputs the colored text to the xml file, or to the filesystem,
+	 as requested. *)
+      begin
+	match colored_base_path with 
+	  (* Output to the xml file. *)
+	  None -> rev#output_trust_origin_revision xml_file
+	  (* Output to the filesystem. *)
+	| Some b -> begin
+	    let colored_text = rev#get_colored_text in
+	    Filesystem_store.write_revision 
+	      b rev#get_page_id rev#get_id colored_text
+	  end
+      end;
 
       (* Now we have to write the metadata for sql. *)
       self#write_wikitrust_revision_sql rev;
@@ -216,28 +240,34 @@ object(self)
       (username: string) (* name of the user *)
       (is_minor: bool) 
       (comment: string)
-      (text_init: string Vec.t) (* Text of the revision, still to be split into words *)
+      (text_init: string Vec.t) (* Text of the revision, still to be 
+				   split into words *)
       : unit =
-      (* First, we have to "disarm" the text from the xml tag conversions, so that &gt; is
-	 transformed into >, and so forth. *)
+      (* First, we have to "disarm" the text from the xml tag
+	 conversions, so that &gt; is transformed into >, and so
+	 forth. *)
       let disarmed_text = Vec.map Text.xml_disarm text_init in
-      let r = new Revision.trust_revision rev_id page_id timestamp time contributor user_id ip_addr username is_minor comment disarmed_text false in 
+      let r = new Revision.trust_revision rev_id page_id timestamp time 
+	contributor user_id ip_addr username is_minor comment 
+	disarmed_text false in 
       (* Adds the revision to the Vec of revisions. *)
       revs <- Vec.append r revs; 
       (* Evaluates the newest version *)
       self#eval_newest; 
-      (* If the buffer is full, evaluates the oldest version and kicks it out *)
+      (* If the buffer is full, evaluates the oldest version and kicks
+	 it out *)
       if (Vec.length revs) > n_sigs then begin 
-	(* The parameter 0 is the index of what is considered to be the oldest. 
-           It is used, since in no_more_revisions it may be a larger number *)
+	(* The parameter 0 is the index of what is considered to be
+           the oldest.  It is used, since in no_more_revisions it may
+           be a larger number *)
 	revs <- Vec.remove 0 revs;
 	(* increments the offset of the oldest version *)
 	offset <- offset + 1 
       end (* if *)
 	  
 
-    (** This method produces the sql code that adds the wikitrust_page information
-	to the db. *)
+    (** This method produces the sql code that adds the wikitrust_page
+	information to the db. *)
     method private produce_page_information : unit =
       (* We need to produce a chunk_t list first. *)
       (* I timestamp them all with the time of the current revision.
@@ -245,7 +275,6 @@ object(self)
       let rev_idx = (Vec.length revs) - 1 in 
       let rev = Vec.get rev_idx revs in 
       let rev_time = rev#get_time in 
-      (* Yes, yes, I use iteration, but it's over arrays, and I need the index, so... *)
       let chunk_list = ref [] in 
       for i = 1 to (Array.length chunks_a) - 1 do begin 
 	let c = {
@@ -266,12 +295,15 @@ object(self)
 	past_hi_rep_revs = [];
 	past_hi_trust_revs = [];
       } in 
-      let info_string = ml2str (string_of__of__sexp_of sexp_of_page_info_t page_info) in 
+      let info_string = ml2str 
+	(string_of__of__sexp_of sexp_of_page_info_t page_info) in 
       Printf.fprintf sql_file "INSERT INTO %swikitrust_page (page_id, deleted_chunks, page_info) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE deleted_chunks = %s, page_info = %s;\n" 
-	db_prefix (ml2int page_id) chunks_string info_string chunks_string info_string
+	db_prefix (ml2int page_id) chunks_string info_string 
+	chunks_string info_string
 	
 
-    (** This method stores the sigs of the last few revisions in the filesystem. *)
+    (** This method stores the sigs of the last few revisions in the
+	filesystem. *)
     method private output_sigs : unit = 
       (* f is folded on the Vec of revisions, producing a list of
 	 (id, sig) that is ready to be written to disk *)
@@ -279,16 +311,28 @@ object(self)
       let sig_list : page_sig_disk_t = Vec.fold f revs [] in
       let sig_string = 
 	string_of__of__sexp_of sexp_of_page_sig_disk_t sig_list in
-      Filesystem_store.write_revision sig_base_path page_id 0 sig_string
+      (* Writes the signature either into sql for the database, 
+	 or into the filesystem. *)
+      match sig_base_path with 
+	Some b -> Filesystem_store.write_revision b page_id 0 sig_string
+      | None -> begin
+	  let s = ml2str sig_string in
+	  Printf.fprintf sql_file 
+	  "INSERT INTO %swikitrust_sigs (page_id, sigs) VALUES (%s, %s) ON DUPLICATE KEY UPDATE sigs = %s" 
+	    db_prefix (ml2int page_id) s s
+	end
 
 
     (** This method is called when there are no more revisions to evaluate. 
 	We need to produce the sql that contains the page information. *)
     method eval: unit = 
-      (* Produces the page information *)
+      (* Produces the page information. *)
       self#produce_page_information;
-      flush sql_file;
-      (* Produces the sig information to the filesystem *)
-      self#output_sigs
+      (* Produces the sig information to the filesystem. *)
+      self#output_sigs;
+      (* Closes the page in the xml file. *)
+      match colored_base_path with
+	Some b -> ()
+      | None -> Printf.fprintf xml_file "</page>\n"
     
   end

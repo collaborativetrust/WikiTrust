@@ -85,7 +85,8 @@ if !use_stdin then begin
   Do_eval.do_single_eval factory stdin f_out;
   Fileinfo.close_info_out f_out
 end
-else ignore (Do_eval.do_multi_eval !input_files factory !working_dir !unzip_cmd !continue);;
+else Do_eval.do_multi_eval !input_files factory !working_dir 
+  !unzip_cmd !continue;;
  
 (* Annotate on stdout so that one can include the info with the rest of the information *)
 print_newline (); print_endline (Fileinfo.make_xml_string ());;
