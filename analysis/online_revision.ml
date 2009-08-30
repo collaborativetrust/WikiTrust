@@ -118,14 +118,14 @@ class revision
       with Online_db.DB_Not_Found -> ()
 
     (** Reads the text, trust and sigs of text from the db *)
-    method read_words_trust_origin_sigs : unit = 
+    method read_words_trust_origin_sigs page_sigs : unit = 
       (* For the older revisions, we don't need the seps. 
 	 So, we read the words, trust, etc, from the sigs table, if we can. 
 	 This has two advantages.  First, less parsing is needed, so it's faster. 
 	 Second, the information is consistent. 
 	 If this is not found, then we parse the colored text. *)
       try begin 
-	let (w, t, o, a, s) = db#read_words_trust_origin_sigs page_id rev_id in 
+	let (w, t, o, a, s) = db#read_words_trust_origin_sigs page_id rev_id page_sigs in 
 	words <- w; 
 	trust <- t; 
 	origin <- o; 
@@ -174,8 +174,8 @@ class revision
 
 
     (** Writes the trust, origin, and sigs to the db *)
-    method write_words_trust_origin_sigs : unit = 
-      db#write_words_trust_origin_sigs page_id rev_id words trust origin author sigs
+    method write_words_trust_origin_sigs page_sigs : unit = 
+      db#write_words_trust_origin_sigs page_id rev_id page_sigs words trust origin author sigs
 
     method get_words : word array = words
     method get_seps : Text.sep_t array = seps

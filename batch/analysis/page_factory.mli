@@ -33,6 +33,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
+exception MissingRevisionPath of string
 
 (** This is the type of a page, or a Wikipedia article. *)
 class page :
@@ -117,13 +118,13 @@ class page_factory :
     method set_trust_coeff_lends_rep : float -> unit
     method set_trust_coeff_read_all : float -> unit
     method set_trust_coeff_read_part : float -> unit
-    method set_trust_coeff_part_radius : float -> unit
+    method set_trust_coeff_local_decay : float -> unit
     method set_bad_value : float -> unit
     method set_n_edit_judging : int -> unit
     method set_n_rev_to_output : int -> unit
     method set_n_text_judging : int -> unit
     method output_preamble : string -> unit
-    method open_out_files : string -> string Vec.t
+    method open_out_files : string -> unit
     method set_single_file : out_channel -> unit
     method close_out_files : unit
     method set_keep_rev_after : string -> unit

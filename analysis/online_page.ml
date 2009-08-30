@@ -98,6 +98,8 @@ class page
       past_hi_rep_revs = page_info_default.past_hi_rep_revs; 
       past_hi_trust_revs = page_info_default.past_hi_trust_revs;
     }
+    (** Signatures for the page *)
+    val mutable page_sigs = Online_db.empty_page_sigs
     (** Information about the histogram *)
     val delta_hist = Array.make Eval_defs.max_rep_val 0.
     val mutable new_hi_median = 0.
@@ -119,7 +121,7 @@ class page
       begin 
 	try
 	  let r = Online_revision.read_wikitrust_revision db revision_id in 
-	  r#read_words_trust_origin_sigs;
+	  r#read_words_trust_origin_sigs page_sigs;
 	  work_revision_opt <- Some r
 	with Online_db.DB_Not_Found -> raise Missing_work_revision
       end
@@ -249,7 +251,7 @@ class page
 	     since text is not something we compute. *)
 	  r#read_text
 	end else begin
-	  try r#read_words_trust_origin_sigs
+	  try r#read_words_trust_origin_sigs page_sigs
           with Online_db.DB_Not_Found -> raise (Missing_trust r)
 	end
       end done
@@ -460,7 +462,7 @@ class page
       in
       let is_not_in_any_list id = not (is_in_some_list id) in
       let not_in_any_list = List.filter is_not_in_any_list !thrown_out in 
-      let delete_sigs_of_rev id = db#delete_author_sigs page_id id in 
+      let delete_sigs_of_rev id = db#delete_author_sigs page_id id page_sigs in 
       List.iter delete_sigs_of_rev not_in_any_list
 
 
@@ -734,7 +736,7 @@ class page
 	rev0#set_origin chunk_0_origin;
 	rev0#set_author chunk_0_author;
 	rev0#set_sigs   chunk_0_sigs;
-	rev0#write_words_trust_origin_sigs;
+	rev0#write_words_trust_origin_sigs page_sigs;
 	(* Computes the overall trust of the revision *)
 	let t = Compute_robust_trust.compute_overall_trust chunk_0_trust in 
 	rev0#set_overall_trust t
@@ -892,7 +894,7 @@ class page
 	rev0#set_origin new_origin_10_a.(0);
 	rev0#set_author new_author_10_a.(0);
 	rev0#set_sigs   new_sigs_10_a.(0);
-	rev0#write_words_trust_origin_sigs;
+	rev0#write_words_trust_origin_sigs page_sigs;
 	(* Now that the colored revision is written out to disk, we don't need
 	   any more its uncolored text.   If we are using the exec_api, 
 	   we erase from the disk cache the text of all previous
@@ -910,7 +912,7 @@ class page
       match work_revision_opt with
 	None -> raise Missing_work_revision
       | Some rev0 -> begin
-    rev0#read_words_trust_origin_sigs;
+    rev0#read_words_trust_origin_sigs page_sigs;
     let rev0_id = rev0#get_id in
 	  let rev0_t = rev0#get_words in 
 	  let rev0_l = Array.length rev0_t in 
@@ -950,7 +952,7 @@ class page
 	  (* Writes the trust information to the revision *)
 	  rev0#set_trust new_trust_a.(0); 
 	  rev0#set_sigs  new_sigs_a.(0);
-	  rev0#write_words_trust_origin_sigs;
+	  rev0#write_words_trust_origin_sigs page_sigs;
 	  let t = Compute_robust_trust.compute_overall_trust new_trust_a.(0) in 
 	  rev0#set_overall_trust t;
 	  (* And writes the information on the revision back to disk. *)
@@ -1272,6 +1274,8 @@ class page
 	    needs_coloring := db#revision_needs_coloring page_id revision_id;
 	    if !needs_coloring then begin
 	      
+	      (* Reads the page sigs *)
+	      page_sigs <- db#read_page_sigs page_id; 
 	      (* Reads the previous revisions *)
 	      self#read_page_revisions_edit; 
 	      
@@ -1296,6 +1300,9 @@ class page
 	      !Online_log.online_logger#log "   Writing the quality information...\n";
 	      let f r = r#write_quality_to_db in 
 	      Vec.iter f revs;
+
+	      (* We write to disk the page sigs. *)
+	      db#write_page_sigs page_id page_sigs;
 
 	      db#commit;
 	      n_attempts := n_retries
@@ -1372,6 +1379,8 @@ class page
 	  try 
 	    db#start_transaction;
 	    !Online_log.online_logger#log "Start vote for revision...\n";
+	    (* Reads the page sigs *)
+	    page_sigs <- db#read_page_sigs page_id; 
 	    (* Reads the page information and the revision *)
 	    self#read_page_revisions_vote; 
 	    (* Increases the trust of the revision, and writes the 
@@ -1382,6 +1391,9 @@ class page
 	    self#insert_revision_in_lists;
 	    (* We write to disk the page information *)
 	    db#write_page_info page_id page_info;
+	    (* We write to disk the page sigs. *)
+	    db#write_page_sigs page_id page_sigs;
+
 	    (* Commits *)
 	    db#commit;
 	    n_attempts := n_retries;
