@@ -140,15 +140,17 @@ class page_factory
       (* Whether to consider also text in reputation analysis *)
     val do_text = ref false
       (* N. of revisions to evaluate for text life *)
-    val mutable n_text_judging = 12
+    val mutable n_text_judging = 8
       (* N. of revisions to evaluate for edit life *)
       (* This default is the same as n_edit_judging in
 	 generate_reputation.ml *)
-    val mutable n_edit_judging = 12 
-      (* Number of revisions to color for trust *)
+    val mutable n_edit_judging = 8
+      (* Number of revisions to color for trust, in case only
+         the most recent are output.  Trust_for_online outputs them all;
+         the other analyses output only the last [n_rev_to_output]. *)
     val mutable n_rev_to_output = 100 
       (* Do we equate all anonymous, regardless of IP? *)
-    val equate_anons = ref false
+    val equate_anons = ref default_trust_coeff.equate_anons
       (* Sequential number of page in the dump *)
     val mutable page_seq_number = 0 
       (* Flag that tells us whether we should trace words *)
@@ -175,7 +177,7 @@ class page_factory
     (* Database prefix *)
     val mutable db_prefix = ""
     (* N. of signatures to write *)
-    val mutable n_sigs = 0 (* FIXME *)
+    val mutable n_sigs = Online_types.n_past_revs
 
     (* Files for output *)
     val mutable out_file : out_channel = stderr (* also used for eval_file *)
