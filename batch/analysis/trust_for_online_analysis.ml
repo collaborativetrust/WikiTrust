@@ -87,12 +87,14 @@ object(self)
          (position 0 in revs) revision. *)
     val mutable offset : int = 0
 
-      (* Arrays of chunks and chunk attributes for the last version of the page. *)
-      (* chunks_a is a word array array, and is used to represent both the live text
-         (element 0) or the dead text (elements >0) of a page. *)
+      (* Arrays of chunks and chunk attributes for the last version of
+	 the page. *)
+    (* chunks_a is a word array array, and is used to represent both
+       the live text (element 0) or the dead text (elements >0) of a
+       page. *)
     val mutable chunks_a : word array array = [| [| |] |] 
-      (* This float array array stores a float for each word, and is used to store the 
-         trust of each word. *)
+      (* This float array array stores a float for each word, and is
+         used to store the trust of each word. *)
     val mutable chunks_trust_a  : float array array = [| [| |] |] 
       (* This array keeps track of the revision id in which each word 
 	 was introduced. *)
@@ -196,12 +198,13 @@ object(self)
       Filesystem_store.write_revision colored_base_path rev#get_page_id rev#get_id colored_text;
 
       (* Now we have to write the metadata for sql. *)
-      self#write_wikitrust_revision_sql rev
+      self#write_wikitrust_revision_sql rev;
 
 
-    (** This method is called to add a new revision to be evaluated for trust. 
-        Note that here, we do analyze revisions, even thought they might be from
-        the same author.  Signatures prevent trust from raising when it should not. *)
+    (** This method is called to add a new revision to be evaluated
+        for trust.  Note that here, we do analyze revisions, even
+        thought they might be from the same author.  Signatures
+        prevent trust from raising when it should not. *)
     method add_revision 
       (rev_id: int) (* revision id *)
       (page_id: int) (* page id *)
@@ -270,10 +273,13 @@ object(self)
 
     (** This method stores the sigs of the last few revisions in the filesystem. *)
     method private output_sigs : unit = 
-      let output_sig r = 
-	let signature_string = string_of__of__sexp_of sexp_of_sig_t r#get_sig in
-	Filesystem_store.write_revision sig_base_path r#get_page_id r#get_id signature_string
-      in Vec.iter output_sig revs
+      (* f is folded on the Vec of revisions, producing a list of
+	 (id, sig) that is ready to be written to disk *)
+      let f r l = (r#get_id, r#get_sig) :: l in
+      let sig_list : page_sig_disk_t = Vec.fold f revs [] in
+      let sig_string = 
+	string_of__of__sexp_of sexp_of_page_sig_disk_t sig_list in
+      Filesystem_store.write_revision sig_base_path page_id 0
 
 
     (** This method is called when there are no more revisions to evaluate. 
