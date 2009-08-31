@@ -56,12 +56,17 @@ CREATE TABLE ".$wgDBprefix."wikitrust_revision (
         quality_info		text NOT NULL, 
 	reputation_delta        float DEFAULT 0.0,
 	overall_trust           float DEFAULT 0.0
+	wt_01			int DEFAULT 0,
+	wt_23			int DEFAULT 0,
+	wt_45			int DEFAULT 0,
+	wt_67			int DEFAULT 0,
+	wt_8			int DEFAULT 0,
+	wt_9			int DEFAULT 0
 ) ENGINE=InnoDB","
 GRANT ALL ON ".$wgDBprefix."wikitrust_revision TO $wgDBuser","
 CREATE INDEX ".$wgDBprefix."wikitrust_revision_id_timestamp_idx ON "
 . $wgDBprefix . "wikitrust_revision (page_id, time_string, revision_id)"
 );
-
 
 $create_scripts[$wgDBprefix.'wikitrust_colored_markup'] = array("
 CREATE TABLE ".$wgDBprefix."wikitrust_colored_markup (

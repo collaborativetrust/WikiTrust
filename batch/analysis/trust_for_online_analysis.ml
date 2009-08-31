@@ -137,6 +137,7 @@ object(self)
       (* I do field-by-field initialization, rather than copying the whole
 	 structure, because otherwise we get two references to the SAME
 	 structure, unfortunately. *)
+      let trust_a = r#get_word_trust in
       let quality_info : qual_info_t = {
 	n_edit_judges = quality_info_default.n_edit_judges;
 	total_edit_quality = quality_info_default.total_edit_quality;
@@ -144,22 +145,25 @@ object(self)
 	nix_bit = quality_info_default.nix_bit;
 	delta = quality_info_default.delta;
 	reputation_gain = quality_info_default.reputation_gain;
-	overall_trust = quality_info_default.overall_trust;
+	overall_trust = Compute_robust_trust.compute_overall_trust trust_a;
       } in
-      (* The only one of the above parameters that we compute (rather than
-	 using the default) is the overall_trust, as it can be useful in 
-	 selecting high-quality revisions, and as it can be computed on 
-	 the basis of the current revision only. *)
-      quality_info.overall_trust <- 
-	Compute_robust_trust.compute_overall_trust chunks_trust_a.(0);
-      (* Writes these parameters. *)
+      (* Prepares these parameters. *)
       let q1 = ml2str (string_of__of__sexp_of sexp_of_qual_info_t quality_info_default) in 
       let q2 =  ml2float quality_info_default.reputation_gain in 
       let aq2 = if (q2 = "inf") then (ml2float infinity) else q2 in
       let q3 = ml2float quality_info.overall_trust in
+      (* Computes the trust histogram... *)
+      let histogram = Compute_robust_trust.compute_trust_histogram trust_a in
+      (* ...and prepares it for writing. *)
+      let th01 = ml2int histogram.(0) in 
+      let th23 = ml2int histogram.(1) in 
+      let th45 = ml2int histogram.(2) in 
+      let th67 = ml2int histogram.(3) in 
+      let th8  = ml2int histogram.(4) in 
+      let th9  = ml2int histogram.(5) in 
       (* Db write access *)
-      Printf.fprintf sql_file "INSERT INTO %swikitrust_revision (revision_id, page_id, text_id, time_string, user_id, username, is_minor, comment, quality_info, reputation_delta, overall_trust) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE quality_info = %s, reputation_delta = %s, overall_trust = %s;\n"
-	db_prefix rev_id page_id text_id time_string user_id username is_minor comment q1 aq2 q3 q1 aq2 q3
+      Printf.fprintf sql_file "INSERT INTO %swikitrust_revision (revision_id, page_id, text_id, time_string, user_id, username, is_minor, comment, quality_info, reputation_delta, overall_trust, wt_01, wt_23, wt_45, wt_67, wt_9, wt_9) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE quality_info = %s, reputation_delta = %s, overall_trust = %s, wt_01 = %s, wt_23 = %s, wt_45 = %s, wt_67 = %s, wt_8 = %s, wt_9 = %s;\n"
+	db_prefix rev_id page_id text_id time_string user_id username is_minor comment q1 aq2 q3 th01 th23 th45 th67 th8 th9 q1 aq2 q3 th01 th23 th45 th67 th8 th9
 	
 
     (** Processes a new revision, computing trust, author, and origin, 

@@ -84,6 +84,7 @@ class revision
       reputation_gain = quality_info_default.reputation_gain;
       overall_trust = quality_info_default.overall_trust;
     }
+    val mutable trust_histogram = Array.make 6 0
     val mutable quality_info_valid = false
     (* Dirty bit to avoid writing back unchanged stuff *)
     val mutable modified_quality_info : bool = false
@@ -222,6 +223,11 @@ class revision
       self#read_quality_info; 
       quality_info.overall_trust
 
+    method set_trust_histogram (a: int array) : unit =
+      self#read_quality_info; 
+      trust_histogram <- a;
+      modified_quality_info <- true
+
     method get_nix : bool = 
       self#read_quality_info; 
       quality_info.nix_bit
@@ -244,7 +250,7 @@ class revision
 	  Online_db.rev_user_text = username;
 	  Online_db.rev_is_minor = is_minor;
 	  Online_db.rev_comment = comment
-	} quality_info
+	} quality_info trust_histogram
 	  
   end (* revision class *)
 

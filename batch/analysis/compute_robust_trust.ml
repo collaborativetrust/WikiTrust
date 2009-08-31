@@ -499,3 +499,17 @@ let compute_overall_trust (trust_a: float array) : float =
   (* The overall trust is the total of the square trust, multiplied by the 
      average of the square trust. *)
   if m = 0 then 0. else tot_sq_tr *. tot_sq_tr /. n 
+
+
+(** [compute_trust_histogram trust_a] computes the trust histogram of a page
+    with an array [trust_a] of trust values.
+    The histogram is a 6-integer array, giving how many words are in each
+    of the trust intervals 0-1, 2-3, 4-5, 6-7, 8, 9. *)
+let compute_trust_histogram (trust_a: float array) : int array =
+  let histogram = Array.make 6 0 in
+  let inc_histogram (f: float) = 
+    let idx = max 0 (min 5 (int_of_float (f /. 2.))) in
+    let idx' = if f >= 9. then 5 else idx in
+    histogram.(idx') <- histogram.(idx') + 1
+  in Array.iter inc_histogram trust_a;
+  histogram

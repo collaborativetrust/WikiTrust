@@ -757,7 +757,10 @@ class page
 	rev0#write_words_trust_origin_sigs page_sigs;
 	(* Computes the overall trust of the revision *)
 	let t = Compute_robust_trust.compute_overall_trust chunk_0_trust in 
-	rev0#set_overall_trust t
+	rev0#set_overall_trust t;
+	(* Computes the trust histogram of the revision *)
+	let th = Compute_robust_trust.compute_trust_histogram chunk_0_trust in
+	rev0#set_trust_histogram th
 
       end else begin 
 
@@ -940,8 +943,13 @@ class page
 	   revisions for the same page. *)
 	db#erase_cached_rev_text page_id rev0_id rev0_time_string;
 	(* Computes the overall trust of the revision. *)
-	let t = Compute_robust_trust.compute_overall_trust new_trust_10_a.(0) in 
-	rev0#set_overall_trust t  
+	let t = 
+	  Compute_robust_trust.compute_overall_trust new_trust_10_a.(0) in 
+	rev0#set_overall_trust t;
+	let th = 
+	  Compute_robust_trust.compute_trust_histogram new_trust_10_a.(0) in
+	rev0#set_trust_histogram th
+
       end (* method compute_trust *)
 
 
@@ -994,8 +1002,12 @@ class page
 	  rev0#set_trust new_trust_a.(0); 
 	  rev0#set_sigs  new_sigs_a.(0);
 	  rev0#write_words_trust_origin_sigs page_sigs;
-	  let t = Compute_robust_trust.compute_overall_trust new_trust_a.(0) in 
+	  let t = 
+	    Compute_robust_trust.compute_overall_trust new_trust_a.(0) in 
 	  rev0#set_overall_trust t;
+	  let th = 
+	    Compute_robust_trust.compute_trust_histogram new_trust_a.(0) in
+	  rev0#set_trust_histogram th;
 	  (* And writes the information on the revision back to disk. *)
 	  if debug then !Online_log.online_logger#log "   Voted; writing the quality information...\n";
 	  rev0#write_quality_to_db

@@ -79,3 +79,9 @@ val compute_origin :
 (** [compute_overall_trust t] computes the overall trust of a revision
     where the word trust is given by array [t]. *)
 val compute_overall_trust : float array -> float
+
+(** [compute_trust_histogram trust_a] computes the trust histogram of a page
+    with an array [trust_a] of trust values.
+    The histogram is a 6-integer array, giving how many words are in each
+    of the trust intervals 0-1, 2-3, 4-5, 6-7, 8, 9. *)
+val compute_trust_histogram : float array -> int array
