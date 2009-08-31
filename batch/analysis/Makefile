@@ -106,6 +106,13 @@ OUR_OPT_GENERATE_REPUTATION_OBJS = timeconv.cmx textbuf.cmx text.cmx \
 	eval_defs.cmx rephist.cmx  evaltypes.cmx wikidata.cmx \
 	computestats.cmx computerep.cmx generate_reputation.cmx 
 
+OUR_FIND_USERNAMES_OBJS = textbuf.cmo eval_defs.cmo evaltypes.cmo \
+	wikidata.cmo extract_usernames.cmo
+
+
+OUR_OPT_FIND_USERNAMES_OBJS = textbuf.cmx eval_defs.cmx evaltypes.cmx \
+	wikidata.cmx extract_usernames.cmx
+
 # Splitwiki splits a wiki xml file into smaller files. 
 OUR_SPLITWIKI_OBJS = splitwiki.cmo
 OUR_OPT_SPLITWIKI_OBJS = splitwiki.cmx
@@ -140,6 +147,12 @@ generate_reputation:  $(OUR_GENERATE_REPUTATION_OBJS)
 
 generate_reputationopt:  $(OUR_OPT_GENERATE_REPUTATION_OBJS)
 	$(OCAMLOPT) -linkpkg -o generate_reputation $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) $(OUR_OPT_GENERATE_REPUTATION_OBJS)
+
+find_usernames:  $(OUR_FIND_USERNAMES_OBJS)
+	$(OCAMLC) -linkpkg -o find_usernames $(OCAML_CFLAGS) $(OUR_LD_ADD) $(OUR_FIND_USERNAMES_OBJS)
+
+find_usernamesopt:  $(OUR_OPT_FIND_USERNAMES_OBJS)
+	$(OCAMLOPT) -linkpkg -o find_usernames $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) $(OUR_OPT_FIND_USERNAMES_OBJS)
 
 # splitwiki is used to split a wiki xml dump file into smaller files
 
@@ -184,8 +197,8 @@ filesystem_store: $(FILESYSTEMSTORE_OBJS)
 	$(OCAMLC) -linkpkg -o filesystem_store $(OCAML_CFLAGS) $(OUR_LD_ADD) $(FILESYSTEMSTORE_OBJS)
 
 
-all: evalwiki generate_reputation splitwiki combinestats libs extract_wiki_subset
-allopt: evalwikiopt generate_reputationopt splitwikiopt combinestatsopt libsopt extract_wiki_subsetopt
+all: evalwiki generate_reputation splitwiki combinestats libs extract_wiki_subset find_usernames
+allopt: evalwikiopt generate_reputationopt splitwikiopt combinestatsopt libsopt extract_wiki_subsetopt find_usernamesopt
 universe: all allopt
 
 #
