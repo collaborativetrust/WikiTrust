@@ -149,10 +149,10 @@ generate_reputationopt:  $(OUR_OPT_GENERATE_REPUTATION_OBJS)
 	$(OCAMLOPT) -linkpkg -o generate_reputation $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) $(OUR_OPT_GENERATE_REPUTATION_OBJS)
 
 find_usernames:  $(OUR_FIND_USERNAMES_OBJS)
-	$(OCAMLC) -linkpkg -o find_usernames $(OCAML_CFLAGS) $(OUR_LD_ADD) $(OUR_FIND_USERNAMES_OBJS)
+	$(OCAMLC) -linkpkg -o extract_usernames $(OCAML_CFLAGS) $(OUR_LD_ADD) $(OUR_FIND_USERNAMES_OBJS)
 
 find_usernamesopt:  $(OUR_OPT_FIND_USERNAMES_OBJS)
-	$(OCAMLOPT) -linkpkg -o find_usernames $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) $(OUR_OPT_FIND_USERNAMES_OBJS)
+	$(OCAMLOPT) -linkpkg -o extract_usernames $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) $(OUR_OPT_FIND_USERNAMES_OBJS)
 
 # splitwiki is used to split a wiki xml dump file into smaller files
 
@@ -207,7 +207,7 @@ universe: all allopt
 #
 
 clean:
-	rm -f *.o *.cmo *.cmx *.cmi .depends evalwiki generate_reputation chdiff text splitwiki combinestats
+	rm -f *.o *.cmo *.cmx *.cmi .depends evalwiki generate_reputation chdiff text splitwiki combinestats extract_usernames extract_wiki_subset
 
 .depends: *.ml
 	$(OCAMLDEP) $^ > $@
