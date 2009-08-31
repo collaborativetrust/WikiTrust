@@ -310,8 +310,7 @@ let do_multi_eval
     (factory: Page_factory.page_factory)
     (working_dir: string) 
     (unzip_cmd: string)
-    (continue: bool) : string Vec.t = 
-  let output_names = ref Vec.empty in 
+    (continue: bool) : unit =
   for file_idx = 0 to (Vec.length input_files) - 1 do begin 
     (* We must set in_file, out_file *) 
     let in_file = Vec.get file_idx input_files in 
@@ -327,8 +326,7 @@ let do_multi_eval
 	in Str.string_before local_in_file pos_xml
       with Not_found -> local_in_file in 
     (* Opens the output files *)
-    let new_output_names = factory#open_out_files (working_dir ^ base_name) in 
-    output_names := Vec.concat !output_names new_output_names; 
+    factory#open_out_files (working_dir ^ base_name);
     let in_f = ref stdin in 
     let use_decomp = ref false in 
     try 
@@ -371,6 +369,6 @@ let do_multi_eval
 	begin try factory#close_out_files with _ -> () end
       end else raise x 
     end
-  end done;
-  !output_names
+  end done
+
 

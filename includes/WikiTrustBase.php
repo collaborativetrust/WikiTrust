@@ -285,17 +285,6 @@ if (1) {
     global $wgParser, $wgUser, $wgTitle;
     $count = 0;
 
-if(0) {
-    // #t might be reserved already!!
-    // TODO: big hack!!
-    // TODO: This gets thrown away.  Safe to delete?  -Bo
-    $text = preg_replace_callback("/\{\{#t:(\d+),(\d+),(.*?)\}\}/",
-				"WikiTrust::color_t2trust",
-				$text,
-				-1,
-				$count);
-}
-
     // fix trust tags around categories/templates
     $colored_text = preg_replace_callback("/\{\{#t:(\d+),(\d+),([^}]+)\}\}\s*\[\[([^\]]++.*?)\]\]\s*(?=\{\{#t:|$)/D",
 				"WikiTrust::regex_fixBracketTrust",
@@ -329,7 +318,6 @@ if(0) {
 				-1,
 				$count);
 
-
     global $wgScriptPath;
     $text = '<script type="text/javascript" src="'
 	      .$wgScriptPath
@@ -353,6 +341,7 @@ if(0) {
   static function regex_fixTextTrust($matches){
 
     //print_r($matches);
+    global $wgWikiTrustShowMouseOrigin;
 
     $normalized_value = min(self::MAX_TRUST_VALUE, 
 			    max(self::MIN_TRUST_VALUE, 
@@ -360,31 +349,50 @@ if(0) {
 				 self::TRUST_MULTIPLIER) 
 				/ self::$median));
     $class = self::$COLORS[$normalized_value];
-    $output = "<span class=\"$class\"" 
-      . " onmouseover=\"Tip('".str_replace("&#39;","\\'",$matches[3])
-      ."')\" onmouseout=\"UnTip()\""
-      . " onclick=\"showOrigin(" 
-      . $matches[2] . ")\">" . $matches[4]
-      . "</span>";
-
+    
+    $output = "";
+    if ($wgWikiTrustShowMouseOrigin){
+      $output = "<span class=\"$class\"" 
+        . " onmouseover=\"Tip('".str_replace("&#39;","\\'",$matches[3])
+        ."')\" onmouseout=\"UnTip()\""
+        . " onclick=\"showOrigin(" 
+        . $matches[2] . ")\">" . $matches[4]
+        . "</span>";
+    } else {
+      $output = "<span class=\"$class\"" 
+        . " onclick=\"showOrigin(" 
+        . $matches[2] . ")\">" . $matches[4]
+        . "</span>";
+    }
     return $output;
   }
 
   static function regex_fixBracketTrust($matches){
+    global $wgWikiTrustShowMouseOrigin;
     $normalized_value = min(self::MAX_TRUST_VALUE, 
 			    max(self::MIN_TRUST_VALUE, 
 				(($matches[1] + .5) * 
 				 self::TRUST_MULTIPLIER) 
 				/ self::$median));
     $class = self::$COLORS[$normalized_value];
-    $output = "<span class=\"$class\"" 
-      . " onmouseover=\"Tip('".str_replace("&#39;","\\'",$matches[3])
-      ."')\" onmouseout=\"UnTip()\""
-      . " onclick=\"showOrigin(" 
-      . $matches[2] . ")\">"
-      . "[[" . $matches[4] . "]]"
-      . "</span>";
     
+    $output = "";
+    
+    if ($wgWikiTrustShowMouseOrigin){
+      $output = "<span class=\"$class\"" 
+        . " onmouseover=\"Tip('".str_replace("&#39;","\\'",$matches[3])
+        ."')\" onmouseout=\"UnTip()\""
+        . " onclick=\"showOrigin(" 
+        . $matches[2] . ")\">"
+        . "[[" . $matches[4] . "]]"
+        . "</span>";
+    } else {
+      $output = "<span class=\"$class\"" 
+        . " onclick=\"showOrigin(" 
+        . $matches[2] . ")\">"
+        . "[[" . $matches[4] . "]]"
+        . "</span>";
+    }
     return $output;
   }
 

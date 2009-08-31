@@ -1,9 +1,9 @@
 (*
 
-Copyright (c) 2007-2008 The Regents of the University of California
+Copyright (c) 2007-2009 The Regents of the University of California
 All rights reserved.
 
-Authors: Luca de Alfaro, B. Thomas Adler, Vishwanath Raman, Ian Pye
+Authors: Luca de Alfaro, Ian Pye
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -33,16 +33,18 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
+(*
+  Bot_reader -- reads the wikimarkup from Wikipedia:Bots/Status and prints out
+  a list of the bots to stdout.
+*)
 
-(** [do_single_eval factory in_file out_file] evaluates the xml dump
-    [in_file] via the page factory [factory], writing the resulting
-    output in [out_file]. *)
-val do_single_eval : Page_factory.page_factory -> in_channel -> out_channel -> unit
+(* Bot regex *)
+let scrawl_regex = Pcre.regexp ~flags:[] "{{BotS\\|(.*?)\\|(.*)}}"
 
-(** [do_multi_eval in_files factory working_dir unzip_cmd continue]
-    evaluates all the wiki xml dumps in [in_files], using [factory].
-    If flag [continue] is used, then it does not stop in case of
-    errors during the evaluation of one of the files. *)
-val do_multi_eval :
-  string Vec.t -> Page_factory.page_factory -> string -> string -> bool -> unit
-
+let main () =
+  let inc = IO.input_channel stdin in
+  let bots_file = IO.read_all inc in
+  let bots = Pcre.extract_all ~rex:scrawl_regex ~pos:0 bots_file in
+    Array.iter (fun br -> Printf.printf "%S\n" br.(1)) bots
+in
+main ()

@@ -50,7 +50,7 @@ class page
   (trust_coeff_lends_rep: float)
   (trust_coeff_read_all: float) 
   (trust_coeff_read_part: float) 
-  (trust_coeff_part_radius: float)
+  (trust_coeff_local_decay: float)
   (trust_coeff_cut_rep_radius: float) 
   (trust_coeff_kill_decrease: float)
   (n_rev_to_color: int) 
@@ -61,7 +61,7 @@ class page
     inherit Trust_local_color_analysis.page 
       id title out_file rep_histories
       trust_coeff_lends_rep trust_coeff_read_all 
-      trust_coeff_read_part trust_coeff_part_radius
+      trust_coeff_read_part trust_coeff_local_decay
       trust_coeff_cut_rep_radius trust_coeff_kill_decrease
       n_rev_to_color equate_anons 
 

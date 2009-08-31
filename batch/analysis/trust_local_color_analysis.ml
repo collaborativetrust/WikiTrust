@@ -50,21 +50,12 @@ class page
   (trust_coeff_lends_rep: float)
   (trust_coeff_read_all: float) 
   (trust_coeff_read_part: float) 
-  (trust_coeff_part_radius: float)
+  (trust_coeff_local_decay: float)
   (trust_coeff_cut_rep_radius: float) 
   (trust_coeff_kill_decrease: float)
   (n_rev_to_color: int) 
   (equate_anons: bool) 
   =
-  (* Computes the geometrical decay of local trust. 
-     Note the if-then-else to avoid divide by 0 *)
-  let local_decay_coeff = 
-    if trust_coeff_part_radius < 1. then 0. 
-    else 
-      (* local_decay_coeff ** trust_coeff_part_radius = 0.5 ; so... *)
-      0.5 ** (1. /. trust_coeff_part_radius)
-  in 
-
   object (self) 
     inherit Trust_analysis.page 
       id title out_file rep_histories
@@ -95,7 +86,7 @@ class page
       let (new_chunks_trust_a, new_chunks_authorsig_a) = Compute_robust_trust.compute_robust_trust 
 	chunks_trust_a chunks_authorsig_a new_chunks_a rev#get_seps medit_l rep_float uid
 	trust_coeff_lends_rep trust_coeff_kill_decrease trust_coeff_cut_rep_radius 
-	trust_coeff_read_all trust_coeff_read_part local_decay_coeff in 
+	trust_coeff_read_all trust_coeff_read_part trust_coeff_local_decay in 
 
       (* Now, replaces chunks_trust_a and chunks_a for the next iteration *)
       chunks_trust_a <- new_chunks_trust_a;

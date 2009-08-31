@@ -45,6 +45,9 @@ POSSIBILITY OF SUCH DAMAGE.
 
 
 type word = string 
+open Online_types
+
+exception MissingRevisionPath of string
 
 (** type of analysis that is requested *)
 type analysis_t = 
@@ -81,7 +84,8 @@ class page = object
     (username: string) (* name of the user *)
     (is_minor: bool) 
     (comment: string)
-    (text_init: string Vec.t) (* Text of the revision, still to be split into words *)
+    (text_init: string Vec.t) (* Text of the revision, still to be split 
+				 into words *)
     : unit = ()
   method eval : unit = ()
   method print_id_title : unit = ()
@@ -101,45 +105,52 @@ class page_factory
     val mutable be_precise = false
       (* These store the reputation histories of the users of the Wikipedia. *)
     val mutable rep_histories = new Rephist.rephist
-      (* This hash table associates with each revision its edit longevity, which
-	 provides a measure of its quality. *)
+      (* This hash table associates with each revision its edit
+	 longevity, which provides a measure of its quality. *)
     val mutable revision_quality : (int, float) Hashtbl.t = Hashtbl.create 100
-      (* Revisions with a quality below this value are considered "bad" from a 
-	 statistical viewpoint. *)
+      (* Revisions with a quality below this value are considered
+	 "bad" from a statistical viewpoint. *)
     val mutable bad_rev_threshold = -0.7 
-      (* This coefficient says how much an author can lend reputation to text he/she
-	 creates.  For example, if the coefficient is 0.5, then an author of reputation 
-	 9 can create text of trust 4.5.  The purpose of this coefficient is to ensure 
-	 that even a high-reputation author needs some validation for his/her 
+      (* This coefficient says how much an author can lend reputation
+	 to text he/she creates.  For example, if the coefficient is
+	 0.5, then an author of reputation 9 can create text of trust
+	 4.5.  The purpose of this coefficient is to ensure that even
+	 a high-reputation author needs some validation for his/her
 	 contributions. *)
-    val mutable trust_coeff_lends_rep = 0.3 
-      (* Coefficient by which the whole text of a page grows in trust after revision
-	 by a high-reputation editor.  This is one of the most important parameters. *)
-    val mutable trust_coeff_read_all = 0.25
+    val mutable trust_coeff_lends_rep = default_trust_coeff.lends_rep
+      (* Coefficient by which the whole text of a page grows in trust
+	 after revision by a high-reputation editor.  This is one of
+	 the most important parameters. *)
+    val mutable trust_coeff_read_all = default_trust_coeff.read_all
       (* Coefficient by which the text of an edited section of a page
-	 (a paragraph unit, a bullet point) grows in trust after revision
-	 by a high-reputation editor.  This is one of the most important parameters. *)
-    val mutable trust_coeff_read_part = 0.5 
+	 (a paragraph unit, a bullet point) grows in trust after
+	 revision by a high-reputation editor.  This is one of the
+	 most important parameters. *)
+    val mutable trust_coeff_read_part = default_trust_coeff.read_part
       (* Distance, in number of words, for which the local effect of trust 
 	 extends outside of a syntactic unit to the adjacent ones. *)
-    val mutable trust_coeff_part_radius = 10.0 
+    val mutable trust_coeff_local_decay = default_trust_coeff.local_decay
       (* Distance, measured in number of words, that is the decay distance
 	 for the edge effect in text trust. *)
-    val mutable trust_coeff_cut_rep_radius = 1.0
+    val mutable trust_coeff_cut_rep_radius = default_trust_coeff.cut_rep_radius
       (* Factor used to scale down reputation of killed text. 
 	 With this choice, text killed by a rep=9 user has its 
 	 trust halved. *)
-    val mutable trust_coeff_kill_decrease = (log 2.0) /. 9.0
+    val mutable trust_coeff_kill_decrease = default_trust_coeff.kill_decrease
       (* Whether to consider also text in reputation analysis *)
     val do_text = ref false
       (* N. of revisions to evaluate for text life *)
-    val mutable n_text_judging = 12
+    val mutable n_text_judging = 8
       (* N. of revisions to evaluate for edit life *)
-    val mutable n_edit_judging = 12 (* This default is the same as n_edit_judging in generate_reputation.ml *)
-      (* Number of revisions to color for trust *)
+      (* This default is the same as n_edit_judging in
+	 generate_reputation.ml *)
+    val mutable n_edit_judging = 8
+      (* Number of revisions to color for trust, in case only
+         the most recent are output.  Trust_for_online outputs them all;
+         the other analyses output only the last [n_rev_to_output]. *)
     val mutable n_rev_to_output = 100 
       (* Do we equate all anonymous, regardless of IP? *)
-    val equate_anons = ref false
+    val equate_anons = ref default_trust_coeff.equate_anons
       (* Sequential number of page in the dump *)
     val mutable page_seq_number = 0 
       (* Flag that tells us whether we should trace words *)
@@ -160,13 +171,13 @@ class page_factory
     (* When pruning revisions, keep only revisions after this time *)
     val mutable keep_rev_after = -1000.0
     (* Prefix to use when writing revisions as files *)
-    val mutable rev_base_path = "/tmp/rev"
+    val mutable rev_base_path = None
     (* Prefix to use when writing sigs as files *)
-    val mutable sig_base_path = "/tmp/sig"
+    val mutable sig_base_path = None
     (* Database prefix *)
     val mutable db_prefix = ""
     (* N. of signatures to write *)
-    val mutable n_sigs = 0
+    val mutable n_sigs = Online_types.n_past_revs
 
     (* Files for output *)
     val mutable out_file : out_channel = stderr (* also used for eval_file *)
@@ -219,16 +230,20 @@ class page_factory
     method set_trust_coeff_lends_rep (f : float) = trust_coeff_lends_rep <- f
     method set_trust_coeff_read_all (f : float) = trust_coeff_read_all <- f
     method set_trust_coeff_read_part (f : float) = trust_coeff_read_part <- f
-    method set_trust_coeff_part_radius (f : float) = trust_coeff_part_radius <- f
-    method set_trust_coeff_cut_rep_radius (f : float) = trust_coeff_cut_rep_radius <- f
-    method set_trust_coeff_kill_decrease (f : float) = trust_coeff_kill_decrease <- f 
+    method set_trust_coeff_local_decay (f : float) = 
+      trust_coeff_local_decay <- f
+    method set_trust_coeff_cut_rep_radius (f : float) = 
+      trust_coeff_cut_rep_radius <- f
+    method set_trust_coeff_kill_decrease (f : float) = 
+      trust_coeff_kill_decrease <- f 
     method set_bad_value (f : float) = bad_rev_threshold <- f
     method set_n_text_judging (n: int) = n_text_judging <- n 
     method set_n_edit_judging (n: int) = n_edit_judging <- n 
     method set_n_rev_to_output (n: int) = n_rev_to_output <- n 
-    method set_keep_rev_after (n: string) = keep_rev_after <- Timeconv.convert_time n  
-    method set_rev_base_path (n: string) = rev_base_path <- n 
-    method set_sig_base_path (n: string) = sig_base_path <- n 
+    method set_keep_rev_after (n: string) = 
+      keep_rev_after <- Timeconv.convert_time n  
+    method set_rev_base_path (n: string) = rev_base_path <- Some n 
+    method set_sig_base_path (n: string) = sig_base_path <- Some n 
     method set_db_prefix (n: string) = db_prefix <- n
     method set_n_sigs (n: int) = n_sigs <- n
 
@@ -256,7 +271,7 @@ class page_factory
        ("-rep_lends_trust", Arg.Float self#set_trust_coeff_lends_rep, "<float>: how much of an author trust is lent as text reputation."); 
        ("-trust_read_all", Arg.Float self#set_trust_coeff_read_all, "<float>: how much an article's trust can increase due to someone editing anywere in the article."); 
        ("-trust_read_part", Arg.Float self#set_trust_coeff_read_part, "<float>: how much an article's trust can increase due to someone editing in the same syntactic unit (paragraph, itemization point)."); 
-       ("-trust_part_radius", Arg.Float self#set_trust_coeff_part_radius, "<float>: how much (n. of words) local trust percolates in adjacent syntactic regions.");
+       ("-trust_local_decay", Arg.Float self#set_trust_coeff_local_decay, "<float>: local deay coefficient for how much local trust percolates in adjacent syntactic regions.");
        ("-trust_radius", Arg.Float self#set_trust_coeff_cut_rep_radius, "<float>: trust radius of influence of edits."); 
        ("-kill_decrease", Arg.Float self#set_trust_coeff_kill_decrease, "<float>: trust decrease when text is deleted.");
        ("-bad_qual_thrs", Arg.Float self#set_bad_value, "<float>: edit quality threshold below which a revision is considered bad.");
@@ -290,38 +305,52 @@ class page_factory
  	  !equate_anons
 	
 
-      | Reputation_analysis -> new Reputation_analysis.page id title out_file eval_zip_error be_precise
+      | Reputation_analysis -> new Reputation_analysis.page id title out_file 
+	  eval_zip_error be_precise
 	  n_text_judging n_edit_judging !equate_anons !do_text
-      | Contribution_analysis -> new Contribution_analysis.page id title out_file rep_histories
-	  !equate_anons
+      | Contribution_analysis -> new Contribution_analysis.page id title 
+	  out_file rep_histories !equate_anons
       (* Trust_color does not also do the origin *)
       | Trust_color -> new Trust_analysis.page id title xml_file rep_histories
-	  trust_coeff_lends_rep trust_coeff_read_all trust_coeff_cut_rep_radius trust_coeff_kill_decrease
+	  trust_coeff_lends_rep trust_coeff_read_all 
+	    trust_coeff_cut_rep_radius trust_coeff_kill_decrease
 	  n_rev_to_output !equate_anons 
       | Trust_syntactregion_color -> begin
 	  if !do_origin 
-	  then new Trust_origin_analysis.page id title xml_file rep_histories
-	    trust_coeff_lends_rep trust_coeff_read_all trust_coeff_read_part trust_coeff_part_radius 
-	    trust_coeff_cut_rep_radius trust_coeff_kill_decrease n_rev_to_output !equate_anons 
-	  else new Trust_local_color_analysis.page id title xml_file rep_histories
-	    trust_coeff_lends_rep trust_coeff_read_all trust_coeff_read_part trust_coeff_part_radius 
-	    trust_coeff_cut_rep_radius trust_coeff_kill_decrease n_rev_to_output !equate_anons
+	  then new Trust_origin_analysis.page id title xml_file 
+	    rep_histories trust_coeff_lends_rep trust_coeff_read_all 
+	    trust_coeff_read_part trust_coeff_local_decay
+	    trust_coeff_cut_rep_radius trust_coeff_kill_decrease 
+	    n_rev_to_output !equate_anons 
+	  else new Trust_local_color_analysis.page id title xml_file 
+	    rep_histories trust_coeff_lends_rep trust_coeff_read_all 
+	    trust_coeff_read_part trust_coeff_local_decay 
+	    trust_coeff_cut_rep_radius trust_coeff_kill_decrease 
+	    n_rev_to_output !equate_anons
 	end
-      | Trust_and_origin -> new Trust_origin_analysis.page id title xml_file rep_histories
-	  trust_coeff_lends_rep trust_coeff_read_all trust_coeff_read_part trust_coeff_part_radius 
-	    trust_coeff_cut_rep_radius trust_coeff_kill_decrease n_rev_to_output !equate_anons 
-      | Trust_for_online -> new Trust_for_online_analysis.page id title sql_file
-	  rev_base_path sig_base_path db_prefix rep_histories
-	    trust_coeff_lends_rep trust_coeff_read_all trust_coeff_read_part trust_coeff_part_radius 
-	    trust_coeff_cut_rep_radius trust_coeff_kill_decrease n_sigs
+      | Trust_and_origin -> new Trust_origin_analysis.page id title xml_file 
+	  rep_histories trust_coeff_lends_rep trust_coeff_read_all 
+	    trust_coeff_read_part trust_coeff_local_decay 
+	    trust_coeff_cut_rep_radius trust_coeff_kill_decrease 
+	    n_rev_to_output !equate_anons 
+      | Trust_for_online -> new Trust_for_online_analysis.page id title 
+	  xml_file sql_file rev_base_path sig_base_path db_prefix rep_histories
+	    trust_coeff_lends_rep trust_coeff_read_all trust_coeff_read_part 
+	    trust_coeff_local_decay trust_coeff_cut_rep_radius 
+	    trust_coeff_kill_decrease n_sigs
       | Revcount_analysis -> begin 
 	  let n = page_seq_number in 
 	  page_seq_number <- n + 1; 
 	  new Revcount_analysis.page id title out_file n
 	end 
       | Intertime_analysis -> new Intertime_analysis.page id title out_file
-      | Prune_revisions -> new Prune_analysis.page id title xml_file n_rev_to_output keep_rev_after false true
-      | Revisions_to_text -> new Revs_to_files_analysis.page id title rev_base_path xml_file
+      | Prune_revisions -> new Prune_analysis.page id title xml_file 
+	  n_rev_to_output keep_rev_after false true
+      | Revisions_to_text -> begin
+	  match rev_base_path with
+	    Some b -> new Revs_to_files_analysis.page id title b xml_file
+	  | None -> raise (MissingRevisionPath "A revision path is needed!\n")
+	end
       | Do_nothing -> new page
 
 
@@ -331,42 +360,37 @@ class page_factory
 
 
     (* Opens the files, given a basename. *)
-    method open_out_files (base_name: string) : string Vec.t = 
+    method open_out_files (base_name: string) : unit =
       let default_name = base_name ^ ".out" in 
       let xml_name     = base_name ^ ".xml" in 
       let sql_name     = base_name ^ ".sql" in 
       let stats_name   = base_name ^ ".stats" in 
-      (* We init this to stderr so we notice if someone writes where he is not supposed to *)
+      (* We init this to stderr so we notice if someone writes where
+	 he is not supposed to *)
       out_file <- stderr;
       xml_file <- stderr;
       sql_file <- stderr;
       words_file <- stderr;
-      (* List of file names to be returned *)
-      let names_l = ref Vec.empty in 
       begin 
 	match mode with 
-	  Linear_analysis | Circular_analysis | Reputation_analysis -> begin 
-	    out_file <- Fileinfo.open_info_out stats_name; 
-	    names_l := Vec.singleton stats_name
-	  end
-	| Contribution_analysis | Revcount_analysis | Intertime_analysis -> begin 
-	    out_file <- Fileinfo.open_info_out default_name; 
-	    names_l := Vec.singleton default_name
-	  end
+	  Linear_analysis | Circular_analysis | Reputation_analysis 
+	    -> out_file <- Fileinfo.open_info_out stats_name
+	| Contribution_analysis | Revcount_analysis | Intertime_analysis 
+	    -> out_file <- Fileinfo.open_info_out default_name
 	| Trust_color | Trust_syntactregion_color | Trust_and_origin
-	| AuthorText
-	| WordFequency
-	| Prune_revisions | Revisions_to_text -> begin 
-	    xml_file <- Fileinfo.open_info_out xml_name; 
-	    names_l := Vec.singleton xml_name
-	  end
+	| AuthorText | WordFequency | Prune_revisions | Revisions_to_text 
+	    -> xml_file <- Fileinfo.open_info_out xml_name
 	| Trust_for_online -> begin
 	    sql_file <- Fileinfo.open_info_out sql_name; 
-	    names_l := Vec.singleton sql_name
+	    (* We also open an xml file, unless output is requested to the
+	       filesystem. *)
+	    match rev_base_path with
+	      None -> xml_file <- Fileinfo.open_info_out xml_name
+	    | Some _ -> ()
 	  end
 	| Do_nothing -> ()
-      end; 
-      !names_l
+      end
+
 
     (* Uses the same file for all purposes *)
     method set_single_file (f_out: out_channel) : unit = 
@@ -377,16 +401,28 @@ class page_factory
 
     (* This method closes the output files *)
     method close_out_files : unit = 
-      if out_file <> stderr then begin Fileinfo.close_info_out out_file; out_file <- stderr end;
-      if xml_file <> stderr then begin Fileinfo.close_info_out xml_file; xml_file <- stderr end;
-      if sql_file <> stderr then begin Fileinfo.close_info_out xml_file; xml_file <- stderr end;
-      if words_file <> stderr then begin Fileinfo.close_info_out words_file; words_file <- stderr end 
+      if out_file <> stderr then 
+	begin Fileinfo.close_info_out out_file; out_file <- stderr end;
+      if xml_file <> stderr then 
+	begin Fileinfo.close_info_out xml_file; xml_file <- stderr end;
+      if sql_file <> stderr then 
+	begin Fileinfo.close_info_out xml_file; xml_file <- stderr end;
+      if words_file <> stderr then 
+	begin Fileinfo.close_info_out words_file; words_file <- stderr end 
 
     (* Writes the output preamble if needed *)
     method output_preamble (s : string) : unit = 
       match mode with 
-	Trust_color | Trust_syntactregion_color | Prune_revisions | Revisions_to_text 
+	Trust_color | Trust_syntactregion_color | Prune_revisions 
+      | Revisions_to_text 
 	  -> output_string xml_file s
+      | Trust_for_online -> begin
+	  (* We output to the xml file only if some xml file has been
+	     chosen. *)
+	  match rev_base_path with
+	    None -> output_string xml_file s
+	  | Some _ -> ()
+	end
       | _ -> ()
 
   end

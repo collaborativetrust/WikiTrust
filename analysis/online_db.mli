@@ -42,10 +42,10 @@ open Online_types;;
     information cannot be read from the database. *)
 exception DB_Not_Found;;
 
-(* Raised when a commit fails. *)
+(** Raised when a commit fails. *)
 exception DB_TXN_Bad;;
 
-(* Represents the revision table in memory *)
+(** Represents the revision table in memory *)
 type revision_t = {
   rev_id: int; 
   rev_page: int; 
@@ -57,13 +57,17 @@ type revision_t = {
   rev_comment: string
 } 
 
-(* This is the type of a vote data *)
+(** This is the type of a vote data *)
 type vote_t = {
   vote_time: string;
   vote_page_id: int; 
   vote_revision_id: int;
   vote_voter_id: int;
 }
+
+(** This is the type of a signature set *)
+type page_sig_t
+val empty_page_sigs : page_sig_t
 
 class db : 
   string ->        (* db prefix *)
@@ -193,6 +197,13 @@ class db :
     (** [get_page_title page_id] returns the page title of the named page *)
     method get_page_title : int -> string
 
+    (** [read_page_sigs page_id] reads and returns the sigs for page [page_id]. *)
+    method read_page_sigs : int -> page_sig_t
+
+    (** [write_page_sigs page_id sigs] writes that the sigs 
+	page [page_id] are [sigs]. *)
+    method write_page_sigs : int -> page_sig_t -> unit
+
     (* ================================================================ *)
     (* Revision methods.  We assume we have a lock on the page to which 
        the revision belongs when calling these methods. *)
@@ -244,7 +255,7 @@ class db :
 	sigs] writes that the revision [rev_id] of [page_id] is
 	associated with [words], [trust], [origin], and [sigs]. *)
     method write_words_trust_origin_sigs : 
-      int -> int ->
+      int -> int -> page_sig_t ->
       string array -> 
       float array -> 
       int array -> 
@@ -255,12 +266,12 @@ class db :
 	trust, origin, and author sigs for the revision [rev_id] of
 	page [page_id] from the [wikitrust_sigs] table. *)
     method read_words_trust_origin_sigs : 
-      int -> int ->
+      int -> int -> page_sig_t ->
       (string array * float array * int array * string array * Author_sig.packed_author_signature_t array)
 
     (** [delete_author_sigs page_id rev_id] removes from the db the author 
 	signatures for [rev_id] of [page_id]. *)
-    method delete_author_sigs : int -> int -> unit
+    method delete_author_sigs : int -> int -> page_sig_t -> unit
 
     (** [update_queue_page page_title] updates the default page_id to a real 
     one. *)
