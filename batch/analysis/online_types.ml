@@ -199,6 +199,8 @@ type qual_info_t = {
   mutable reputation_gain: float;
   (** Overall trust of a revision *)
   mutable overall_trust: float;
+  (** Histogram of word trust *)
+  mutable word_trust_histogram: int array;
 } with sexp
 
 (* Infinity for reputation delta *)
@@ -214,7 +216,8 @@ let quality_info_default = {
   nix_bit = false;
   delta = 0.0;
   reputation_gain = 0.0;
-  overall_trust = 0.0
+  overall_trust = 0.0;
+  word_trust_histogram = Array.make 10 0
 }
 
 (** This is the type of an edit list, annotated *)

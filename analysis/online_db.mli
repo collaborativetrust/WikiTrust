@@ -216,10 +216,10 @@ class db :
 	wikitrust_revision table. *)
     method read_wikitrust_revision : int -> (revision_t * qual_info_t)
 
-  (** [write_wikitrust_revision revision_info quality_info trust_histogram]
+  (** [write_wikitrust_revision revision_info quality_info]
       writes the wikitrust data associated with a revision. *)
     method write_wikitrust_revision : 
-      revision_t -> qual_info_t -> int array -> unit
+      revision_t -> qual_info_t -> unit
 
     (** [read_revision_quality rev_id] reads the wikitrust quality
 	information of revision_id *)

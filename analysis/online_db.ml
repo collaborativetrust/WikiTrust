@@ -467,12 +467,11 @@ object(self)
 	(r, q)
       end
 
-  (** [write_wikitrust_revision revision_info quality_info trust_histogram]
+  (** [write_wikitrust_revision revision_info quality_info]
       writes the wikitrust data associated with a revision. *)
   method write_wikitrust_revision 
     (revision_info: revision_t) 
-    (quality_info: qual_info_t)
-    (trust_histogram: int array) : unit = 
+    (quality_info: qual_info_t) : unit = 
     (* Revision parameters *)
     let rev_id = ml2int revision_info.rev_id in
     let page_id = ml2int revision_info.rev_page in 
@@ -487,16 +486,9 @@ object(self)
     let q2 =  ml2float quality_info.reputation_gain in 
     let aq2 = if (q2 = "inf") then (ml2float infinity) else q2 in
     let q3 = ml2float quality_info.overall_trust in
-    (* Histogram *)
-    let th01 = ml2int trust_histogram.(0) in
-    let th23 = ml2int trust_histogram.(1) in
-    let th45 = ml2int trust_histogram.(2) in
-    let th67 = ml2int trust_histogram.(3) in
-    let th8  = ml2int trust_histogram.(4) in
-    let th9  = ml2int trust_histogram.(5) in
     (* Db write access *)
-    let s2 =  Printf.sprintf "INSERT INTO %swikitrust_revision (revision_id, page_id, text_id, time_string, user_id, username, is_minor, comment, quality_info, reputation_delta, overall_trust, wt_01, wt_23, wt_45, wt_67, wt_8, wt_9) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE quality_info = %s, reputation_delta = %s, overall_trust = %s, wt_01 = %s, wt_23 = %s, wt_45 = %s, wt_67 = %s, wt_8 = %s, wt_9 = %s"
-      db_prefix rev_id page_id text_id time_string user_id username is_minor comment q1 aq2 q3 th01 th23 th45 th67 th8 th9 q1 aq2 q3 th01 th23 th45 th67 th8 th9 in 
+    let s2 =  Printf.sprintf "INSERT INTO %swikitrust_revision (revision_id, page_id, text_id, time_string, user_id, username, is_minor, comment, quality_info, reputation_delta, overall_trust) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE quality_info = %s, reputation_delta = %s, overall_trust = %s"
+      db_prefix rev_id page_id text_id time_string user_id username is_minor comment q1 aq2 q3 q1 aq2 q3 in
     ignore (self#db_exec mediawiki_dbh s2)
 
   (** [read_revision_info rev_id] reads the wikitrust information of revision_id *)
