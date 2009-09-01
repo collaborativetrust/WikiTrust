@@ -131,7 +131,7 @@ let command_line_format =
   ("-write_final_reps", Arg.Set write_final_reps, "Write reputations only at the end.");
   ("-do_compute_stats", Arg.Set do_compute_stats, "Computes reputation statistics (otherwise, invalid results are printed).");
   ("-init_rep_file", Arg.Set_string init_rep_file, "File name containing user reputations used for initialization.");
-  ("-robots_file", Arg.String set_robots, "File name containing robot names.");
+  ("-robots", Arg.String set_robots, "File name containing robot names.");
 ]
 
 let _ = Arg.parse command_line_format noop "Usage: generate_reputation\n"

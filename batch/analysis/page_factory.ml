@@ -1,6 +1,6 @@
 (*
 
-Copyright (c) 2007-2008 The Regents of the University of California
+Copyright (c) 2007-2009 The Regents of the University of California
 All rights reserved.
 
 Authors: Luca de Alfaro, B. Thomas Adler, Vishwanath Raman, Ian Pye
@@ -298,7 +298,7 @@ class page_factory
        ("-sig_base_path", Arg.String self#set_sig_base_path, "Prefix for writing out each revision signature as a separate file."); 
        ("-db_prefix", Arg.String self#set_db_prefix, "Prefix of db tables for the wiki.");
        ("-n_sigs", Arg.Int self#set_n_sigs, "Number of past signatures to store in the filesystem.");
-       ("-robot_file", Arg.String self#set_robots, "File containing robot names");
+       ("-robots", Arg.String self#set_robots, "File containing robot names");
       ]		   
 
     (** Makes a page for the primary name space, where analysis must occur. *)

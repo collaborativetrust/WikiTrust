@@ -329,7 +329,7 @@ object(self)
       | Some b -> begin
 	  Printf.fprintf sql_file "INSERT INTO %swikitrust_page (page_id, page_info) VALUES (%s, %s) ON DUPLICATE KEY UPDATE page_info = %s;\n" 
 	    db_prefix (ml2int page_id) info_string_db info_string_db;
-	  Filesystem_store.write_revision b page_id 0 chunks_string
+	  Filesystem_store.write_revision b page_id 1 chunks_string
 	  
 	end
 

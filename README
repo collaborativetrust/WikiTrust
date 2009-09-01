@@ -243,9 +243,13 @@ Follow these instructions in place of step 2) above.
 	  godi-xml-light
 	  godi-zip
 
-	For the godi-ocaml-mysql package, you will also need
-	the mysql client library.  On Ubuntu, this is package
+	* For the godi-ocaml-mysql package, you will also need
+	  the mysql client library.  On Ubuntu, this is package
 	  libmysqlclient16-dev
+
+	* For the godi-pcre package, you will also need the ocaml
+	  bindings for PCRE.  On Ubuntu, this is the package
+	  libpcre-ocaml-dev
 
    2a2) If you do not wish to use godi, you can get the above packages
         either from their source, or from the linux distribution you
@@ -261,6 +265,7 @@ Follow these instructions in place of step 2) above.
           python-mysqldb
 	  libxml-light-ocaml-dev	
 	  libzip-ocaml-dev
+	  libpcre-ocaml-dev
 
         You also need:
 
