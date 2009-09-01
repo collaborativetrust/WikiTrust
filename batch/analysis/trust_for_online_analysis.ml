@@ -310,19 +310,28 @@ object(self)
 	} in 
 	chunk_list := c :: !chunk_list
       end done;
-      let chunks_string = ml2str (string_of__of__sexp_of 
-	(sexp_of_list sexp_of_chunk_t) !chunk_list) in 
+      let chunks_string = string_of__of__sexp_of 
+	(sexp_of_list sexp_of_chunk_t) !chunk_list in 
       (* Produces page_info_t *)
       let page_info = {
 	past_hi_rep_revs = [];
 	past_hi_trust_revs = [];
       } in 
-      let info_string = ml2str 
+      let info_string_db = ml2str 
 	(string_of__of__sexp_of sexp_of_page_info_t page_info) in 
-      Printf.fprintf sql_file "INSERT INTO %swikitrust_page (page_id, deleted_chunks, page_info) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE deleted_chunks = %s, page_info = %s;\n" 
-	db_prefix (ml2int page_id) chunks_string info_string 
-	chunks_string info_string
-	
+      match sig_base_path with 
+	None -> begin
+	  let chunks_string_db = ml2str chunks_string in
+	  Printf.fprintf sql_file "INSERT INTO %swikitrust_page (page_id, deleted_chunks, page_info) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE deleted_chunks = %s, page_info = %s;\n" 
+	    db_prefix (ml2int page_id) chunks_string_db info_string_db 
+	    chunks_string_db info_string_db
+	end
+      | Some b -> begin
+	  Printf.fprintf sql_file "INSERT INTO %swikitrust_page (page_id, page_info) VALUES (%s, %s) ON DUPLICATE KEY UPDATE page_info = %s;\n" 
+	    db_prefix (ml2int page_id) info_string_db info_string_db;
+	  Filesystem_store.write_revision b page_id 0 chunks_string
+	  
+	end
 
     (** This method stores the sigs of the last few revisions in the
 	filesystem. *)
