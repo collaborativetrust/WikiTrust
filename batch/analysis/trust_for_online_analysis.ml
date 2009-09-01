@@ -151,12 +151,12 @@ object(self)
       } in
       (* Prepares these parameters. *)
       let q1 = ml2str 
-	(string_of__of__sexp_of sexp_of_qual_info_t quality_info_default) in 
-      let q2 =  ml2float quality_info_default.reputation_gain in 
+	(string_of__of__sexp_of sexp_of_qual_info_t quality_info) in 
+      let q2 =  ml2float quality_info.reputation_gain in 
       let aq2 = if (q2 = "inf") then (ml2float infinity) else q2 in
       let q3 = ml2float quality_info.overall_trust in
       (* Db write access *)
-      Printf.fprintf sql_file "INSERT INTO %swikitrust_revision (revision_id, page_id, text_id, time_string, user_id, username, is_minor, comment, quality_info, reputation_delta, overall_trust, wt_01, wt_23, wt_45, wt_67, wt_9, wt_9) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE quality_info = %s, reputation_delta = %s, overall_trust = %s;\n"
+      Printf.fprintf sql_file "INSERT INTO %swikitrust_revision (revision_id, page_id, text_id, time_string, user_id, username, is_minor, comment, quality_info, reputation_delta, overall_trust) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE quality_info = %s, reputation_delta = %s, overall_trust = %s;\n"
 	db_prefix rev_id page_id text_id time_string user_id username is_minor comment q1 aq2 q3 q1 aq2 q3
 	
 
