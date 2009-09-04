@@ -295,6 +295,13 @@ if (1) {
     $options = ParserOptions::newFromUser($wgUser);
     $text = WikiTrust::color_parseWiki($colored_text, $options);
 
+    // Fix broken dt tags -- caused by ; 
+    $text = preg_replace("/<dt>\{\{#t<\/dt>\n<dd>(.*?)<\/dd>/",
+        "<dt>{{#t:$1</dt>",
+				$text,
+				-1,
+				$count);
+    
     // Fix edit section links    
     $text = preg_replace_callback(
         "/title=\"Edit section: (.*?)\">/",
