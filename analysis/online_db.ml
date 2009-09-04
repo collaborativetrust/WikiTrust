@@ -713,11 +713,15 @@ object(self)
 	          in
 	            List.iter mark_as_processing !results;
               (* HACK -- but we need to end this loop. *)
-              n_attempts := n_retries   
+              n_attempts := n_retries;
+              self#commit
 	      end with _ -> begin 
 	        (* Roll back *)
 	        self#rollback_transaction;
-	        n_attempts := !n_attempts + 1
+	        n_attempts := !n_attempts + 1;
+		(* TODO: Need to reset 'results' to empty list.
+		   desired code: results := ref []
+		 *)
 	      end
       end done; (* End of the multiple attempts at the transaction *)
       !results

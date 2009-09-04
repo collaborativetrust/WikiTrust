@@ -1,0 +1,39 @@
+
+<% $result %>
+
+<%init>
+
+my $dbh = DBI->connect(
+  $ENV{WT_DBNAME},
+  $ENV{WT_DBUSER},
+  $ENV{WT_DBPASS}
+);
+
+my $result = "";
+
+if ($vote eq ""){
+  $result = WikiTrust::handle_vote($rev, $page, $user, $time, $page_title, 
+      $dbh);
+} elsif ($edit eq "") {
+  $result = WikiTrust::handle_edit($rev, $page, $user, $time, $page_title, 
+      $dbh);
+} else {
+  $result = WikiTrust::handle_text_request($rev, 
+      $page, $user, $time, $page_title, $dbh);
+  if (!($result eq WikiTrust::get_not_found_text_token())) {
+    $r->content_encoding('application/x-gzip');
+    $result = Compress::Zlib::memGzip($result);
+  }
+}
+
+</%init>
+
+<%args>
+  $page
+  $page_title
+  $rev => -1
+  $time => ""
+  $user => -1
+  $vote => -1
+  $edit => -1
+</%args>
