@@ -116,7 +116,7 @@ class page
 	  let (cl, pinfo) = db#read_page_info page_id in 
 	  del_chunks_list <- cl; 
 	  page_info <- pinfo
-	with Online_db.DB_Not_Found -> ();
+	with Online_db.DB_Not_Found -> db#init_page page_id;
       end;
       (* Reads the revision voted on. *)
       begin 
@@ -136,7 +136,7 @@ class page
 	  let (cl, pinfo) = db#read_page_info page_id in 
 	  del_chunks_list <- cl; 
 	  page_info <- pinfo
-	with Online_db.DB_Not_Found -> ();
+	with Online_db.DB_Not_Found -> db#init_page page_id;
       end;
       (* Reads the most recent revisions *)
       
@@ -249,10 +249,12 @@ class page
       for i = n_revs - 1 downto 0 do begin 
 	let r = Vec.get i revs in
 	if i = 0 then begin 
-	  (* If a revision has no text, we have to recover this at a lower level,
-	     since text is not something we compute. *)
+	  (* This is the most recent revision, for which we read
+	     the uncolored text.  *)
 	  r#read_text
 	end else begin
+	  (* These are the older revisions, for which we read the
+	     trust, origin, etc information (from the sigs, we hope. *)
 	  try r#read_words_trust_origin_sigs page_sigs
           with Online_db.DB_Not_Found -> raise (Missing_trust r)
 	end
@@ -744,16 +746,13 @@ class page
 	    Author_sig.add_author rev0_uid w Author_sig.empty_sigs
 	  in Array.map f rev0_t
 	in 
-        (* Produces the live chunk, consisting of the text of the
-           revision, annotated with trust and origin information *)
-        let buf = Revision.produce_annotated_markup 
-	  rev0_seps chunk_0_trust chunk_0_origin chunk_0_author false true true in 
-        (* And writes it out to the db *)
-        db#write_colored_markup page_id rev0_id (Buffer.contents buf); 
 	rev0#set_trust  chunk_0_trust;
 	rev0#set_origin chunk_0_origin;
 	rev0#set_author chunk_0_author;
 	rev0#set_sigs   chunk_0_sigs;
+        (* Writes to the db the colored text. *)
+	rev0#write_colored_text false true true;
+	(* Writes to the db the sig for the revision. *)
 	rev0#write_words_trust_origin_sigs page_sigs;
 	(* Computes the overall trust of the revision *)
 	let t = Compute_robust_trust.compute_overall_trust chunk_0_trust in 
@@ -926,16 +925,16 @@ class page
         (* Computes the list of deleted chunks with extended
            information (also age, timestamp), and the information for
            the live text *)
-        del_chunks_list <- self#compute_dead_chunk_list new_chunks_10_a new_trust_10_a 
-	  new_sigs_10_a new_origin_10_a new_author_10_a del_chunks_list medit_10_l rev1_time rev0_time;
+        del_chunks_list <- self#compute_dead_chunk_list 
+	  new_chunks_10_a new_trust_10_a new_sigs_10_a new_origin_10_a 
+	  new_author_10_a del_chunks_list medit_10_l rev1_time rev0_time;
+
         (* Writes the annotated markup, trust, origin, sigs to disk *)
-        let buf = Revision.produce_annotated_markup rev0_seps new_trust_10_a.(0) 
-	  new_origin_10_a.(0) new_author_10_a.(0) false true true in 
-        db#write_colored_markup page_id rev0_id (Buffer.contents buf);
 	rev0#set_trust  new_trust_10_a.(0);
 	rev0#set_origin new_origin_10_a.(0);
 	rev0#set_author new_author_10_a.(0);
 	rev0#set_sigs   new_sigs_10_a.(0);
+	rev0#write_colored_text false true true;
 	rev0#write_words_trust_origin_sigs page_sigs;
 	(* Now that the colored revision is written out to disk, we don't need
 	   any more its uncolored text.   If we are using the exec_api, 
@@ -943,8 +942,7 @@ class page
 	   revisions for the same page. *)
 	db#erase_cached_rev_text page_id rev0_id rev0_time_string;
 	(* Computes the overall trust of the revision. *)
-	let t = 
-	  Compute_robust_trust.compute_overall_trust new_trust_10_a.(0) in 
+	let t = Compute_robust_trust.compute_overall_trust new_trust_10_a.(0) in
 	rev0#set_overall_trust t;
 	let th = 
 	  Compute_robust_trust.compute_trust_histogram new_trust_10_a.(0) in
@@ -979,31 +977,29 @@ class page
 	  (* Computes the new trust and signatures *)
 
 
-	  let (new_trust_a, new_sigs_a) = Compute_robust_trust.compute_robust_trust 
-            trust_a 
-	    sig_a
-            new_chunks_a 
-            rev0_seps 
-            medit_l
-            voter_weight
-	    voter_uid
-            trust_coeff.lends_rep 
-            trust_coeff.kill_decrease 
-            trust_coeff.cut_rep_radius 
-            trust_coeff.read_all
-            0. (* trust_coeff.read_part *)
-            trust_coeff.local_decay
+	  let (new_trust_a, new_sigs_a) = 
+	    Compute_robust_trust.compute_robust_trust 
+              trust_a 
+	      sig_a
+              new_chunks_a 
+              rev0_seps 
+              medit_l
+              voter_weight
+	      voter_uid
+              trust_coeff.lends_rep 
+              trust_coeff.kill_decrease 
+              trust_coeff.cut_rep_radius 
+              trust_coeff.read_all
+              0. (* trust_coeff.read_part *)
+              trust_coeff.local_decay
 	  in 
-	  (* Writes the new colored markup *)
-	  let buf = Revision.produce_annotated_markup rev0_seps new_trust_a.(0) 
-	    rev0#get_origin rev0#get_author false true true in 
-	  db#write_colored_markup page_id rev0_id (Buffer.contents buf);
-	  (* Writes the trust information to the revision *)
 	  rev0#set_trust new_trust_a.(0); 
 	  rev0#set_sigs  new_sigs_a.(0);
+	  (* Writes the new colored markup *)
+	  rev0#write_colored_text false true true;
+	  (* Writes the trust information to the revision *)
 	  rev0#write_words_trust_origin_sigs page_sigs;
-	  let t = 
-	    Compute_robust_trust.compute_overall_trust new_trust_a.(0) in 
+	  let t = Compute_robust_trust.compute_overall_trust new_trust_a.(0) in
 	  rev0#set_overall_trust t;
 	  let th = 
 	    Compute_robust_trust.compute_trust_histogram new_trust_a.(0) in
@@ -1354,8 +1350,8 @@ class page
 	      !Online_log.online_logger#log "   Computing edit incs...\n";
 	      self#compute_edit_inc;
 	      
-	      (* Inserts the revision in the list of high rep or high trust revisions, 
-		 and deletes old signatures *)
+	      (* Inserts the revision in the list of high rep or high
+		 trust revisions, and deletes old signatures *)
 	      self#insert_revision_in_lists;
 	      (* We write to disk the page information *)
 	      db#write_page_chunks_info page_id del_chunks_list page_info;

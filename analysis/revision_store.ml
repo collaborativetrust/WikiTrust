@@ -73,17 +73,22 @@ let write_gzipped_file (file_name: string) (s: string) : unit =
 
 (** [get_filename base_path page_id blob_id] computes the filename where
     the compressed blob [blob_id] of page [page_id] is stored.
-    It returns a pair, consisting of:
+    It returns a triple, consisting of:
+    - The string key to store the blob in the db.
     - The full filename of the revision.
     - the list of directories that may need to be made.
 
     We divide the tree so that the page tree has branching factor of
-    at most 1000.  We divide the blob tree in at most 1000
-    directories, based on the digits 345 of the blob id.  *)
+    at most 1000.  
+    If the blob id is 1000 or less, that is all there is: there are no
+    blob-level directories, to optimize for the common case.
+    If there are more than 1000 blobs, we then add xyz directories, 
+    based on digits 345 of the blob id, for the pages that have very
+    many revisions. *)
 let get_filename (base_path: string) (page_id: int) (blob_id: int) 
     : (string * string list) =   
   let page_str = Printf.sprintf "%012d" page_id in 
-  let blob_str  = Printf.sprintf "%012d" blob_id  in 
+  let blob_str  = Printf.sprintf "%09d" blob_id  in 
   let list_dirs = ref [base_path] in
   let file_name = ref base_path in 
   (* First, the page directories. *)
@@ -93,9 +98,11 @@ let get_filename (base_path: string) (page_id: int) (blob_id: int)
     list_dirs := !list_dirs @ [!file_name]
   end done;
   (* Then, the blob directory *)
-  let s = String.sub blob_str 6 3 in 
-  file_name := !file_name ^ "/" ^ s;
-  list_dirs := !list_dirs @ [!file_name];
+  if blob_id > 999 then begin
+    let s = String.sub blob_str 6 3 in 
+    file_name := !file_name ^ "/" ^ s;
+    list_dirs := !list_dirs @ [!file_name]
+  end;
   (* Now all together *)
   file_name := !file_name ^ "/" ^ page_str ^ "_" ^ blob_str ^ ".gz";
   (!file_name, !list_dirs)
@@ -107,18 +114,24 @@ let get_filename (base_path: string) (page_id: int) (blob_id: int)
 let write_blob (base_name: string) (page_id: int) (blob_id: int) 
     (s: string) : unit =
   let (f_name, dir_l) = get_filename base_name page_id blob_id in 
-  (* Makes the directories *)
-  let make_dir (d: string) = 
-    begin try 
-      Unix.mkdir d 0o755
-    with Unix.Unix_error (Unix.EEXIST, _, _) -> () end
-  in List.iter make_dir dir_l;
-  (* Writes the revision *)
-  write_gzipped_file f_name s
+  (* Writes the file directly, hoping that the directories exist. *)
+  begin try
+    write_gzipped_file f_name s
+  with Sys_error _ -> begin
+    (* Makes the directories *)
+    let make_dir (d: string) = 
+      begin try 
+	Unix.mkdir d 0o755
+      with Unix.Unix_error (Unix.EEXIST, _, _) -> () end
+    in List.iter make_dir dir_l;
+    (* Tries again to write the blob *)
+    write_gzipped_file f_name s
+  end
 
 (** [read_blob base_name page_id blob_id] returns the blob
     [blob_id] of page [page_id]. *)
-let read_blob (base_name: string) (page_id: int) (blob_id: int) : string option =
+let read_blob (base_name: string) (page_id: int) (blob_id: int) 
+    : string option =
   let (f_name, _) = get_filename base_name page_id blob_id in 
   read_gzipped_file f_name;;
 
