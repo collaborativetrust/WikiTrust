@@ -20,10 +20,6 @@ if ($vote eq ""){
 } else {
   $result = WikiTrust::handle_text_request($rev, 
       $page, $user, $time, $page_title, $dbh);
-  if (!($result eq WikiTrust::get_not_found_text_token())) {
-    $r->content_encoding('application/x-gzip');
-    $result = Compress::Zlib::memGzip($result);
-  }
 }
 
 </%init>
@@ -37,3 +33,12 @@ if ($vote eq ""){
   $vote => -1
   $edit => -1
 </%args>
+
+<%filter>
+## Compress the output if the client accepts it.
+if ($r->headers_in->{'Accept-Encoding'} =~ /((?:x-)?gzip)/) {
+  $r->content_encoding($1);
+  $_ = Compress::Zlib::memGzip($_);
+}
+
+</%filter>

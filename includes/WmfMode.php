@@ -82,7 +82,9 @@ class WikiTrust extends WikiTrustBase {
   static function color_getColorData($page_title, $page_id = 0, $rev_id = 0)
   {
     $ctx = stream_context_create(
-		 array('http' => array('timeout' => self::TRUST_TIMEOUT))
+        array('http' => array(
+          'timeout' => self::TRUST_TIMEOUT,
+    ))
 	 );
 
     $MAX_TIMES_THROUGH = 2;
@@ -118,12 +120,14 @@ class WikiTrust extends WikiTrustBase {
         || $colored_raw == "bad")
       {
         return '';
-      }
-    
+      }    
 
     // Inflate. Pick off the first 10 bytes for python-php conversion.
-    $colored_raw = gzinflate(substr($colored_raw, 10));
-      
+    // Not used here for now. 
+    // ToDo: Use curl to handle the gzip behind the scenes.
+    // $colored_raw = gzinflate(substr($colored_raw, 10));
+    $colored_data = $colored_raw;
+
     // Pick off the median value first.
     $colored_data = explode(",", $colored_raw, 2);
     $colored_text = $colored_data[1];
