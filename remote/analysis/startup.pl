@@ -9,7 +9,7 @@ unless (defined $ENV{MOD_PERL}){
 }
 
 ## ToDo Bo -- is there a better way to do this?
-use lib qw(/mnt/bigspace/ipye/git/wikitrust/remote/analysis);
+use lib $ENV{WT_PATH};
 
 ## Setup the DB.
 Apache::DBI->connect_on_init(
