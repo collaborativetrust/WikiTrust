@@ -71,11 +71,14 @@ class page
   (trust_coeff_lends_rep: float)
   (trust_coeff_read_all: float) 
   (trust_coeff_read_part: float) 
-  (trust_coeff_part_radius: float)
+  (trust_coeff_local_decay: float)
   (trust_coeff_cut_rep_radius: float) 
   (trust_coeff_kill_decrease: float)
   (* N. of signatures to output *)
   (n_sigs: int) 
+  (* Robots *)
+  (robots: Read_robots.robot_set_t)
+  (edit_time_constant: float)
   =
 
 object(self) 
@@ -134,6 +137,7 @@ object(self)
       (* I do field-by-field initialization, rather than copying the whole
 	 structure, because otherwise we get two references to the SAME
 	 structure, unfortunately. *)
+      let trust_a = r#get_word_trust in
       let quality_info : qual_info_t = {
 	n_edit_judges = quality_info_default.n_edit_judges;
 	total_edit_quality = quality_info_default.total_edit_quality;
@@ -141,17 +145,14 @@ object(self)
 	nix_bit = quality_info_default.nix_bit;
 	delta = quality_info_default.delta;
 	reputation_gain = quality_info_default.reputation_gain;
-	overall_trust = quality_info_default.overall_trust;
+	overall_trust = Compute_robust_trust.compute_overall_trust trust_a;
+	word_trust_histogram = 
+	  Compute_robust_trust.compute_trust_histogram trust_a;
       } in
-      (* The only one of the above parameters that we compute (rather than
-	 using the default) is the overall_trust, as it can be useful in 
-	 selecting high-quality revisions, and as it can be computed on 
-	 the basis of the current revision only. *)
-      quality_info.overall_trust <- 
-	Compute_robust_trust.compute_overall_trust chunks_trust_a.(0);
-      (* Writes these parameters. *)
-      let q1 = ml2str (string_of__of__sexp_of sexp_of_qual_info_t quality_info_default) in 
-      let q2 =  ml2float quality_info_default.reputation_gain in 
+      (* Prepares these parameters. *)
+      let q1 = ml2str 
+	(string_of__of__sexp_of sexp_of_qual_info_t quality_info) in 
+      let q2 =  ml2float quality_info.reputation_gain in 
       let aq2 = if (q2 = "inf") then (ml2float infinity) else q2 in
       let q3 = ml2float quality_info.overall_trust in
       (* Db write access *)
@@ -169,15 +170,36 @@ object(self)
       let rev_idx = (Vec.length revs) - 1 in 
       let rev = Vec.get rev_idx revs in 
       let uid = rev#get_user_id in 
-      let t = rev#get_time in 
+      let rev_time = rev#get_time in 
       (* Gets the reputation of the author of the current revision *)
-      let rep = rep_histories#get_rep uid t in 
+      let rep = rep_histories#get_rep uid rev_time in 
       let new_wl = rev#get_words in 
       (* Calls the function that analyzes the difference 
          between revisions. Data relative to the previous revision
          is stored in the instance fields chunks_a and chunks_attr_a *)
       let (new_chunks_a, medit_l) = Chdiff.text_tracking chunks_a new_wl in 
 
+      (* Fixes the coefficients of trust incease depending on whether
+	 the user is a bot... *)
+      let (read_all', read_part') = 
+	if Hashtbl.mem robots rev#get_user_name 
+	then (0., 0.)
+	else (trust_coeff_read_all, trust_coeff_read_part)
+      in
+      (* ...and depending on the time interval wrt. the previous edit *)
+      let (read_all, read_part) =
+	if rev_idx = 0
+	then (read_all', read_part')
+	else begin
+	  let prev_rev = Vec.get (rev_idx - 1) revs in
+	  let prev_time = prev_rev#get_time in
+	  let delta_time = max 0. (rev_time -. prev_time) in
+	  let time_factor = 1. -. exp (0. -. delta_time /. edit_time_constant) 
+	  in
+	  (read_all' *. time_factor, read_part' *. time_factor)
+	end
+      in
+	
       (* Computes the trust, and the sigs *)
       let rep_float = float_of_int rep in 
       let (new_chunks_trust_a, new_chunks_sig_a) = 
@@ -185,8 +207,8 @@ object(self)
 	  chunks_trust_a chunks_sig_a new_chunks_a 
 	  rev#get_seps medit_l rep_float uid 
 	  trust_coeff_lends_rep trust_coeff_kill_decrease 
-	  trust_coeff_cut_rep_radius trust_coeff_read_all 
-	  trust_coeff_read_part default_trust_coeff.local_decay 
+	  trust_coeff_cut_rep_radius read_all read_part 
+	  trust_coeff_local_decay 
       in
       (* Computes the origin of the words in the new revision. *)
       let (new_chunks_origin_a, new_chunks_author_a) = 
@@ -288,19 +310,28 @@ object(self)
 	} in 
 	chunk_list := c :: !chunk_list
       end done;
-      let chunks_string = ml2str (string_of__of__sexp_of 
-	(sexp_of_list sexp_of_chunk_t) !chunk_list) in 
+      let chunks_string = string_of__of__sexp_of 
+	(sexp_of_list sexp_of_chunk_t) !chunk_list in 
       (* Produces page_info_t *)
       let page_info = {
 	past_hi_rep_revs = [];
 	past_hi_trust_revs = [];
       } in 
-      let info_string = ml2str 
+      let info_string_db = ml2str 
 	(string_of__of__sexp_of sexp_of_page_info_t page_info) in 
-      Printf.fprintf sql_file "INSERT INTO %swikitrust_page (page_id, deleted_chunks, page_info) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE deleted_chunks = %s, page_info = %s;\n" 
-	db_prefix (ml2int page_id) chunks_string info_string 
-	chunks_string info_string
-	
+      match sig_base_path with 
+	None -> begin
+	  let chunks_string_db = ml2str chunks_string in
+	  Printf.fprintf sql_file "INSERT INTO %swikitrust_page (page_id, deleted_chunks, page_info) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE deleted_chunks = %s, page_info = %s;\n" 
+	    db_prefix (ml2int page_id) chunks_string_db info_string_db 
+	    chunks_string_db info_string_db
+	end
+      | Some b -> begin
+	  Printf.fprintf sql_file "INSERT INTO %swikitrust_page (page_id, page_info) VALUES (%s, %s) ON DUPLICATE KEY UPDATE page_info = %s;\n" 
+	    db_prefix (ml2int page_id) info_string_db info_string_db;
+	  Filesystem_store.write_revision b page_id 1 chunks_string
+	  
+	end
 
     (** This method stores the sigs of the last few revisions in the
 	filesystem. *)

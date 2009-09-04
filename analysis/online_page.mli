@@ -67,6 +67,8 @@ class page :
   (* trust_coeff *) Online_types.trust_coeff_t ->
   (** Number of retries in the use of transactions *)
   (* n_retries *) int -> 
+  (* robots *) Read_robots.robot_set_t ->
+
   object
     (** [eval] is used to evaluate the trust of the given [page_id], [revision_id],
 	and update all reputations, etc etc.  This is the main method of the 

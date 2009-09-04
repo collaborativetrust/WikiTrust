@@ -83,6 +83,7 @@ class revision
       delta = quality_info_default.delta;
       reputation_gain = quality_info_default.reputation_gain;
       overall_trust = quality_info_default.overall_trust;
+      word_trust_histogram = quality_info_default.word_trust_histogram;
     }
     val mutable quality_info_valid = false
     (* Dirty bit to avoid writing back unchanged stuff *)
@@ -221,6 +222,15 @@ class revision
     method get_overall_trust : float = 
       self#read_quality_info; 
       quality_info.overall_trust
+
+    method set_trust_histogram (a: int array) : unit =
+      self#read_quality_info; 
+      quality_info.word_trust_histogram <- a;
+      modified_quality_info <- true
+
+    method get_trust_histogram : int array =
+      self#read_quality_info;
+      quality_info.word_trust_histogram
 
     method get_nix : bool = 
       self#read_quality_info; 

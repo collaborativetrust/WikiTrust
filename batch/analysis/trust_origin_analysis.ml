@@ -1,6 +1,6 @@
 (*
 
-Copyright (c) 2007-2008 The Regents of the University of California
+Copyright (c) 2007-2009 The Regents of the University of California
 All rights reserved.
 
 Authors: Luca de Alfaro
@@ -55,6 +55,8 @@ class page
   (trust_coeff_kill_decrease: float)
   (n_rev_to_color: int) 
   (equate_anons: bool) 
+  (robots: Read_robots.robot_set_t)
+  (edit_time_constant: float)
   =
 
   object (self) 
@@ -64,6 +66,7 @@ class page
       trust_coeff_read_part trust_coeff_local_decay
       trust_coeff_cut_rep_radius trust_coeff_kill_decrease
       n_rev_to_color equate_anons 
+      robots edit_time_constant
 
       (* This array keeps track of the revision id in which each word 
 	 was introduced. *)
@@ -83,9 +86,9 @@ class page
       let rev_idx = (Vec.length revs) - 1 in 
       let rev = Vec.get rev_idx revs in 
       let uid = rev#get_user_id in 
-      let t = rev#get_time in 
+      let rev_time = rev#get_time in 
       (* Gets the reputation of the author of the current revision *)
-      let rep = rep_histories#get_rep uid t in 
+      let rep = rep_histories#get_rep uid rev_time in 
       let new_wl = rev#get_words in 
       (* Calls the function that analyzes the difference 
          between revisions. Data relative to the previous revision
@@ -94,7 +97,28 @@ class page
       (* Constructs new_chunks_attr_a, which contains the reputation range of the 
          author of each word in the text. *)
       let rep_float = float_of_int rep in 
-      let new_chunks_trust_a = self#compute_word_trust new_chunks_a medit_l rep_float rev in 
+
+      (* Fixes read_all depending on whether the user is a bot, and on
+	 the interval between revisions. *)
+      let read_all' =
+	if Hashtbl.mem robots rev#get_user_name 
+	then 0.
+	else trust_coeff_read_all
+      in
+      (* ...and depending on the time interval wrt. the previous edit *)
+      let read_all =
+	if rev_idx = 0
+	then read_all'
+	else begin
+	  let prev_rev = Vec.get (rev_idx - 1) revs in
+	  let prev_time = prev_rev#get_time in
+	  let delta_time = max 0. (rev_time -. prev_time) in
+	  let time_factor = 1. -. exp (0. -. delta_time /. edit_time_constant) 
+	  in
+	  read_all' *. time_factor
+	end
+      in
+      let new_chunks_trust_a = self#compute_word_trust new_chunks_a medit_l rep_float rev read_all in 
       (* Computes the origin of the words in the new revision. *)
       let new_chunks_origin_a = self#compute_origin new_chunks_a medit_l rev in 
       (* Now, replaces chunks_trust_a and chunks_a for the next iteration *)

@@ -73,6 +73,8 @@ let write_final_reps = ref false
 let do_compute_stats = ref false
 let init_rep_file = ref ""
 let noop s = ()
+let robots = ref Read_robots.empty_robot_set
+let set_robots s = robots := Read_robots.read_robot_file s
 
 let set_ip_nbytes i = 
   if (i < 1 || i > 4) then begin
@@ -129,6 +131,7 @@ let command_line_format =
   ("-write_final_reps", Arg.Set write_final_reps, "Write reputations only at the end.");
   ("-do_compute_stats", Arg.Set do_compute_stats, "Computes reputation statistics (otherwise, invalid results are printed).");
   ("-init_rep_file", Arg.Set_string init_rep_file, "File name containing user reputations used for initialization.");
+  ("-robots", Arg.String set_robots, "File name containing robot names.");
 ]
 
 let _ = Arg.parse command_line_format noop "Usage: generate_reputation\n"
@@ -153,7 +156,7 @@ let init_rep_file_opt =
   if !init_rep_file = "" then None else Some (!init_rep_file)
 
 (* This is the reputation evaluator *)
-let r = new Computerep.rep params !include_anon all_time_intv !time_intv !user_file !write_final_reps !do_monthly !do_cumulative !do_localinc !gen_exact_rep !user_contrib_order_asc !include_domains !ip_nbytes stdout !use_reputation_cap !use_nix !use_weak_nix !nix_interval !n_edit_judging !gen_almost_truthful_rep !gen_truthful_rep !do_compute_stats init_rep_file_opt;;
+let r = new Computerep.rep params !include_anon all_time_intv !time_intv !user_file !write_final_reps !do_monthly !do_cumulative !do_localinc !gen_exact_rep !user_contrib_order_asc !include_domains !ip_nbytes stdout !use_reputation_cap !use_nix !use_weak_nix !nix_interval !n_edit_judging !gen_almost_truthful_rep !gen_truthful_rep !do_compute_stats init_rep_file_opt !robots;;
 
 (* Reads the data, and passes it to the function that updates user reputations. *)
 

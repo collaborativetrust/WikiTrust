@@ -1,6 +1,6 @@
 (*
 
-Copyright (c) 2007-2008 The Regents of the University of California
+Copyright (c) 2007-2009 The Regents of the University of California
 All rights reserved.
 
 Authors: Luca de Alfaro, B. Thomas Adler, Vishwanath Raman, Ian Pye
@@ -137,6 +137,9 @@ class page_factory
 	 With this choice, text killed by a rep=9 user has its 
 	 trust halved. *)
     val mutable trust_coeff_kill_decrease = default_trust_coeff.kill_decrease
+      (* Time constant for edit importance *)
+    val mutable trust_coeff_edit_time_constant = 
+      default_trust_coeff.edit_time_constant
       (* Whether to consider also text in reputation analysis *)
     val do_text = ref false
       (* N. of revisions to evaluate for text life *)
@@ -178,6 +181,8 @@ class page_factory
     val mutable db_prefix = ""
     (* N. of signatures to write *)
     val mutable n_sigs = Online_types.n_past_revs
+    (* Set of robots *)
+    val mutable robots = Read_robots.empty_robot_set
 
     (* Files for output *)
     val mutable out_file : out_channel = stderr (* also used for eval_file *)
@@ -236,6 +241,8 @@ class page_factory
       trust_coeff_cut_rep_radius <- f
     method set_trust_coeff_kill_decrease (f : float) = 
       trust_coeff_kill_decrease <- f 
+    method set_edit_time_constant (f : float) = 
+      trust_coeff_edit_time_constant <- f
     method set_bad_value (f : float) = bad_rev_threshold <- f
     method set_n_text_judging (n: int) = n_text_judging <- n 
     method set_n_edit_judging (n: int) = n_edit_judging <- n 
@@ -246,6 +253,7 @@ class page_factory
     method set_sig_base_path (n: string) = sig_base_path <- Some n 
     method set_db_prefix (n: string) = db_prefix <- n
     method set_n_sigs (n: int) = n_sigs <- n
+    method set_robots (s: string) = robots <- Read_robots.read_robot_file s
 
     (* This method gets the argument list part to be used to parse the command line *)      
     method get_arg_parser = 
@@ -274,6 +282,7 @@ class page_factory
        ("-trust_local_decay", Arg.Float self#set_trust_coeff_local_decay, "<float>: local deay coefficient for how much local trust percolates in adjacent syntactic regions.");
        ("-trust_radius", Arg.Float self#set_trust_coeff_cut_rep_radius, "<float>: trust radius of influence of edits."); 
        ("-kill_decrease", Arg.Float self#set_trust_coeff_kill_decrease, "<float>: trust decrease when text is deleted.");
+       ("-edit_time_constant", Arg.Float self#set_edit_time_constant, "<float> number of seconds for an edit to have full effect on trust.");
        ("-bad_qual_thrs", Arg.Float self#set_bad_value, "<float>: edit quality threshold below which a revision is considered bad.");
        ("-n_text_judging", Arg.Int self#set_n_text_judging, "<int>: n. of revisions to consider for text life."); 
        ("-n_edit_judging", Arg.Int self#set_n_edit_judging, "<int>: n. of revisions to consider for edit life."); 
@@ -289,6 +298,7 @@ class page_factory
        ("-sig_base_path", Arg.String self#set_sig_base_path, "Prefix for writing out each revision signature as a separate file."); 
        ("-db_prefix", Arg.String self#set_db_prefix, "Prefix of db tables for the wiki.");
        ("-n_sigs", Arg.Int self#set_n_sigs, "Number of past signatures to store in the filesystem.");
+       ("-robots", Arg.String self#set_robots, "File containing robot names");
       ]		   
 
     (** Makes a page for the primary name space, where analysis must occur. *)
@@ -314,7 +324,8 @@ class page_factory
       | Trust_color -> new Trust_analysis.page id title xml_file rep_histories
 	  trust_coeff_lends_rep trust_coeff_read_all 
 	    trust_coeff_cut_rep_radius trust_coeff_kill_decrease
-	  n_rev_to_output !equate_anons 
+	    n_rev_to_output !equate_anons 
+	    robots trust_coeff_edit_time_constant 
       | Trust_syntactregion_color -> begin
 	  if !do_origin 
 	  then new Trust_origin_analysis.page id title xml_file 
@@ -322,22 +333,26 @@ class page_factory
 	    trust_coeff_read_part trust_coeff_local_decay
 	    trust_coeff_cut_rep_radius trust_coeff_kill_decrease 
 	    n_rev_to_output !equate_anons 
+	    robots trust_coeff_edit_time_constant 
 	  else new Trust_local_color_analysis.page id title xml_file 
 	    rep_histories trust_coeff_lends_rep trust_coeff_read_all 
 	    trust_coeff_read_part trust_coeff_local_decay 
 	    trust_coeff_cut_rep_radius trust_coeff_kill_decrease 
 	    n_rev_to_output !equate_anons
+	    robots trust_coeff_edit_time_constant 
 	end
       | Trust_and_origin -> new Trust_origin_analysis.page id title xml_file 
 	  rep_histories trust_coeff_lends_rep trust_coeff_read_all 
 	    trust_coeff_read_part trust_coeff_local_decay 
 	    trust_coeff_cut_rep_radius trust_coeff_kill_decrease 
 	    n_rev_to_output !equate_anons 
+	    robots trust_coeff_edit_time_constant 
       | Trust_for_online -> new Trust_for_online_analysis.page id title 
 	  xml_file sql_file rev_base_path sig_base_path db_prefix rep_histories
 	    trust_coeff_lends_rep trust_coeff_read_all trust_coeff_read_part 
 	    trust_coeff_local_decay trust_coeff_cut_rep_radius 
-	    trust_coeff_kill_decrease n_sigs
+	    trust_coeff_kill_decrease n_sigs robots 
+	    trust_coeff_edit_time_constant
       | Revcount_analysis -> begin 
 	  let n = page_seq_number in 
 	  page_seq_number <- n + 1; 

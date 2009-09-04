@@ -110,6 +110,9 @@ let requested_voter_id = ref None
 let set_requested_voter_id f = requested_voter_id := Some f
 let requested_page_id = ref None
 let set_requested_page_id f = requested_page_id := Some f
+(* Robot set *)
+let robots = ref Read_robots.empty_robot_set
+let set_robots s = robots := Read_robots.read_robot_file s
 
 (* API params *)
 let target_wikimedia = ref "http://en.wikipedia.org/w/api.php"
@@ -145,6 +148,7 @@ let command_line_format =
    ("-throttle_delay", Arg.Float set_color_delay, "<float>: Amount of time (on average) to wait between analysis of events.  This can be used to throttle the computation, not to use too many resources.");
    ("-n_events", Arg.Int set_max_events_to_process, "<int>: Max number of events to process (default: 0 = all outstanding events) "); 
    ("-times_to_retry_trans", Arg.Int set_times_to_retry_trans, "<int>: Max number of times to retry a transation if it fails (default: 3)."); 
+   ("-robots", Arg.String set_robots, "<filename>: reads the robots from the specified file.");
    ("-use_exec_api", Arg.Set use_exec_api, "Use the exec API to access the WMF DB.");
    ("-use_wikimedia_api", Arg.Set use_wikimedia_api, "Use the WikiMedia API to access the WMF DB.");
    ("-delete_all", Arg.Set delete_all, ": Recomputes all reputations and trust from scratch.  BE CAREFUL!! This may take a LONG time for large wikis.");

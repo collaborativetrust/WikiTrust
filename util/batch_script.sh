@@ -16,11 +16,13 @@ batch/analysis/combinestats \
 
 # Computing the reputations (whole histories):
 batch/analysis/generate_reputation -u ~/wiki-data/enwork/reps/rep_history.txt \
-    -buckets -gen_exact_rep ~/wiki-data/enwork/buckets/ 
+    -buckets -gen_exact_rep \
+    -robots ~/wiki-data/wp_bots.txt ~/wiki-data/enwork/buckets/ 
 
 # Computing the reputations (only the final ones):
 batch/analysis/generate_reputation -u ~/wiki-data/enwork/reps/rep_history.txt \
-    -buckets ~/wiki-data/enwork/buckets/ -gen_exact_rep -write_final_reps
+    -buckets ~/wiki-data/enwork/buckets/ -gen_exact_rep \
+    -robots ~/wiki-data/wp_bots.txt -write_final_reps
 
 # ONLY IF NEEDED, remove previous version trees and sql.
 rm -rf /home/luca/wiki-data/enwork/coltree
@@ -33,6 +35,7 @@ batch/analysis/evalwiki -trust_for_online \
     -rev_base_path ~/wiki-data/enwork/coltree \
     -sig_base_path ~/wiki-data/enwork/sigtree \
     -n_sigs 8 \
+    -robots ~/wiki-data/wp_bots.txt \
     -d ~/wiki-data/enwork/sql \
     /home/luca/wiki-data/enwiki/wiki-00100000.xml.gz
 
@@ -41,6 +44,7 @@ batch/analysis/evalwiki -trust_for_online \
     -rev_base_path ~/wiki-data/enwork/coltree \
     -sig_base_path ~/wiki-data/enwork/sigtree \
     -n_sigs 8 \
+    -robots ~/wiki-data/wp_bots.txt \
     -d ~/wiki-data/enwork/sql \
     /home/luca/wiki-data/enwiki/wiki-00100220.xml.gz
 

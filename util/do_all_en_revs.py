@@ -2,6 +2,8 @@
 
 # Evaluates all the English Wiki
 
+# TODO: adapt to the new scheme, and compress the sql files.
+
 import commands, sys
 
 source_prefix = "/notbackedup/wikitrust1/enwiki-20080103/"

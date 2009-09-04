@@ -61,6 +61,7 @@ class updater
   (n_retries: int)
   (each_event_delay: int)
   (every_n_events_delay: int option)
+  (robots: Read_robots.robot_set_t)
 
   = object (self)
 
@@ -105,7 +106,7 @@ class updater
 	    begin (* try ... with ... *)
 	      try 
 		!Online_log.online_logger#log (Printf.sprintf "\nEvaluating revision %d of page %d\n" rev_id page_id);
-		let page = new Online_page.page db page_id rev_id (Some r) trust_coeff n_retries in
+		let page = new Online_page.page db page_id rev_id (Some r) trust_coeff n_retries robots in
 		n_processed_events <- n_processed_events + 1;
 		if page#eval 
 		then !Online_log.online_logger#log (Printf.sprintf "\nDone revision %d of page %d" rev_id page_id)
@@ -141,7 +142,7 @@ class updater
 	begin 
 	  !Online_log.online_logger#log (Printf.sprintf "\nEvaluating vote by %d on revision %d of page %d" 
 	    voter_id revision_id page_id); 
-	  let page = new Online_page.page db page_id revision_id None trust_coeff n_retries in
+	  let page = new Online_page.page db page_id revision_id None trust_coeff n_retries robots in
 	  begin
 	    try
 	      if page#vote voter_id then begin 

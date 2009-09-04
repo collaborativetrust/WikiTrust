@@ -69,6 +69,9 @@ type vote_t = {
 type page_sig_t
 val empty_page_sigs : page_sig_t
 
+(* If a signatures base path is provided, then we store: 
+   At position 0: the sigs of the page.
+   At position 1: the deleted chunks of the page. *)
 class db : 
   string ->        (* db prefix *)
   Mysql.dbd ->     (* mediawiki db handle *)
@@ -160,22 +163,21 @@ class db :
     (* Page methods.  We assume we have a lock on the page when calling
        these methods. *)
 
-    (** [write_page_chunks_info page_id chunk_list p_info] writes in
-	the wikitrust_page table that the page with id [page_id] is
-	associated with the "dead" strings of text [chunk1], [chunk2],
-	..., where [chunk_list = [chunk1, chunk2, ...] ], and with the
-	page info [p_info].  The chunk_list contains text that used to
-	be present in the article, but has been deleted; the database
-	records its existence. *)
+  (** [write_page_info page_id chunk_list p_info] writes that the page
+      with id [page_id] is associated with the "dead" strings of text
+      [chunk1], [chunk2], ..., where [chunk_list = [chunk1, chunk2,
+      ...] ].  The chunk_list contains text that used to be present in
+      the article, but has been deleted.  The function also writes the
+      rest of the page information [p_info]. *)
     method write_page_chunks_info : int -> Online_types.chunk_t list -> Online_types.page_info_t -> unit
 
-    (** [write_page_info page_id chunk_list p_info] updates the
-	wikitrust_page table to record that the page with id [page_id]
-	is associated with the page info [p_info]. *)
+(** [write_page_info page_id p_info] writes that the page [page_id]
+    has associated information [p_info].  The list of deleted chunks
+    of the page is not modified. *)
     method write_page_info : int -> Online_types.page_info_t -> unit
 
-    (** [read_page_info page_id] returns the list of dead chunks associated
-	with the page [page_id], along with the page info. *)
+  (** [read_page_info page_id] returns the list of dead chunks associated
+      with the page [page_id], along with the page information. *)
     method read_page_info : int -> (Online_types.chunk_t list) * Online_types.page_info_t
 
     (** [fetch_col_revs page_id timestamp rev_id fetch_limit] returns a
@@ -216,9 +218,10 @@ class db :
 	wikitrust_revision table. *)
     method read_wikitrust_revision : int -> (revision_t * qual_info_t)
 
-    (** [write_wikitrust_revision rev_id quality_info elist] writes the wikitrust data 
-	associated with revision with id [rev_id] *)
-    method write_wikitrust_revision : revision_t -> qual_info_t -> unit
+  (** [write_wikitrust_revision revision_info quality_info]
+      writes the wikitrust data associated with a revision. *)
+    method write_wikitrust_revision : 
+      revision_t -> qual_info_t -> unit
 
     (** [read_revision_quality rev_id] reads the wikitrust quality
 	information of revision_id *)

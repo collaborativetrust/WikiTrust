@@ -230,6 +230,7 @@ class rep
   (gen_truthful_rep: bool) (* use strict algorithm for truthful reputation only *)
   (do_compute_stats: bool) (* really computes statistics *)
   (init_rep_file: string option) (* optional file name of reputation file to read at the beginning. *)
+  (robots: Read_robots.robot_set_t) (* Hash table of robot names *)
   =
 object (self)
   (* This is the object keeping track of all users *)
@@ -316,97 +317,100 @@ object (self)
 	  t.text_life_time
 	end
       | EditInc e -> begin 
-          let uid1 = e.edit_inc_uid1 in 
-	  let uname1 = e.edit_inc_uname1 in
-	  let revid1 = e.edit_inc_rev1 in 
-          (* increments non-anonymous users or anonymous user domains, 
-	     if delta > 0, and if it is in the time range *)
-          if (uid1 <> 0 || include_domains)
-	    && e.edit_inc_d01 > 0.
-	    && e.edit_inc_delta > 0.
-            && e.edit_inc_time >= rep_intv.start_time
-            && e.edit_inc_time <= rep_intv.end_time
-	    && e.edit_inc_uid2 <> e.edit_inc_uid1 
-	    && ((not do_localinc) || (do_localinc && e.edit_inc_n01 = 1))
-          then begin
-	    let rep0 = user_data#get_rep e.edit_inc_uid0 in 
-	    let rep1 = user_data#get_rep e.edit_inc_uid1 in 
-	    let rep2 = user_data#get_rep e.edit_inc_uid2 in 
-	    (* This is the specific quality based on the versions v0 v1 v2 *)
-            let spec_q = min 1.0 
-	      ((e.edit_inc_d02 -. e.edit_inc_d12) /. e.edit_inc_d01)
-            in 
-	    (* This is the specific quality based on the versions (v1 - 1) v1 v2 *)
-            let spec_q_p = min 1.0 
-	      ((e.edit_inc_dp2 -. e.edit_inc_d12) /. e.edit_inc_delta)
-            in 
-
-	    (* Decides nixing, on the basis of the d012 information *)
-	    if use_nix then begin
-	      (* Yes, we are using robust reputation *)
-	      (* Decide whether we nix rev1 *)
-	      if (
-		(* Nix reason n. 1: negative feedback in the nixing interval *)
-		(* Unless the nix is weak, only higher reputation people can nix *)
-		(use_weak_nix && spec_q < 0. && e.edit_inc_t12 <= nix_interval) || 
-		  (rep2 > rep1 && rep0 > rep1 && spec_q < 0. && e.edit_inc_t12 <= nix_interval) || 
-		  (* Nix reason n. 2: too many edits in the nixing interval *)
-                  ((e.edit_inc_n01 + e.edit_inc_n12 >= n_edit_judging) 
-                    && (e.edit_inc_t01 +. e.edit_inc_t12) <= nix_interval)
-	      ) then begin 
-		(* Nixes the revision *)
-		if not (Hashtbl.mem nixed revid1) then Hashtbl.add nixed revid1 ();
-                Hashtbl.remove not_nixed revid1
-	      end else begin 
-                if not ((Hashtbl.mem nixed revid1) && (Hashtbl.mem not_nixed revid1)) then 
-                  Hashtbl.add not_nixed revid1 ()
-              end
-	    end; (* End of nixing portion *)
-
-	    (* This is the quality to be used *)
-	    let qual = 
-	      if gen_truthful_rep then begin 
-		(* Truthful reputation: counted only if n01 = 1 *)
-		if e.edit_inc_n01 = 1 then spec_q else 0.
-	      end else begin 
-		(* Not truthful rep. *)
-		if gen_almost_truthful_rep then (min spec_q spec_q_p) else spec_q
-	      end
-	    in
-	    
-	    if qual <> 0. then begin 
-
-	      (* Computes the reputation increment repinc *)
-              let judge_w = user_data#get_weight e.edit_inc_uid2 in 
-	      let proposed_repinc = e.edit_inc_delta *. qual *. judge_w in 
-
-	      (* Computes the real reputation increment, that takes into account 
-		 whether reputation-cap or reputation-cap-nix are used *)
-	      let real_repinc = 
-		if use_reputation_cap then begin 
-		  (* If we use nixing, and the time rev1 to rev2 is greater that nixing interval, and the revision has not been nixed, 
-		     then the increment is uncapped *)
-		  if use_nix && (proposed_repinc < 0. || (e.edit_inc_t12 > nix_interval && (not (Hashtbl.mem nixed revid1))))
-		  then proposed_repinc 
-		  else begin 
-		    (* We cap the reputation increment *)
-		    let rep02 = min rep0 rep2 in 
-		    let r_inc = min rep02 (proposed_repinc +. rep1) in 
-		    let r_new = max rep1 r_inc in 
-		    r_new -. rep1
-		  end
-		end else begin 
-		  (* standard, uncapped reputation *)
-		  proposed_repinc 
-		end
+	  (* We do something only if the judging user is not a robot. *)
+	  if not (Hashtbl.mem robots e.edit_inc_uname2) then begin 
+	    let uid1 = e.edit_inc_uid1 in 
+	    let uname1 = e.edit_inc_uname1 in
+	    let revid1 = e.edit_inc_rev1 in 
+	    (* Increments non-anonymous users or anonymous user domains, 
+	       if delta > 0, and if it is in the time range *)
+	    if (uid1 <> 0 || include_domains)
+	      && e.edit_inc_d01 > 0.
+	      && e.edit_inc_delta > 0.
+	      && e.edit_inc_time >= rep_intv.start_time
+	      && e.edit_inc_time <= rep_intv.end_time
+	      && e.edit_inc_uid2 <> e.edit_inc_uid1 
+	      && ((not do_localinc) || (do_localinc && e.edit_inc_n01 = 1))
+	    then begin
+	      let rep0 = user_data#get_rep e.edit_inc_uid0 in 
+	      let rep1 = user_data#get_rep e.edit_inc_uid1 in 
+	      let rep2 = user_data#get_rep e.edit_inc_uid2 in 
+	      (* This is the specific quality based on the versions v0 v1 v2 *)
+	      let spec_q = min 1.0 
+		((e.edit_inc_d02 -. e.edit_inc_d12) /. e.edit_inc_d01)
+	      in 
+	      (* This is the specific quality based on the versions (v1 - 1) v1 v2 *)
+	      let spec_q_p = min 1.0 
+		((e.edit_inc_dp2 -. e.edit_inc_d12) /. e.edit_inc_delta)
 	      in 
 
-	      (* Increments the reputation *)
-	      if debug then Printf.printf "EditInc Uid %d q3 %f\n" uid1 real_repinc; (* debug *)
-              user_data#inc_rep uid1 uname1 real_repinc e.edit_inc_time
+	      (* Decides nixing, on the basis of the d012 information *)
+	      if use_nix then begin
+		(* Yes, we are using robust reputation *)
+		(* Decide whether we nix rev1 *)
+		if (
+		  (* Nix reason n. 1: negative feedback in the nixing interval *)
+		  (* Unless the nix is weak, only higher reputation people can nix *)
+		  (use_weak_nix && spec_q < 0. && e.edit_inc_t12 <= nix_interval) || 
+		    (rep2 > rep1 && rep0 > rep1 && spec_q < 0. && e.edit_inc_t12 <= nix_interval) || 
+		    (* Nix reason n. 2: too many edits in the nixing interval *)
+		    ((e.edit_inc_n01 + e.edit_inc_n12 >= n_edit_judging) 
+		      && (e.edit_inc_t01 +. e.edit_inc_t12) <= nix_interval)
+		) then begin 
+		  (* Nixes the revision *)
+		  if not (Hashtbl.mem nixed revid1) then Hashtbl.add nixed revid1 ();
+		  Hashtbl.remove not_nixed revid1
+		end else begin 
+		  if not ((Hashtbl.mem nixed revid1) && (Hashtbl.mem not_nixed revid1)) then 
+		    Hashtbl.add not_nixed revid1 ()
+		end
+	      end; (* End of nixing portion *)
 
-	    end (* if qual <> 0 *)
-          end;
+	      (* This is the quality to be used *)
+	      let qual = 
+		if gen_truthful_rep then begin 
+		  (* Truthful reputation: counted only if n01 = 1 *)
+		  if e.edit_inc_n01 = 1 then spec_q else 0.
+		end else begin 
+		  (* Not truthful rep. *)
+		  if gen_almost_truthful_rep then (min spec_q spec_q_p) else spec_q
+		end
+	      in
+
+	      if qual <> 0. then begin 
+
+		(* Computes the reputation increment repinc *)
+		let judge_w = user_data#get_weight e.edit_inc_uid2 in 
+		let proposed_repinc = e.edit_inc_delta *. qual *. judge_w in 
+
+		(* Computes the real reputation increment, that takes into account 
+		   whether reputation-cap or reputation-cap-nix are used *)
+		let real_repinc = 
+		  if use_reputation_cap then begin 
+		    (* If we use nixing, and the time rev1 to rev2 is greater that nixing interval, and the revision has not been nixed, 
+		       then the increment is uncapped *)
+		    if use_nix && (proposed_repinc < 0. || (e.edit_inc_t12 > nix_interval && (not (Hashtbl.mem nixed revid1))))
+		    then proposed_repinc 
+		    else begin 
+		      (* We cap the reputation increment *)
+		      let rep02 = min rep0 rep2 in 
+		      let r_inc = min rep02 (proposed_repinc +. rep1) in 
+		      let r_new = max rep1 r_inc in 
+		      r_new -. rep1
+		    end
+		  end else begin 
+		    (* standard, uncapped reputation *)
+		    proposed_repinc 
+		  end
+		in 
+
+		(* Increments the reputation *)
+		if debug then Printf.printf "EditInc Uid %d q3 %f\n" uid1 real_repinc; (* debug *)
+		user_data#inc_rep uid1 uname1 real_repinc e.edit_inc_time
+
+	      end (* if qual <> 0 *)
+	    end
+	  end;  (* if not a robot *)
 	  e.edit_inc_time 
       end
     | TextInc t -> t.text_inc_time

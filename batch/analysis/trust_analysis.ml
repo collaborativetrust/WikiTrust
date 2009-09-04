@@ -1,6 +1,6 @@
 (*
 
-Copyright (c) 2007-2008 The Regents of the University of California
+Copyright (c) 2007-2009 The Regents of the University of California
 All rights reserved.
 
 Authors: Luca de Alfaro
@@ -56,6 +56,8 @@ class page
   (trust_coeff_kill_decrease: float)
   (n_rev_to_color: int)
   (equate_anons: bool) 
+  (robots: Read_robots.robot_set_t)
+  (edit_time_constant: float)
   =
   object (self) 
 
@@ -72,26 +74,31 @@ class page
          by the same author *)
     val mutable last_rev : Revision.trust_revision option = None 
 
-      (* Arrays of chunks and chunk attributes for the last version of the page. *)
-      (* chunks_a is a word array array, and is used to represent both the live text
-         (element 0) or the dead text (elements >0) of a page. *)
+      (* Arrays of chunks and chunk attributes for the last version of
+	 the page. *)
+    (* chunks_a is a word array array, and is used to represent both
+       the live text (element 0) or the dead text (elements >0) of a
+       page. *)
     val mutable chunks_a : word array array = [| [| |] |] 
-      (* This float array array stores a float for each word, and is used to store the 
-         trust of each word. *)
+      (* This float array array stores a float for each word, and is
+         used to store the trust of each word. *)
     val mutable chunks_trust_a  : float array array = [| [| |] |] 
 
-      (* No titles in the xml file! *)
+    (* No titles in the xml file! *)
     method print_id_title = ()
 
-    (** [compute_word_trust new_chunks_a medit_l rep_float] computes the 
-	new word trust values of the revision with chunks [new_chunks_a], obtained from 
-	the version with word trust values [chunks_trust_a] via the edit list [medit_l]. 
-	[rep_float] is the reputation of the author of the new revision. *)
+    (** [compute_word_trust new_chunks_a medit_l rep_float] computes
+	the new word trust values of the revision with chunks
+	[new_chunks_a], obtained from the version with word trust
+	values [chunks_trust_a] via the edit list [medit_l].
+	[rep_float] is the reputation of the author of the new
+	revision. *)
     method private compute_word_trust 
       (new_chunks_a: word array array) 
       (medit_l: Editlist.medit list) 
       (rep_float: float) 
-      (rev: Revision.trust_revision) : float array array =
+      (rev: Revision.trust_revision) 
+      (read_all: float) : float array array =
       let f x = Array.make (Array.length x) 0.0 in 
       let new_chunks_trust_a = Array.map f new_chunks_a in 
       let old_live_len = Array.length chunks_trust_a.(0) in 
@@ -116,19 +123,21 @@ class page
 		if dst_chunk_idx = 0 then begin 
 		  (* This is live text *)
 		  let j = l - 1 - i in 
-		  (* Now i is the distance from the left edge, and j from the right edge.
-                     We update the trust of text in a block as follows. 
-                     Close to the endpoints of the block, we take the reputation of the 
-                     user as the trust of the text.  
-                     Far from endpoints, we take the old trust of the block. 
-                     We now compute the distance from the endpoints.  The idea is that the 
-                     distance from an edge does not matter only if (a) the move is from
-                     chunk 0 to chunk 0 (so that the text remains present), and
-                     (b) the left edge remains at 0, or the right edge remains at the end
-                     of the string. 
-                     If a distance from an edge does not matter, we set it to big_distance,
-                     so that automatically the formula will not take it into account. 
-		   *)
+		  (* Now i is the distance from the left edge, and j
+                     from the right edge.  We update the trust of text
+                     in a block as follows.  Close to the endpoints of
+                     the block, we take the reputation of the user as
+                     the trust of the text.  Far from endpoints, we
+                     take the old trust of the block.  We now compute
+                     the distance from the endpoints.  The idea is
+                     that the distance from an edge does not matter
+                     only if (a) the move is from chunk 0 to chunk 0
+                     (so that the text remains present), and (b) the
+                     left edge remains at 0, or the right edge remains
+                     at the end of the string.  If a distance from an
+                     edge does not matter, we set it to big_distance,
+                     so that automatically the formula will not take
+                     it into account.  *)
 		  let dist = 
                     if src_chunk_idx = 0 then begin 
                       (* the text was live *) 
@@ -142,28 +151,32 @@ class page
                       min i j 
                     end
 		  in 
-		  (* a_cut is the trust of the text, computed according to the distance
-                     from the endpoints defined as above. 
-                     This distance does not yet take into account the fact that high-reputation 
+		  (* a_cut is the trust of the text, computed
+                     according to the distance from the endpoints
+                     defined as above.  This distance does not yet
+                     take into account the fact that high-reputation
                      users validate a page as a whole. *)
 		  let cut_rep = rep_float *. trust_coeff_lends_rep in 
 		  let a_cut = a +. (cut_rep -. a) 
                     *. exp (-. (float_of_int dist) /. trust_coeff_cut_rep_radius) in 
-		  (* Now computes a'.  The idea is as follows. 
-                     We assume that high-reputation users read a page as a whole, and thus, 
-                     if the reputation of the user is greater than that of the text, a bit of the 
-                     user reputation percolates to the text as well.  If instead the computed 
-                     reputation a_cut is greater than that of the user, we use the value a_cut: 
-                     a low-reputation user degrates a page only in proximity of the edits. *)
+		  (* Now computes a'.  The idea is as follows.  We
+                     assume that high-reputation users read a page as
+                     a whole, and thus, if the reputation of the user
+                     is greater than that of the text, a bit of the
+                     user reputation percolates to the text as well.
+                     If instead the computed reputation a_cut is
+                     greater than that of the user, we use the value
+                     a_cut: a low-reputation user degrates a page only
+                     in proximity of the edits. *)
 		  if rep_float > a_cut 
-		  then a_cut +. (rep_float -. a_cut) *. trust_coeff_read_all 
+		  then a_cut +. (rep_float -. a_cut) *. read_all 
 		  else a_cut 
 		end else begin 
-		  (* This is dead text.
-                     If the text was already dead, we leave its trust unchanged. 
-                     If the text was live, then we lower its trust, the more so 
-                     the higher the reputation of the user who deleted it. 
-		   *)
+		  (* This is dead text.  If the text was already dead,
+                     we leave its trust unchanged.  If the text was
+                     live, then we lower its trust, the more so the
+                     higher the reputation of the user who deleted it.
+                   *)
 		  if src_chunk_idx = 0 then begin 
                     (* was live; reduces the trust *)
                     a *. exp (-. rep_float *. trust_coeff_kill_decrease)
@@ -182,27 +195,32 @@ class page
       List.iter f medit_l; 
       new_chunks_trust_a
 
-    (** [compute_word_longevity chunks_longevity_a new_chunks_a medit_l] computes the 
-	new longevity values for the words of the revision with chunks [new_chunks_a], 
-	obtained from the version with longevities [chunks_trust_a] via the edit list [medit_l]. 
-	[rep_float] is the reputation of the author of the new revision. *)
+    (** [compute_word_longevity chunks_longevity_a new_chunks_a
+	medit_l] computes the new longevity values for the words of
+	the revision with chunks [new_chunks_a], obtained from the
+	version with longevities [chunks_trust_a] via the edit list
+	[medit_l].  [rep_float] is the reputation of the author of the
+	new revision. *)
     method private compute_word_longevity 
-	(chunks_longevity_a: int array array) 
-	(new_chunks_a: word array array) 
-	(medit_l: Editlist.medit list) 
-	(rep_float: float) : int array array = 
+      (chunks_longevity_a: int array array) 
+      (new_chunks_a: word array array) 
+      (medit_l: Editlist.medit list) 
+      (rep_float: float) : int array array = 
       let f x = Array.make (Array.length x) 0 in 
       let new_chunks_longevity_a = Array.map f new_chunks_a in 
-      (* Now, goes over medit_l, and fills in new_chunks_longevity_a properly. *)
+      (* Now, goes over medit_l, and fills in new_chunks_longevity_a
+	 properly. *)
       let f = function 
 	  Editlist.Mdel _ | Editlist.Mins _ -> ()
-            (* For Mins, this is text added in the current version, and as we fill 
-	       the array with 0's initially, we don't need to do anything. *)
+            (* For Mins, this is text added in the current version,
+	       and as we fill the array with 0's initially, we don't
+	       need to do anything. *)
 	| Editlist.Mmov (src_word_idx, src_chunk_idx, dst_word_idx, dst_chunk_idx, l) -> begin 
             for i = 0 to l - 1 do begin 
               (* a is the old longevity of the word *)
               let a = chunks_longevity_a.(src_chunk_idx).(src_word_idx + i) in 
-              (* and a' is the new longevity: a' is a+1 if the word is live, and a if it is dead. *)
+              (* and a' is the new longevity: a' is a+1 if the word is
+		 live, and a if it is dead. *)
               let a' = if dst_chunk_idx = 0 then a + 1 else a in 
               new_chunks_longevity_a.(dst_chunk_idx).(dst_word_idx + i) <- a'
             end done 
@@ -217,9 +235,9 @@ class page
       let rev_idx = (Vec.length revs) - 1 in 
       let rev = Vec.get rev_idx revs in 
       let uid = rev#get_user_id in 
-      let t = rev#get_time in 
+      let rev_time = rev#get_time in 
       (* Gets the reputation of the author of the current revision *)
-      let rep = rep_histories#get_rep uid t in 
+      let rep = rep_histories#get_rep uid rev_time in 
       let new_wl = rev#get_words in 
       (* Calls the function that analyzes the difference 
          between revisions. Data relative to the previous revision
@@ -228,7 +246,28 @@ class page
       (* Constructs new_chunks_trust_a, which contains the trust of each word 
 	 in the text (both live text, and dead text). *)
       let rep_float = float_of_int rep in 
-      let new_chunks_trust_a = self#compute_word_trust new_chunks_a medit_l rep_float rev in 
+
+      (* Fixes read_all depending on whether the user is a bot, and on
+	 the interval between revisions. *)
+      let read_all' =
+	if Hashtbl.mem robots rev#get_user_name 
+	then 0.
+	else trust_coeff_read_all
+      in
+      (* ...and depending on the time interval wrt. the previous edit *)
+      let read_all =
+	if rev_idx = 0
+	then read_all'
+	else begin
+	  let prev_rev = Vec.get (rev_idx - 1) revs in
+	  let prev_time = prev_rev#get_time in
+	  let delta_time = max 0. (rev_time -. prev_time) in
+	  let time_factor = 1. -. exp (0. -. delta_time /. edit_time_constant) 
+	  in
+	  read_all' *. time_factor
+	end
+      in
+      let new_chunks_trust_a = self#compute_word_trust new_chunks_a medit_l rep_float rev read_all in 
       (* Now, replaces chunks_trust_a and chunks_a for the next iteration *)
       chunks_trust_a <- new_chunks_trust_a;
       chunks_a <- new_chunks_a;
@@ -236,8 +275,8 @@ class page
       rev#set_word_trust new_chunks_trust_a.(0)
 
 
-    (** This method is called once a page has been fully analyzed for text trust, 
-        so that we can output the colorized text. *)
+    (** This method is called once a page has been fully analyzed for
+        text trust, so that we can output the colorized text. *)
     method private gen_output : unit = 
       let n_revs = Vec.length revs in 
       if n_revs > 0 then begin 
@@ -254,7 +293,8 @@ class page
         Printf.fprintf out_file "</page>\n"
       end (* there is some revision *)
 
-    (** This method is called to add a new revision to be evaluated for trust. *)
+    (** This method is called to add a new revision to be evaluated
+	for trust. *)
     method add_revision 
       (rev_id: int) (* revision id *)
       (page_id: int) (* page id *)
@@ -266,7 +306,8 @@ class page
       (username: string) (* name of the user *)
       (is_minor: bool) 
       (comment: string)
-      (text_init: string Vec.t) (* Text of the revision, still to be split into words *)
+      (text_init: string Vec.t) (* Text of the revision, 
+				   still to be split into words *)
       : unit =
       let r = new Revision.trust_revision rev_id page_id timestamp time contributor user_id ip_addr username is_minor comment text_init true in 
       (* To keep track of progress *)
@@ -282,10 +323,12 @@ class page
               revs <- Vec.append r' revs; 
               (* Evaluates the newest version *)
               self#eval_newest; 
-              (* If the buffer is full, evaluates the oldest version and kicks it out *)
+              (* If the buffer is full, evaluates the oldest version
+		 and kicks it out *)
               if (Vec.length revs) > n_rev_to_color then begin 
-		(* The parameter 0 is the index of what is considered to be the oldest. 
-                   It is used, since in no_more_revisions it may be a larger number *)
+		(* The parameter 0 is the index of what is considered
+                   to be the oldest.  It is used, since in
+                   no_more_revisions it may be a larger number *)
 		revs <- Vec.remove 0 revs;
 		(* increments the offset of the oldest version *)
 		offset <- offset + 1 

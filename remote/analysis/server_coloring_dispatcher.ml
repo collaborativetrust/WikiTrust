@@ -131,7 +131,8 @@ let process_page (page_id: int) (page_title: string) =
   let new_page_id = child_db#update_queue_page page_title page_id in  
   (* Creates a new updater. *)
   let processor = new Updater.updater child_db
-    trust_coeff !times_to_retry_trans each_event_delay every_n_events_delay in
+    trust_coeff !times_to_retry_trans each_event_delay every_n_events_delay 
+    !robots in
   (* Brings the page up to date.  This will take care also of the page lock. *)
   processor#update_page new_page_id;
   (* Marks the page as processed. *)

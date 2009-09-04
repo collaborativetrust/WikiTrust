@@ -43,30 +43,30 @@ type word = string
 open Eval_defs
 
 (** [compute_trust_chunks chunks_trust_a new_chunks_a new_seps medit_l
-    rep_float trust_coeff...] computes the new word trust values of the revision with
-    chunks [new_chunks_a], obtained from the version with word trust
-    values [chunks_trust_a] via the edit list [medit_l].  [new_seps]
-    are the new seps of the latest revision. [rep_float] is the
-    reputation of the author of the new revision.  What is new about
-    this method, compared to the classical compute_word_trust one, is
-    that this one takes into account syntactical units to spread the
-    trust. 
-    The trust_coeff_... parameters are for trust computation. *)
+    rep_float trust_coeff...] computes the new word trust values of
+    the revision with chunks [new_chunks_a], obtained from the version
+    with word trust values [chunks_trust_a] via the edit list
+    [medit_l].  [new_seps] are the new seps of the latest
+    revision. [rep_float] is the reputation of the author of the new
+    revision.  What is new about this method, compared to the
+    classical compute_word_trust one, is that this one takes into
+    account syntactical units to spread the trust.  The
+    trust_coeff_... parameters are for trust computation. *)
 let compute_robust_trust
-  (chunks_trust_a: float array array) 
-  (chunks_authorsig_a: Author_sig.packed_author_signature_t array array) 
-  (new_chunks_a: word array array) 
-  (new_seps: Text.sep_t array)
-  (medit_l: Editlist.medit list) 
-  (rep_float: float)
-  (user_id: int) 
-  (trust_coeff_lends_rep: float) 
-  (trust_coeff_kill_decrease: float)
-  (trust_coeff_cut_rep_radius: float)
-  (trust_coeff_read_all: float)
-  (trust_coeff_read_part: float)
-  (trust_coeff_local_decay: float)
-  : (float array array * Author_sig.packed_author_signature_t array array) = 
+    (chunks_trust_a: float array array) 
+    (chunks_authorsig_a: Author_sig.packed_author_signature_t array array) 
+    (new_chunks_a: word array array) 
+    (new_seps: Text.sep_t array)
+    (medit_l: Editlist.medit list) 
+    (rep_float: float)
+    (user_id: int) 
+    (trust_coeff_lends_rep: float) 
+    (trust_coeff_kill_decrease: float)
+    (trust_coeff_cut_rep_radius: float)
+    (trust_coeff_read_all: float)
+    (trust_coeff_read_part: float)
+    (trust_coeff_local_decay: float)
+    : (float array array * Author_sig.packed_author_signature_t array array) = 
 
   (* Produces the new trust array *)
   let f x = Array.make (Array.length x) 0.0 in 
@@ -155,24 +155,29 @@ let compute_robust_trust
     end (* if not looked_at.(n) *)
   in (* end of spread_look *)
 
-  (* This function is used to determine whether the beginning of a move, that begins at position k, 
-     should be marked in trust. 
+  (* This function is used to determine whether the beginning of a move, 
+     that begins at position k, should be marked in trust. 
      The rule is: 
-     - text moved from the beginning to the beginning is not marked (this is taken care by the caller)  
-     - if the previous text has been inserted, and belongs to a different section, and is of length 
-     at least 2, the cut is not marked.  The length 2 requirement is used to ensure that the 
-     coloring will be visible. 
-     - otherwise, it is marked.  Thus, text after an insertion in the same sectional unit, and text
-     that has been rearranged, is marked. *)
+     - text moved from the beginning to the beginning is not marked 
+       (this is taken care by the caller)  
+     - if the previous text has been inserted, and belongs to a 
+       different section, and is of length 
+       at least 2, the cut is not marked.  The length 2 requirement 
+       is used to ensure that the coloring will be visible. 
+     - otherwise, it is marked.  Thus, text after an insertion in 
+       the same sectional unit, and text
+       that has been rearranged, is marked. *)
   let mark_begin_cut (n: int): bool = 
-    (* If the cut starts at 0, then it has been re-arranged, since the 0 to 0 case is taken care 
-       by the caller *)
+    (* If the cut starts at 0, then it has been re-arranged, since the
+       0 to 0 case is taken care by the caller *)
     if n = 0 then true
-      (* If the sectional unit has not changed, we do not need to figure out what is the type of the
-	 previous block (inserted/moved), we mark it anyway *)
+      (* If the sectional unit has not changed, we do not need to
+	 figure out what is the type of the previous block
+	 (inserted/moved), we mark it anyway *)
     else if section_of_word.(n) = section_of_word.(n - 1) then true
     else begin 
-      (* The previous block is in a different sectional unit.  Checks whether it is an insert. *)
+      (* The previous block is in a different sectional unit.  Checks
+	 whether it is an insert. *)
       let rec is_moved = function 
 	  [] -> true
 	| Editlist.Mins (word_idx, l) :: rest -> 
@@ -186,16 +191,19 @@ let compute_robust_trust
     end
   in (* end of mark_begin_cut *)
   
-  (* This function is analogous to mark_begin_cut, but for the end of the cut *)
+  (* This function is analogous to mark_begin_cut, but for the end of
+     the cut *)
   let mark_end_cut (n: int): bool = 
-    (* If the cut starts at 0, then it has been re-arranged, since the 0 to 0 case is taken care 
-       by the caller *)
+    (* If the cut starts at 0, then it has been re-arranged, since the
+       0 to 0 case is taken care by the caller *)
     if n = new_live_len - 1 then true
-      (* If the sectional unit has not changed, we do not need to figure out what is the type of the
-	 previous block (inserted/moved), we mark it anyway *)
+      (* If the sectional unit has not changed, we do not need to
+	 figure out what is the type of the previous block
+	 (inserted/moved), we mark it anyway *)
     else if section_of_word.(n) = section_of_word.(n + 1) then true
     else begin 
-      (* The previous block is in a different sectional unit.  Checks whether it is an insert. *)
+      (* The previous block is in a different sectional unit.  Checks
+	 whether it is an insert. *)
       let rec is_moved = function 
 	  [] -> true
 	| Editlist.Mins (word_idx, l) :: rest -> 
@@ -217,7 +225,8 @@ let compute_robust_trust
      reading the whole page. *)
   let new_text_trust = rep_float *. trust_coeff_lends_rep in 
 
-  (* Now, goes over medit_l via f, and fills in new_chunks_trust_a and the new signatures properly. *)
+  (* Now, goes over medit_l via f, and fills in new_chunks_trust_a and
+     the new signatures properly. *)
   let f = function 
       Editlist.Mins (word_idx, l) -> begin 
         (* This is text added in the current version *)
@@ -226,9 +235,11 @@ let compute_robust_trust
           new_chunks_trust_a.(0).(i) <- new_text_trust;
           looked_at.(i) <- true; 
 	  new_chunks_hasincreased_a.(0).(i) <- true;
-	  (* new_chunks_canincrease_a.(0).(i) <- true; *) (* true is the default *)
+	  (* new_chunks_canincrease_a.(0).(i) <- true; *) (* true is
+							     the default *)
         end done;
-        (* One generally looks in the whole syntactic unit where one is editing *)
+        (* One generally looks in the whole syntactic unit where one
+           is editing *)
 	spread_look word_idx;
 	spread_look (word_idx + l - 1)
       end
@@ -248,33 +259,38 @@ let compute_robust_trust
 	    (* Packed signature of the word *)
 	    let hsig = chunks_authorsig_a.(src_chunk_idx).(src_word_idx + i) in 
 	    new_chunks_authorsig_a.(0).(dst_word_idx + i) <- hsig;
-	    (* This encodes the all-important logic that decides whether a user can increase
-	       the trust of a word.  The user has to be not anonymous, and not present 
-	       in the signature. *)
+	    (* This encodes the all-important logic that decides
+	       whether a user can increase the trust of a word.  The
+	       user has to be not anonymous, and not present in the
+	       signature. *)
 	    new_chunks_canincrease_a.(0).(dst_word_idx + i) <- 
 	      (user_id <> 0) && not (Author_sig.is_author_in_sigs user_id w hsig);  
 	    new_chunks_hasincreased_a.(0).(dst_word_idx + i) <- false; 
           end done; 
 
           (* Then, applies corrective effects. *)
-          (* The first corrective effect is the fact that, at cut places, the text 
-             becomes of trust equal to the reputation of the author multiplied by 
-             a scaling effect.  The scaling effect is there so that even high-reputation 
-             authors cannot single-handedly create trusted content; revisions are 
-             always needed. *)
+          (* The first corrective effect is the fact that, at cut
+             places, the text becomes of trust equal to the reputation
+             of the author multiplied by a scaling effect.  The
+             scaling effect is there so that even high-reputation
+             authors cannot single-handedly create trusted content;
+             revisions are always needed. *)
 
 	  (* Processes the beginning *)
           if (src_word_idx <> 0 || dst_word_idx <> 0 || src_chunk_idx <> 0)
 	    && (mark_begin_cut dst_word_idx) then begin 
-	      (* Spreads the information that the author looked at this chunk of text. *)
+	      (* Spreads the information that the author looked at
+		 this chunk of text. *)
 	      spread_look dst_word_idx;
 	      
-	      (* Now computes the correction to the trust from the beginning of the cut block *)
+	      (* Now computes the correction to the trust from the
+		 beginning of the cut block *)
               let word_idx = ref dst_word_idx in 
               let fatto = ref false in 
               while not !fatto do begin 
 		(* Changes the trust of this word *)
-                (* Cut points are discontinuities, and they inherit trust from the author. *)
+                (* Cut points are discontinuities, and they inherit
+                   trust from the author. *)
                 let d = !word_idx - dst_word_idx in 
                 let old_trust = new_chunks_trust_a.(0).(!word_idx) in 
                 let new_trust = old_trust +. 
@@ -299,7 +315,8 @@ let compute_robust_trust
 	  (* processes the end *)
           if (src_word_idx + l <> old_live_len || dst_word_idx + l <> new_live_len || src_chunk_idx <> 0)
 	    && (mark_end_cut (dst_word_idx + l - 1)) then begin 
-	      (* Spreads the information that the author looked at this chunk of text. *)
+	      (* Spreads the information that the author looked at
+		 this chunk of text. *)
 	      spread_look (dst_word_idx + l - 1);
 	      
 	      (* Computes the correction from the end of the cut block *)
@@ -307,7 +324,8 @@ let compute_robust_trust
               let fatto = ref false in 
               while not !fatto do begin 
 		(* Changes the trust of this word *)
-                (* Cut points are discontinuities, and they inherit trust from the author. *)
+                (* Cut points are discontinuities, and they inherit
+                   trust from the author. *)
                 let d = (dst_word_idx + l - 1) - !word_idx in
                 let old_trust = new_chunks_trust_a.(0).(!word_idx) in 
                 let new_trust = old_trust +. 
@@ -353,7 +371,8 @@ let compute_robust_trust
   in 
   List.iter f medit_l;
   
-  (* Spreads looked_at according to trust_coeff_local_decay, first forward ... *)
+  (* Spreads looked_at according to trust_coeff_local_decay, first
+     forward ... *)
   let spread_looked_at = Array.make new_live_len 0.0 in 
   let spread = ref 0.0 in 
   for i = 0 to new_live_len - 1 do begin 
@@ -380,9 +399,9 @@ let compute_robust_trust
       end
   end done;
 
-  (* Now there is the last of the effects that affect text trust: 
-     We give a little bit of prize to all the text, according to the reputation of 
-     the author who has made the last edit. *)
+  (* Now there is the last of the effects that affect text trust: We
+     give a little bit of prize to all the text, according to the
+     reputation of the author who has made the last edit. *)
   let len0 = Array.length new_chunks_trust_a.(0) in 
   for i = 0 to len0 - 1 do begin 
     let old_trust = new_chunks_trust_a.(0).(i) in
@@ -390,18 +409,19 @@ let compute_robust_trust
       let increased_trust = old_trust +. (rep_float -. old_trust) *. trust_coeff_read_all in
       (* Here I know that new_trust > old_trust *)
       if new_chunks_canincrease_a.(0).(i) then begin
-	(* If the author can increase the reputation, because it does not appear in the 
-	   signature, it increases it. *)
+	(* If the author can increase the reputation, because it does
+	   not appear in the signature, it increases it. *)
         new_chunks_trust_a.(0).(i) <- increased_trust;
 	new_chunks_hasincreased_a.(0).(i) <- true;
       end else begin 
-	(* The author cannot perform a normal reputation increase, because it appears in 
-	   the signatures.  Nevertheless, it is still reasonable to ensure that the text
-	   has at least the same trust as freshly created text by the same author. *)
+	(* The author cannot perform a normal reputation increase,
+	   because it appears in the signatures.  Nevertheless, it is
+	   still reasonable to ensure that the text has at least the
+	   same trust as freshly created text by the same author. *)
 	if old_trust < new_text_trust then begin
           new_chunks_trust_a.(0).(i) <- new_text_trust;
-	  (* As the signature is already present, we do not re-add it, so we do not set 
-	     new_chunks_hasincreased_a.(0).(i) <- true *)
+	  (* As the signature is already present, we do not re-add it,
+	     so we do not set new_chunks_hasincreased_a.(0).(i) <- true *)
 	end
       end
     end
@@ -479,3 +499,16 @@ let compute_overall_trust (trust_a: float array) : float =
   (* The overall trust is the total of the square trust, multiplied by the 
      average of the square trust. *)
   if m = 0 then 0. else tot_sq_tr *. tot_sq_tr /. n 
+
+
+(** [compute_trust_histogram trust_a] computes the trust histogram of a page
+    with an array [trust_a] of trust values.
+    The histogram is a 10-integer array, where the entry with index i 
+    specifies how many words have trust t with i <= t < i+1. *)
+let compute_trust_histogram (trust_a: float array) : int array =
+  let histogram = Array.make 10 0 in
+  let inc_histogram (f: float) = 
+    let idx = max 0 (min 9 (int_of_float f)) in
+    histogram.(idx) <- histogram.(idx) + 1
+  in Array.iter inc_histogram trust_a;
+  histogram
