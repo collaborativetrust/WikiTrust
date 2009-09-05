@@ -149,8 +149,9 @@ class db
   (db_name: string)
   (rev_base_path: string option)
   (colored_base_path: string option)
+  (compression_path: string)
+  (max_size_per_blob: int)
   (debug_mode : bool) =
-  
   
 object(self)
 
@@ -343,7 +344,8 @@ object(self)
    
   (** [read_blob page_id blob_id] reads the blob for page_id and blob_id,
       either from the database, or from the filesystem, and returns it. *)
-  method read_blob (page_id: int) (blob_id: int) : string =
+  method (* private *) read_blob (page_id: int) (blob_id: int) 
+    : string option =
     match colored_base_path with
       None -> begin
 	(* The blobs are stored in the db. *)
@@ -351,26 +353,23 @@ object(self)
 	let s = Printf.sprintf "SELECT blob_content from %swikitrust_blob WHERE blob_id = %s" db_prefix (ml2decimal key_str) in
 	let result = self#db_exec mediawiki_dbh s in 
 	match Mysql.fetch result with 
-	  None -> raise DB_Not_Found
-	| Some x -> Revision_store.uncompress (not_null blob2ml x.(0))
+	  None -> None
+	| Some x -> Some (Revision_store.uncompress 
+	    compression_path (not_null blob2ml x.(0)))
       end
-    | Some b -> begin
-	(* The blobs are stored in the filesystem. *)
-	let result = Revision_store.read_blob b page_id blob_id in
-	match result with
-	  None -> raise DB_Not_Found
-	| Some r -> ref (of_string__of__of_sexp page_sig_disk_t_of_sexp r)
-      end
+    | Some b -> Revision_store.read_blob b page_id blob_id
+
 
   (** [write_blob page_id blob_id blob_content] writes the blob [blob_content]
       for [page_id], [blob_id] to either the filesystem or the database. *)
-  method write_blob (page_id: int) (blob_id: int) (blob_content: string) 
-    : unit =
+  method (* private *) write_blob 
+    (page_id: int) (blob_id: int) (blob_content: string) : unit =
     match colored_base_path with
       None -> begin
 	(* The blobs are stored in the db. *)
 	let key_str = make_blob_key page_id blob_id in
-	let compressed_blob = Revision_store.compress blob_content in
+	let compressed_blob = Revision_store.compress 
+	  compression_path blob_content in
 	let blob_db = ml2blob compressed_blob in
 	let s = Printf.sprintf "DELETE FROM %swikitrust_blob WHERE blob_id = %s"
 	  db_prefix (ml2decimal key_str) in
@@ -542,62 +541,68 @@ object(self)
       None -> raise DB_Not_Found
     | Some x -> of_string__of__of_sexp qual_info_t_of_sexp (not_null str2ml x.(0))
 
-  (** [write_colored_markup page_id rev_id markup] writes
+
+  (** [write_colored_markup page_id rev_id blob_id_opt markup] writes
       the "colored" text [markup] of a revision.  The [markup]
       represents the main text of the revision, annotated with trust
-      and origin information. *)
-  method write_colored_markup (page_id: int) (rev_id : int) (markup : string) 
-    : unit =
-    (* Looks up, in the revision table, in which blob the revision
-       can be found. *)
-    let s = Printf.sprintf "SELECT blob_id FROM %swikitrust_rev_blob WHERE revision_id = %s" db_prefix (ml2int rev_id) in
-    let result = self#db_exec mediawiki_dbh s in
-    match fetch result with 
-      None -> begin 
-	(* We must create a new blob. *)
-	---qui---
-      end 
-    | Some x -> begin
-	let blob_idx = not_null int2ml x.(0) in
-	---qui---
-      end
-
-    (* There are two cases: either there is already a blob that contains
-       this revision, in which case we need to update the blob, or the
-       revision has no blob yet, in which case we need to add the revision
-       to the last blob. *)
-    
----qui---
-
-
-    match colored_base_path with 
-      Some b -> Filesystem_store.write_revision b page_id rev_id markup
+      and origin information. [page_id] and [rev_id] are as usual. 
+      [blob_id_opt] specifies the blob in which the information should
+      be written, if known.  The function returns the blob in which 
+      the revision was written (this coincides with the content
+      of [blob_id_opt] when the latter is not null). *)
+  method write_colored_markup (page_id: int) (rev_id : int) 
+    (blob_id_opt: int option) (markup : string) : int option =
+    (* Figures out in which blob to write the information. *)
+    let blob_id = 
+      match blob_id_opt with 
+	None -> begin 
+	  (* No: we must write the revision in an open blob. *)
+	  let s = Printf.sprintf "SELECT last_blob FROM %swikitrust_page WHERE page_id = %s" db_prefix (ml2int page_id) in 
+	  let result = self#db_exec mediawiki_dbh s in
+	  match Mysql.fetch result with
+            None -> raise DB_Missing_Page_Info;
+	  | Some x -> not_null int2ml x.(0)
+	end 
+      | Some bid -> bid
+    in
+    (* Writes the information in the blob, and writes the blob back to disk. *)
+       whether it's time to open a new balloon. *)
+    let blob_content_opt = self#read_blob page_id blob_id in
+    let new_blob_content = Revision_store.add_revision_to_blob
+      blob_content_opt rev_id markup in
+    self#write_blob page_id blob_id new_blob_content;
+    (* If we added the revision to an open blob, and this open blob has
+       become too large, then it opens a new blob for writing. *)
+    match blob_id_opt with
+      Some _ -> ()
     | None -> begin
-	let db_mkup = ml2str markup in 
-	let s = Printf.sprintf "INSERT INTO %swikitrust_colored_markup (revision_id, revision_text) VALUES (%s, %s) ON DUPLICATE KEY UPDATE revision_text = %s"
-	  db_prefix (ml2int rev_id) db_mkup db_mkup in 
-	ignore (self#db_exec mediawiki_dbh s);
+	let blob_size = String.len new_blob_content in
+	if blob_size > max_size_per_blob then begin 
+	  (* We start a new blob. *)
+	  let s = Printf.sprintf "UPDATE %swikitrust_page SET last_blob = %s WHERE page_id = %s" db_prefix (ml2int (blob_id + 1)) (ml2int page_id) in
+	  ignore (self#db_exec mediawiki_dbh s)
+	end
       end
 
 
-  (** [read_colored_markup rev_id] reads the text markup of a revision with id
-      [rev_id].  The markup is the text of the revision, annotated with trust
-      and origin information. *)
-  method read_colored_markup (page_id: int) (rev_id : int) : string =
-    match colored_base_path with 
-      None -> begin 
-	let s = Printf.sprintf  "SELECT revision_text FROM %swikitrust_colored_markup WHERE revision_id = %s"
-	  db_prefix (ml2int rev_id) in 
-	let result = self#db_exec mediawiki_dbh s in
-	match Mysql.fetch result with
-          None -> raise DB_Not_Found
-	| Some x -> not_null str2ml x.(0)
-      end
-    | Some b -> begin
-	let result = Filesystem_store.read_revision b page_id rev_id in 
-	match result with
-	  None -> raise DB_Not_Found
-	| Some r -> r
+  (** [read_colored_markup rev_id blob_id_opt] reads the text markup
+      of a revision with id [rev_id].  The markup is the text of the
+      revision, annotated with trust and origin information. 
+      The revision can be found in [blob_id_opt] (if not None). 
+      If the revision cannot be found, including if [blob_id_opt] is None, 
+      the DB_Not_Found exception is raised. *)
+  method read_colored_markup (page_id: int) (rev_id : int) 
+    (blob_id_opt: int option) : string =
+    let blob_id = begin match blob_id_opt with 
+	None -> raise DB_Not_Found
+      | Some bid -> bid
+    end in 
+    let blob_content_opt = self#read_blob page_id blob_id in
+    match blob_content_opt with
+      None -> raise DB_Not_Found
+    | Some c -> begin
+	try Revision_store.read_revision_from_blob rev_id c
+	with Not_found -> raise DB_Not_Found
       end
 
 

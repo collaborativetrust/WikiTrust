@@ -35,26 +35,46 @@ POSSIBILITY OF SUCH DAMAGE.
 
 TYPE_CONV_PATH "UCSC_WIKI_RESEARCH"
 
+(* The format of a blob is as follows: 
+
+   header:binary_blob_content
+
+   The header is guaranteed not to contain ":", so to find the start of the
+   binary blob content, one can simply look for the ":". 
+
+   The header is a list of (rev_id, (rev_start, rev_len)) items 
+   (thus, in Ocaml, it has type 
+     int * (int * int) list
+   )
+   where: 
+   - rev_id is the revision id
+   - rev_start is the offset in the binary_blob_content
+   - rev_len is the length, in bytes, in the binary_blob_content
+ *)
+
+type blob_header_t = (int * int * int) list with sexp
+let separator_char = ":"
+exception Invalid_blob_format
+exception Compression_error
+
 (* **************************************************************** *)
-(* Private functions. *)
+(* Basic filesystem access functions. *)
 
 (** [read_gzipped_file file_name] returns as a string the uncompressed 
     contents of file [file_name]. *)
 let read_gzipped_file (file_name: string) : string option = 
   let str_len = 8192 in 
-  let s = String.create str_len in
+  let str = String.create str_len in
   let buf = Buffer.create 8192 in 
-  let fopt = try
-    Some (Gzip.open_in file_name)
+  let fopt = try Some (Gzip.open_in file_name)
   with Sys_error _ -> None in
   match fopt with
     Some f -> begin
       let read_more = ref true in 
       while !read_more do begin
-	let n_read = Gzip.input f s 0 str_len in 
-	if n_read = 0 
-	then read_more := false
-	else Buffer.add_string buf (String.sub s 0 n_read)
+	let n_read = Gzip.input f str 0 str_len in 
+	if n_read = 0 then read_more := false
+	else Buffer.add_string buf (String.sub str 0 n_read)
       end done;
       Gzip.close_in f;
       Some (Buffer.contents buf)
@@ -107,6 +127,10 @@ let get_filename (base_path: string) (page_id: int) (blob_id: int)
   file_name := !file_name ^ "/" ^ page_str ^ "_" ^ blob_str ^ ".gz";
   (!file_name, !list_dirs)
 
+
+(* **************************************************************** *)
+(* Filesystem blob access. *)
+
 (** [write_blob base_name page_id blob_id s] writes to disk the
     blob with id [blob_id] and text [s], belonging to [page_id],
     given the directory path [base_name].
@@ -148,9 +172,113 @@ let delete_blob (base_name: string) (page_id: int) (blob_id: int) =
 let delete_all (base_name: string) : Unix.process_status =
   Unix.system ("rm -rf " ^ base_name)
 
-(* **************************************************************** *)
-(* Public functions. *)
 
+(* **************************************************************** *)
+(* Write and read a revision from an (uncompressed) blob. *)
+
+(** [assemble_blob [revisions] assembles the blob from the list of
+    revisions [revisions].  Each element of [revision] is a pair 
+    (revision_id, revision_text).  *)
+let assemble_blob (revisions: (int * string) list) : string =
+  (* This function, folded over [revisions], produces the header. *)
+  let make_header (header_so_far, len_so_far) (r_id, r_txt) 
+      : blob_header_t * int = 
+    let r_len = String.length r_txt in 
+    ((r_id, len_so_far, r_len) :: header_so_far, len_so_far + r_len)
+  in 
+  let (header, bin_len) = List.fold_left make_header ([], 0) revisions in
+  let header_string = string_of__of__sexp_of sexp_of_blob_header_t header in
+  (* Produces the buffer that will hold the blob. *)
+  let l = (String.length header_string) + bin_len + 2 in
+  let buf = Buffer.create l in
+  Buffer.add_string buf header_string;
+  Buffer.add_char separator_char;
+  (* This function, iterated over [revisions], adds the revision content to
+     the buffer. *)
+  let add_rev_content (_, rev_txt: string) : unit =
+    Buffer.add_string buf rev_txt 
+  in List.iter add_rev_content revisions;
+  (* The result is in the buffer. *)
+  Buffers.content buf
+
+
+(** [disassemble_blob blob_content] takes apart a blob into the
+    revisions that compose it, returning a list of 
+    (revision_id, revision_len). *)
+let disassemble_blob (blob_content: string) : (int * string) list =
+  (* First, separates the header. *)
+  let i = try String.index blob_content separator_char
+  with Not_found -> raise Invalid_blob_format
+  in 
+  let header_string = String.sub blob_content 0 i in 
+  let header = of_string__of__of_sexp blob_header_t_of_sexp header_string in
+  let bin_offset = i + 1 in
+  (* This function, folded over the header, produces the disassembled blob. *)
+  let take_apart_blob rev_list (r_id, r_offset, r_len) = 
+    let r_txt = String.sub blob_content (bin_offset + r_offset) r_len in
+    (r_id, r_txt) :: rev_list
+  in 
+  List.fold_left [] take_apart_blob header
+
+
+(** [add_revision_to_blob blob_content_opt rev_id markup] 
+    adds the revision with content [markup] and revision id [rev_id]
+    to the blob with optional content [blob_content_opt]. 
+    The function returns the (non-optional) new blob. *)
+let add_revision_to_blob (blob_content_opt: string option)
+    (rev_id: int) (markup: string) : string = 
+  match blob_content_opt with
+    None -> assemble_blob [(rev_id, markup)]
+  | Some blob_content -> begin
+      (* Adds/replaces the content *)
+      let rev_l = disassemble_blob blob_content in
+      let rev_l_wo_id = List.remove_assoc rev_id rev_l in
+      let new_rev_l = (rev_id, markup) :: rev_l_wo_id in
+      assemble_blob new_rev_l
+    end
+
+
+(** [read_revision_from_blob rev_id blob_content] reads the 
+    revision [rev_id] from the blob [blob_content], returning
+    the revision text. *)
+let read_revision_from_blob (rev_id: int) (blob_content: string) =
+  let rev_l = disassemble_blob blob_content in
+  List.assoc rev_id rev_l
+
+
+(* **************************************************************** *)
+(* Compression, decompression for db use *)
+
+(** [compress b s] compresses the string [s] using a temporary file
+    in the directory [b]. *)
+let compress (b: string) (s: string) : string = 
+  let file_name = Filename.temp_file b "_temp" in
+  write_gzipped_file file_name s;
+  let f = open_in file_name in
+  (* I hate that reading is going to be so complex. *)
+  let buf = Buffer.create 100000 in
+  let str_len = 8192 in 
+  let str = String.create str_len in
+  let read_more = ref true in
+  while !read_more do begin
+    let n_read = input f str 0 str_len in
+    if n_read = 0 then read_more := false;
+    Buffer.add_string buf (String.sub str 0 n_read)
+  end done;
+  close_in f;
+  Buffer.contents buf
+
+
+(** [uncompress b s] compresses the string [s] using a temporary file
+    in the directory [b]. *)
+let uncompress (b: string) (s: string) : string = 
+  let file_name = Filename.temp_file b "_temp" in
+  let f = open_out file_name in
+  output_string f s;
+  close_out f;
+  match read_gzipped_file with 
+    None -> raise Compression_error
+  | Some str -> str
 
 
 (* **************************************************************** *)

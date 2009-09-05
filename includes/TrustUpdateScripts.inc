@@ -26,7 +26,6 @@ CREATE TABLE ".$wgDBprefix."wikitrust_page (
        page_id             int PRIMARY KEY,
        page_info	   text NOT NULL,
        last_blob	   int DEFAULT 2,
-       last_blob_size	   int DEFAULT 0
 ) ENGINE=InnoDB","
 GRANT ALL ON ".$wgDBprefix."wikitrust_page TO $wgDBuser
 ");
