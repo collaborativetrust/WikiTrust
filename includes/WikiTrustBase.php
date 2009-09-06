@@ -414,10 +414,10 @@ if (0) {
 			
 
   public static function ucscArticleSaveComplete(&$article, 
-			      &$user, &$text, &$summary,
-			      &$minoredit, &$watchthis,
-			      &$sectionanchor, &$flags, 
-			      &$revision)
+			      &$user, $text, $summary,
+			      &$minoredit, $watchthis,
+			      $sectionanchor, &$flags, 
+			      $revision, &$status, $baseRevId)
   {
     $page_id = $article->getTitle()->getArticleID();
     $rev_id = $revision->getID();
