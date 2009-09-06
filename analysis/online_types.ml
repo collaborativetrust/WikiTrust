@@ -250,6 +250,11 @@ let page_info_default = {
 type timestamp_t = int * int * int * int * int * int;;
 
 (* Sigs and deleted chunks are stored in a very specific position. *)
+type blob_locations_t = {
+  sig_location: int;
+  chunks_location: int;
+  initial_location: int;
+}
 let blob_locations = {
   sig_location = 0;
   chunks_location = 1;

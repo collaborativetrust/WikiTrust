@@ -100,7 +100,6 @@ type vote_t = {
 (* This is the type of a set of signatures, as visible from outside.
    It is a ref type to implement imperative updates. *)
 type page_sig_t = page_sig_disk_t ref 
-let empty_page_sigs = ref []
 
 (* Produces the key for a signature *)
 let make_blob_key (page_id: int) (blob_id: int) : string =
@@ -337,7 +336,7 @@ object(self)
    
   (** [read_blob page_id blob_id] reads the blob for page_id and blob_id,
       either from the database, or from the filesystem, and returns it. *)
-  method (* private *) read_blob (page_id: int) (blob_id: int) 
+  method private read_blob (page_id: int) (blob_id: int) 
     : string option =
     match colored_base_path with
       None -> begin
@@ -355,7 +354,7 @@ object(self)
 
   (** [write_blob page_id blob_id blob_content] writes the blob [blob_content]
       for [page_id], [blob_id] to either the filesystem or the database. *)
-  method (* private *) write_blob 
+  method private write_blob 
     (page_id: int) (blob_id: int) (blob_content: string) : unit =
     match colored_base_path with
       None -> begin
@@ -383,7 +382,7 @@ object(self)
   method init_page (page_id : int) : unit =
     let info_string = ml2str 
       (string_of__of__sexp_of sexp_of_page_info_t 
-	Online_types.quality_info_default) in 
+	Online_types.page_info_default) in 
     let s = Printf.sprintf "INSERT INTO %swikitrust_page (page_id, page_info, last_blob) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE last_blob = last_blob" 
       db_prefix (ml2int page_id) (ml2int blob_locations.initial_location) 
       info_string in
@@ -429,29 +428,31 @@ object(self)
   method write_page_chunks (page_id : int) (c_list : chunk_t list) : unit = 
     let chunks_string = 
       (string_of__of__sexp_of (sexp_of_list sexp_of_chunk_t) c_list) in 
-    write_blob page_id blob_locations.chunks_location chunks_string
+    self#write_blob page_id blob_locations.chunks_location chunks_string
 
   (** [read_page_chunks page_id] returns the chunk list for page [page_id]. *)
   method read_page_chunks (page_id: int) : chunk_t list =
-    let chunks_string = read_blob page_id blob_locations.chunks_location in
-    of_string__of__of_sexp (list_of_sexp chunk_t_of_sexp) chunks_string
+    let chunks_string = self#read_blob page_id blob_locations.chunks_location in
+    match chunks_string with
+      None -> raise DB_Not_Found
+    | Some s -> of_string__of__of_sexp (list_of_sexp chunk_t_of_sexp) s
     
   (* Signature methods *)
 
   (** [read_page_sigs page_id] reads and returns the sigs for page
       [page_id]. *)
   method read_page_sigs (page_id: int) : page_sig_t =
-    try
-      let s = read_blob page_id blob_locations.sig_location in
-      ref (of_string__of__of_sexp page_sig_disk_t_of_sexp s)
-    with DB_Not_Found -> ref empty_page_sigs
+    let s = self#read_blob page_id blob_locations.sig_location in
+    match s with
+      None -> ref []
+    | Some s' -> ref (of_string__of__of_sexp page_sig_disk_t_of_sexp s')
 
   (** [write_page_sigs page_id sigs] writes that the sigs 
       page [page_id] are [sigs]. *)
   method write_page_sigs (page_id: int) (sigs: page_sig_t) : unit =
     (* Creates a single string for the sigs. *)
     let sig_string = string_of__of__sexp_of sexp_of_page_sig_disk_t !sigs in
-    write_blob page_id blob_locations.sig_location sig_string
+    self#write_blob page_id blob_locations.sig_location sig_string
 
   (* Methods on the standard tables *)
 

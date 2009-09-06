@@ -34,11 +34,10 @@ POSSIBILITY OF SUCH DAMAGE.
  *)
 
 
-(** This class adds to a wiki dump the information on text trust, origin, and author,
-    producing the "colored revisions". 
-    The class also outputs the sql statements that can be used to prime the online
-    system with the proper information.
- *)
+(** This class adds to a wiki dump the information on text trust,
+    origin, and author, producing the "colored revisions".  The class
+    also outputs the sql statements that can be used to prime the
+    online system with the proper information.  *)
 
 (* TODO(Luca): we could use a more sophisticated comparison, as in the online system,
    where a revision would be compared with multiple past ones. *)
@@ -55,14 +54,10 @@ open Sexplib
 class page 
   (page_id: int)
   (title: string)
-  (* File to use for xml colored revision output *)
-  (xml_file: out_channel)
   (* File to use for sql command output *)
   (sql_file: out_channel)
   (* Base path for filesystem revision storage, if requested. *)
-  (colored_base_path: string option)
-  (* Base path for filesystem signature storage, if requested. *)
-  (sig_base_path: string option)
+  (colored_base_path: string)
   (* Prefix for db tables *)
   (db_prefix: string)
   (* History of user reputations *)
@@ -108,16 +103,13 @@ object(self)
     val mutable chunks_author_a : string array array = [| [| |] |]
       (* This array keeps track of the author sigs *)
     val mutable chunks_sig_a : Author_sig.packed_author_signature_t array array = [| [| |] |]
+      (* Writer for blobs *)
+    val blob_writer = new Revision_store.writer page_id colored_base_path
+      (* Last blob_id *)
+    val mutable blob_id : int = Online_types.blob_locations.initial_location
 
 
-    (* We print the page information in the xml file *)
-    method print_id_title : unit =
-      match colored_base_path with
-	Some b -> ()
-      | None -> begin
-	  Printf.fprintf xml_file "<page>\n<title>%s</title>\n" title; 
-	  Printf.fprintf xml_file "<id>%d</id>\n" page_id;
-	end
+    method print_id_title : unit = ()
 
 
     (** Writes the SQL code for writing the wikitrust_revision to the db. *)
@@ -150,14 +142,15 @@ object(self)
 	  Compute_robust_trust.compute_trust_histogram trust_a;
       } in
       (* Prepares these parameters. *)
-      let q1 = ml2str 
+      let db_qual_info = ml2str 
 	(string_of__of__sexp_of sexp_of_qual_info_t quality_info) in 
       let q2 =  ml2float quality_info.reputation_gain in 
       let aq2 = if (q2 = "inf") then (ml2float infinity) else q2 in
-      let q3 = ml2float quality_info.overall_trust in
+      let db_overall_trust = ml2float quality_info.overall_trust in
+      let db_overall_quality = ml2float 0.0 in
       (* Db write access *)
-      Printf.fprintf sql_file "INSERT INTO %swikitrust_revision (revision_id, page_id, text_id, time_string, user_id, username, is_minor, comment, quality_info, reputation_delta, overall_trust) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE quality_info = %s, reputation_delta = %s, overall_trust = %s;\n"
-	db_prefix rev_id page_id text_id time_string user_id username is_minor comment q1 aq2 q3 q1 aq2 q3
+      Printf.fprintf sql_file "REPLACE INTO %swikitrust_revision (revision_id, page_id, text_id, time_string, user_id, username, is_minor, comment, quality_info, blob_id, reputation_delta, overall_trust, overall_quality) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);\n"
+	db_prefix rev_id page_id text_id time_string user_id username is_minor comment db_qual_info (ml2int blob_id) aq2 db_overall_trust db_overall_quality
 	
 
     (** Processes a new revision, computing trust, author, and origin, 
@@ -229,22 +222,10 @@ object(self)
       rev#set_word_author new_chunks_author_a.(0);
       rev#set_word_sig new_chunks_sig_a.(0);
 
-      (* Outputs the colored text to the xml file, or to the filesystem,
-	 as requested. *)
-      begin
-	match colored_base_path with 
-	  (* Output to the xml file. *)
-	  None -> rev#output_trust_origin_revision xml_file
-	  (* Output to the filesystem. *)
-	| Some b -> begin
-	    let colored_text = rev#get_colored_text in
-	    Filesystem_store.write_revision 
-	      b rev#get_page_id rev#get_id colored_text
-	  end
-      end;
-
+      (* Outputs the colored text to the blob. *)
+      blob_id <- blob_writer#write_revision rev#get_id rev#get_colored_text;
       (* Now we have to write the metadata for sql. *)
-      self#write_wikitrust_revision_sql rev;
+      self#write_wikitrust_revision_sql rev
 
 
     (** This method is called to add a new revision to be evaluated
@@ -290,7 +271,19 @@ object(self)
 
     (** This method produces the sql code that adds the wikitrust_page
 	information to the db. *)
-    method private produce_page_information : unit =
+    method private produce_page_information (open_blob_id: int) : unit =
+      let page_info = {
+	past_hi_rep_revs = [];
+	past_hi_trust_revs = [];
+      } in 
+      let info_string_db = ml2str 
+	(string_of__of__sexp_of sexp_of_page_info_t page_info) in 
+      Printf.fprintf sql_file "INSERT INTO %swikitrust_page (page_id, page_info, last_blob) VALUES (%s, %s, %s);\n"
+	db_prefix (ml2int page_id) info_string_db (ml2int open_blob_id)
+
+
+    (** This method writes the chunks to their own blob. *)
+    method private write_chunks : unit = 
       (* We need to produce a chunk_t list first. *)
       (* I timestamp them all with the time of the current revision.
 	 This is not ideal, but will be fine. *)
@@ -312,58 +305,32 @@ object(self)
       end done;
       let chunks_string = string_of__of__sexp_of 
 	(sexp_of_list sexp_of_chunk_t) !chunk_list in 
-      (* Produces page_info_t *)
-      let page_info = {
-	past_hi_rep_revs = [];
-	past_hi_trust_revs = [];
-      } in 
-      let info_string_db = ml2str 
-	(string_of__of__sexp_of sexp_of_page_info_t page_info) in 
-      match sig_base_path with 
-	None -> begin
-	  let chunks_string_db = ml2str chunks_string in
-	  Printf.fprintf sql_file "INSERT INTO %swikitrust_page (page_id, deleted_chunks, page_info) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE deleted_chunks = %s, page_info = %s;\n" 
-	    db_prefix (ml2int page_id) chunks_string_db info_string_db 
-	    chunks_string_db info_string_db
-	end
-      | Some b -> begin
-	  Printf.fprintf sql_file "INSERT INTO %swikitrust_page (page_id, page_info) VALUES (%s, %s) ON DUPLICATE KEY UPDATE page_info = %s;\n" 
-	    db_prefix (ml2int page_id) info_string_db info_string_db;
-	  Filesystem_store.write_revision b page_id 1 chunks_string
-	  
-	end
+      (* Writes the chunks *)
+      Revision_store.write_blob colored_base_path page_id 
+	Online_types.blob_locations.chunks_location chunks_string
 
-    (** This method stores the sigs of the last few revisions in the
-	filesystem. *)
-    method private output_sigs : unit = 
+
+    (** This method writes the sigs of the last few revisions in the blob. *)
+    method private write_sigs : unit = 
       (* f is folded on the Vec of revisions, producing a list of
 	 (id, sig) that is ready to be written to disk *)
       let f r l = (r#get_id, r#get_sig) :: l in
       let sig_list : page_sig_disk_t = Vec.fold f revs [] in
       let sig_string = 
 	string_of__of__sexp_of sexp_of_page_sig_disk_t sig_list in
-      (* Writes the signature either into sql for the database, 
-	 or into the filesystem. *)
-      match sig_base_path with 
-	Some b -> Filesystem_store.write_revision b page_id 0 sig_string
-      | None -> begin
-	  let s = ml2str sig_string in
-	  Printf.fprintf sql_file 
-	  "INSERT INTO %swikitrust_sigs (page_id, sigs) VALUES (%s, %s) ON DUPLICATE KEY UPDATE sigs = %s" 
-	    db_prefix (ml2int page_id) s s
-	end
+      Revision_store.write_blob colored_base_path page_id
+	Online_types.blob_locations.sig_location sig_string
 
 
     (** This method is called when there are no more revisions to evaluate. 
 	We need to produce the sql that contains the page information. *)
     method eval: unit = 
+      (* Finishes writing all the blobs *)
+      let last_blob_id = blob_writer#close in
       (* Produces the page information. *)
-      self#produce_page_information;
-      (* Produces the sig information to the filesystem. *)
-      self#output_sigs;
-      (* Closes the page in the xml file. *)
-      match colored_base_path with
-	Some b -> ()
-      | None -> Printf.fprintf xml_file "</page>\n"
+      self#produce_page_information last_blob_id;
+      (* Outputs chunks and sigs *)
+      self#write_chunks;
+      self#write_sigs
     
   end

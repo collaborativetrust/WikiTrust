@@ -52,10 +52,13 @@ TYPE_CONV_PATH "UCSC_WIKI_RESEARCH"
    - rev_len is the length, in bytes, in the binary_blob_content
  *)
 
-open Online_types;
+open Online_types;;
+open Sexplib.Conv
+open Sexplib.Sexp
+open Sexplib
 
 type blob_header_t = (int * int * int) list with sexp
-let separator_char = ":"
+let separator_char = ':'
 exception Invalid_blob_format
 exception Compression_error
 
@@ -141,17 +144,19 @@ let write_blob (base_path: string) (page_id: int) (blob_id: int)
     (s: string) : unit =
   let (f_name, dir_l) = get_filename base_path page_id blob_id in 
   (* Writes the file directly, hoping that the directories exist. *)
-  begin try
-    write_gzipped_file f_name s
-  with Sys_error _ -> begin
-    (* Makes the directories *)
-    let make_dir (d: string) = 
-      begin try 
-	Unix.mkdir d 0o755
-      with Unix.Unix_error (Unix.EEXIST, _, _) -> () end
-    in List.iter make_dir dir_l;
-    (* Tries again to write the blob *)
-    write_gzipped_file f_name s
+  begin 
+    try write_gzipped_file f_name s
+    with Sys_error _ -> begin
+      (* Makes the directories *)
+      let make_dir (d: string) = 
+	begin 
+	  try Unix.mkdir d 0o755
+	  with Unix.Unix_error (Unix.EEXIST, _, _) -> () 
+	end
+      in List.iter make_dir dir_l;
+      (* Tries again to write the blob *)
+      write_gzipped_file f_name s
+    end
   end
 
 (** [read_blob base_path page_id blob_id] returns the blob
@@ -194,14 +199,13 @@ let assemble_blob (revisions: (int * string) list) : string =
   let l = (String.length header_string) + bin_len + 2 in
   let buf = Buffer.create l in
   Buffer.add_string buf header_string;
-  Buffer.add_char separator_char;
+  Buffer.add_char buf separator_char;
   (* This function, iterated over [revisions], adds the revision content to
      the buffer. *)
-  let add_rev_content (_, rev_txt: string) : unit =
-    Buffer.add_string buf rev_txt 
-  in List.iter add_rev_content revisions;
+  let add_rev_content (_, rev_txt) = Buffer.add_string buf rev_txt in
+  List.iter add_rev_content revisions;
   (* The result is in the buffer. *)
-  Buffers.content buf
+  Buffer.contents buf
 
 
 (** [disassemble_blob blob_content] takes apart a blob into the
@@ -220,7 +224,7 @@ let disassemble_blob (blob_content: string) : (int * string) list =
     let r_txt = String.sub blob_content (bin_offset + r_offset) r_len in
     (r_id, r_txt) :: rev_list
   in 
-  List.fold_left [] take_apart_blob header
+  List.fold_left take_apart_blob [] header
 
 
 (** [add_revision_to_blob blob_content_opt rev_id markup] 
@@ -278,7 +282,7 @@ let uncompress (b: string) (s: string) : string =
   let f = open_out file_name in
   output_string f s;
   close_out f;
-  match read_gzipped_file with 
+  match read_gzipped_file file_name with 
     None -> raise Compression_error
   | Some str -> str
 
@@ -299,13 +303,13 @@ class writer (page_id: int) (base_path: string) = object(self)
     let new_blob_size = blob_size + String.length rev_txt in
     let written_blob_id = blob_id in
     (* Decides whether to write to disk or not *)
-    if new_revisions_size >= max_size_blob then begin
+    if new_blob_size >= max_size_blob then begin
       (* Writes to disk. *)
       let s = assemble_blob new_blob_revisions in
       write_blob base_path page_id blob_id s;
       blob_id <- blob_id + 1;
       blob_revisions <- [];
-      blob_size = 0
+      blob_size <- 0
     end else begin
       (* Does not write yet. *)
       blob_revisions <- new_blob_revisions;
@@ -313,10 +317,16 @@ class writer (page_id: int) (base_path: string) = object(self)
     end;
     written_blob_id
 
-  (** This method finishes writing any pending revision. *)
-  method close : unit =
-    let s = assemble_blob blob_revisions in
-    write_blob base_path page_id blob_id s
+  (** This method finishes writing any pending revision,
+      and returns the last blob used (which is the open blob). *)
+  method close : int =
+    match blob_revisions with 
+      [] -> blob_id;
+    | _ :: _ -> begin
+	let s = assemble_blob blob_revisions in
+	write_blob base_path page_id blob_id s;
+	blob_id
+      end
 
 end (* class writer *)
 
@@ -332,7 +342,7 @@ if true then begin
   write_blob "/tmp/alpha" 43 54 "Ecco il mio blob";
   print_string (not_null (read_blob "/tmp/alpha" 43 54));
 
-  let b = assemble_blob [(1, "Revision n. 1"), (2, "Revision 2")] in
+  let b = assemble_blob [(1, "Revision n. 1"); (2, "Revision 2")] in
   let print_rev_str (i, s) = Printf.printf "%d: %S\n" i s in
   let print_blob x = List.iter print_rev_str (disassemble_blob x) in
   print_blob b;
@@ -349,7 +359,7 @@ if true then begin
   print_int (w#write_revision 43 "hello hello");
   let blob_id = w#write_revision 47 "ciao ciao" in
   print_int blob_id; 
-  w#close;
+  ignore w#close;
   print_blob (not_null (read_blob "/tmp/alpha" 12 blob_id))
 
 end
