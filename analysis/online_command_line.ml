@@ -70,12 +70,13 @@ let dump_db_calls = ref false
 (* Base path for filesystem storage of revisions. *)
 let wt_db_rev_base_path = ref None
 let set_wt_db_rev_base_path s = wt_db_rev_base_path := Some s
-(* Base path for filesystem storage of signatures. *)
-let wt_db_sig_base_path = ref None
-let set_wt_db_sig_base_path s = wt_db_sig_base_path := Some s
-(* Base path for filesystem storage of colored revisions. *)
-let wt_db_colored_base_path = ref None
-let set_wt_db_colored_base_path s = wt_db_colored_base_path := Some s
+(* Base path for filesystem storage of blobs. *)
+let wt_db_blob_base_path = ref None
+let set_wt_db_blob_base_path s = wt_db_blob_base_path := Some s
+(* Base path for compressing blobs. *)
+let wt_blob_compression_path = ref "/tmp/"
+(* Maximum size of uncompressed blob *)
+let max_uncompressed_blob_size = ref 10000000
 (* Use the exec API in order to get the list of revisions to process, and their
    content. *)
 let use_exec_api = ref false
@@ -136,8 +137,8 @@ let command_line_format =
    ("-dump_db_calls", Arg.Set dump_db_calls, ": Writes to the db log all
  database calls.  This is very verbose; use only for debugging.");
    ("-wt_db_rev_base_path", Arg.String set_wt_db_rev_base_path, "<string>: Filesystem base path for filesystem storage of revisions (default: revisions are stored in the db)");
-   ("-wt_db_sig_base_path", Arg.String set_wt_db_sig_base_path, "<string>: Filesystem base path for filesystem storage of signatures (default: revisions are stored in the db)");
-   ("-wt_db_colored_base_path", Arg.String set_wt_db_colored_base_path, "<string>: Filesystem base path for filesystem storage of colored revisions (default: revisions are stored in the db)");
+   ("-wt_db_blob_base_path", Arg.String set_wt_db_blob_base_path, "<string>: Filesystem base path for filesystem storage of blobs (default: blobs are stored in the db)");
+   ("-max_blob_size", Arg.Set_int max_uncompressed_blob_size, "<int>: Maximum size of an individual uncompressed blob");
    ("-rev_id",  Arg.Int set_requested_rev_id, "<int>: (optional) revision ID that we want to ensure it is colored");
    ("-sync_log", Arg.Set synch_log, ": Flush writes to the log immediately. This is very slow; use only for debugging.  This option must be used BEFORE the log_file option is used.");
    ("-log_file", Arg.String set_log_name, "<filename>: Logger output file (default: /dev/null)");

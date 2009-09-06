@@ -102,13 +102,6 @@ type vote_t = {
 type page_sig_t = page_sig_disk_t ref 
 let empty_page_sigs = ref []
 
-(* Sigs and deleted chunks are stored in a very specific position. *)
-let blob_locations = {
-  sig_location = 0;
-  chunks_location = 1;
-  initial_location = 2;
-}
-
 (* Produces the key for a signature *)
 let make_blob_key (page_id: int) (blob_id: int) : string =
   Printf.sprintf "%012d%012d" page_id blob_id
@@ -384,6 +377,18 @@ object(self)
   (* Page methods. *)
 
   (* Methods for wikitrust_page *)
+
+  (** [init_page page_id] initializes the page information for 
+      page [page_id]. *)
+  method init_page (page_id : int) : unit =
+    let info_string = ml2str 
+      (string_of__of__sexp_of sexp_of_page_info_t 
+	Online_types.quality_info_default) in 
+    let s = Printf.sprintf "INSERT INTO %swikitrust_page (page_id, page_info, last_blob) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE last_blob = last_blob" 
+      db_prefix (ml2int page_id) (ml2int blob_locations.initial_location) 
+      info_string in
+    ignore (self#db_exec mediawiki_dbh s)    
+    
 	
   (** [write_page_info page_id p_info] writes that the page [page_id]
       has associated information [p_info].  The list of deleted chunks
@@ -429,6 +434,7 @@ object(self)
   (** [read_page_chunks page_id] returns the chunk list for page [page_id]. *)
   method read_page_chunks (page_id: int) : chunk_t list =
     let chunks_string = read_blob page_id blob_locations.chunks_location in
+    of_string__of__of_sexp (list_of_sexp chunk_t_of_sexp) chunks_string
     
   (* Signature methods *)
 
@@ -532,6 +538,7 @@ object(self)
       db_prefix rev_id page_id text_id time_string user_id username is_minor comment q1 aq2 q3 q1 aq2 q3 in
     ignore (self#db_exec mediawiki_dbh s2)
 
+
   (** [read_revision_info rev_id] reads the wikitrust information of
       revision_id *)
   method read_revision_quality (rev_id: int) : qual_info_t = 
@@ -539,7 +546,8 @@ object(self)
     let result = self#db_exec mediawiki_dbh s in
     match fetch result with
       None -> raise DB_Not_Found
-    | Some x -> of_string__of__of_sexp qual_info_t_of_sexp (not_null str2ml x.(0))
+    | Some x -> of_string__of__of_sexp qual_info_t_of_sexp 
+	(not_null str2ml x.(0))
 
 
   (** [write_colored_markup page_id rev_id blob_id_opt markup] writes
@@ -566,24 +574,25 @@ object(self)
       | Some bid -> bid
     in
     (* Writes the information in the blob, and writes the blob back to disk. *)
-       whether it's time to open a new balloon. *)
     let blob_content_opt = self#read_blob page_id blob_id in
     let new_blob_content = Revision_store.add_revision_to_blob
       blob_content_opt rev_id markup in
     self#write_blob page_id blob_id new_blob_content;
     (* If we added the revision to an open blob, and this open blob has
        become too large, then it opens a new blob for writing. *)
-    match blob_id_opt with
-      Some _ -> ()
-    | None -> begin
-	let blob_size = String.len new_blob_content in
-	if blob_size > max_size_per_blob then begin 
-	  (* We start a new blob. *)
-	  let s = Printf.sprintf "UPDATE %swikitrust_page SET last_blob = %s WHERE page_id = %s" db_prefix (ml2int (blob_id + 1)) (ml2int page_id) in
-	  ignore (self#db_exec mediawiki_dbh s)
+    begin
+      match blob_id_opt with
+	Some _ -> ()
+      | None -> begin
+	  let blob_size = String.len new_blob_content in
+	  if blob_size > max_size_per_blob then begin 
+	    (* We start a new blob. *)
+	    let s = Printf.sprintf "UPDATE %swikitrust_page SET last_blob = %s WHERE page_id = %s" db_prefix (ml2int (blob_id + 1)) (ml2int page_id) in
+	    ignore (self#db_exec mediawiki_dbh s)
+	  end
 	end
-      end
-
+    end;
+    blob_id
 
   (** [read_colored_markup rev_id blob_id_opt] reads the text markup
       of a revision with id [rev_id].  The markup is the text of the
@@ -661,8 +670,8 @@ object(self)
       None -> raise DB_Not_Found
     | Some row -> not_null timestamp2ml row.(0)
 
-  (** [get_rev_text page_id text_id] returns the text associated with
-      text id [text_id] *)
+  (** [get_rev_text page_id rev_id text_id] returns the text associated with
+      text id [text_id] for revision [rev_id] *)
   method read_rev_text (page_id: int) (rev_id: int) (text_id: int) : string =
     match rev_base_path with 
       None -> begin
@@ -741,11 +750,12 @@ object(self)
     ignore (self#db_exec mediawiki_dbh s)
 
   (** [mark_page_as_processed page_id] marks that a page has ben processed. *)
-  method mark_page_as_processed (page_id : int) =
+  method mark_page_as_processed (page_id : int) : unit =
     let s = Printf.sprintf "UPDATE %swikitrust_queue SET processed = 'processed' WHERE page_id = %s" db_prefix (ml2int page_id) in
     ignore (self#db_exec mediawiki_dbh s)
 
-  (** [mark_page_as_unprocessed page_id] marks that a page has not been fully processed. *)
+  (** [mark_page_as_unprocessed page_id] marks that a page has not
+      been fully processed. *)
   method mark_page_as_unprocessed (page_id : int) =
     let s = Printf.sprintf "UPDATE %swikitrust_queue SET processed = 'unprocessed' WHERE page_id = %s" db_prefix (ml2int page_id) in
     ignore (self#db_exec mediawiki_dbh s)
@@ -757,7 +767,8 @@ object(self)
       contains a transaction start / commit pair.  [max_to_get] is the
       maximum number of results to get; [n_retries] is the number of
       times the start / commit pair is used. *)
-  method fetch_work_from_queue (max_to_get : int) (n_retries: int) : (int * string) list =
+  method fetch_work_from_queue (max_to_get : int) (n_retries: int) 
+    : (int * string) list =
     let n_attempts = ref 0 in 
     let results = ref [] in
     while !n_attempts < n_retries do 
@@ -787,7 +798,8 @@ object(self)
       
   (** [erase_cached_rev_text page_id rev_id rev_time_string] does nothing; 
       it does something only in the subclass that uses the exec api. *)
-  method erase_cached_rev_text (page_id: int) (rev_id: int) (rev_time_string: string) : unit = ()
+  method erase_cached_rev_text (page_id: int) (rev_id: int) 
+    (rev_time_string: string) : unit = ()
 
   (** [update_queue_page page_title] updates the default page_id to a
       real one. *)
@@ -797,14 +809,14 @@ object(self)
     let result = self#db_exec mediawiki_dbh s in
     match Mysql.fetch result with 
       None -> o_page_id
-    | Some x -> (
+    | Some x -> begin
         let page_id = not_null int2ml x.(0) in
         let u = Printf.sprintf "UPDATE %swikitrust_queue SET page_id = %s WHERE page_title = %s" 
           db_prefix
           (ml2int page_id) (ml2str page_title) in 
         ignore (self#db_exec mediawiki_dbh u);
         page_id
-      )
+      end
 
   (* ================================================================ *)
   (* WikiMedia Api *)
@@ -829,9 +841,10 @@ object(self)
     in
     ignore(self#db_exec mediawiki_dbh s)
 
-  (** This method writes a revision to the database. 
-      It is only useful for the remote use of WikiTrust. *) 
-  method write_revision (rev : wiki_revision_t) = begin
+  (** [write_revision revision_to_add] adds the given data to the
+      revision and text tables of the database.  It can be used to
+      import data from the mediawiki api and store it locally.  *)
+  method write_revision (rev : wiki_revision_t) = 
     begin
       match rev_base_path with
 	None ->
@@ -858,7 +871,7 @@ object(self)
       (ml2int rev.revision_len) 
     in
     ignore (self#db_exec mediawiki_dbh s)
-  end
+
 
   (* ================================================================ *)
 
@@ -915,9 +928,10 @@ object(self)
     as super 
 
 
-  (** [get_rev_text page_id text_id] returns the text associated with text id [text_id].
-      This method first tries to read the revision text from the cache.  If it does not
-      succeed, it reads it from the exec api.  *)
+  (** [get_rev_text page_id text_id] returns the text associated with
+      text id [text_id].  This method first tries to read the revision
+      text from the cache.  If it does not succeed, it reads it from
+      the exec api.  *)
   method read_rev_text (page_id: int) (rev_id: int) (text_id: int) : string =
     let s = Printf.sprintf "SELECT revision_text FROM %swikitrust_text_cache WHERE revision_id = %s"
       db_prefix (ml2int rev_id) in 
@@ -935,8 +949,9 @@ object(self)
     | Some r -> not_null str2ml r.(0)
 
 
-  (** [erase_cached_rev_text page_id rev_id rev_time_string] erases the cached text of all
-      revisions of [page_id] prior and including the ones for [rev_id] and [rev_time_string]. *)
+  (** [erase_cached_rev_text page_id rev_id rev_time_string] erases
+      the cached text of all revisions of [page_id] prior and
+      including the ones for [rev_id] and [rev_time_string]. *)
   method erase_cached_rev_text (page_id: int) (rev_id: int) (rev_time_string: string) : unit =
     let s = Printf.sprintf "DELETE FROM %swikitrust_text_cache WHERE page_id = %s AND (time_string, revision_id) <= (%s, %s)" db_prefix (ml2int page_id) (ml2str rev_time_string) (ml2int rev_id) in
     ignore (self#db_exec mediawiki_dbh s)
@@ -944,27 +959,39 @@ object(self)
 
   (**  [fetch_all_revs_after] is like the superclass method, except that it
        uses the exec api to read the revisions. *)
-  method fetch_all_revs_after (req_page_id: int option) (req_rev_id: int option) 
-    (timestamp : string) (rev_id: int) (max_revs_to_return: int) : revision_t list =  
+  method fetch_all_revs_after (req_page_id: int option) 
+    (req_rev_id: int option) (timestamp : string) (rev_id: int) 
+    (max_revs_to_return: int) : revision_t list =  
     (* For now it just uses the super method. *)
-    super#fetch_all_revs_after req_page_id req_rev_id timestamp rev_id max_revs_to_return
+    super#fetch_all_revs_after req_page_id req_rev_id timestamp 
+      rev_id max_revs_to_return
 
 end (* class db_exec_api *)
 
 
-(** This function returns a db of the appropriate type, according to whether we are using the
-    exec api or not. *)
+(** [create_db use_exec_api db_prefix mediawiki_dbh db_name
+    rev_base_path sig_base_path colored_base_path debug_mode] returns
+    a db of the appropriate type, according to whether we are using
+    the exec api or not.  [db_prefix] is the prefix of the db tables;
+    [mediawiki_dbh] is the db handle, [db_name] is the name of the
+    database (used to ensure lock uniqueness), the base paths point to
+    the location of filesystem storage of revision information, and
+    [debug_mode] is a flag to facilitate debugging. *)
 let create_db 
     (use_exec_api: bool)
     (db_prefix : string)
     (mediawiki_dbh : Mysql.dbd)
     (db_name: string)
     (rev_base_path: string option)
-    (sig_base_path: string option)
     (colored_base_path: string option)
+    (compression_path: string)
+    (max_size_per_blob: int)
     (debug_mode : bool) =
   if use_exec_api
   then new db db_prefix mediawiki_dbh db_name 
-    rev_base_path sig_base_path colored_base_path debug_mode
+    rev_base_path colored_base_path compression_path max_size_per_blob 
+    debug_mode
   else new db_exec_api db_prefix mediawiki_dbh db_name 
-    rev_base_path sig_base_path colored_base_path debug_mode
+    rev_base_path colored_base_path compression_path max_size_per_blob 
+    debug_mode
+

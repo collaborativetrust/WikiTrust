@@ -249,6 +249,13 @@ let page_info_default = {
 (* Timestamp in the DB *)
 type timestamp_t = int * int * int * int * int * int;;
 
+(* Sigs and deleted chunks are stored in a very specific position. *)
+let blob_locations = {
+  sig_location = 0;
+  chunks_location = 1;
+  initial_location = 2;
+}
+
 (* Things for the WMF implementation *)
 
 type request_type_t = Vote | Coloring
@@ -282,3 +289,4 @@ type wiki_revision_t = {
   revision_parent_id : int;
   revision_content : string;
 } with sexp
+

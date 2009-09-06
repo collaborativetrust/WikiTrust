@@ -52,6 +52,8 @@ TYPE_CONV_PATH "UCSC_WIKI_RESEARCH"
    - rev_len is the length, in bytes, in the binary_blob_content
  *)
 
+open Online_types;
+
 type blob_header_t = (int * int * int) list with sexp
 let separator_char = ":"
 exception Invalid_blob_format
@@ -131,13 +133,13 @@ let get_filename (base_path: string) (page_id: int) (blob_id: int)
 (* **************************************************************** *)
 (* Filesystem blob access. *)
 
-(** [write_blob base_name page_id blob_id s] writes to disk the
+(** [write_blob base_path page_id blob_id s] writes to disk the
     blob with id [blob_id] and text [s], belonging to [page_id],
-    given the directory path [base_name].
+    given the directory path [base_path].
     Directories are created if they do not already exist. *)
-let write_blob (base_name: string) (page_id: int) (blob_id: int) 
+let write_blob (base_path: string) (page_id: int) (blob_id: int) 
     (s: string) : unit =
-  let (f_name, dir_l) = get_filename base_name page_id blob_id in 
+  let (f_name, dir_l) = get_filename base_path page_id blob_id in 
   (* Writes the file directly, hoping that the directories exist. *)
   begin try
     write_gzipped_file f_name s
@@ -152,25 +154,25 @@ let write_blob (base_name: string) (page_id: int) (blob_id: int)
     write_gzipped_file f_name s
   end
 
-(** [read_blob base_name page_id blob_id] returns the blob
+(** [read_blob base_path page_id blob_id] returns the blob
     [blob_id] of page [page_id]. *)
-let read_blob (base_name: string) (page_id: int) (blob_id: int) 
+let read_blob (base_path: string) (page_id: int) (blob_id: int) 
     : string option =
-  let (f_name, _) = get_filename base_name page_id blob_id in 
+  let (f_name, _) = get_filename base_path page_id blob_id in 
   read_gzipped_file f_name;;
 
-(** [delete_blob base_name page_id blob_id] deletes the blob
+(** [delete_blob base_path page_id blob_id] deletes the blob
     [blob_id] of page [page_id]. *)
-let delete_blob (base_name: string) (page_id: int) (blob_id: int) =
-  let (f_name, _) = get_filename base_name page_id blob_id in 
+let delete_blob (base_path: string) (page_id: int) (blob_id: int) =
+  let (f_name, _) = get_filename base_path page_id blob_id in 
   try
     Unix.unlink f_name
   with Unix.Unix_error (Unix.ENOENT, _, _) -> ()
 
-(** [delete_all base_name] deletes all the tree of blobs rooted
+(** [delete_all base_path] deletes all the tree of blobs rooted
     at base_path. *)
-let delete_all (base_name: string) : Unix.process_status =
-  Unix.system ("rm -rf " ^ base_name)
+let delete_all (base_path: string) : Unix.process_status =
+  Unix.system ("rm -rf " ^ base_path)
 
 
 (* **************************************************************** *)
@@ -241,7 +243,7 @@ let add_revision_to_blob (blob_content_opt: string option)
 (** [read_revision_from_blob rev_id blob_content] reads the 
     revision [rev_id] from the blob [blob_content], returning
     the revision text. *)
-let read_revision_from_blob (rev_id: int) (blob_content: string) =
+let read_revision_from_blob (rev_id: int) (blob_content: string) : string =
   let rev_l = disassemble_blob blob_content in
   List.assoc rev_id rev_l
 
@@ -280,20 +282,74 @@ let uncompress (b: string) (s: string) : string =
     None -> raise Compression_error
   | Some str -> str
 
+(* **************************************************************** *)
+(* Writer class to be used for batch writing. *)
+
+class writer (page_id: int) (base_path: string) = object(self)
+
+  val mutable blob_id : int = blob_locations.initial_location
+  val mutable blob_revisions : (int * string) list = []
+  val mutable blob_size = 0
+  val max_size_blob = 10000000
+
+  (** This method queues a revision for writing, and returns the
+      blob id where the revision will be written. *)
+  method write_revision (rev_id: int) (rev_txt: string) : int =
+    let new_blob_revisions = (rev_id, rev_txt) :: blob_revisions in
+    let new_blob_size = blob_size + String.length rev_txt in
+    let written_blob_id = blob_id in
+    (* Decides whether to write to disk or not *)
+    if new_revisions_size >= max_size_blob then begin
+      (* Writes to disk. *)
+      let s = assemble_blob new_blob_revisions in
+      write_blob base_path page_id blob_id s;
+      blob_id <- blob_id + 1;
+      blob_revisions <- [];
+      blob_size = 0
+    end else begin
+      (* Does not write yet. *)
+      blob_revisions <- new_blob_revisions;
+      blob_size <- new_blob_size 
+    end;
+    written_blob_id
+
+  (** This method finishes writing any pending revision. *)
+  method close : unit =
+    let s = assemble_blob blob_revisions in
+    write_blob base_path page_id blob_id s
+
+end (* class writer *)
 
 (* **************************************************************** *)
 (* Unit tests. *)
 
-if false then begin
+if true then begin
   let not_null = function
       None -> "Error: revision not found."
     | Some x -> x
   in 
-  write_revision "/tmp/alpha" 43 54 "Ho voglia di sushi";
-  print_string (not_null (read_revision "/tmp/alpha" 43 54));
-  print_string (not_null (read_revision "/tmp/alpha" 43 55));
-  print_string (not_null (read_revision "/tmp/alpha" 43 54));
-  delete_revision "/tmp/alpha" 43 54;
-  print_string (not_null (read_revision "/tmp/alpha" 43 54));
-  write_revision "/tmp/alpha" 43 54 "Ho voglia di sushi";
+
+  write_blob "/tmp/alpha" 43 54 "Ecco il mio blob";
+  print_string (not_null (read_blob "/tmp/alpha" 43 54));
+
+  let b = assemble_blob [(1, "Revision n. 1"), (2, "Revision 2")] in
+  let print_rev_str (i, s) = Printf.printf "%d: %S\n" i s in
+  let print_blob x = List.iter print_rev_str (disassemble_blob x) in
+  print_blob b;
+  let d = add_revision_to_blob (Some b) 3 "Revision number 3" in
+  print_blob d;
+  print_blob (add_revision_to_blob None 3 "Lonely revision");
+  Printf.printf "%S" (read_revision_from_blob 2 b);
+  Printf.printf "%S" (read_revision_from_blob 3 d);
+  Printf.printf "%S" (read_revision_from_blob 1 d);
+
+  print_string (uncompress "/tmp" (compress "/tmp/" "Mi piace la pizza\n"));
+
+  let w = new writer 12 "/tmp/alpha" in
+  print_int (w#write_revision 43 "hello hello");
+  let blob_id = w#write_revision 47 "ciao ciao" in
+  print_int blob_id; 
+  w#close;
+  print_blob (not_null (read_blob "/tmp/alpha" 12 blob_id))
+
 end

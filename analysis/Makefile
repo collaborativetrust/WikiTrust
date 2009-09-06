@@ -70,6 +70,7 @@ OCAMLOPT_FLAGS=$(INCLUDES)
 # Evalwiki does the batch evaluation
 
 OUR_EVALWIKI_OBJS = textbuf.cmo text.cmo prioq.cmo filesystem_store.cmo \
+	revision_store.cmo \
 	coda.cmo editlist.cmo chdiff.cmo compute_edlist.cmo timeconv.cmo \
 	read_robots.cmo eval_defs.cmo author_sig.cmo online_types.cmo \
 	rephist.cmo revision.cmo prune_analysis.cmo \
@@ -83,6 +84,7 @@ OUR_EVALWIKI_OBJS = textbuf.cmo text.cmo prioq.cmo filesystem_store.cmo \
 	page_factory.cmo do_eval.cmo evalwiki.cmo
 
 OUR_OPT_EVALWIKI_OBJS = textbuf.cmx text.cmx prioq.cmx filesystem_store.cmx \
+	revision_store.cmx \
 	coda.cmx editlist.cmx chdiff.cmx compute_edlist.cmx timeconv.cmx \
 	read_robots.cmx eval_defs.cmx author_sig.cmx online_types.cmx \
 	rephist.cmx revision.cmx prune_analysis.cmx \
@@ -128,6 +130,8 @@ TEXT_OBJS = textbuf.cmo text.cmo
 TIMECONV_OBJS = timeconv.cmo
 
 FILESYSTEMSTORE_OBJS = filesystem_store.cmo
+
+REVISION_STORE_OBJS = online_types.cmo revision_store.cmo
 
 # Online objects.
 OUR_ONLINE_OBJS = online_log.cmo online_db.cmo \
@@ -203,6 +207,9 @@ timeconv: $(TIMECONV_OBJS)
 
 filesystem_store: $(FILESYSTEMSTORE_OBJS)
 	$(OCAMLC) -linkpkg -o filesystem_store $(OCAML_CFLAGS) $(OUR_LD_ADD) $(FILESYSTEMSTORE_OBJS)
+
+revision_store: $(REVISION_STORE_OBJS)
+	$(OCAMLC) -linkpkg -o filesystem_store $(OCAML_CFLAGS) $(OUR_LD_ADD) $(REVISION_STORE_OBJS)
 
 online_eval: $(OUR_ONLINE_OBJS) 
 	$(OCAMLC) -linkpkg -o eval_online_wiki $(OCAML_CFLAGS) $(OUR_LIBS) $(OUR_ONLINE_OBJS) eval_online_wiki.ml 
