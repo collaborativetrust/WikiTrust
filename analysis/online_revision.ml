@@ -54,6 +54,8 @@ class revision
   (username: string) (* name of the user *)
   (is_minor: bool) 
   (comment: string)
+  (quality_info_opt: qual_info_t option) (* Quality information, if known. *)
+  (blob_id_opt_init: int option) (* Blob id, if known. *)
   =
   let time      = Timeconv.time_string_to_float time_string in 
   let timestamp = Timeconv.time_string_to_timestamp time_string in 
@@ -90,31 +92,51 @@ class revision
     (* As part of the quality info, we also keep the blob id. *)
     val mutable blob_id_opt : int option = None
     (* Dirty bits to avoid writing back unchanged stuff *)
-    val mutable quality_info_valid = false
     val mutable modified_quality_info : bool = false
 
-    (** Sets the quality info. *)
-    method set_quality_info (q: qual_info_t) (bid: int option) = 
-      quality_info <- q;
-      blob_id_opt <- bid;
-      quality_info_valid <- true;
-      modified_quality_info <- false
 
-    (** Reads the quality info if required. *)
-    method private read_quality_info : unit = 
-      if not quality_info_valid then begin 
-	(* We read it at most once, even in case of failure. 
-	   If we cannot find it, it means that the colored revision information
-	   is not in the database, and leave it to its initialized 
-	   default values. *)
-	quality_info_valid <- true;
-	try 
-          let (q, b) = db#read_revision_quality rev_id in
-	  quality_info <- q;
-	  blob_id_opt <- b;
-	  modified_quality_info <- false; 
-	with Online_db.DB_Not_Found -> ()
-      end
+    (** The initializer reads the information from the wikitrust_revision
+	table, to initialize things such as the quality, and the blob_id. *)
+    initializer begin
+      match quality_info_opt with
+	Some q -> begin
+	  (* If the revision object has been created with a known quality info,
+	     then takes this data and the blob_id from the initializer. *)
+	  quality_info.n_edit_judges <- q.n_edit_judges;
+	  quality_info.total_edit_quality <- q.total_edit_quality;
+	  quality_info.min_edit_quality <- q.min_edit_quality;
+	  quality_info.nix_bit <- q.nix_bit;
+	  quality_info.delta <- q.delta;
+	  quality_info.reputation_gain <- q.reputation_gain;
+	  quality_info.overall_trust <- q.overall_trust;
+	  quality_info.word_trust_histogram <- q.word_trust_histogram;
+	  blob_id_opt <- blob_id_opt_init;
+	end
+      | None -> begin
+	  (* No quality information or blob_id is known at initialization.
+	     Tries to get the information from the wikitrust_revision table. *)
+	  try begin 
+	    let (q, b) = db#read_revision_quality rev_id in
+	    quality_info <- q;
+	    blob_id_opt <- b;
+	    modified_quality_info <- false; 
+	  end with Online_db.DB_Not_Found -> begin
+	    (* If we have not found the revision in the
+	       wikitrust_revision table, leaves the fields initialized
+	       with their default values, and notes that such defaults
+	       will need to be written to the db. *)
+	    modified_quality_info <- true
+	  end
+	end
+    end (* Initializer *)
+
+    (** Checks if the revision needs coloring.  If there is a blob id, 
+        and (as a safety check) it is a valid one, then it does not 
+        need coloring. *)
+    method needs_coloring : bool =
+      match blob_id_opt with
+	None -> true
+      | Some b -> b <> blob_locations.invalid_location
 
     (* Basic access methods *)
     method get_id : int = rev_id
@@ -160,8 +182,6 @@ class revision
 	(* Not found: we parse the colored text.  If this is also not found, 
 	   we let the error pop up, so that the caller knows that the revision 
 	   needs to be colored. *)
-	(* We need to read the colored revision, to know the blob id. *)
-	self#read_quality_info;
 	(* We have to use Textbuf here to split text into smaller chunks, 
 	   since otherwise Text chokes on it. *)
 	let buf = Textbuf.add 
@@ -203,24 +223,32 @@ class revision
       end
 
     (** Writes the colored text to the db, as a compressed blob. 
-	Note that blob_id_opt can be None, in case the colored data is not
-	already in the db.  For that reason, we let the database 
-	tell us back what the new blob id is. *)
-    method write_colored_text (trust_is_float: bool) (include_origin: bool)
-      (include_author: bool) : unit = 
+        It takes as first parameter the open blob id for the page, 
+        and it returns the updated information, if any.  Note
+        that the write method takes care already of updating the 
+        open blob in the page, so the return value is used only 
+        to help additional writes. *)
+    method write_colored_text (page_open_blob: int) 
+      (trust_is_float: bool) (include_origin: bool) (include_author: bool) 
+      : int = 
       (* Prepares the text to be written. *)
       let buf = Revision.produce_annotated_markup 
 	seps trust origin author 
 	trust_is_float include_origin include_author in
-      (* Reads the quality information, for the blob id. *)
-      self#read_quality_info;
-      (* Writes the colored information, updating as required the blob id. *)
-      let new_bid_opt = db#write_colored_markup 
-	page_id rev0_id blob_id_opt (Buffer.contents buf) in
-      if new_bid_opt <> blob_id_opt then begin
-	blob_id_opt <- new_bid_opt;
-	modified_quality_info <- true
-      end
+      (* Writes the colored information, updating as required the blob id. 
+	 Note that blob_id_opt can be None, in case the colored data is not
+	 already in the db.  For that reason, we let the database 
+	 tell us back what the new blob id is. *)
+      let new_bid = db#write_colored_markup 
+	page_id rev_id blob_id_opt page_open_blob (Buffer.contents buf) in
+      let new_page_open_blob = 
+	if Some new_bid <> blob_id_opt then begin
+	  blob_id_opt <- Some new_bid;
+	  modified_quality_info <- true;
+	  new_bid
+	end else page_open_blob
+      in new_page_open_blob
+
 
     (** Writes the trust, origin, and sigs to the db, as a signature. *)
     method write_words_trust_origin_sigs page_sigs : unit = 
@@ -242,7 +270,6 @@ class revision
     (** Adds edit quality information *)
     method add_edit_quality_info (delta: float) (new_q: float) 
       (rep_gain: float) : unit = 
-      self#read_quality_info; 
       (* updated *)
       quality_info.delta <- delta;
       quality_info.total_edit_quality <- 
@@ -255,35 +282,25 @@ class revision
       modified_quality_info <- true
 
     method set_overall_trust (t: float) : unit = 
-      self#read_quality_info; 
       quality_info.overall_trust <- t;
       modified_quality_info <- true
 
-    method get_overall_trust : float = 
-      self#read_quality_info; 
-      quality_info.overall_trust
+    method get_overall_trust : float = quality_info.overall_trust
 
     method set_trust_histogram (a: int array) : unit =
-      self#read_quality_info; 
       quality_info.word_trust_histogram <- a;
       modified_quality_info <- true
 
-    method get_trust_histogram : int array =
-      self#read_quality_info;
-      quality_info.word_trust_histogram
+    method get_trust_histogram : int array = quality_info.word_trust_histogram
 
-    method get_nix : bool = 
-      self#read_quality_info; 
-      quality_info.nix_bit
+    method get_nix : bool = quality_info.nix_bit
 
     method set_nix_bit : unit = 
-      self#read_quality_info; 
       quality_info.nix_bit <- true;
       modified_quality_info <- true 
 
     (** [write_quality_to_db n_attempts] writes all revision quality information to the db. *)
     method write_quality_to_db : unit = 
-      self#read_quality_info; 
       if modified_quality_info then 
 	db#write_wikitrust_revision {
 	  Online_db.rev_id = rev_id; 
@@ -299,6 +316,7 @@ class revision
   end (* revision class *)
 
 (** Makes a revision from a revision_t record *)
+
 let make_revision (rev : Online_db.revision_t) db: revision = 
   new revision db 
     rev.Online_db.rev_id
@@ -309,6 +327,8 @@ let make_revision (rev : Online_db.revision_t) db: revision =
     rev.Online_db.rev_user_text
     rev.Online_db.rev_is_minor
     rev.Online_db.rev_comment
+    None (* No quality information known *)
+    None (* No blob_id known *)
 
 (** Makes a revision from a database row *)
 let make_revision_from_cursor row db: revision = 
@@ -325,9 +345,11 @@ let make_revision_from_cursor row db: revision =
     (not_null str2ml row.(5)) (* user name *)
     (set_is_minor (not_null int2ml row.(6))) (* is_minor *)
     (not_null str2ml row.(7)) (* comment *)
+    None (* No quality information known *)
+    None (* No blob_id known *)
 
 (** Reads a revision from the wikitrust_revision table given its 
-    revision id.  This reads also the quality data. *)
+    revision id.  *)
 let read_wikitrust_revision (db: Online_db.db) (id: int) : revision = 
   begin 
     let (r_data, q_data, bid_opt) = db#read_wikitrust_revision id in 
@@ -340,7 +362,7 @@ let read_wikitrust_revision (db: Online_db.db) (id: int) : revision =
       r_data.Online_db.rev_user_text
       r_data.Online_db.rev_is_minor
       r_data.Online_db.rev_comment
-    in 
-    rev#set_quality_info q_data bid_opt; 
-    rev
+      (Some q_data)
+      bid_opt
+    in rev
   end

@@ -251,11 +251,14 @@ type timestamp_t = int * int * int * int * int * int;;
 
 (* Sigs and deleted chunks are stored in a very specific position. *)
 type blob_locations_t = {
+  invalid_location: int;
   sig_location: int;
   chunks_location: int;
   initial_location: int;
 }
+
 let blob_locations = {
+  invalid_location = 0; (* A revision sig can never be here. *)
   sig_location = 0;
   chunks_location = 1;
   initial_location = 2;

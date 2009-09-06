@@ -38,12 +38,16 @@ POSSIBILITY OF SUCH DAMAGE.
 
 open Online_types;;
 
-(** All the methods uniformly return DB_Not_Found when some desired
-    information cannot be read from the database. *)
-exception DB_Not_Found;;
-
-(** Raised when a commit fails. *)
-exception DB_TXN_Bad;;
+(* Returned whenever something is not found *)
+exception DB_Not_Found
+(* Internal error *)
+exception DB_Internal_Error
+(* Commit failed, or other database error that may have to cause a rollback. *)
+exception DB_TXN_Bad
+(* ExecAPI failed *)
+exception DB_Exec_Error
+(* Read/write colored revisions from wrong blob ids. *)
+exception DB_Illegal_blob_id
 
 (** Represents the revision table in memory *)
 type revision_t = {
@@ -77,8 +81,9 @@ class db :
   Mysql.dbd ->     (* mediawiki db handle *)
   string ->        (* database name *)
   string option -> (* revision base path *)
-  string option -> (* signatures base path *)
   string option -> (* colored revisions base path *)
+  string ->        (* compression path *)
+  int ->           (* max size per blob *)
   bool ->          (* debug_mode *)
   object
 
@@ -175,8 +180,9 @@ class db :
 	of the page is not modified. *)
     method write_page_info : int -> Online_types.page_info_t -> unit
 
-  (** [read_page_info page_id] returns the page information for [page_id]. *)
-    method read_page_info : int -> Online_types.page_info_t
+  (** [read_page_info page_id] returns the page information for [page_id],
+      consisting of the page_info and the open_blob_id. *)
+    method read_page_info : int -> Online_types.page_info_t * int
 
     (** [fetch_col_revs page_id timestamp rev_id fetch_limit] returns a
 	cursor that points to at most [fetch_limit] colored revisions of page
@@ -222,34 +228,32 @@ class db :
     (* Revision methods.  We assume we have a lock on the page to which 
        the revision belongs when calling these methods. *)
 
-    (** [revision_needs_coloring rev_id] checks whether a revision has
-	already been colored for trust.  The only safe thing to do is to
-	see whether the colored text is present, since that is what the
-	user wants to see. *)
-    method revision_needs_coloring : int -> int -> bool
+  (** [read_wikitrust_revision rev_id] reads a revision from the 
+      wikitrust_revision table, returning the revision information,
+      the quality information, and the optional blob id. *)
+    method read_wikitrust_revision : 
+      int -> (revision_t * qual_info_t * int option)
 
-    (** [read_wikitrust_revision rev_id] reads a revision from the 
-	wikitrust_revision table. *)
-    method read_wikitrust_revision : int -> (revision_t * qual_info_t)
-
-    (** [write_wikitrust_revision revision_info quality_info]
+    (** [write_wikitrust_revision revision_info quality_info blob_id_opt]
 	writes the wikitrust data associated with a revision. *)
-    method write_wikitrust_revision : revision_t -> qual_info_t -> unit
+    method write_wikitrust_revision : 
+      revision_t -> qual_info_t -> int option -> unit
 
     (** [read_revision_quality rev_id] reads the wikitrust quality
 	information of revision_id *)
-    method read_revision_quality : int -> qual_info_t
+    method read_revision_quality : int -> (qual_info_t * int option)
 
-    (** [write_colored_markup page_id rev_id blob_id_opt markup] writes
-	the "colored" text [markup] of a revision.  The [markup]
-	represents the main text of the revision, annotated with trust
-	and origin information. [page_id] and [rev_id] are as usual. 
-	[blob_id_opt] specifies the blob in which the information should
-	be written, if known.  The function returns the blob in which 
-	the revision was written (this coincides with the content
-	of [blob_id_opt] when the latter is not null). *)
+  (** [write_colored_markup page_id rev_id blob_id_opt page_open_blob markup] 
+      writes the "colored" text [markup] of a revision.  The [markup]
+      represents the main text of the revision, annotated with trust
+      and origin information. [page_id] and [rev_id] are as usual. 
+      [blob_id_opt] specifies the blob in which the information should
+      be written, if known.  Otherwise, the information is written in 
+      [page_open_blob] blob.  The function returns the blob in which 
+      the revision was written (this coincides with the content
+      of [blob_id_opt] when the latter is not null). *)
     method write_colored_markup :
-      int -> int -> int option -> string -> int option
+      int -> int -> int option -> int -> string -> int
 
     (** [read_colored_markup rev_id blob_id_opt] reads the text markup
 	of a revision with id [rev_id].  The markup is the text of the

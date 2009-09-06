@@ -99,6 +99,8 @@ class page
       past_hi_rep_revs = page_info_default.past_hi_rep_revs; 
       past_hi_trust_revs = page_info_default.past_hi_trust_revs;
     }
+      (** Open page blob for writing. *)
+    val mutable open_page_blob_id = blob_locations.invalid_location
     (** Signatures for the page *)
     val mutable page_sigs = Online_db.empty_page_sigs
     (** Information about the histogram *)
@@ -110,15 +112,6 @@ class page
     (** This method reads the revision voted on from the online database, 
         and puts it into [work_revision_opt]. *)
     method private read_page_revisions_vote : unit = 
-      (* Reads the page information *)
-      begin 
-	try 
-	  let (cl, pinfo) = db#read_page_info page_id in 
-	  del_chunks_list <- cl; 
-	  page_info <- pinfo
-	with Online_db.DB_Not_Found -> db#init_page page_id;
-      end;
-      (* Reads the revision voted on. *)
       begin 
 	try
 	  let r = Online_revision.read_wikitrust_revision db revision_id in 
@@ -130,16 +123,7 @@ class page
     (** This method reads the past revisions from the online database, and
         puts them into the revs Vec. *)
     method private read_page_revisions_edit : unit = 
-      (* Reads the page information *)
-      begin 
-	try 
-	  let (cl, pinfo) = db#read_page_info page_id in 
-	  del_chunks_list <- cl; 
-	  page_info <- pinfo
-	with Online_db.DB_Not_Found -> db#init_page page_id;
-      end;
       (* Reads the most recent revisions *)
-      
       (* This is a hashtable from revision id to revision, for the
          revisions that have been read from disc.  This hash table
          contains all revisions, whether it is the last in a block by
@@ -751,7 +735,8 @@ class page
 	rev0#set_author chunk_0_author;
 	rev0#set_sigs   chunk_0_sigs;
         (* Writes to the db the colored text. *)
-	rev0#write_colored_text false true true;
+	open_page_blob_id <- rev0#write_colored_text open_page_blob_id 
+	  false true true;
 	(* Writes to the db the sig for the revision. *)
 	rev0#write_words_trust_origin_sigs page_sigs;
 	(* Computes the overall trust of the revision *)
@@ -934,7 +919,8 @@ class page
 	rev0#set_origin new_origin_10_a.(0);
 	rev0#set_author new_author_10_a.(0);
 	rev0#set_sigs   new_sigs_10_a.(0);
-	rev0#write_colored_text false true true;
+	open_page_blob_id <- rev0#write_colored_text open_page_blob_id 
+	  false true true;
 	rev0#write_words_trust_origin_sigs page_sigs;
 	(* Now that the colored revision is written out to disk, we don't need
 	   any more its uncolored text.   If we are using the exec_api, 
@@ -957,8 +943,7 @@ class page
       match work_revision_opt with
 	None -> raise Missing_work_revision
       | Some rev0 -> begin
-    rev0#read_words_trust_origin_sigs page_sigs;
-    let rev0_id = rev0#get_id in
+	  rev0#read_words_trust_origin_sigs page_sigs;
 	  let rev0_t = rev0#get_words in 
 	  let rev0_l = Array.length rev0_t in 
 	  let rev0_seps = rev0#get_seps in 
@@ -996,7 +981,8 @@ class page
 	  rev0#set_trust new_trust_a.(0); 
 	  rev0#set_sigs  new_sigs_a.(0);
 	  (* Writes the new colored markup *)
-	  rev0#write_colored_text false true true;
+	  open_page_blob_id <- rev0#write_colored_text open_page_blob_id 
+	    false true true;
 	  (* Writes the trust information to the revision *)
 	  rev0#write_words_trust_origin_sigs page_sigs;
 	  let t = Compute_robust_trust.compute_overall_trust new_trust_a.(0) in
@@ -1316,105 +1302,104 @@ class page
         done. *)
     method eval : bool = 
 
-      (* Keep track of whether the revision needs coloring, on how
+      (* Keep track of whether the revision needs coloring, and of how
 	 many tries we have made *)
-      let needs_coloring = ref false in 
       let done_something = ref true in 
       let n_attempts = ref 0 in 
 
-      (* This is the main transaction body.  We do in this body the
-	 computation that needs to be consistent for a page. *)
-      while !n_attempts < n_retries do 
-	begin 
-	  try begin 
-	    
-	    db#start_transaction;
-	    
-	    (* We do something only if the revision needs coloring *)
-	    needs_coloring := db#revision_needs_coloring page_id revision_id;
-	    if !needs_coloring then begin
-	      
-	      (* Reads the page sigs *)
-	      page_sigs <- db#read_page_sigs page_id; 
-	      (* Reads the previous revisions *)
-	      self#read_page_revisions_edit; 
-	      
-	      (* Computes the edit distances *)
-	      !Online_log.online_logger#log "   Computing edit lists...\n";
-	      self#compute_edit_lists; 
-	      (* Computes, and writes to disk, the trust of the newest revision *)
-	      !Online_log.online_logger#log "   Computing trust...\n";
-	      self#compute_trust;
-	      
-	      (* We now process the reputation update. *)
-	      !Online_log.online_logger#log "   Computing edit incs...\n";
-	      self#compute_edit_inc;
-	      
-	      (* Inserts the revision in the list of high rep or high
-		 trust revisions, and deletes old signatures *)
-	      self#insert_revision_in_lists;
-	      (* We write to disk the page information *)
-	      db#write_page_chunks_info page_id del_chunks_list page_info;
-
-	      (* We write back to disk the information of all revisions *)
-	      !Online_log.online_logger#log "   Writing the quality information...\n";
-	      let f r = r#write_quality_to_db in 
-	      Vec.iter f revs;
-
-	      (* We write to disk the page sigs. *)
-	      db#write_page_sigs page_id page_sigs;
-
-	      db#commit;
-	      n_attempts := n_retries
-
-	    end else begin
-	      (* The revision is already colored; there is nothing to do *)
-	      db#commit;
-	      done_something := false;
-	      n_attempts := n_retries
-	    end
-
-	  end (* try: this is the end of the main transaction *)
-	  with Online_db.DB_TXN_Bad -> begin 
-	    (* Roll back *)
-	    db#rollback_transaction;
-	    n_attempts := !n_attempts + 1
-	  end
-	end done; (* End of the multiple attempts at the transaction *)
-
-      (* If the revision needed coloring, we need to write reputations
-	 and revision quality information to disk *)
-      if !needs_coloring then begin 
-
-	(* We write to disk all reputation changes *)
-	!Online_log.online_logger#log "   Writing the reputations...\n";
-	self#write_all_reps;
-	
-	!Online_log.online_logger#log "   All done!\n";
-      end; (* needs coloring *)
-
-      (* Writes the new histogram *)
-      if histogram_updated then begin 
-	let n_attempts = ref 0 in 
-	while !n_attempts < n_retries do 
-	  begin 
-	    try 
-	      begin 
+      begin (* match *)
+	match work_revision_opt with
+	  None -> raise Missing_work_revision
+	| Some r -> if r#needs_coloring then begin
+	    (* Reads the page sigs *)
+	    page_sigs <- db#read_page_sigs page_id; 
+	    (* Reads the deleted chunks. *)
+	    del_chunks_list <- db#read_page_chunks page_id;
+	    (* This is the main transaction body.  We do in this body the
+	       computation that needs to be consistent for a page. *)
+	    while !n_attempts < n_retries do begin 
+	      try begin 
+		
 		db#start_transaction;
-		db#write_histogram delta_hist new_hi_median;
+
+		(* Reads the page information. *)
+		begin try
+		  let (pinfo, bid) = db#read_page_info page_id in
+		  page_info <- pinfo;
+		  open_page_blob_id <- bid;
+		with Online_db.DB_Not_Found -> begin
+		  db#init_page page_id;
+		  open_page_blob_id <- blob_locations.initial_location;
+		end end;
+
+		(* Reads the previous revisions *)
+		self#read_page_revisions_edit; 
+		
+		(* Computes the edit distances *)
+		!Online_log.online_logger#log "   Computing edit lists...\n";
+		self#compute_edit_lists; 
+		(* Computes, and writes to disk, the trust of the newest revision *)
+		!Online_log.online_logger#log "   Computing trust...\n";
+		self#compute_trust;
+		
+		(* We now process the reputation update. *)
+		!Online_log.online_logger#log "   Computing edit incs...\n";
+		self#compute_edit_inc;
+		
+		(* Inserts the revision in the list of high rep or high
+		   trust revisions, and deletes old signatures *)
+		self#insert_revision_in_lists;
+		(* We write to disk the page information *)
+		db#write_page_info page_id page_info;
+		db#write_page_chunks page_id del_chunks_list;
+		
+		(* We write back to disk the information of all revisions *)
+		!Online_log.online_logger#log "   Writing the quality information...\n";
+		let f r = r#write_quality_to_db in 
+		Vec.iter f revs;
+		
+		(* We write to disk the page sigs. *)
+		db#write_page_sigs page_id page_sigs;
+		
 		db#commit;
-		histogram_updated <- false;
 		n_attempts := n_retries
-	      end 
-	    with Online_db.DB_TXN_Bad -> 
-	      begin 
+		  
+	      end (* try: this is the end of the main transaction *)
+	      with Online_db.DB_TXN_Bad -> begin 
 		(* Roll back *)
 		db#rollback_transaction;
 		n_attempts := !n_attempts + 1
 	      end
-	  end done
-      end;
-
+	    end done; (* End of the multiple attempts at the transaction *)
+	    (* We write to disk all reputation changes *)
+	    !Online_log.online_logger#log "   Writing the reputations...\n";
+	    self#write_all_reps;
+	    !Online_log.online_logger#log "   All done!\n";
+	    (* Writes the new histogram *)
+	    if histogram_updated then begin 
+	      let n_attempts = ref 0 in 
+	      while !n_attempts < n_retries do 
+		begin 
+		  try begin 
+		    db#start_transaction;
+		    db#write_histogram delta_hist new_hi_median;
+		    db#commit;
+		    histogram_updated <- false;
+		    n_attempts := n_retries
+		  end with Online_db.DB_TXN_Bad -> begin 
+		    (* Roll back *)
+		    db#rollback_transaction;
+		    n_attempts := !n_attempts + 1
+		  end
+		end done
+	    end (* Histogram updated *)
+	      
+	  end else begin 
+	    (* The revision does not need coloring *)
+	    done_something := false;
+	  end  
+      end; (* match *)
+	  
       (* Flushes the logger.  *)
       !Online_log.online_logger#flush; 
 
@@ -1439,6 +1424,15 @@ class page
 	  try 
 	    db#start_transaction;
 	    !Online_log.online_logger#log "Start vote for revision...\n";
+	    (* Reads the page information. *)
+	    begin try
+	      let (pinfo, bid) = db#read_page_info page_id in
+	      page_info <- pinfo;
+	      open_page_blob_id <- bid;
+	    with Online_db.DB_Not_Found -> begin
+	      db#init_page page_id;
+	      open_page_blob_id <- blob_locations.initial_location;
+	    end end;
 	    (* Reads the page sigs *)
 	    page_sigs <- db#read_page_sigs page_id; 
 	    (* Reads the page information and the revision *)
