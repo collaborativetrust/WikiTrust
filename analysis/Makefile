@@ -129,7 +129,8 @@ TIMECONV_OBJS = timeconv.cmo
 
 FILESYSTEMSTORE_OBJS = filesystem_store.cmo
 
-REVISION_STORE_OBJS = online_types.cmo revision_store.cmo
+REVISION_STORE_OBJS = eval_defs.cmo author_sig.cmo editlist.cmo \
+	online_types.cmo revision_store.cmo
 
 # Online objects.
 OUR_ONLINE_OBJS = online_log.cmo online_db.cmo \
@@ -207,7 +208,7 @@ filesystem_store: $(FILESYSTEMSTORE_OBJS)
 	$(OCAMLC) -linkpkg -o filesystem_store $(OCAML_CFLAGS) $(OUR_LD_ADD) $(FILESYSTEMSTORE_OBJS)
 
 revision_store: $(REVISION_STORE_OBJS)
-	$(OCAMLC) -linkpkg -o filesystem_store $(OCAML_CFLAGS) $(OUR_LD_ADD) $(REVISION_STORE_OBJS)
+	$(OCAMLC) -linkpkg -o revision_store $(OCAML_CFLAGS) $(OUR_LD_ADD) $(REVISION_STORE_OBJS)
 
 online_eval: $(OUR_ONLINE_OBJS) 
 	$(OCAMLC) -linkpkg -o eval_online_wiki $(OCAML_CFLAGS) $(OUR_LIBS) $(OUR_ONLINE_OBJS) eval_online_wiki.ml 

@@ -59,6 +59,7 @@ open Sexplib
 
 type blob_header_t = (int * int * int) list with sexp
 let separator_char = ':'
+let compress_prefix = "wikitrust_"
 exception Invalid_blob_format
 exception Compression_error
 
@@ -124,7 +125,7 @@ let get_filename (base_path: string) (page_id: int) (blob_id: int)
   end done;
   (* Then, the blob directory *)
   if blob_id > 999 then begin
-    let s = String.sub blob_str 6 3 in 
+    let s = String.sub blob_str 0 6 in 
     file_name := !file_name ^ "/" ^ s;
     list_dirs := !list_dirs @ [!file_name]
   end;
@@ -255,10 +256,9 @@ let read_revision_from_blob (rev_id: int) (blob_content: string) : string =
 (* **************************************************************** *)
 (* Compression, decompression for db use *)
 
-(** [compress b s] compresses the string [s] using a temporary file
-    in the directory [b]. *)
-let compress (b: string) (s: string) : string = 
-  let file_name = Filename.temp_file b "_temp" in
+(** [compress s] compresses the string [s]. *)
+let compress (s: string) : string = 
+  let file_name = Filename.temp_file compress_prefix "_temp" in
   write_gzipped_file file_name s;
   let f = open_in file_name in
   (* I hate that reading is going to be so complex. *)
@@ -272,19 +272,22 @@ let compress (b: string) (s: string) : string =
     Buffer.add_string buf (String.sub str 0 n_read)
   end done;
   close_in f;
+  Unix.unlink file_name;
   Buffer.contents buf
 
 
-(** [uncompress b s] compresses the string [s] using a temporary file
-    in the directory [b]. *)
-let uncompress (b: string) (s: string) : string = 
-  let file_name = Filename.temp_file b "_temp" in
+(** [uncompress s] uncompresses the string [s]. *)
+let uncompress (s: string) : string = 
+  let file_name = Filename.temp_file compress_prefix "_temp" in
   let f = open_out file_name in
   output_string f s;
   close_out f;
-  match read_gzipped_file file_name with 
-    None -> raise Compression_error
-  | Some str -> str
+  let r = match read_gzipped_file file_name with 
+      None -> raise Compression_error
+    | Some str -> str
+  in 
+  Unix.unlink file_name;
+  r
 
 (* **************************************************************** *)
 (* Writer class to be used for batch writing. *)
@@ -342,24 +345,34 @@ if true then begin
   write_blob "/tmp/alpha" 43 54 "Ecco il mio blob";
   print_string (not_null (read_blob "/tmp/alpha" 43 54));
 
+  print_string "\nAssemble then disassemble:\n";
   let b = assemble_blob [(1, "Revision n. 1"); (2, "Revision 2")] in
   let print_rev_str (i, s) = Printf.printf "%d: %S\n" i s in
   let print_blob x = List.iter print_rev_str (disassemble_blob x) in
   print_blob b;
+
+  print_string "\nAdd revision then disassemble:\n";
   let d = add_revision_to_blob (Some b) 3 "Revision number 3" in
   print_blob d;
+  print_string "\nAdd revision to empty blob:\n";
   print_blob (add_revision_to_blob None 3 "Lonely revision");
-  Printf.printf "%S" (read_revision_from_blob 2 b);
-  Printf.printf "%S" (read_revision_from_blob 3 d);
-  Printf.printf "%S" (read_revision_from_blob 1 d);
+  print_string "\nExtracting and writing revisions:\n";
+  Printf.printf "%S " (read_revision_from_blob 2 b);
+  Printf.printf "%S " (read_revision_from_blob 3 d);
+  Printf.printf "%S " (read_revision_from_blob 1 d);
 
-  print_string (uncompress "/tmp" (compress "/tmp/" "Mi piace la pizza\n"));
+  print_string "\nCompress and uncompress:\n";
+  print_string (uncompress (compress "Mi piace la pizza\n"));
 
+  print_string "\nTest for the writer:\n";
   let w = new writer 12 "/tmp/alpha" in
+  print_string "First blob written as blob id "; 
   print_int (w#write_revision 43 "hello hello");
   let blob_id = w#write_revision 47 "ciao ciao" in
+  print_string "\nSecond blob written as blob id ";
   print_int blob_id; 
   ignore w#close;
+  print_string "\nReading the blob:\n";
   print_blob (not_null (read_blob "/tmp/alpha" 12 blob_id))
 
 end

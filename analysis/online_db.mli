@@ -82,7 +82,6 @@ class db :
   string ->        (* database name *)
   string option -> (* revision base path *)
   string option -> (* colored revisions base path *)
-  string ->        (* compression path *)
   int ->           (* max size per blob *)
   bool ->          (* debug_mode *)
   object
@@ -394,7 +393,6 @@ val create_db :
   string ->        (* database name *)
   string option -> (* revision base path *)
   string option -> (* colored revisions base path *)
-  string ->        (* path used for compressing blobs *)
   int ->           (* max size of an uncompressed blob *)
   bool ->          (* debug_mode *)
   db

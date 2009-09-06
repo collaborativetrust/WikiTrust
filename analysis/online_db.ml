@@ -142,7 +142,6 @@ class db
   (db_name: string)
   (rev_base_path: string option)
   (colored_base_path: string option)
-  (compression_path: string)
   (max_size_per_blob: int)
   (debug_mode : bool) =
   
@@ -347,8 +346,7 @@ object(self)
 	let result = self#db_exec mediawiki_dbh s in 
 	match Mysql.fetch result with 
 	  None -> None
-	| Some x -> Some (Revision_store.uncompress 
-	    compression_path (not_null blob2ml x.(0)))
+	| Some x -> Some (Revision_store.uncompress (not_null blob2ml x.(0)))
       end
     | Some b -> Revision_store.read_blob b page_id blob_id
 
@@ -361,8 +359,7 @@ object(self)
       None -> begin
 	(* The blobs are stored in the db. *)
 	let key_str = make_blob_key page_id blob_id in
-	let compressed_blob = Revision_store.compress 
-	  compression_path blob_content in
+	let compressed_blob = Revision_store.compress blob_content in
 	let blob_db = ml2blob compressed_blob in
 	let s = Printf.sprintf "DELETE FROM %swikitrust_blob WHERE blob_id = %s"
 	  db_prefix (ml2decimal key_str) in
@@ -932,13 +929,12 @@ class db_exec_api
   (db_name: string)
   (rev_base_path: string option)
   (colored_base_path: string option)
-  (compression_path: string)
   (max_size_per_blob: int)
   (debug_mode : bool) =
   
 object(self)
   inherit db db_prefix mediawiki_dbh db_name rev_base_path colored_base_path
-    compression_path max_size_per_blob debug_mode
+    max_size_per_blob debug_mode
     as super 
 
 
@@ -998,14 +994,11 @@ let create_db
     (db_name: string)
     (rev_base_path: string option)
     (colored_base_path: string option)
-    (compression_path: string)
     (max_size_per_blob: int)
     (debug_mode : bool) =
   if use_exec_api
   then new db db_prefix mediawiki_dbh db_name 
-    rev_base_path colored_base_path compression_path max_size_per_blob 
-    debug_mode
+    rev_base_path colored_base_path max_size_per_blob debug_mode
   else new db_exec_api db_prefix mediawiki_dbh db_name 
-    rev_base_path colored_base_path compression_path max_size_per_blob 
-    debug_mode
+    rev_base_path colored_base_path max_size_per_blob debug_mode
 

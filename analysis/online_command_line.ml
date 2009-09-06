@@ -73,8 +73,6 @@ let set_wt_db_rev_base_path s = wt_db_rev_base_path := Some s
 (* Base path for filesystem storage of blobs. *)
 let wt_db_blob_base_path = ref None
 let set_wt_db_blob_base_path s = wt_db_blob_base_path := Some s
-(* Base path for compressing blobs. *)
-let wt_blob_compression_path = ref "/tmp/"
 (* Maximum size of uncompressed blob *)
 let max_uncompressed_blob_size = ref 10000000
 (* Use the exec API in order to get the list of revisions to process, and their

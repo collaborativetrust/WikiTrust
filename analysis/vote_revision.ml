@@ -99,7 +99,7 @@ let vote_time = match !vote_time_opt with
 (* Opens the db connections. *)
 let mediawiki_dbh = Mysql.connect mediawiki_db in
 let db = Online_db.create_db !use_exec_api !db_prefix mediawiki_dbh !mw_db_name
-  !wt_db_rev_base_path !wt_db_blob_base_path !wt_blob_compression_path
+  !wt_db_rev_base_path !wt_db_blob_base_path 
   !max_uncompressed_blob_size !dump_db_calls in
 
 (* Add the vote to the db *)
