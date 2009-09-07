@@ -1,17 +1,72 @@
 package WikiTrust;
 
-#
-#
-#
-
 use strict;
 use warnings;
 use DBI;
-use Error;
+use Error qw(:try);
+use Apache2::RequestRec ();
+use Apache2::Const -compile => qw( OK );
+use CGI;
+use CGI::Carp;
 
 use constant SLEEP_TIME => 3;
 use constant NOT_FOUND_TEXT_TOKEN => "TEXT_NOT_FOUND";
 use constant FIND_REVS_ON_DISK => 0;
+
+our %methods = (
+	'edit' => \&handle_edit,
+	'vote' => \&handle_vote,
+	'gettext' => \&handle_gettext,
+    );
+
+
+sub handler {
+  my $r = shift;
+  my $cgi = CGI->new($r);
+
+  my $dbh = DBI->connect(
+    $ENV{WT_DBNAME},
+    $ENV{WT_DBUSER},
+    $ENV{WT_DBPASS}
+  );
+
+  my $result = "";
+  try {
+    my ($pageid, $title, $revid, $time, $userid, $method);
+    $method = $cgi->param('method');
+    if (!$method) {
+	if ($cgi->param('vote')) {
+	    $method = 'vote';
+	} elsif ($cgi->param('edit')) {
+	    $method = 'edit';
+	}
+	throw Error::Simple('No method specified') if !$method;
+	# old parameter names
+	$pageid = $cgi->param('page') || 0;
+	$title = $cgi->param('page_title') || '';
+	$revid = $cgi->param('rev') || -1;
+	$time = $cgi->param('time') || '';
+	$userid = $cgi->param('user') || -1;
+    } else {
+	# new parameter names
+	$pageid = $cgi->param('pageid') || 0;
+	$title = $cgi->param('title') || '';
+	$revid = $cgi->param('revid') || -1;
+	$time = $cgi->param('time') || '';
+	$userid = $cgi->param('userid') || -1;
+    }
+
+    throw Error::Simple("Bad method: $method") if !exists $methods{$method};
+    my $func = $methods{$method};
+    $result = $func->($revid, $pageid, $userid, $time, $title, $dbh);
+  } otherwise {
+    my $E = shift;
+    print STDERR $E;
+  };
+  $r->content_type('text/plain');
+  $r->print($result);
+  return Apache2::Const::OK;
+}
 
 
 sub mark_for_coloring {
@@ -55,7 +110,7 @@ sub handle_vote {
   return "good"
 }
 
-sub get_median{
+sub get_median {
   my $dbh = shift;
   my $median = 0.0;
   my $sql = "SELECT median FROM wikitrust_global";
@@ -87,7 +142,7 @@ sub handle_edit {
   return "good"
 }
 
-sub handle_text_request {
+sub handle_gettext {
   my ($rev, $page, $user, $time, $page_title, $dbh) = @_;
   
   my $result = fetch_colored_markup($rev, $dbh);
