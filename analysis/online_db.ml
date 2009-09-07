@@ -143,6 +143,7 @@ class db
   (rev_base_path: string option)
   (colored_base_path: string option)
   (max_size_per_blob: int)
+  (max_revs_per_blob: int)
   (debug_mode : bool) =
   
 object(self)
@@ -585,8 +586,8 @@ object(self)
       raise DB_Illegal_blob_id;
     (* Writes the information in the blob, and writes the blob back to disk. *)
     let blob_content_opt = self#read_blob page_id blob_id in
-    let new_blob_content = Revision_store.add_revision_to_blob
-      blob_content_opt rev_id markup in
+    let (new_blob_content, new_n_revs_in_blob) = 
+      Revision_store.add_revision_to_blob blob_content_opt rev_id markup in
     self#write_blob page_id blob_id new_blob_content;
     (* If we added the revision to an open blob, and this open blob has
        become too large, then it opens a new blob for writing. *)
@@ -595,12 +596,14 @@ object(self)
       | None -> begin
 	  (* We had to add to the open blob *)
 	  let blob_size = String.length new_blob_content in
-	  if blob_size > max_size_per_blob then begin 
-	    (* We start a new blob. *)
-	    let s = Printf.sprintf "UPDATE %swikitrust_page SET last_blob = %s WHERE page_id = %s" db_prefix (ml2int (blob_id + 1)) (ml2int page_id) in
-	    ignore (self#db_exec mediawiki_dbh s);
-	    blob_id + 1
-	  end else blob_id
+	  if blob_size > max_size_per_blob ||
+	    new_n_revs_in_blob >= max_revs_per_blob then begin 
+	      (* We start a new blob. *)
+	      let s = Printf.sprintf "UPDATE %swikitrust_page SET last_blob = %s WHERE page_id = %s" db_prefix (ml2int (blob_id + 1)) (ml2int page_id) in
+	      ignore (self#db_exec mediawiki_dbh s);
+	      blob_id + 1
+	    end 
+	  else blob_id
 	end
     in new_page_open_blob
 
@@ -930,11 +933,12 @@ class db_exec_api
   (rev_base_path: string option)
   (colored_base_path: string option)
   (max_size_per_blob: int)
+  (max_revs_per_blob: int)
   (debug_mode : bool) =
   
 object(self)
   inherit db db_prefix mediawiki_dbh db_name rev_base_path colored_base_path
-    max_size_per_blob debug_mode
+    max_size_per_blob max_revs_per_blob debug_mode
     as super 
 
 
@@ -995,10 +999,11 @@ let create_db
     (rev_base_path: string option)
     (colored_base_path: string option)
     (max_size_per_blob: int)
+    (max_revs_per_blob: int)
     (debug_mode : bool) =
   if use_exec_api
-  then new db db_prefix mediawiki_dbh db_name 
-    rev_base_path colored_base_path max_size_per_blob debug_mode
-  else new db_exec_api db_prefix mediawiki_dbh db_name 
-    rev_base_path colored_base_path max_size_per_blob debug_mode
+  then new db db_prefix mediawiki_dbh db_name rev_base_path 
+    colored_base_path max_size_per_blob max_revs_per_blob debug_mode
+  else new db_exec_api db_prefix mediawiki_dbh db_name rev_base_path 
+    colored_base_path max_size_per_blob max_revs_per_blob debug_mode
 

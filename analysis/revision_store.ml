@@ -231,17 +231,19 @@ let disassemble_blob (blob_content: string) : (int * string) list =
 (** [add_revision_to_blob blob_content_opt rev_id markup] 
     adds the revision with content [markup] and revision id [rev_id]
     to the blob with optional content [blob_content_opt]. 
-    The function returns the (non-optional) new blob. *)
+    The function returns the (non-optional) new blob, 
+    along with the number of revisions it contains.  The latter
+    is useful to avoid over-filling blobs. *)
 let add_revision_to_blob (blob_content_opt: string option)
-    (rev_id: int) (markup: string) : string = 
+    (rev_id: int) (markup: string) : string * int = 
   match blob_content_opt with
-    None -> assemble_blob [(rev_id, markup)]
+    None -> (assemble_blob [(rev_id, markup)], 1)
   | Some blob_content -> begin
       (* Adds/replaces the content *)
       let rev_l = disassemble_blob blob_content in
       let rev_l_wo_id = List.remove_assoc rev_id rev_l in
       let new_rev_l = (rev_id, markup) :: rev_l_wo_id in
-      assemble_blob new_rev_l
+      (assemble_blob new_rev_l, List.length new_rev_l)
     end
 
 
@@ -352,10 +354,11 @@ if true then begin
   print_blob b;
 
   print_string "\nAdd revision then disassemble:\n";
-  let d = add_revision_to_blob (Some b) 3 "Revision number 3" in
+  let (d, _) = add_revision_to_blob (Some b) 3 "Revision number 3" in
   print_blob d;
   print_string "\nAdd revision to empty blob:\n";
-  print_blob (add_revision_to_blob None 3 "Lonely revision");
+  let (e, f) = add_revision_to_blob None 3 "Lonely revision" in
+  print_blob e; print_string " ; "; print_int f; 
   print_string "\nExtracting and writing revisions:\n";
   Printf.printf "%S " (read_revision_from_blob 2 b);
   Printf.printf "%S " (read_revision_from_blob 3 d);
