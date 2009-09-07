@@ -1,0 +1,24 @@
+We have an API that exposes access to the colored revisions
+and provides an interface to trigger coloring.
+
+To configure Apache2:
+
+SetEnv WT_DBNAME wikidb
+SetEnv WT_DBUSER wikiuser
+SetEnv WT_DBPASS wikipass
+
+<IfModule mod_perl.c>
+    PerlModule ModPerl::Registry
+    PerlModule Apache::DBI
+    PerlModule CGI Apache2::Const
+    <Perl>
+	use lib '/var/lib/mediawiki/extensions/WikiTrust/remote/analysis';
+	use WikiTrust;
+    </Perl>
+    <Location "/WikiTrust/RemoteAPI">
+	SetHandler modperl
+	PerlOptions -SetupEnv
+	PerlResponseHandler WikiTrust;
+    </Location>
+</IfModule>
+
