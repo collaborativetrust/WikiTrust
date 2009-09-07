@@ -7,6 +7,7 @@ package WikiTrust;
 use strict;
 use warnings;
 use DBI;
+use Error;
 
 use constant SLEEP_TIME => 3;
 use constant NOT_FOUND_TEXT_TOKEN => "TEXT_NOT_FOUND";
@@ -18,19 +19,19 @@ sub mark_for_coloring {
   my $select_sth = $dbh->prepare(
     "SELECT page_title FROM wikitrust_queue WHERE page_title = ? AND"
     . " processed <> 'processed'"
-  );
+  ) || die $dbh->errstr;
   # This doesn't seem safe.  What if another entry appears and gets
   # marked as 'processing' between these two statements.  This could
   # lead to multiple eval_online_wiki processes running, I think.
   my $ins_sth = $dbh->prepare(
     "INSERT INTO wikitrust_queue (page_id, page_title) VALUES (?, ?) " 
     . "ON DUPLICATE KEY UPDATE requested_on = now(), processed = 'unprocessed'"
-  );
-  my $rv = $select_sth->execute(($page_title));
-  if ($rv && !($select_sth->fetchrow_arrayref())){
-    $ins_sth->execute(($page, $page_title));
+  ) || die $dbh->errstr;
+  $select_sth->execute(($page_title)) || die $dbh->errstr;
+  if (!($select_sth->fetchrow_arrayref())){
+    $ins_sth->execute(($page, $page_title)) || die $dbh->errstr;
   }
-  $dbh->commit;
+  #Not a transaction right now! old code: $dbh->commit;
 }
 
 sub handle_vote {
@@ -38,9 +39,9 @@ sub handle_vote {
 
   my $sth = $dbh->prepare("INSERT INTO wikitrust_vote (revision_id, page_id, "
     . "voter_id, voted_on) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE "
-    . "voted_on = ?");
-  my $rv = $sth->execute($rev, $page, $user, $time, $time);
-  $dbh->commit();
+    . "voted_on = ?") || die $dbh->errstr;
+  $sth->execute($rev, $page, $user, $time, $time) || die $dbh->errstr;
+  # Not a transaction: $dbh->commit();
 
   if ($sth->rows > 0){
     mark_for_coloring($page, $page_title, $dbh);
@@ -66,20 +67,18 @@ sub get_median{
 
 sub fetch_colored_markup {
   my ($rev_id, $dbh) = @_;
-  if (FIND_REVS_ON_DISK){
-    return NOT_FOUND_TEXT_TOKEN;
-  } else {
-    my $sth = $dbh->prepare ("SELECT revision_text FROM "
+  throw Error::Simple('REVS_ON_DISK not implemented') if FIND_REVS_ON_DISK;
+
+  my $sth = $dbh->prepare ("SELECT revision_text FROM "
       . "wikitrust_colored_markup WHERE "
-      . "revision_id = ?");
-    my $result = NOT_FOUND_TEXT_TOKEN;
-    my $rv = $sth->execute(($rev_id));
-    if ($rv && (my $ref = $sth->fetchrow_hashref())){
-      my $median = get_median($dbh);
-      $result = $median.",".$$ref{'revision_text'};
-    }
-    return $result;
+      . "revision_id = ?") || die $dbh->errstr;
+  my $result = NOT_FOUND_TEXT_TOKEN;
+  $sth->execute($rev_id) || die $dbh->errstr;
+  if ((my $ref = $sth->fetchrow_hashref())){
+    my $median = get_median($dbh);
+    $result = $median.",".$$ref{'revision_text'};
   }
+  return $result;
 }
 
 sub handle_edit {
