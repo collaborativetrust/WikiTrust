@@ -1,5 +1,7 @@
 package WikiTrust;
 
+use constant DEBUG => 0;
+
 use strict;
 use warnings;
 use DBI;
@@ -8,10 +10,10 @@ use Apache2::RequestRec ();
 use Apache2::Const -compile => qw( OK );
 use CGI;
 use CGI::Carp;
+use IO::Zlib;
 
 use constant SLEEP_TIME => 3;
 use constant NOT_FOUND_TEXT_TOKEN => "TEXT_NOT_FOUND";
-use constant FIND_REVS_ON_DISK => 0;
 
 our %methods = (
 	'edit' => \&handle_edit,
@@ -120,10 +122,38 @@ sub get_median {
   return $median;
 }
 
-sub fetch_colored_markup {
-  my ($rev_id, $dbh) = @_;
+sub util_getRevFilename {
+    my ($pageid, $revid) = @_;
+    my $path = $ENV{WT_COLOR_PATH};
+    return undef if !defined $path;
+    my $page_str = sprintf("%012d", $pageid);
+    my $rev_str = sprintf("%012d", $revid);
+    for (my $i = 0; $i <= 3; $i++) {
+        $path .= "/" . substr($page_str, $i*3, 3);
+    }
+    $path .= "/" . substr($rev_str, 6, 3);
+    $path .= "/" . $page_str . "_" . $rev_str . ".gz";
+    return $path;
+}
 
-  throw Error::Simple('REVS_ON_DISK not implemented') if FIND_REVS_ON_DISK;
+sub fetch_colored_markup {
+  my ($page_id, $rev_id, $dbh) = @_;
+
+  my $median = get_median($dbh);
+
+  my $file = util_getRevFilename($page_id, $rev_id);
+  if ($file) {
+    warn "fetch_colored_markup: file=[$file]\n" if DEBUG;
+    throw Error::Simple("Unable to read file($file)") if !-r $file;
+    my $fh = IO::Zlib->new();
+    $fh->open($file, "rb") || die "open($file): $!";
+    my $text = '';
+    while (!$fh->eof()) {
+	$text .= <$fh>;
+    }
+    $fh->close();
+    return $median.",".$text;
+  }
 
   my $sth = $dbh->prepare ("SELECT revision_text FROM "
       . "wikitrust_colored_markup WHERE "
@@ -131,7 +161,6 @@ sub fetch_colored_markup {
   my $result = NOT_FOUND_TEXT_TOKEN;
   $sth->execute($rev_id) || die $dbh->errstr;
   if ((my $ref = $sth->fetchrow_hashref())){
-    my $median = get_median($dbh);
     $result = $median.",".$$ref{'revision_text'};
   }
   return $result;
@@ -146,7 +175,7 @@ sub handle_edit {
 sub handle_gettext {
   my ($rev, $page, $user, $time, $page_title, $dbh) = @_;
   
-  my $result = fetch_colored_markup($rev, $dbh);
+  my $result = fetch_colored_markup($page, $rev, $dbh);
   if ($result eq NOT_FOUND_TEXT_TOKEN){
     # If the revision is not found among the colored ones,
     # we mark it for coloring,
@@ -154,7 +183,7 @@ sub handle_gettext {
     mark_for_coloring($page, $page_title, $dbh);
     sleep(SLEEP_TIME);
     # Tries again to get it, to see if it has been colored.
-    $result = fetch_colored_markup($rev, $dbh);
+    $result = fetch_colored_markup($page, $rev, $dbh);
   }
 
   # Text may or may not have been found, but it's all the same now.
