@@ -35,12 +35,12 @@ sub handler {
     my ($pageid, $title, $revid, $time, $userid, $method);
     $method = $cgi->param('method');
     if (!$method) {
+	$method = 'gettext';
 	if ($cgi->param('vote')) {
 	    $method = 'vote';
 	} elsif ($cgi->param('edit')) {
 	    $method = 'edit';
 	}
-	throw Error::Simple('No method specified') if !$method;
 	# old parameter names
 	$pageid = $cgi->param('page') || 0;
 	$title = $cgi->param('page_title') || '';
@@ -122,6 +122,7 @@ sub get_median {
 
 sub fetch_colored_markup {
   my ($rev_id, $dbh) = @_;
+
   throw Error::Simple('REVS_ON_DISK not implemented') if FIND_REVS_ON_DISK;
 
   my $sth = $dbh->prepare ("SELECT revision_text FROM "
