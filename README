@@ -160,9 +160,9 @@ require_once( $IP . "/extensions/WikiTrust/WikiTrust.php" );
      $ ./create_db.php "path_to_mediawiki" "mysql_root_user_name"
 
 7) If there are already revisions in the wiki, you should first
-   analyze their trust, via:
+   analyze their trust, via (from the main WikiTrust directory):
 
-     $ ./eval_online_wiki -db_user <username> -db_pass <pwd> -db_name <db_name>
+     $ analysis/eval_online_wiki -db_user <username> -db_pass <pwd> -db_name <db_name>
 
    The above command analyzes all revisions in a single sweep.  You
    should expect a speed of between 10 to 60 revisions per second,
@@ -325,5 +325,5 @@ BATCH MODE:
 
 The tool has also a batch mode, useful for analyzing the history of a
 wiki, including the history of author contributions, page reversions,
-quarrels, and more.  Please see batch/analysis/README for more
+quarrels, and more.  Please see analysis/README for more
 information.

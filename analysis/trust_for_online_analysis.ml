@@ -39,8 +39,9 @@ POSSIBILITY OF SUCH DAMAGE.
     also outputs the sql statements that can be used to prime the
     online system with the proper information.  *)
 
-(* TODO(Luca): we could use a more sophisticated comparison, as in the online system,
-   where a revision would be compared with multiple past ones. *)
+(* TODO(Luca): we could use a more sophisticated comparison, as in the
+   online system, where a revision would be compared with multiple
+   past ones. *)
 
 type word = string 
 exception Ins_text_in_deleted_chunk
@@ -50,6 +51,9 @@ open Mysql
 open Sexplib.Conv
 open Sexplib.Sexp
 open Sexplib
+
+(* This is the function that sexplib uses to convert floats *)
+Sexplib.Conv.default_string_of_float := (fun n -> sprintf "%.3f" n);;
 
 class page 
   (page_id: int)

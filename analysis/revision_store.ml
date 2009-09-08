@@ -88,7 +88,7 @@ let read_gzipped_file (file_name: string) : string option =
   | None -> None
 
 (** [write_gzipped_file file_name l s] writes to the file [file_name] 
-    the gzipped contents of string [s], with compression level [l]. *)
+    the gzipped contents of string [s]. *)
 let write_gzipped_file (file_name: string) (s: string) : unit =
   (* TODO: does not work with empty strings! *)
   let f = Gzip.open_out file_name in
@@ -300,15 +300,18 @@ class writer (page_id: int) (base_path: string) = object(self)
   val mutable blob_revisions : (int * string) list = []
   val mutable blob_size = 0
   val max_size_blob = 10000000
+  val max_n_revisions = 20
 
   (** This method queues a revision for writing, and returns the
       blob id where the revision will be written. *)
   method write_revision (rev_id: int) (rev_txt: string) : int =
     let new_blob_revisions = (rev_id, rev_txt) :: blob_revisions in
     let new_blob_size = blob_size + String.length rev_txt in
+    let new_n_revisions = List.length new_blob_revisions in
     let written_blob_id = blob_id in
     (* Decides whether to write to disk or not *)
-    if new_blob_size >= max_size_blob then begin
+    if new_blob_size >= max_size_blob || new_n_revisions >= max_n_revisions
+    then begin
       (* Writes to disk. *)
       let s = assemble_blob new_blob_revisions in
       write_blob base_path page_id blob_id s;
@@ -338,7 +341,7 @@ end (* class writer *)
 (* **************************************************************** *)
 (* Unit tests. *)
 
-if true then begin
+if false then begin
   let not_null = function
       None -> "Error: revision not found."
     | Some x -> x

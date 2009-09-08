@@ -25,6 +25,7 @@ recognize that this documentation is still preliminary.  If you
 require help, contact the developers at
 wikitrust-devel@googlegroups.com .
 
+We assume all scripts are run from the analysis directory. 
 
 PREREQUISITES:
 =============
@@ -62,7 +63,7 @@ something like this for each of the 100-article chunks (or, if you
 wish, for the whole wiki at once!): 
 
 /bin/gunzip -c /home/luca/wiki-data/split_wiki/000/wiki-00000000.xml.gz \
-    | batch/analysis/evalwiki -compute_stats -si ~/wiki-data/enwork/stats/wiki-00000000.stats
+    | ./evalwiki -compute_stats -si ~/wiki-data/enwork/stats/wiki-00000000.stats
 
 If you have multiple CPU cores, you can speed up the process by
 adapting the script in util/do_all_en.py . This is not yet properly
@@ -73,7 +74,7 @@ script.
 SORTING THE REDUCED STATISTICS:
 ==============================
 
-batch/analysis/combinestats \
+./combinestats \
     -bucket_dir ~/wiki-data/enwork/buckets/ \
     -input_dir ~/wiki-data/enwork/stats/ \
     -n_digits 4 -use_subdirs
@@ -85,7 +86,7 @@ For smaller wikis, use -n_digits 5 , which leads to 2,000 files.
 COMPUTING THE REPUTATION FROM A STATISTICS FILE: 
 ===============================================
 
-batch/analysis/generate_reputation -u ~/wiki-data/enwork/reps/rep_history.txt \
+./generate_reputation -u ~/wiki-data/enwork/reps/rep_history.txt \
     -write_final_reps -gen_exact_rep -buckets ~/wiki-data/enwork/buckets/ 
 
 Don't worry about the output; it is some testing information we use 
@@ -103,7 +104,7 @@ For this reason, we decided to store the analyzed revisions, and some
 caching information, in the filesystem instead.
 The following command does the job:
 
-batch/analysis/evalwiki -trust_for_online \
+./evalwiki -trust_for_online \
     -historyfile ~/wiki-data/enwork/reps/rep_history.txt \
     -rev_base_path ~/wiki-data/enwork/coltree \
     -sig_base_path ~/wiki-data/enwork/sigtree \
