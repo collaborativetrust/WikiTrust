@@ -382,8 +382,8 @@ object(self)
       (string_of__of__sexp_of sexp_of_page_info_t 
 	Online_types.page_info_default) in 
     let s = Printf.sprintf "INSERT INTO %swikitrust_page (page_id, page_info, last_blob) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE last_blob = last_blob" 
-      db_prefix (ml2int page_id) (ml2int blob_locations.initial_location) 
-      info_string in
+      db_prefix (ml2int page_id) info_string 
+      (ml2int blob_locations.initial_location) in
     ignore (self#db_exec mediawiki_dbh s)    
     
 	
@@ -904,7 +904,6 @@ object(self)
         ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_global"));
         ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_page"));
         ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_revision"));
-        ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_rev_blob"));
         ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_blob"));
         ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_user")); 
         ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_queue")); 
