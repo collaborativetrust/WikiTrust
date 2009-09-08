@@ -53,7 +53,7 @@ open Sexplib.Sexp
 open Sexplib
 
 (* This is the function that sexplib uses to convert floats *)
-Sexplib.Conv.default_string_of_float := (fun n -> sprintf "%.3f" n);;
+Sexplib.Conv.default_string_of_float := (fun n -> Printf.sprintf "%.3f" n);;
 
 class page 
   (page_id: int)

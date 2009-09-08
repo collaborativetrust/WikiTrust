@@ -136,8 +136,8 @@ let command_line_format =
    ("-user_id_api", Arg.String set_user_id_server, "<string>: location of a tool which turns user_names into user_ids"); 
    ("-dump_db_calls", Arg.Set dump_db_calls, ": Writes to the db log all
  database calls.  This is very verbose; use only for debugging.");
-   ("-wt_db_rev_base_path", Arg.String set_wt_db_rev_base_path, "<string>: Filesystem base path for filesystem storage of revisions (default: revisions are stored in the db)");
-   ("-wt_db_blob_base_path", Arg.String set_wt_db_blob_base_path, "<string>: Filesystem base path for filesystem storage of blobs (default: blobs are stored in the db)");
+   ("-rev_base_path", Arg.String set_wt_db_rev_base_path, "<string>: Filesystem base path for filesystem storage of revisions (default: revisions are stored in the db)");
+   ("-blob_base_path", Arg.String set_wt_db_blob_base_path, "<string>: Filesystem base path for filesystem storage of blobs (default: blobs are stored in the db)");
    ("-max_blob_size", Arg.Set_int max_uncompressed_blob_size, "<int>: Maximum size of an individual uncompressed blob");
    ("-max_revs_per_blob", Arg.Set_int max_revs_per_blob, "<int>: Maximum number of revisions in the same blob (default: 20)");
    ("-rev_id",  Arg.Int set_requested_rev_id, "<int>: (optional) revision ID that we want to ensure it is colored");

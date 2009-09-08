@@ -39,7 +39,6 @@ open Mysql
 open Sexplib.Conv
 open Sexplib.Sexp
 open Sexplib
-open Printf
 open Online_log
 
 
@@ -57,7 +56,7 @@ exception DB_Exec_Error
 exception DB_Illegal_blob_id
 
 (* This is the function that sexplib uses to convert floats *)
-Sexplib.Conv.default_string_of_float := (fun n -> sprintf "%.3f" n);;
+Sexplib.Conv.default_string_of_float := (fun n -> Printf.sprintf "%.3f" n);;
 
 (* Represents the revision table in memory *)
 type revision_t = {
@@ -431,11 +430,13 @@ object(self)
       (string_of__of__sexp_of (sexp_of_list sexp_of_chunk_t) c_list) in 
     self#write_blob page_id blob_locations.chunks_location chunks_string
 
-  (** [read_page_chunks page_id] returns the chunk list for page [page_id]. *)
+  (** [read_page_chunks page_id] returns the chunk list for page [page_id]. 
+      If the chunks cannot be found, returns the empty list: this happens
+      for new pages. *)
   method read_page_chunks (page_id: int) : chunk_t list =
     let chunks_string = self#read_blob page_id blob_locations.chunks_location in
     match chunks_string with
-      None -> raise DB_Not_Found
+      None -> []
     | Some s -> of_string__of__of_sexp (list_of_sexp chunk_t_of_sexp) s
     
   (* Signature methods *)
