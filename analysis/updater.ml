@@ -109,8 +109,8 @@ class updater
 		let page = new Online_page.page db page_id rev_id (Some r) trust_coeff n_retries robots in
 		n_processed_events <- n_processed_events + 1;
 		if page#eval 
-		then !Online_log.online_logger#log (Printf.sprintf "\nDone revision %d of page %d" rev_id page_id)
-		else !Online_log.online_logger#log (Printf.sprintf "\nRevision %d of page %d was already done" 
+		then !Online_log.online_logger#log (Printf.sprintf "\nDone revision %d of page %d\n" rev_id page_id)
+		else !Online_log.online_logger#log (Printf.sprintf "\nRevision %d of page %d was already done\n" 
 		  rev_id page_id);
 	      with Online_page.Missing_trust r' -> 
 		begin
@@ -241,13 +241,13 @@ class updater
 		then begin
 		  do_more := false;
 		  !Online_log.online_logger#log (Printf.sprintf 
-		    "\nWaited too long for lock of page %d; terminating." page_id);
+		    "\nWaited too long for lock of page %d; terminating.\n" page_id);
 		  flush stdout;
 		end
 		else Hashtbl.add tried page_id ();
 	      end; (* not got it *)
 	      let t_end = Unix.gettimeofday () in 
-	      !Online_log.online_logger#log (Printf.sprintf "\nAnalysis took %f seconds." (t_end -. t_start));
+	      !Online_log.online_logger#log (Printf.sprintf "\nAnalysis took %f seconds.\n" (t_end -. t_start));
 	      flush stdout
 	    end (* event that needs processing *)
 	end done (* Loop as long as we need to do events *)

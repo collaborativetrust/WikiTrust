@@ -33,8 +33,6 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
-exception MissingRevisionPath of string
-
 (** This is the type of a page, or a Wikipedia article. *)
 class page :
   object
@@ -129,8 +127,6 @@ class page_factory :
     method set_single_file : out_channel -> unit
     method close_out_files : unit
     method set_keep_rev_after : string -> unit
-    method set_rev_base_path : string -> unit
-    method set_sig_base_path : string -> unit
     method set_db_prefix : string -> unit
     method set_n_sigs : int -> unit
     method set_robots : string -> unit
