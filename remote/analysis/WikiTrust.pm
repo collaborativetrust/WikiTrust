@@ -11,6 +11,7 @@ use Apache2::Const -compile => qw( OK );
 use CGI;
 use CGI::Carp;
 use IO::Zlib;
+use Compress::Zlib;
 
 use constant SLEEP_TIME => 3;
 use constant NOT_FOUND_TEXT_TOKEN => "TEXT_NOT_FOUND";
@@ -123,17 +124,36 @@ sub get_median {
 }
 
 sub util_getRevFilename {
-    my ($pageid, $revid) = @_;
-    my $path = $ENV{WT_COLOR_PATH};
-    return undef if !defined $path;
-    my $page_str = sprintf("%012d", $pageid);
-    my $rev_str = sprintf("%012d", $revid);
-    for (my $i = 0; $i <= 3; $i++) {
-        $path .= "/" . substr($page_str, $i*3, 3);
+  my ($pageid, $blobid) = @_;
+  my $page_str = sprintf("%012d", $pageid);
+  my $blob_str = sprintf("%012d", $blobid);
+  my $path = $ENV{WT_COLOR_PATH};
+  return undef if !defined $path;
+
+  for (my $i = 0; $i <= 3; $i++){
+    $path .= "/" . substr($page_str, $i*3, 3);
+  }
+  if ($blobid >= 1000){
+    $path .= "/" . sprintf("%06d", $blobid);
+  }
+  $path .= "/" . $page_str . "_" . $blob_str . ".gz";
+  return $path;
+}
+
+# Extract text from a blob
+sub util_extractFromBlob {
+  my ($rev_id, $blob_content) = @_;
+  my @parts = split(/:/, $blob_content, 2);
+  my $offset = 0;
+  my $size = 0;
+  while ($parts[0] =~ m/\((\d+) (\d+) (\d+)\)/g){
+    if ($1 == $rev_id){
+      $offset = $2;
+      $size = $3;
     }
-    $path .= "/" . substr($rev_str, 6, 3);
-    $path .= "/" . $page_str . "_" . $rev_str . ".gz";
-    return $path;
+  }
+
+  return substr($parts[1], $offset, $size);
 }
 
 sub fetch_colored_markup {
@@ -141,7 +161,19 @@ sub fetch_colored_markup {
 
   my $median = get_median($dbh);
 
-  my $file = util_getRevFilename($page_id, $rev_id);
+  ## Get the blob id
+  my $sth = $dbh->prepare ("SELECT blob_id FROM "
+      . "wikitrust_revision WHERE "
+      . "revision_id = ?") || die $dbh->errstr;
+  my $blob_id = -1;
+  $sth->execute($rev_id) || die $dbh->errstr;
+  if ((my $ref = $sth->fetchrow_hashref())){
+    $blob_id = $$ref{'blob_id'};
+  } else {
+    return NOT_FOUND_TEXT_TOKEN;
+  }
+
+  my $file = util_getRevFilename($page_id, $blob_id);
   if ($file) {
     warn "fetch_colored_markup: file=[$file]\n" if DEBUG;
     throw Error::Simple("Unable to read file($file)") if !-r $file;
@@ -152,16 +184,18 @@ sub fetch_colored_markup {
 	$text .= <$fh>;
     }
     $fh->close();
-    return $median.",".$text;
+    return $median.",".util_extractFromBlob($rev_id, $text);
   }
 
-  my $sth = $dbh->prepare ("SELECT revision_text FROM "
-      . "wikitrust_colored_markup WHERE "
-      . "revision_id = ?") || die $dbh->errstr;
+  my $new_blob_id = sprintf("%012d%012d", $page_id, $blob_id);
+  $sth = $dbh->prepare ("SELECT blob_content FROM "
+      . "wikitrust_blob WHERE "
+      . "blob_id = ?") || die $dbh->errstr;
   my $result = NOT_FOUND_TEXT_TOKEN;
-  $sth->execute($rev_id) || die $dbh->errstr;
+  $sth->execute($new_blob_id) || die $dbh->errstr;
   if ((my $ref = $sth->fetchrow_hashref())){
-    $result = $median.",".$$ref{'revision_text'};
+    my $blob_c = Compress::Zlib::memGunzip($$ref{'blob_content'});
+    $result = $median.",".util_extractFromBlob($rev_id, $blob_c);
   }
   return $result;
 }
