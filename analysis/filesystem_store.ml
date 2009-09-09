@@ -73,7 +73,8 @@ let write_gzipped_file (file_name: string) (s: string) : unit =
     a page id, and a revision id.  It returns a pair, consisting of:
     - The full filename of the revision.
     - the list of directories that may need to be made.
-    We divide the tree so that the page tree has branching factor of at most 1000.
+    We divide the tree so that the page tree has branching factor of at 
+    most 1000.
     We divide the revision tree in at most 1000 directories, based on the digits
     345 of the revision id. 
  *)
@@ -96,10 +97,10 @@ let get_filename (base_path: string) (page_id: int) (rev_id: int) : (string * st
   file_name := !file_name ^ "/" ^ page_str ^ "_" ^ rev_str ^ ".gz";
   (!file_name, !list_dirs)
 
-(** [write_revision base_name page_id rev_id s] writes to disk the revision text [s],
-    in compressed format, belonging to the revision [rev_id] of page [page_id], 
-    given the directory path [base_name].  Directories are created if they do not
-    already exist. *)
+(** [write_revision base_name page_id rev_id s] writes to disk the
+    revision text [s], in compressed format, belonging to the revision
+    [rev_id] of page [page_id], given the directory path [base_name].
+    Directories are created if they do not already exist. *)
 let write_revision (base_name: string) (page_id: int) (rev_id: int) (s: string) : unit =
   let (f_name, dir_l) = get_filename base_name page_id rev_id in 
   (* Makes the directories *)
@@ -113,7 +114,8 @@ let write_revision (base_name: string) (page_id: int) (rev_id: int) (s: string) 
 
 (** [read_revision base_name page_id rev_id] returns the text of revision
     [rev_id] of page [page_id]. *)
-let read_revision (base_name: string) (page_id: int) (rev_id: int) : string option =
+let read_revision (base_name: string) (page_id: int) (rev_id: int) 
+    : string option =
   let (f_name, _) = get_filename base_name page_id rev_id in 
   read_gzipped_file f_name;;
 

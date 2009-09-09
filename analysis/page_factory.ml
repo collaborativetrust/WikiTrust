@@ -47,8 +47,6 @@ POSSIBILITY OF SUCH DAMAGE.
 type word = string 
 open Online_types
 
-exception MissingRevisionPath of string
-
 (** type of analysis that is requested *)
 type analysis_t = 
     Linear_analysis
@@ -173,10 +171,10 @@ class page_factory
     val do_origin = ref false
     (* When pruning revisions, keep only revisions after this time *)
     val mutable keep_rev_after = -1000.0
-    (* Prefix to use when writing revisions as files *)
-    val mutable rev_base_path = None
-    (* Prefix to use when writing sigs as files *)
-    val mutable sig_base_path = None
+    (* Prefix to use for blobs *)
+    val blob_base_path = ref "/tmp"
+    (* Prefix to use for strings *)
+    val rev_base_path = ref "/tmp"  
     (* Database prefix *)
     val mutable db_prefix = ""
     (* N. of signatures to write *)
@@ -249,8 +247,6 @@ class page_factory
     method set_n_rev_to_output (n: int) = n_rev_to_output <- n 
     method set_keep_rev_after (n: string) = 
       keep_rev_after <- Timeconv.convert_time n  
-    method set_rev_base_path (n: string) = rev_base_path <- Some n 
-    method set_sig_base_path (n: string) = sig_base_path <- Some n 
     method set_db_prefix (n: string) = db_prefix <- n
     method set_n_sigs (n: int) = n_sigs <- n
     method set_robots (s: string) = robots <- Read_robots.read_robot_file s
@@ -294,8 +290,8 @@ class page_factory
        ("-do_origin", Arg.Set do_origin, "While doing the evaluation of trust, also generates word origin information");
        ("-keep_rev_after", Arg.String self#set_keep_rev_after, "<date>: Keep Revisions after date (date is in Wiki format, e.g., 2006-11-22T14:25:19Z )");
        ("-revisions_to_text", Arg.Unit self#set_revs_to_text, "Writes each revision out as a separate file."); 
-       ("-rev_base_path", Arg.String self#set_rev_base_path, "Prefix for writing out each revision as a separate file."); 
-       ("-sig_base_path", Arg.String self#set_sig_base_path, "Prefix for writing out each revision signature as a separate file."); 
+       ("-blob_base_path", Arg.Set_string blob_base_path, "Prefix for writing blobs to disk (default: /tmp)");
+       ("-rev_base_path", Arg.Set_string rev_base_path, "Prefix for writing out each revision as a separate file."); 
        ("-db_prefix", Arg.String self#set_db_prefix, "Prefix of db tables for the wiki.");
        ("-n_sigs", Arg.Int self#set_n_sigs, "Number of past signatures to store in the filesystem.");
        ("-robots", Arg.String self#set_robots, "File containing robot names");
@@ -348,7 +344,7 @@ class page_factory
 	    n_rev_to_output !equate_anons 
 	    robots trust_coeff_edit_time_constant 
       | Trust_for_online -> new Trust_for_online_analysis.page id title 
-	  xml_file sql_file rev_base_path sig_base_path db_prefix rep_histories
+	  sql_file !blob_base_path db_prefix rep_histories
 	    trust_coeff_lends_rep trust_coeff_read_all trust_coeff_read_part 
 	    trust_coeff_local_decay trust_coeff_cut_rep_radius 
 	    trust_coeff_kill_decrease n_sigs robots 
@@ -361,11 +357,8 @@ class page_factory
       | Intertime_analysis -> new Intertime_analysis.page id title out_file
       | Prune_revisions -> new Prune_analysis.page id title xml_file 
 	  n_rev_to_output keep_rev_after false true
-      | Revisions_to_text -> begin
-	  match rev_base_path with
-	    Some b -> new Revs_to_files_analysis.page id title b xml_file
-	  | None -> raise (MissingRevisionPath "A revision path is needed!\n")
-	end
+      | Revisions_to_text -> new Revs_to_files_analysis.page id title
+	  !rev_base_path xml_file
       | Do_nothing -> new page
 
 
@@ -395,14 +388,7 @@ class page_factory
 	| Trust_color | Trust_syntactregion_color | Trust_and_origin
 	| AuthorText | WordFequency | Prune_revisions | Revisions_to_text 
 	    -> xml_file <- Fileinfo.open_info_out xml_name
-	| Trust_for_online -> begin
-	    sql_file <- Fileinfo.open_info_out sql_name; 
-	    (* We also open an xml file, unless output is requested to the
-	       filesystem. *)
-	    match rev_base_path with
-	      None -> xml_file <- Fileinfo.open_info_out xml_name
-	    | Some _ -> ()
-	  end
+	| Trust_for_online -> sql_file <- Fileinfo.open_info_out sql_name 
 	| Do_nothing -> ()
       end
 
@@ -431,13 +417,7 @@ class page_factory
 	Trust_color | Trust_syntactregion_color | Prune_revisions 
       | Revisions_to_text 
 	  -> output_string xml_file s
-      | Trust_for_online -> begin
-	  (* We output to the xml file only if some xml file has been
-	     chosen. *)
-	  match rev_base_path with
-	    None -> output_string xml_file s
-	  | Some _ -> ()
-	end
+      | Trust_for_online -> ()
       | _ -> ()
 
   end

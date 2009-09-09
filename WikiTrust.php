@@ -49,6 +49,7 @@ $wgWikiTrustColorPath = NULL;
 $wgWikiTrustSigPath = NULL;
 $wgWikiTrustRepSpeed = 1.0;
 $wgWikiTrustApiURL = "http://en.wikipedia.org/w/api.php?";
+$wgWikiTrustRobots = NULL;
 
 global $wgExtensionFunctions, $wgExtensionCredits;
 $wgExtensionFunctions[] = 'wfWikiTrustSetup';
