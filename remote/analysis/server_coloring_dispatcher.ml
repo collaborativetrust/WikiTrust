@@ -80,9 +80,10 @@ let mediawiki_db = {
 }
 
 (* Sets up the db *)
-let mediawiki_dbh = Mysql.connect mediawiki_db in
+let mediawiki_dbh = Mysql.connect mediawiki_db in 
 let db = Online_db.create_db !use_exec_api !db_prefix mediawiki_dbh !mw_db_name
-  !wt_db_rev_base_path !wt_db_sig_base_path !wt_db_colored_base_path !dump_db_calls in
+  !wt_db_rev_base_path !wt_db_blob_base_path 
+  !max_uncompressed_blob_size !max_revs_per_blob !dump_db_calls in
 let logger = !Online_log.online_logger in
 let trust_coeff = Online_types.get_default_coeff in
 
@@ -122,9 +123,10 @@ in
     with [page_id] as id. *)
 let process_page (page_id: int) (page_title: string) = 
   (* Every child has their own db. *)
-  let child_dbh = Mysql.connect mediawiki_db in 
-  let child_db = Online_db.create_db !use_exec_api !db_prefix child_dbh !mw_db_name
-    !wt_db_rev_base_path !wt_db_sig_base_path !wt_db_colored_base_path !dump_db_calls in
+  let child_db = Online_db.create_db !use_exec_api !db_prefix mediawiki_dbh 
+    !mw_db_name !wt_db_rev_base_path !wt_db_blob_base_path 
+    !max_uncompressed_blob_size !max_revs_per_blob !dump_db_calls 
+  in
   (* If I am using the WikiMedia API, I need to first download any new
      revisions of the page. *)
   if !use_wikimedia_api then Wikipedia_api.download_page child_db page_title;
