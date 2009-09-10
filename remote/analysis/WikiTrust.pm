@@ -126,7 +126,7 @@ sub get_median {
 sub util_getRevFilename {
   my ($pageid, $blobid) = @_;
   my $page_str = sprintf("%012d", $pageid);
-  my $blob_str = sprintf("%012d", $blobid);
+  my $blob_str = sprintf("%09d", $blobid);
   my $path = $ENV{WT_COLOR_PATH};
   return undef if !defined $path;
 
@@ -177,12 +177,10 @@ sub fetch_colored_markup {
   if ($file) {
     warn "fetch_colored_markup: file=[$file]\n" if DEBUG;
     throw Error::Simple("Unable to read file($file)") if !-r $file;
+
     my $fh = IO::Zlib->new();
     $fh->open($file, "rb") || die "open($file): $!";
-    my $text = '';
-    while (!$fh->eof()) {
-	$text .= <$fh>;
-    }
+    my $text = join("", $fh->getlines());
     $fh->close();
     return $median.",".util_extractFromBlob($rev_id, $text);
   }
