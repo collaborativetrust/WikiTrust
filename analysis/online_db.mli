@@ -249,11 +249,14 @@ class db :
       and origin information. [page_id] and [rev_id] are as usual. 
       [blob_id_opt] specifies the blob in which the information should
       be written, if known.  Otherwise, the information is written in 
-      [page_open_blob] blob.  The function returns the blob in which 
-      the revision was written (this coincides with the content
-      of [blob_id_opt] when the latter is not null). *)
+      [page_open_blob] blob.  The function returns a pair, consisting of:
+      - The blob in which the revision was written 
+        (this coincides with the content of [blob_id_opt] when the latter 
+        is not null). 
+      - The new open blob for the page (this may coincide with the old
+        open blob, of course). *)
     method write_colored_markup :
-      int -> int -> int option -> int -> string -> int
+      int -> int -> int option -> int -> string -> (int * int)
 
     (** [read_colored_markup rev_id blob_id_opt] reads the text markup
 	of a revision with id [rev_id].  The markup is the text of the

@@ -263,7 +263,7 @@ let compress (s: string) : string =
   let file_name = Filename.temp_file compress_prefix "_temp" in
   write_gzipped_file file_name s;
   let f = open_in file_name in
-  (* I hate that reading is going to be so complex. *)
+  (* Read the whole file. *)
   let buf = Buffer.create 100000 in
   let str_len = 8192 in 
   let str = String.create str_len in
