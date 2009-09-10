@@ -570,12 +570,16 @@ object(self)
       and origin information. [page_id] and [rev_id] are as usual. 
       [blob_id_opt] specifies the blob in which the information should
       be written, if known.  Otherwise, the information is written in 
-      [page_open_blob] blob.  The function returns the blob in which 
-      the revision was written (this coincides with the content
-      of [blob_id_opt] when the latter is not null). *)
+      [page_open_blob] blob.  The function returns a pair, consisting of:
+      - The blob in which the revision was written 
+        (this coincides with the content of [blob_id_opt] when the latter 
+        is not null). 
+      - The new open blob for the page (this may coincide with the old
+        open blob, of course).
+   *)
   method write_colored_markup (page_id: int) (rev_id : int) 
     (blob_id_opt: int option) (page_open_blob: int)
-    (markup : string) : int =
+    (markup : string) : int * int =
     (* Figures out in which blob to write the information. *)
     let blob_id = 
       match blob_id_opt with 
@@ -600,13 +604,13 @@ object(self)
 	  if blob_size > max_size_per_blob ||
 	    new_n_revs_in_blob >= max_revs_per_blob then begin 
 	      (* We start a new blob. *)
-	      let s = Printf.sprintf "UPDATE %swikitrust_page SET last_blob = %s WHERE page_id = %s" db_prefix (ml2int (blob_id + 1)) (ml2int page_id) in
+	      let s = Printf.sprintf "UPDATE %swikitrust_page SET last_blob = %s WHERE page_id = %s" db_prefix (ml2int (page_open_blob + 1)) (ml2int page_id) in
 	      ignore (self#db_exec mediawiki_dbh s);
-	      blob_id + 1
+	      page_open_blob + 1
 	    end 
-	  else blob_id
+	  else page_open_blob
 	end
-    in new_page_open_blob
+    in (blob_id, new_page_open_blob)
 
 
   (** [read_colored_markup rev_id blob_id_opt] reads the text markup
