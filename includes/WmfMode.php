@@ -138,7 +138,6 @@ class WikiTrust extends WikiTrustBase {
       if ($colored_data[0] == 0)
 	self::$median = self::TRUST_DEFAULT_MEDIAN;
     }
-
     return $colored_text;
   }
 

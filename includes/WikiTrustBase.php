@@ -308,15 +308,23 @@ if (1) {
 				-1,
 				$count);
 
+
+    // Add back in missing \n lines 
+    $colored_text = preg_replace("/\{\{#t:(\d+),(\d+),([^}]+)\}\}\{\{#t:(\d+),(\d+),([^}]+)\}\}/",
+        "\n{{#t:$1,$2,$3}}",
+        $colored_text,  
+        -1,
+        $count);
+
     $options = ParserOptions::newFromUser($wgUser);
     $text = WikiTrust::color_parseWiki($colored_text, $options);
 
     // Fix broken dt tags -- caused by ; 
     $text = preg_replace("/<dt>\{\{#t<\/dt>\n<dd>(.*?)<\/dd>/",
         "<dt>{{#t:$1</dt>",
-				$text,
-				-1,
-				$count);
+	$text,
+        -1,
+	$count);
     
     // Fix edit section links    
     $text = preg_replace_callback(
@@ -774,7 +782,7 @@ if (0) {
   static function util_getRevFilename($page_id, $blob_id)
   {
     $page_str = sprintf("%012d", $page_id);
-    $blob_str = sprintf("%012d", $blob_id);
+    $blob_str = sprintf("%09d", $blob_id);
     global $wgWikiTrustColorPath;
     $path = $wgWikiTrustColorPath;
     for ($i = 0; $i <= 3; $i++){
