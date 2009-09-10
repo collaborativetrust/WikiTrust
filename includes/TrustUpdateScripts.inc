@@ -18,7 +18,7 @@ CREATE TABLE ".$wgDBprefix."wikitrust_global (
        rep_8                      float,
        rep_9                      float
 ) ENGINE=InnoDB",
-        "GRANT ALL ON ".$wgDBprefix."wikitrust_global TO $wgDBuser",
+        "GRANT ALL ON ".$wgDBprefix."wikitrust_global TO '$wgDBuser'",
         "INSERT INTO ".$wgDBprefix."wikitrust_global VALUES (0,0,0,0,0,0,0,0,0,0,0)");
 
 $create_scripts[$wgDBprefix.'wikitrust_page'] = array("
@@ -27,7 +27,7 @@ CREATE TABLE ".$wgDBprefix."wikitrust_page (
        page_info           text NOT NULL,
        last_blob           int DEFAULT 2
 ) ENGINE=InnoDB","
-GRANT ALL ON ".$wgDBprefix."wikitrust_page TO ".$wgDBuser,"
+GRANT ALL ON ".$wgDBprefix."wikitrust_page TO '$wgDBuser'","
 ");
 
 $create_scripts[$wgDBprefix.'wikitrust_vote'] = array("
@@ -39,7 +39,7 @@ CREATE TABLE ".$wgDBprefix."wikitrust_vote (
        processed           bool DEFAULT false,
        PRIMARY KEY (revision_id, voter_id)
 ) ENGINE=InnoDB","
-GRANT ALL ON ".$wgDBprefix."wikitrust_vote TO $wgDBuser","
+GRANT ALL ON ".$wgDBprefix."wikitrust_vote TO '$wgDBuser'","
 CREATE INDEX ".$wgDBprefix."wikitrust_voted_processed_idx ON ".$wgDBprefix."wikitrust_vote (voted_on, processed)
 ");
 
@@ -59,7 +59,7 @@ CREATE TABLE ".$wgDBprefix."wikitrust_revision (
         overall_trust           float DEFAULT 0.0,
         overall_quality         float
 ) ENGINE=InnoDB","
-GRANT ALL ON ".$wgDBprefix."wikitrust_revision TO $wgDBuser","
+GRANT ALL ON ".$wgDBprefix."wikitrust_revision TO '$wgDBuser'","
 CREATE INDEX ".$wgDBprefix."wikitrust_revision_id_timestamp_idx ON "
 . $wgDBprefix . "wikitrust_revision (page_id, time_string, revision_id)
 ");
@@ -69,7 +69,7 @@ CREATE TABLE ".$wgDBprefix."wikitrust_blob (
         blob_id                 decimal(24) PRIMARY KEY, 
         blob_content            longblob NOT NULL
 ) ENGINE=InnoDB","
-GRANT ALL ON ".$wgDBprefix."wikitrust_blob TO ".$wgDBuser,"
+GRANT ALL ON ".$wgDBprefix."wikitrust_blob TO '$wgDBuser'","
 ");
 
 $create_scripts[$wgDBprefix.'wikitrust_user'] = array("
@@ -78,7 +78,7 @@ CREATE TABLE ".$wgDBprefix."wikitrust_user (
        username    varchar(255),
        user_rep    float DEFAULT 0.0
 ) ENGINE=InnoDB","
-GRANT ALL ON ".$wgDBprefix."wikitrust_user TO $wgDBuser", "
+GRANT ALL ON ".$wgDBprefix."wikitrust_user TO '$wgDBuser'", "
 CREATE INDEX " . $wgDBprefix . "wikitrust_usernames_idx ON "
                . $wgDBprefix . "wikitrust_user (username)
 ");
@@ -90,7 +90,7 @@ CREATE TABLE ".$wgDBprefix."wikitrust_queue (
        requested_on    timestamp DEFAULT now(),
        processed       ENUM('unprocessed', 'processing', 'processed') NOT NULL DEFAULT 'unprocessed'
 ) ENGINE=InnoDB","
-GRANT ALL ON ".$wgDBprefix."wikitrust_queue TO $wgDBuser", "
+GRANT ALL ON ".$wgDBprefix."wikitrust_queue TO '$wgDBuser'", "
 CREATE INDEX " . $wgDBprefix . "wikitrust_queue_idx ON "
                . $wgDBprefix . "wikitrust_queue (processed, requested_on)
 ");
@@ -102,7 +102,7 @@ CREATE TABLE ".$wgDBprefix."wikitrust_text_cache (
        time_string     binary(14),
        revision_text   longtext NOT NULL
 ) ENGINE=InnoDB","
-GRANT ALL ON ".$wgDBprefix."wikitrust_text_cache TO $wgDBuser", "
+GRANT ALL ON ".$wgDBprefix."wikitrust_text_cache TO '$wgDBuser'", "
 CREATE INDEX " . $wgDBprefix . "wikitrust_text_cache ON "
                . $wgDBprefix . "wikitrust_text_cache (revision_id, time_string, page_id)
 ");
