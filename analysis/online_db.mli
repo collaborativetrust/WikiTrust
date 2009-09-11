@@ -294,10 +294,6 @@ class db :
 
     (* Methods on standard revisions *)
 
-    (** [fetch_rev_timestamp rev_id] returns the timestamp of revision
-	[rev_id] *)
-    method fetch_rev_timestamp : int -> timestamp_t
-
     (** [get_rev_text page_id rev_id text_id] returns the text associated with
 	text id [text_id] for revision [rev_id] *)
     method read_rev_text : int -> int -> int -> string

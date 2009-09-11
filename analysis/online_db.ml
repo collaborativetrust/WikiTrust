@@ -250,7 +250,8 @@ object(self)
   (** [fetch_last_colored_rev_time req_page_id] returns the timestamp and the 
       revision id of the most recent revision that has been colored.
       If [req_page_id] specifies a page, then only that page is considered.
-      Raises DB_Not_Found if no revisions have been colored. *)    
+      Raises DB_Not_Found if no revisions have been colored. *)
+      (* FIX: look at al the LIMIT 1 and see if you can use max instead. *)
   method fetch_last_colored_rev_time (req_page_id: int option) : (string * int) = 
     let wr = match req_page_id with
 	None -> ""
@@ -683,15 +684,6 @@ object(self)
 
   (* Methods on standard revisions *)
 
-  (** [fetch_rev_timestamp rev_id] returns the timestamp of revision
-      [rev_id] *)
-  method fetch_rev_timestamp (rev_id: int) : timestamp_t = 
-    let s = Printf.sprintf "SELECT rev_timestamp FROM %srevision WHERE rev_id = %s" db_prefix (ml2int rev_id) in 
-    let result = self#db_exec mediawiki_dbh s in 
-    match fetch result with 
-      None -> raise DB_Not_Found
-    | Some row -> not_null timestamp2ml row.(0)
-
   (** [get_rev_text page_id rev_id text_id] returns the text associated with
       text id [text_id] for revision [rev_id] *)
   method read_rev_text (page_id: int) (rev_id: int) (text_id: int) : string =
@@ -957,7 +949,8 @@ object(self)
     match Mysql.fetch result with 
       None -> begin 
 	(* Tries to read the revision using the exec API *)
-	(* ---complete--- For now I am reading from the db as usual. *)
+	(* NO: this is a bad idea.  Just say that the text can't be found, and make sure
+	   the dispatcher knows that the page is not fully updated. Luca, fix this. *)
 	super#read_rev_text page_id rev_id text_id
 	(* TODO(Bo): need to switch to true execAPI
 	 * let cmdline = Printf.sprintf "%sread_rev_text -log_file /dev/null -rev_id %d" "" rev_id in
