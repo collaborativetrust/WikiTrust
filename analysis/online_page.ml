@@ -1,6 +1,6 @@
 (*
 
-Copyright (c) 2008 The Regents of the University of California
+Copyright (c) 2008-2009 The Regents of the University of California
 All rights reserved.
 
 Authors: Luca de Alfaro, Krishnendu Chatterjee
@@ -60,6 +60,7 @@ class page
   (trust_coeff: trust_coeff_t) 
   (n_retries: int) 
   (robots: Read_robots.robot_set_t)
+  (writer_opt: Revision_store.writer option)
 
 = 
 
