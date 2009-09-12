@@ -200,6 +200,7 @@ def handle_text_request (req, rev_id, page_id, user_id, rev_time, page_title):
                              rev_time, 
                              page_title)
   if (res == not_found_text_token):
+    # Ian -- Killing this to give the server a chance to catch up.
     # If the revision is not found among the colored ones, it marks it for coloring,
     # and it waits a bit, in the hope that it got colored.
     server_utils.mark_for_coloring(rev_id, 

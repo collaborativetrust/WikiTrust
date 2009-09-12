@@ -216,28 +216,43 @@ class WikiTrustBase {
     if (!$rev_id)
       return '';
 
+    if (!$page_id) 
+      return '';
+
     $colored_text = "";
 
     $dbr =& wfGetDB( DB_SLAVE );
 
     global $wgWikiTrustColorPath;
+    wfWikiTrustDebug(__FILE__.":".__LINE__ . ": Looks in the database.");
+    $res = $dbr->select('wikitrust_revision', 'blob_id',
+        array( 'revision_id' => $rev_id ), 
+			  array());
+    if (!$res || $dbr->numRows($res) == 0) {
+	    wfWikiTrustDebug(__FILE__.":".__LINE__ . ": Calls the evaluation.");
+	    self::runEvalEdit(self::TRUST_EVAL_EDIT);
+	    return '';
+    }
+    wfWikiTrustDebug(__FILE__.":".__LINE__ . ": It thinks it has found colored text.");
+    $row = $dbr->fetchRow($res);
+    $blob_id = $row[0];
+
     if (!$wgWikiTrustColorPath) {
-      wfWikiTrustDebug(__FILE__.":".__LINE__ . ": Looks in the database.");
-      $res = $dbr->select('wikitrust_colored_markup', 'revision_text',
-			array( 'revision_id' => $rev_id ), 
-			array());
+      $new_blob_id = sprintf("%012d%012d", $page_id, $blob_id);
+      $res = $dbr->select('wikitrust_blob', 'blob_content',
+			    array( 'blob_id' => $new_blob_id ), 
+          array());
       if (!$res || $dbr->numRows($res) == 0) {
-	wfWikiTrustDebug(__FILE__.":".__LINE__ . ": Calls the evaluation.");
-	self::runEvalEdit(self::TRUST_EVAL_EDIT);
-	return '';
+	      wfWikiTrustDebug(__FILE__.":".__LINE__ . ": Calls the evaluation.");
+	      self::runEvalEdit(self::TRUST_EVAL_EDIT);
+	      return '';
       }
-      wfWikiTrustDebug(__FILE__.":".__LINE__ . ": It thinks it has found colored text.");
       $row = $dbr->fetchRow($res);
-      $colored_text = $row[0];
+      $blob_content = gzinflate(substr($row[0], 10));
+      $colored_text = self::util_extractFromBlob($rev_id, $blob_content);
       $dbr->freeResult( $res ); 
     } else {
-      if (!$page_id) return '';
-      $file = self::util_getRevFilename($page_id, $rev_id);
+      $file = self::util_getRevFilename($page_id, $blob_id);
       wfWikiTrustDebug(__FILE__.":".__LINE__ . ": Fetching from disk; file=[$file]");
       // TODO: file_get_contents() didn't used to support BINARY
 	// what version of PHP are we requiring?  -Bo
@@ -255,7 +270,8 @@ if (1) {
 	self::runEvalEdit(self::TRUST_EVAL_EDIT);
 	return '';
       }
-      $colored_text = gzinflate(substr($gzdata, 10));
+      $blob_content = gzinflate(substr($gzdata, 10));
+      $colored_text = self::util_extractFromBlob($rev_id, $blob_content);
     }
 
     // wfWikiTrustDebug(__FILE__ . ":" . __LINE__ . "/* $colored_text */");
@@ -285,17 +301,6 @@ if (1) {
     global $wgParser, $wgUser, $wgTitle;
     $count = 0;
 
-if(0) {
-    // #t might be reserved already!!
-    // TODO: big hack!!
-    // TODO: This gets thrown away.  Safe to delete?  -Bo
-    $text = preg_replace_callback("/\{\{#t:(\d+),(\d+),(.*?)\}\}/",
-				"WikiTrust::color_t2trust",
-				$text,
-				-1,
-				$count);
-}
-
     // fix trust tags around categories/templates
     $colored_text = preg_replace_callback("/\{\{#t:(\d+),(\d+),([^}]+)\}\}\s*\[\[([^\]]++.*?)\]\]\s*(?=\{\{#t:|$)/D",
 				"WikiTrust::regex_fixBracketTrust",
@@ -303,9 +308,24 @@ if(0) {
 				-1,
 				$count);
 
+
+    // Add back in missing \n lines 
+    $colored_text = preg_replace("/\{\{#t:(\d+),(\d+),([^}]+)\}\}\{\{#t:(\d+),(\d+),([^}]+)\}\}/",
+        "\n{{#t:$1,$2,$3}}",
+        $colored_text,  
+        -1,
+        $count);
+
     $options = ParserOptions::newFromUser($wgUser);
     $text = WikiTrust::color_parseWiki($colored_text, $options);
 
+    // Fix broken dt tags -- caused by ; 
+    $text = preg_replace("/<dt>\{\{#t<\/dt>\n<dd>(.*?)<\/dd>/",
+        "<dt>{{#t:$1</dt>",
+	$text,
+        -1,
+	$count);
+    
     // Fix edit section links    
     $text = preg_replace_callback(
         "/title=\"Edit section: (.*?)\">/",
@@ -328,7 +348,6 @@ if(0) {
 				$text,
 				-1,
 				$count);
-
 
     global $wgScriptPath;
     $text = '<script type="text/javascript" src="'
@@ -353,6 +372,7 @@ if(0) {
   static function regex_fixTextTrust($matches){
 
     //print_r($matches);
+    global $wgWikiTrustShowMouseOrigin;
 
     $normalized_value = min(self::MAX_TRUST_VALUE, 
 			    max(self::MIN_TRUST_VALUE, 
@@ -360,31 +380,50 @@ if(0) {
 				 self::TRUST_MULTIPLIER) 
 				/ self::$median));
     $class = self::$COLORS[$normalized_value];
-    $output = "<span class=\"$class\"" 
-      . " onmouseover=\"Tip('".str_replace("&#39;","\\'",$matches[3])
-      ."')\" onmouseout=\"UnTip()\""
-      . " onclick=\"showOrigin(" 
-      . $matches[2] . ")\">" . $matches[4]
-      . "</span>";
-
+    
+    $output = "";
+    if ($wgWikiTrustShowMouseOrigin){
+      $output = "<span class=\"$class\"" 
+        . " onmouseover=\"Tip('".str_replace("&#39;","\\'",$matches[3])
+        ."')\" onmouseout=\"UnTip()\""
+        . " onclick=\"showOrigin(" 
+        . $matches[2] . ")\">" . $matches[4]
+        . "</span>";
+    } else {
+      $output = "<span class=\"$class\"" 
+        . " onclick=\"showOrigin(" 
+        . $matches[2] . ")\">" . $matches[4]
+        . "</span>";
+    }
     return $output;
   }
 
   static function regex_fixBracketTrust($matches){
+    global $wgWikiTrustShowMouseOrigin;
     $normalized_value = min(self::MAX_TRUST_VALUE, 
 			    max(self::MIN_TRUST_VALUE, 
 				(($matches[1] + .5) * 
 				 self::TRUST_MULTIPLIER) 
 				/ self::$median));
     $class = self::$COLORS[$normalized_value];
-    $output = "<span class=\"$class\"" 
-      . " onmouseover=\"Tip('".str_replace("&#39;","\\'",$matches[3])
-      ."')\" onmouseout=\"UnTip()\""
-      . " onclick=\"showOrigin(" 
-      . $matches[2] . ")\">"
-      . "[[" . $matches[4] . "]]"
-      . "</span>";
     
+    $output = "";
+    
+    if ($wgWikiTrustShowMouseOrigin){
+      $output = "<span class=\"$class\"" 
+        . " onmouseover=\"Tip('".str_replace("&#39;","\\'",$matches[3])
+        ."')\" onmouseout=\"UnTip()\""
+        . " onclick=\"showOrigin(" 
+        . $matches[2] . ")\">"
+        . "[[" . $matches[4] . "]]"
+        . "</span>";
+    } else {
+      $output = "<span class=\"$class\"" 
+        . " onclick=\"showOrigin(" 
+        . $matches[2] . ")\">"
+        . "[[" . $matches[4] . "]]"
+        . "</span>";
+    }
     return $output;
   }
 
@@ -406,10 +445,10 @@ if (0) {
 			
 
   public static function ucscArticleSaveComplete(&$article, 
-			      &$user, &$text, &$summary,
-			      &$minoredit, &$watchthis,
-			      &$sectionanchor, &$flags, 
-			      &$revision)
+			      &$user, $text, $summary,
+			      &$minoredit, $watchthis,
+			      $sectionanchor, &$flags, 
+			      $revision, &$status, $baseRevId)
   {
     $page_id = $article->getTitle()->getArticleID();
     $rev_id = $revision->getID();
@@ -562,46 +601,54 @@ if (0) {
   /** 
    * Actually run the eval edit program.
    * Returns -1 on error, the process id of the launched eval process 
-   otherwise.
-  */
+   * otherwise.
+   */
   private static function runEvalEdit($eval_type = self::TRUST_EVAL_EDIT,
 			      $rev_id = -1, $page_id = -1,
 			      $voter_id = -1)
   {
-      global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgWikiTrustCmd, $wgWikiTrustLog, $wgWikiTrustDebugLog, $wgWikiTrustRepSpeed, $wgDBprefix, $wgWikiTrustCmdExtraArgs;
+    global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgWikiTrustCmd, $wgWikiTrustLog, $wgWikiTrustDebugLog, $wgWikiTrustRepSpeed, $wgDBprefix, $wgWikiTrustCmdExtraArgs, $wgWikiTrustColorPath, $wgWikiTrustRobots;
+
+    if ($wgWikiTrustColorPath){
+      $wgWikiTrustCmdExtraArgs .= " -blob_base_path " . $wgWikiTrustColorPath;
+    }
+
+    if ($wgWikiTrustRobots){
+      $wgWikiTrustCmdExtraArgs .= " -robots " . $wgWikiTrustRobots;
+    }
       
-      $process = -1;
-      $command = "";
-      // Get the db.
-      $dbr =& wfGetDB( DB_SLAVE );
+    $process = -1;
+    $command = "";
+    // Get the db.
+    $dbr =& wfGetDB( DB_SLAVE );
 	  
-      // Do we use a DB prefix?
-      $prefix = ($wgDBprefix)? "-db_prefix " . $dbr->strencode($wgDBprefix): "";
+    // Do we use a DB prefix?
+    $prefix = ($wgDBprefix)? "-db_prefix " . $dbr->strencode($wgDBprefix): "";
 	  
-      switch ($eval_type) {
+    switch ($eval_type) {
 	  case self::TRUST_EVAL_EDIT:
-	      $command = escapeshellcmd("$wgWikiTrustCmd -rep_speed $wgWikiTrustRepSpeed -log_file $wgWikiTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix $wgWikiTrustCmdExtraArgs") . " &";
-	      break;
+      $command = escapeshellcmd("$wgWikiTrustCmd -rep_speed $wgWikiTrustRepSpeed -log_file $wgWikiTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix $wgWikiTrustCmdExtraArgs") . " &";
+      break;
 	  case self::TRUST_EVAL_VOTE:
-	      if ($rev_id == -1 || $page_id == -1 || $voter_id == -1)
-		  return -1;
-	      $command = escapeshellcmd("$wgWikiTrustCmd -eval_vote -rev_id " . $dbr->strencode($rev_id) . " -voter_id " . $dbr->strencode($voter_id) . " -page_id " . $dbr->strencode($page_id) . " -rep_speed $wgWikiTrustRepSpeed -log_file $wgWikiTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix $wgWikiTrustCmdExtraArgs") . " &";
-	      break;
-      }
+      if ($rev_id == -1 || $page_id == -1 || $voter_id == -1)
+        return -1;
+      $command = escapeshellcmd("$wgWikiTrustCmd -eval_vote -rev_id " . $dbr->strencode($rev_id) . " -voter_id " . $dbr->strencode($voter_id) . " -page_id " . $dbr->strencode($page_id) . " -rep_speed $wgWikiTrustRepSpeed -log_file $wgWikiTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix $wgWikiTrustCmdExtraArgs") . " &";
+      break;
+    }
 	  
-      $descriptorspec = array(
-	      0 => array("pipe", "r"),
-	      1 => array("file", escapeshellcmd($wgWikiTrustDebugLog), "a"),
-	      2 => array("file", escapeshellcmd($wgWikiTrustDebugLog), "a")
-	  );
+    $descriptorspec = array(
+      0 => array("pipe", "r"),
+      1 => array("file", escapeshellcmd($wgWikiTrustDebugLog), "a"),
+      2 => array("file", escapeshellcmd($wgWikiTrustDebugLog), "a")
+      );
 
-      $cwd = '/tmp';
-      $env = array();
-      wfWikiTrustDebug(__FILE__.":".__LINE__ 
+    $cwd = '/tmp';
+    $env = array();
+    wfWikiTrustDebug(__FILE__.":".__LINE__
         . ": runEvalEdit: " . $command);
-      $process = proc_open($command, $descriptorspec, $pipes, $cwd, $env);
+    $process = proc_open($command, $descriptorspec, $pipes, $cwd, $env);
 
-      return $process; 
+    return $process; 
   }
 
 
@@ -714,16 +761,38 @@ if (0) {
     return $rev_id;
   }
 
-  static function util_getRevFilename($page_id, $rev_id)
+  // Extract text from a blob
+  static function util_extractFromBlob($rev_id, $blob_content){
+    $parts = explode(":", $blob_content, 2);
+    $headers = array();
+    preg_match_all("/\((\d+) (\d+) (\d+)\)/", $parts[0], $headers, PREG_SET_ORDER);
+    
+    $offset = 0;
+    $size = 0;
+    for ($i=0; $i<count($headers); $i++){
+      if ($headers[$i][1] == $rev_id){
+        $offset = $headers[$i][2];
+        $size = $headers[$i][3];
+      }
+    }
+    
+    return substr($parts[1], $offset, $size);
+  }
+
+  static function util_getRevFilename($page_id, $blob_id)
   {
     $page_str = sprintf("%012d", $page_id);
-    $rev_str = sprintf("%012d", $rev_id);
+    $blob_str = sprintf("%09d", $blob_id);
     global $wgWikiTrustColorPath;
     $path = $wgWikiTrustColorPath;
-    for ($i = 0; $i <= 3; $i++)
-	$path .= "/" . substr($page_str, $i*3, 3);
-    $path .= "/" . substr($rev_str, 6, 3);
-    $path .= "/" . $page_str . "_" . $rev_str . ".gz";
+    for ($i = 0; $i <= 3; $i++){
+      $path .= "/" . substr($page_str, $i*3, 3);
+    }
+    //$path .= "/" . substr($rev_str, 6, 3);
+    if ($blob_id >= 1000){
+      $path .= "/" . sprintf("%06d", $blob_id);
+    }
+    $path .= "/" . $page_str . "_" . $blob_str . ".gz";
     return $path;
   }
 

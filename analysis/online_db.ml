@@ -736,12 +736,12 @@ object(self)
       | Some x -> not_null int2ml x.(0)
     end
 
-  (** [write_user_id uid user_name] writes that the user with id [uid] 
-      has name [user_name]. *) 
-  method write_user_id (uid: int) (user_name: string) : unit = 
-    if uid <> 0 then
-      let s = Printf.sprintf "INSERT INTO %swikitrust_user (user_id, username) VALUES (%s, %s) ON DUPLICATE KEY UPDATE username = %s" db_prefix (ml2int uid) (ml2str user_name) (ml2str user_name) in
-      ignore (self#db_exec mediawiki_dbh s)
+  (** [write_user_id user_name] writes that the user with 
+      name [user_name]. and returns the new uid *) 
+  method write_user_id (user_name: string) : int = 
+    let s = Printf.sprintf "INSERT INTO %swikitrust_user (username) VALUES (%s) ON DUPLICATE KEY UPDATE username = %s" db_prefix (ml2str user_name) (ml2str user_name) in
+      ignore (self#db_exec mediawiki_dbh s);
+      Int64.to_int (insert_id mediawiki_dbh)
 
 
   (* ================================================================ *)

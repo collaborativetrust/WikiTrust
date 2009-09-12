@@ -40,6 +40,7 @@ global $wgWikiTrustLog, $wgWikiTrustDebugLog, $wgWikiTrustDebugVerbosity;
 $wgWikiTrustDebugVerbosity = WIKITRUST_WARN; // how much information to write;
 $wgWikiTrustLog = "/dev/null";
 $wgWikiTrustDebugLog = "/dev/null";
+$wgWikiTrustShowMouseOrigin = false;
 global $wgWikiTrustCmd, $wgWikiTrustCmdExtraArgs, $wgWikiTrustColorPath,
   $wgWikiTrustSigPath, $wgWikiTrustRepSpeed, $wgWikiTrustApiURL;
 $wgWikiTrustCmd = dirname(__FILE__) . "/eval_online_wiki";
@@ -48,6 +49,7 @@ $wgWikiTrustColorPath = NULL;
 $wgWikiTrustSigPath = NULL;
 $wgWikiTrustRepSpeed = 1.0;
 $wgWikiTrustApiURL = "http://en.wikipedia.org/w/api.php?";
+$wgWikiTrustRobots = NULL;
 
 global $wgExtensionFunctions, $wgExtensionCredits;
 $wgExtensionFunctions[] = 'wfWikiTrustSetup';
