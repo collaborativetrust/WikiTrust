@@ -159,16 +159,16 @@ evalwiki: evalwiki.ml wikitrust_lib.cma
 evalwikiopt: evalwiki.ml wikitrust_lib.cmxa
 	$(OCAMLOPT) -linkpkg -o evalwiki $(OCAMLOPT_FLAGS) $(OUR_OPT_LIB_OBJS) evalwiki.ml
 
-eval_online_wiki: $(OUR_ONLINE_OBJS) 
+eval_online_wiki: eval_online_wiki.ml wikitrust_lib.cma
 	$(OCAMLC) -linkpkg -o eval_online_wiki $(OCAML_CFLAGS) $(OUR_LIBS) $(OUR_ONLINE_OBJS) eval_online_wiki.ml 
 
-eval_online_wikiopt: $(OUR_OPT_ONLINE_OBJS)
+eval_online_wikiopt: eval_online_wiki.ml wikitrust_lib.cmxa
 	$(OCAMLOPT) -linkpkg -o eval_online_wiki $(OCAMLOPT_FLAGS) $(OUR_LIBS_OPT) $(OUR_OPT_ONLINE_OBJS) eval_online_wiki.ml
 
-vote_revision: $(OUR_ONLINE_OBJS) 
+vote_revision: vote_revision.ml wikitrust_lib.cma
 	$(OCAMLC) -linkpkg -o vote_revision $(OCAML_CFLAGS) $(OUR_LIBS) $(OUR_ONLINE_OBJS) vote_revision.ml 
 
-vote_revisionopt: $(OUR_OPT_ONLINE_OBJS)
+vote_revisionopt: vote_revision.ml wikitrust_lib.cmxa
 	$(OCAMLOPT) -linkpkg -o vote_revision $(OCAMLOPT_FLAGS) $(OUR_LIBS_OPT) $(OUR_OPT_ONLINE_OBJS) vote_revision.ml
 
 generate_reputation:  $(OUR_GENERATE_REPUTATION_OBJS)
@@ -228,22 +228,14 @@ filesystem_store: $(FILESYSTEMSTORE_OBJS)
 revision_store: $(REVISION_STORE_OBJS)
 	$(OCAMLC) -linkpkg -o revision_store $(OCAML_CFLAGS) $(REVISION_STORE_OBJS)
 
-all_batch: evalwiki generate_reputation splitwiki combinestats \
-	libs extract_wiki_subset find_usernames
-allopt_batch: evalwikiopt generate_reputationopt splitwikiopt \
-	combinestatsopt libsopt extract_wiki_subsetopt find_usernamesopt
 
-all:
-	make all_batch
-	make online_eval
-	make vote_revision
+all: evalwiki eval_online_wiki vote_revision \
+	generate_reputation splitwiki combinestats \
+	extract_wiki_subset find_usernames
 
-allopt:
-	make allopt_batch
-	make online_evalopt
-	make vote_revisionopt
-
-universe: all allopt 
+allopt: evalwikiopt eval_online_wikiopt vote_revisionopt \
+	generate_reputationopt splitwikiopt \ combinestatsopt \
+	extract_wiki_subsetopt find_usernamesopt
 
 clean_batch:
 	rm -f evalwiki generate_reputation chdiff text splitwiki \
