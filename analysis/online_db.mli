@@ -171,6 +171,18 @@ class db :
 
 
     (* ================================================================ *)
+    (* Blob methods. *)
+
+    (** [read_blob page_id blob_id] reads the blob for page_id and blob_id,
+	either from the database, or from the filesystem, and returns it. *)
+    method read_blob : int -> int -> string option
+
+    (** [write_blob page_id blob_id blob_content] writes the blob [blob_content]
+	for [page_id], [blob_id] to either the filesystem or the database. *)
+    method write_blob : int -> int -> string -> unit 
+
+
+    (* ================================================================ *)
     (* Page methods.  We assume we have a lock on the page when calling
        these methods. *)
 

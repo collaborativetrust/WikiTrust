@@ -320,12 +320,13 @@ class updater
 	  let page_chunks = db#read_page_chunks page_id in
 	  let (pinfo, bid) = db#read_page_info page_id in
 	  (* Creates a new writer for the page. *)
-	  let writer = Revision_writer.writer (Some db) None page_id in
+	  let writer = new Revision_writer.writer 
+	    page_id (Some bid) None (Some db) in
 	  let running_info = {
-	    sigs = page_sigs;
-	    chunks = page_chunks;
-	    page_info = pinfo;
-	    writer = writer;
+	    Online_page.run_sigs = page_sigs;
+	    Online_page.run_chunks = page_chunks;
+	    Online_page.run_page_info = pinfo;
+	    Online_page.run_writer = writer;
 	  } in 
 	  (* Loops over the feed and processes it. *)
 	  let do_more = ref true in 
@@ -360,7 +361,7 @@ class updater
 			trust_coeff n_retries robots (Some running_info) in
 		      if page#vote voter_id then begin
 			(* We mark the vote as processed. *)
-			db#mark_vote_as_processed revision_id voter_id;
+			db#mark_vote_as_processed rev_id voter_id;
 			n_processed_events <- n_processed_events + 1;
 			!Online_log.online_logger#log (Printf.sprintf 
 			  "\nDone processing vote by %d on revision %d of page %d"
@@ -370,8 +371,8 @@ class updater
 		end (* Event that needs processing. *)
 	    end done; (* While loop over events. *)
 	  (* Writes the page information to disk. *)
-	  db#write_page_info page_id running_info.page_info;
-	  db#write_page_chunks page_id running_info.chunks;
+	  db#write_page_info page_id running_info.Online_page.run_page_info;
+	  db#write_page_chunks page_id running_info.Online_page.run_chunks;
 	  db#write_page_sigs page_id page_sigs;
 	  writer#close;
 	  db#commit;

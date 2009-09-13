@@ -250,7 +250,7 @@ class revision
 
     (** Writes the colored text to the db, as a compressed blob,
 	using a revision writer object to accomplish that. *)
-    method write_running_text (writer: Revision_store.writer) 
+    method write_running_text (writer: Revision_writer.writer) 
       (trust_is_float: bool) (include_origin: bool) (include_author: bool) 
       : unit = 
       (* Prepares the text to be written. *)

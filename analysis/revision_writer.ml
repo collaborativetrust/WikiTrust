@@ -44,6 +44,9 @@ open Sexplib.Sexp
 open Sexplib
 open Revision_store
 
+(* Neither a db, not a filesystem prefix, has been specified. *)
+exception No_write_method
+
 type method_t = Disk_write of string | Database_write of Online_db.db
 
 (* General read-write functions for all access methods. *)
@@ -63,8 +66,10 @@ let read_general_blob (write_method: method_t) (page_id: int) (blob_id: int)
       Disk_write base_path ->
 	Revision_store.read_blob base_path page_id blob_id
     | Database_write db -> db#read_blob page_id blob_id
-  in 
-  Revision_store.disassemble_blob s
+  in match s with 
+    None -> []
+  | Some s' -> Revision_store.disassemble_blob s'
+
 
 (** Writer class for consecutive writes. 
     We write to the db if a db is specified, and it has no base path.
@@ -198,7 +203,7 @@ if false then begin
   let print_blob x = List.iter print_rev_str (disassemble_blob x) in
 
   print_string "\nTest for the writer:\n";
-  let w = new writer 12 "/tmp/alpha" in
+  let w = new writer 12 None (Some "/tmp/alpha") None in
   print_string "First blob written as blob id "; 
   print_int (w#write_revision 43 "hello hello");
   let blob_id = w#write_revision 47 "ciao ciao" in
@@ -207,3 +212,4 @@ if false then begin
   ignore w#close;
   print_string "\nReading the blob:\n";
   print_blob (not_null (read_blob "/tmp/alpha" 12 blob_id))
+end

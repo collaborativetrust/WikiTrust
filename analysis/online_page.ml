@@ -46,10 +46,10 @@ type rev_t = Online_revision.revision
     are analyzed, the information is not read/written all the time
     to disk. *)
 type running_page_info_t = {
-  mutable page_info: Online_types.page_info_t;
-  mutable chunks: chunk_t;
-  mutable sigs: page_sig_t;
-  writer: Revision_store.writer;
+  mutable run_page_info: Online_types.page_info_t;
+  mutable run_chunks: chunk_t list;
+  mutable run_sigs: Online_db.page_sig_t;
+  run_writer: Revision_writer.writer;
 }
 
 (** [Missing_trust (page_id, rev)] is raised if:
@@ -757,7 +757,7 @@ class page
 	      open_page_blob_id <- rev0#write_colored_text open_page_blob_id 
 		false true true
 	  | Some run_info -> 
-	      rev0#write_running_text run_info.writer false true true 
+	      rev0#write_running_text run_info.run_writer false true true 
 	end;
 	(* Writes to the db the sig for the revision. *)
 	rev0#write_words_trust_origin_sigs page_sigs;
@@ -947,7 +947,7 @@ class page
 	      open_page_blob_id <- rev0#write_colored_text open_page_blob_id 
 		false true true
 	  | Some run_info -> 
-	      rev0#write_running_text run_info.writer false true true 
+	      rev0#write_running_text run_info.run_writer false true true 
 	end;
 	rev0#write_words_trust_origin_sigs page_sigs;
 	(* Now that the colored revision is written out to disk, we don't need
@@ -1015,7 +1015,7 @@ class page
 		open_page_blob_id <- rev0#write_colored_text open_page_blob_id 
 		  false true true
 	    | Some run_info -> 
-		rev0#write_running_text run_info.writer false true true 
+		rev0#write_running_text run_info.run_writer false true true 
 	  end;
 	  (* Writes the trust information to the revision *)
 	  rev0#write_words_trust_origin_sigs page_sigs;
@@ -1385,9 +1385,9 @@ class page
 		    end
 		  | Some running_info -> begin
 		      (* Uses the running information. *)
-		      page_info <- running_info.page_info;
-		      page_sigs <- running_info.sigs;
-		      del_chunks_list <- running_info.chunks;
+		      page_info <- running_info.run_page_info;
+		      page_sigs <- running_info.run_sigs;
+		      del_chunks_list <- running_info.run_chunks;
 		    end
 		end;
 		(* Reads the previous revisions *)
@@ -1426,9 +1426,9 @@ class page
 		    end
 		  | Some running_info -> begin
 		      (* We update the running page info. *)
-		      running_info.page_info <- page_info;
-		      running_info.chunks <- del_chunks_list;
-		      running_info.sigs <- page_sigs;
+		      running_info.run_page_info <- page_info;
+		      running_info.run_chunks <- del_chunks_list;
+		      running_info.run_sigs <- page_sigs;
 		    end
 		end;
 
@@ -1514,9 +1514,9 @@ class page
 		end
 	      | Some running_info -> begin
 		  (* Uses the running information. *)
-		  page_info <- running_info.page_info;
-		  page_sigs <- running_info.sigs;
-		  del_chunks_list <- running_info.chunks;
+		  page_info <- running_info.run_page_info;
+		  page_sigs <- running_info.run_sigs;
+		  del_chunks_list <- running_info.run_chunks;
 		end
 	    end;
 
@@ -1541,9 +1541,9 @@ class page
 		end
 	      | Some running_info -> begin
 		  (* We update the running page info. *)
-		  running_info.page_info <- page_info;
+		  running_info.run_page_info <- page_info;
 		  (* No need to update the deleted chunks. *)
-		  running_info.sigs <- page_sigs;
+		  running_info.run_sigs <- page_sigs;
 		end
 	    end;
 
