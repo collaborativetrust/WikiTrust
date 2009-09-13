@@ -321,7 +321,7 @@ class updater
 	  let (pinfo, bid) = db#read_page_info page_id in
 	  (* Creates a new writer for the page. *)
 	  let writer = new Revision_writer.writer 
-	    page_id (Some bid) None (Some db) in
+	    page_id (Some bid) None (Some db) true in
 	  let running_info = {
 	    Online_page.run_sigs = page_sigs;
 	    Online_page.run_chunks = page_chunks;

@@ -109,7 +109,7 @@ object(self)
     val mutable chunks_sig_a : Author_sig.packed_author_signature_t array array = [| [| |] |]
       (* Writer for blobs *)
     val blob_writer = new Revision_writer.writer 
-      page_id None (Some colored_base_path) None
+      page_id None (Some colored_base_path) None false
       (* Last blob_id *)
     val mutable blob_id : int = Online_types.blob_locations.initial_location
 

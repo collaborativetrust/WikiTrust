@@ -73,13 +73,24 @@ let read_general_blob (write_method: method_t) (page_id: int) (blob_id: int)
 
 (** Writer class for consecutive writes. 
     We write to the db if a db is specified, and it has no base path.
-    In all other cases, we write to the filesystem directly. *)
+    In all other cases, we write to the filesystem directly. 
+    [page_id]: the page which we are writing. 
+    [first_blob_id_opt]: first open blob of the page.  If None, it 
+       assumes that no blobs exist already.
+    [base_path_opt]: if specified, the writing happens to the filesystem.
+    [db_opt]: if specified, the writing happens according to how the
+       db writes blobs (which can be to the filesystem, if that option
+       is set for the db, or to the db directly. 
+    [checkpointing]: if true, then the writer updates constantly the 
+       open blob id in the database, to help ensuring consistency 
+       in case something breaks. *)
 
 class writer 
   (page_id: int) 
   (first_blob_id_opt: int option)
   (base_path_opt: string option)
   (db_opt: Online_db.db option)
+  (checkpointing: bool)
   = 
 
   object(self)
@@ -164,7 +175,13 @@ class writer
 	    write_general_blob write_method page_id blob_id blob_revisions;
 	    blob_id <- blob_id + 1;
 	    blob_revisions <- [];
-	  blob_size <- 0
+	    blob_size <- 0;
+	    (* If we ask for checkpointing, does it. *)
+	    if checkpointing then begin
+	      match db_opt with
+		None -> ()
+	      | Some db -> db#write_open_blob_id page_id blob_id
+	    end
 	  end;
 	  (* Appends the new revision. *)
 	  blob_revisions <- (rev_id, rev_txt) :: blob_revisions;
@@ -204,7 +221,7 @@ if false then begin
   let print_blob x = List.iter print_rev_str (disassemble_blob x) in
 
   print_string "\nTest for the writer:\n";
-  let w = new writer 12 None (Some "/tmp/alpha") None in
+  let w = new writer 12 None (Some "/tmp/alpha") None false in
   print_string "First blob written as blob id "; 
   print_int (w#write_revision 43 "hello hello");
   let blob_id = w#write_revision 47 "ciao ciao" in
