@@ -248,6 +248,23 @@ class revision
       new_page_open_blob
 
 
+    (** Writes the colored text to the db, as a compressed blob,
+	using a revision writer object to accomplish that. *)
+    method write_running_text (writer: Revision_store.writer) 
+      (trust_is_float: bool) (include_origin: bool) (include_author: bool) 
+      : unit = 
+      (* Prepares the text to be written. *)
+      let buf = Revision.produce_annotated_markup 
+	seps trust origin author 
+	trust_is_float include_origin include_author in
+      (* Writes the colored text using the writer. *)
+      let new_bid = writer#write_revision rev_id (Buffer.contents buf) in
+      if Some new_bid <> blob_id_opt then begin
+	blob_id_opt <- Some new_bid;
+	modified_quality_info <- true
+      end
+
+
     (** Writes the trust, origin, and sigs to the db, as a signature. *)
     method write_words_trust_origin_sigs page_sigs : unit = 
       db#write_words_trust_origin_sigs 

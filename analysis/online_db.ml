@@ -159,6 +159,10 @@ object(self)
       raise DB_TXN_Bad
 
   (* ================================================================ *)
+  (* General methods *)
+  method get_base_path : string option = colored_base_path
+
+  (* ================================================================ *)
   (* Disconnect *)
   method close : unit = 
     Mysql.disconnect mediawiki_dbh
@@ -337,7 +341,7 @@ object(self)
    
   (** [read_blob page_id blob_id] reads the blob for page_id and blob_id,
       either from the database, or from the filesystem, and returns it. *)
-  method private read_blob (page_id: int) (blob_id: int) 
+  method read_blob (page_id: int) (blob_id: int) 
     : string option =
     match colored_base_path with
       None -> begin
@@ -354,7 +358,7 @@ object(self)
 
   (** [write_blob page_id blob_id blob_content] writes the blob [blob_content]
       for [page_id], [blob_id] to either the filesystem or the database. *)
-  method private write_blob 
+  method write_blob 
     (page_id: int) (blob_id: int) (blob_content: string) : unit =
     match colored_base_path with
       None -> begin

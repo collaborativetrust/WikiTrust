@@ -87,12 +87,11 @@ class updater
       end
 
 
-    (** [evaluate_revision page_id r] evaluates revision [r]. 
-	The function is recursive, because if some past revision of the same page 
-	that falls within the analysis horizon is not yet evaluated and colored
-	for trust, it evaluates and colors it first. 
-        It assumes we have the page lock.
-     *)
+    (** [evaluate_revision page_id r] evaluates revision [r].  The
+	function is recursive, because if some past revision of the
+	same page that falls within the analysis horizon is not yet
+	evaluated and colored for trust, it evaluates and colors it
+	first.  It assumes we have the page lock.  *)
     method private evaluate_revision (r: Online_revision.revision): unit =
       (* The work is done via a recursive function, because if some
 	 past revision of the same page that falls within the analysis
@@ -101,36 +100,42 @@ class updater
       let rec evaluate_revision_helper (r: Online_revision.revision): unit = 
 	let rev_id = r#get_id in
 	let page_id = r#get_page_id in 
-	if max_events_to_process = 0 or n_processed_events < max_events_to_process then 
-	  begin 
-	    begin (* try ... with ... *)
-	      try 
-		!Online_log.online_logger#log (Printf.sprintf "\nEvaluating revision %d of page %d\n" rev_id page_id);
-		let page = new Online_page.page db page_id rev_id (Some r) trust_coeff n_retries robots in
-		n_processed_events <- n_processed_events + 1;
-		if page#eval 
-		then !Online_log.online_logger#log (Printf.sprintf "\nDone revision %d of page %d\n" rev_id page_id)
-		else !Online_log.online_logger#log (Printf.sprintf "\nRevision %d of page %d was already done\n" 
-		  rev_id page_id);
-	      with Online_page.Missing_trust r' -> 
-		begin
-		  (* We need to evaluate r' first *)
-		  (* This if is a basic sanity check only. It should always be true *)
-		  if r'#get_id <> rev_id then 
-		    begin 
-		      !Online_log.online_logger#log (Printf.sprintf 
-			"\nMissing trust info: we need first to evaluate revision %d of page %d\n" 
-			r'#get_id r'#get_page_id);
-		      evaluate_revision_helper r';
-		      self#wait_a_bit;
-		      evaluate_revision_helper r
-		    end (* rev_id' <> rev_id *)
-		end (* with: Was missing trust of a previous revision *)
-	    end (* End of try ... with ... *)
-	  end
+	if max_events_to_process = 0 or 
+	  n_processed_events < max_events_to_process then 
+	    begin 
+	      begin (* try ... with ... *)
+		try 
+		  !Online_log.online_logger#log (Printf.sprintf 
+		    "\nEvaluating revision %d of page %d\n" rev_id page_id);
+		  let page = new Online_page.page db page_id rev_id (Some r) 
+		    trust_coeff n_retries robots None in
+		  n_processed_events <- n_processed_events + 1;
+		  if page#eval 
+		  then !Online_log.online_logger#log (Printf.sprintf 
+		    "\nDone revision %d of page %d\n" rev_id page_id)
+		  else !Online_log.online_logger#log (Printf.sprintf 
+		    "\nRevision %d of page %d was already done\n" 
+		    rev_id page_id);
+		with Online_page.Missing_trust r' -> 
+		  begin
+		    (* We need to evaluate r' first *)
+		    (* This if is a basic sanity check only. It should
+		       always be true. *)
+		    if r'#get_id <> rev_id then 
+		      begin 
+			!Online_log.online_logger#log (Printf.sprintf 
+			  "\nMissing trust info: we need first to evaluate revision %d of page %d\n" 
+			  r'#get_id r'#get_page_id);
+			evaluate_revision_helper r';
+			self#wait_a_bit;
+			evaluate_revision_helper r
+		      end (* rev_id' <> rev_id *)
+		  end (* with: Was missing trust of a previous revision *)
+	      end (* End of try ... with ... *)
+	    end
       in evaluate_revision_helper r
-
-
+	   
+	   
     (** [evaluate_vote page_id revision_id voter_id] evaluates the vote
 	by [voter_id] on revision [revision_id] of page [page_id].
 	It assumes that the revision has already been analyzed for trust, 
@@ -138,35 +143,40 @@ class updater
         It assumes we have the page lock.
      *)
     method private evaluate_vote (page_id: int) (revision_id: int) (voter_id: int) = 
-      if max_events_to_process = 0 or n_processed_events < max_events_to_process then 
-	begin 
-	  !Online_log.online_logger#log (Printf.sprintf "\nEvaluating vote by %d on revision %d of page %d" 
-	    voter_id revision_id page_id); 
-	  let page = new Online_page.page db page_id revision_id None trust_coeff n_retries robots in
-	  begin
-	    try
-	      if page#vote voter_id then begin 
+      if max_events_to_process = 0 or 
+	n_processed_events < max_events_to_process then 
+	  begin 
+	    !Online_log.online_logger#log (Printf.sprintf
+	      "\nEvaluating vote by %d on revision %d of page %d" 
+	      voter_id revision_id page_id); 
+	    let page = new Online_page.page db page_id revision_id 
+	      None trust_coeff n_retries robots None in
+	    begin
+	      try
+		if page#vote voter_id then begin 
+		  (* We mark the vote as processed. *)
+		  db#mark_vote_as_processed revision_id voter_id;
+		  n_processed_events <- n_processed_events + 1;
+		  !Online_log.online_logger#log (Printf.sprintf 
+		    "\nDone processing vote by %d on revision %d of page %d"
+		    voter_id revision_id page_id)
+		end
+	      with Online_page.Missing_work_revision -> begin
 		(* We mark the vote as processed. *)
 		db#mark_vote_as_processed revision_id voter_id;
-		n_processed_events <- n_processed_events + 1;
-		!Online_log.online_logger#log (Printf.sprintf "\nDone processing vote by %d on revision %d of page %d"
+		!Online_log.online_logger#log (Printf.sprintf 
+		  "\nVote by %d on revision %d of page %d not processed: no trust for page"
 		  voter_id revision_id page_id)
 	      end
-	    with Online_page.Missing_work_revision -> begin
-	      (* We mark the vote as processed. *)
-	      db#mark_vote_as_processed revision_id voter_id;
-	      !Online_log.online_logger#log (Printf.sprintf 
-		"\nVote by %d on revision %d of page %d not processed: no trust for page"
-		voter_id revision_id page_id)
 	    end
 	  end
-	end
-
+	    
     (** [process_feed feed] processes the event feed [feed], taking care of:
 	- acquiring the relevant page locks.
 	- throttling the computation as required.
-	- playing it nice with other parallel computation, implementing bounded overtake
-	  on pages, and terminating if lock wait increases too much.
+	- playing it nice with other parallel computation, implementing 
+	  bounded overtake on pages, and terminating if lock wait increases 
+          too much.
      *)
     method private process_feed (feed : Event_feed.event_feed) : unit =
       (* This hashtable is used to implement the load-sharing algorithm. *)
@@ -199,11 +209,12 @@ class updater
 		 We set the timeout for waiting as follows. 
 		 - If the page has already been tried, we need to wait on it, 
 	           so we choose a long timeout. 
-	           If we don't get the page by the long timeout, this means that 
-	           there is too much db lock contention (too many simultaneously 
+	           If we don't get the page by the long timeout, this means that
+	           there is too much db lock contention (too many simultaneously
 	           active coloring processes), and we terminate. 
 	         - If the page has not been tried yet, we set a short timeout, 
-	           and if we don't get the lock, we move on to the next revision. 
+	           and if we don't get the lock, we move on to the next 
+		   revision. 
 
 		 This algorithm ensures an "overtake by at most 1"
 		 property: if there are many coloring processes active
@@ -266,12 +277,12 @@ class updater
 	  | Some (event_timestamp, page_id, event) -> begin 
 	      (* We have an event to process *)
 	      match event with
-		      | Event_feed.Revision_event r -> self#evaluate_revision r
-	        | Event_feed.Vote_event (revision_id, voter_id) -> 
-		          self#evaluate_vote page_id revision_id voter_id
+	      | Event_feed.Revision_event r -> self#evaluate_revision r
+	      | Event_feed.Vote_event (revision_id, voter_id) -> 
+		  self#evaluate_vote page_id revision_id voter_id
 	    end (* event that needs processing *)
 	end done (* Loop as long as we need to do events *)
-
+	
 
     (** [update_vote page_id revision_id voter_id] tries to get the page lock,
 	and process a vote. *)
@@ -288,8 +299,93 @@ class updater
     end
 
 
-    (** [update_page page_id] updates the page [page_id], analyzing in 
-	chronological order the revisions and votes that have not been analyzed yet. *)
+    (** [update_page page_id] updates the page [page_id], analyzing in
+	chronological order the revisions and votes that have not been
+	analyzed yet.  This algorithm performs a fast evaluation, which is
+        slightly less safe than the one done by the standard update_page
+        method, in case the past trust information is incomplete.
+        This method is especially advantageous when many revisions
+        of a page must be evaluated. *)
+    method update_page_fast (page_id: int) : unit = 
+      (* Gets the lock gor the page. *)
+      let got_it = db#get_page_lock page_id Online_command_line.lock_timeout in 
+      if got_it then begin
+	try 
+	  (* Creates a feed for the page events. *)
+	  let feed = 
+	    new Event_feed.event_feed db (Some page_id) None n_retries in
+	  (* Reads the page sigs, and the chunks, to build a running
+	     information for the page. *)
+	  let page_sigs = db#read_page_sigs page_id in
+	  let page_chunks = db#read_page_chunks page_id in
+	  let (pinfo, bid) = db#read_page_info page_id in
+	  (* Creates a new writer for the page. *)
+	  let writer = Revision_writer.writer (Some db) None page_id in
+	  let running_info = {
+	    sigs = page_sigs;
+	    chunks = page_chunks;
+	    page_info = pinfo;
+	    writer = writer;
+	  } in 
+	  (* Loops over the feed and processes it. *)
+	  let do_more = ref true in 
+	  while !do_more && (max_events_to_process = 0 or 
+	      n_processed_events < max_events_to_process) do 
+	    begin 
+	      (* This is the main loop *)
+	      match feed#next_event with 
+		None -> do_more := false
+	      | Some (event_timestamp, page_id, event) -> begin 
+		  (* We have an event to process *)
+		  match event with
+		  | Event_feed.Revision_event r -> begin
+		      let rev_id = r#get_id in
+		      !Online_log.online_logger#log (Printf.sprintf 
+			"\nEvaluating revision %d of page %d\n" rev_id page_id);
+		      let page = new Online_page.page db page_id rev_id (Some r)
+			trust_coeff n_retries robots (Some running_info) in
+		      n_processed_events <- n_processed_events + 1;
+		      if page#eval 
+		      then !Online_log.online_logger#log (Printf.sprintf 
+			"\nDone revision %d of page %d\n" rev_id page_id)
+		      else !Online_log.online_logger#log (Printf.sprintf 
+			"\nRevision %d of page %d was already done\n" 
+			rev_id page_id);
+		    end
+		  | Event_feed.Vote_event (rev_id, voter_id) -> begin
+		      !Online_log.online_logger#log (Printf.sprintf
+			"\nEvaluating vote by %d on revision %d of page %d" 
+			voter_id rev_id page_id); 
+		      let page = new Online_page.page db page_id rev_id None
+			trust_coeff n_retries robots (Some running_info) in
+		      if page#vote voter_id then begin
+			(* We mark the vote as processed. *)
+			db#mark_vote_as_processed revision_id voter_id;
+			n_processed_events <- n_processed_events + 1;
+			!Online_log.online_logger#log (Printf.sprintf 
+			  "\nDone processing vote by %d on revision %d of page %d"
+			  voter_id rev_id page_id)
+		      end
+		    end
+		end (* Event that needs processing. *)
+	    end done; (* While loop over events. *)
+	  (* Writes the page information to disk. *)
+	  db#write_page_info page_id running_info.page_info;
+	  db#write_page_chunks page_id running_info.chunks;
+	  db#write_page_sigs page_id page_sigs;
+	  writer#close;
+	  db#commit;
+	  db#release_page_lock page_id
+	with e -> begin
+	  db#release_page_lock page_id;
+	  raise e
+	end
+      end
+	    
+
+    (** [update_page page_id] updates the page [page_id], analyzing in
+	chronological order the revisions and votes that have not been
+	analyzed yet. *)
     method update_page (page_id: int) : unit = 
       (* Gets the lock gor the page. *)
       let got_it = db#get_page_lock page_id Online_command_line.lock_timeout in 
@@ -304,7 +400,7 @@ class updater
 	  raise e
 	end
       end
-	    
+
 
     (** [update_global] updates the wikitrust information of a wiki, 
 	in global chronological order. *)

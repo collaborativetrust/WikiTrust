@@ -88,6 +88,11 @@ class db :
   object
 
     (* ================================================================ *)
+    (* General methods *)
+    (* Gets the colored base path. *)
+    method get_base_path : string option
+
+    (* ================================================================ *)
     (* Disconnect *)
     method close : unit 
 
