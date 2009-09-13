@@ -234,7 +234,7 @@ all: evalwiki eval_online_wiki vote_revision \
 	extract_wiki_subset find_usernames
 
 allopt: evalwikiopt eval_online_wikiopt vote_revisionopt \
-	generate_reputationopt splitwikiopt \ combinestatsopt \
+	generate_reputationopt splitwikiopt combinestatsopt \
 	extract_wiki_subsetopt find_usernamesopt
 
 clean_batch:
