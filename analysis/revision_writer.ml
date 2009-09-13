@@ -174,7 +174,8 @@ class writer
 	  
 	  
     (** This method finishes writing any pending revision,
-	and returns the last blob used (which is the open blob). *)
+	and returns the last blob used (which is the open blob). 
+        This last blob needs to be written as the open page blob. *)
     method close : int =
       match blob_revisions with 
 	[] -> blob_id;

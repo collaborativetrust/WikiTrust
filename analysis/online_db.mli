@@ -216,8 +216,15 @@ class db :
 	the article, but has been deleted.  *)
     method write_page_chunks : int -> (chunk_t list) -> unit
       
-    (** [read_page_chunks page_id] returns the chunk list for page [page_id]. *)
+  (** [read_page_chunks page_id] returns the chunk list for page [page_id]. 
+      If the chunks cannot be found, returns the empty list: this happens
+      for new pages. *)
     method read_page_chunks : int -> chunk_t list
+
+  (** [write_open_blob_id page_id blob_id] writes on the wikitrust_page table that
+      the open blob for [page_id] is [blob_id]. *)
+  method write_open_blob_id : int -> int -> unit
+
 
     (* Signature methods. *)
 

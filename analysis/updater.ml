@@ -374,7 +374,8 @@ class updater
 	  db#write_page_info page_id running_info.Online_page.run_page_info;
 	  db#write_page_chunks page_id running_info.Online_page.run_chunks;
 	  db#write_page_sigs page_id page_sigs;
-	  writer#close;
+	  let open_page_blob_id = writer#close in
+	  db#write_open_blob_id page_id open_page_blob_id;
 	  db#commit;
 	  db#release_page_lock page_id
 	with e -> begin

@@ -444,6 +444,12 @@ object(self)
       None -> []
     | Some s -> of_string__of__of_sexp (list_of_sexp chunk_t_of_sexp) s
     
+  (** [write_open_blob_id page_id blob_id] writes on the wikitrust_page table that
+      the open blob for [page_id] is [blob_id]. *)
+  method write_open_blob_id (page_id: int) (blob_id: int) : unit =
+    let s = Printf.sprintf "UPDATE %swikitrust_page SET last_blob = %s WHERE page_id = %s" db_prefix (ml2int blob_id) (ml2int page_id) in
+    ignore (self#db_exec mediawiki_dbh s)
+
   (* Signature methods *)
 
   (** [read_page_sigs page_id] reads and returns the sigs for page
@@ -609,8 +615,7 @@ object(self)
 	  if blob_size > max_size_per_blob ||
 	    new_n_revs_in_blob >= max_revs_per_blob then begin 
 	      (* We start a new blob. *)
-	      let s = Printf.sprintf "UPDATE %swikitrust_page SET last_blob = %s WHERE page_id = %s" db_prefix (ml2int (page_open_blob + 1)) (ml2int page_id) in
-	      ignore (self#db_exec mediawiki_dbh s);
+	      self#write_open_blob_id page_id (page_open_blob + 1);
 	      page_open_blob + 1
 	    end 
 	  else page_open_blob

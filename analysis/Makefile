@@ -150,7 +150,7 @@ OUR_OPT_ONLINE_OBJS = online_log.cmx online_db.cmx \
 wikitrust_lib.cma: $(OUR_LIB_OBJS)
 	$(OCAMLC) -a -o wikitrust_lib.cma $(OCAML_CFLAGS) $(OUR_LIB_OBJS)
 
-wikitrust_lib.cmxa: $(OUR_OPT_EVALWIKI_OBJS)
+wikitrust_lib.cmxa: $(OUR_OPT_LIB_OBJS)
 	$(OCAMLOPT) -a -o wikitrust_lib.cmxa $(OCAMLOPT_FLAGS) $(OUR_OPT_LIB_OBJS)
 
 evalwiki: evalwiki.ml wikitrust_lib.cma
