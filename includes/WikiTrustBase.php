@@ -308,14 +308,6 @@ if (1) {
 				-1,
 				$count);
 
-
-    // Add back in missing \n lines 
-    $colored_text = preg_replace("/\{\{#t:(\d+),(\d+),([^}]+)\}\}\{\{#t:(\d+),(\d+),([^}]+)\}\}/",
-        "\n{{#t:$1,$2,$3}}",
-        $colored_text,  
-        -1,
-        $count);
-
     $options = ParserOptions::newFromUser($wgUser);
     $text = WikiTrust::color_parseWiki($colored_text, $options);
 

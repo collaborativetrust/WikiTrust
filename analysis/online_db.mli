@@ -190,7 +190,7 @@ class db :
 
     (** [init_page page_id] initializes the page information for 
 	page [page_id]. *)
-    method init_page : int -> unit
+    method init_page : int -> string option -> unit
 
     (** [write_page_info page_id p_info] writes that the page [page_id]
 	has associated information [p_info].  The list of deleted chunks

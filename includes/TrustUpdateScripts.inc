@@ -24,10 +24,12 @@ CREATE TABLE ".$wgDBprefix."wikitrust_global (
 $create_scripts[$wgDBprefix.'wikitrust_page'] = array("
 CREATE TABLE ".$wgDBprefix."wikitrust_page (
        page_id             int PRIMARY KEY,
+       page_title          varbinary(255),
        page_info           text NOT NULL,
        last_blob           int DEFAULT 2
 ) ENGINE=InnoDB","
 GRANT ALL ON ".$wgDBprefix."wikitrust_page TO '$wgDBuser'","
+CREATE INDEX ".$wgDBprefix."wikitrust_page_title_idx ON ".$wgDBprefix."wikitrust_page (page_title)
 ");
 
 $create_scripts[$wgDBprefix.'wikitrust_vote'] = array("
@@ -107,7 +109,7 @@ CREATE INDEX " . $wgDBprefix . "wikitrust_text_cache ON "
                . $wgDBprefix . "wikitrust_text_cache (revision_id, time_string, page_id)
 ");
 
-$create_index_scripts[$wgDBprefix . "revision"]['wikitrust_revision_id_timestamp_idx'] = "CREATE INDEX wikitrust_revision_id_timestamp_idx ON " . $wgDBprefix . "revision (rev_id, rev_timestamp)";
+$create_index_scripts[$wgDBprefix . "revision"]['wikitrust_revision_id_timestamp_idx'] = "CREATE INDEX wt_revision_id_timestamp_idx ON " . $wgDBprefix . "revision (rev_id, rev_timestamp)";
 
 $remove_scripts[$wgDBprefix.'wikitrust_vote'] = array("DROP TABLE ".$wgDBprefix."wikitrust_vote");
 $remove_scripts[$wgDBprefix.'wikitrust_global'] = array("DROP TABLE ".$wgDBprefix."wikitrust_global");

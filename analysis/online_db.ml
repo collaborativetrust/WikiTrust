@@ -382,12 +382,14 @@ object(self)
 
   (** [init_page page_id] initializes the page information for 
       page [page_id]. *)
-  method init_page (page_id : int) : unit =
+  method init_page (page_id : int) (page_title : string option) : unit =
     let info_string = ml2str 
       (string_of__of__sexp_of sexp_of_page_info_t 
 	Online_types.page_info_default) in 
-    let s = Printf.sprintf "INSERT INTO %swikitrust_page (page_id, page_info, last_blob) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE last_blob = last_blob" 
-      db_prefix (ml2int page_id) info_string 
+    let s = Printf.sprintf "INSERT INTO %swikitrust_page (page_id, page_info, page_title, last_blob) VALUES (%s, %s, %s, %s) ON DUPLICATE KEY UPDATE last_blob = last_blob" 
+      db_prefix (ml2int page_id) info_string (match page_title with 
+                                                | Some pt -> ml2str pt 
+                                                | None -> "null")
       (ml2int blob_locations.initial_location) in
     ignore (self#db_exec mediawiki_dbh s)    
     
@@ -472,21 +474,21 @@ object(self)
   (** [get_latest_rev_id page_title] returns the revision id of the most 
       recent revision of page [page_title], according. *)
   method get_latest_rev_id (page_title: string) : int = 
-    let s = Printf.sprintf "SELECT rev_id FROM %srevision, %spage WHERE rev_page = page_id AND page_title = %s ORDER BY rev_timestamp DESC, rev_id DESC LIMIT 1" db_prefix db_prefix (ml2str page_title) in 
+    let s = Printf.sprintf "SELECT revision_id FROM %swikitrust_revision AS A JOIN %swikitrust_page AS B on A.page_id = B.page_id AND page_title = %s ORDER BY time_string DESC, revision_id DESC LIMIT 1" db_prefix db_prefix (ml2str page_title) in 
     match fetch (self#db_exec mediawiki_dbh s) with 
       None -> raise DB_Not_Found
     | Some x -> not_null int2ml x.(0)
 
   (** [get_page_id page_title] returns the page id of the named page *)
   method get_page_id (page_title: string) : int = 
-    let s = Printf.sprintf "SELECT page_id FROM %spage WHERE page_title = %s LIMIT 1" db_prefix (ml2str page_title) in 
+    let s = Printf.sprintf "SELECT page_id FROM %swikitrust_page WHERE page_title = %s LIMIT 1" db_prefix (ml2str page_title) in 
     match fetch (self#db_exec mediawiki_dbh s) with 
       None -> raise DB_Not_Found
     | Some x -> not_null int2ml x.(0)
 
   (** [get_page_title page_id] returns the page title of the named page *)
   method get_page_title (page_id: int) : string = 
-    let s = Printf.sprintf "SELECT page_title FROM %spage WHERE page_id = %d LIMIT 1" db_prefix page_id in 
+    let s = Printf.sprintf "SELECT page_title FROM %swikitrust_page WHERE page_id = %d LIMIT 1" db_prefix page_id in 
     match fetch (self#db_exec mediawiki_dbh s) with 
       None -> raise DB_Not_Found
     | Some x -> not_null str2ml x.(0)
@@ -827,7 +829,7 @@ object(self)
   (** [update_queue_page page_title] updates the default page_id to a
       real one. *)
   method update_queue_page (page_title : string) (o_page_id : int) : int =
-    let s = Printf.sprintf "SELECT page_id FROM %spage WHERE page_title = %s" 
+    let s = Printf.sprintf "SELECT page_id FROM %swikitrust_page WHERE page_title = %s" 
       db_prefix (ml2str page_title) in
     let result = self#db_exec mediawiki_dbh s in
     match Mysql.fetch result with 
@@ -862,7 +864,8 @@ object(self)
       (ml2int page.page_len) 
       (ml2int page.page_latest)
     in
-    ignore(self#db_exec mediawiki_dbh s)
+    ignore(self#db_exec mediawiki_dbh s);
+    self#init_page page.page_id (Some page.page_title)
 
   (** [write_revision revision_to_add] adds the given data to the
       revision and text tables of the database.  It can be used to

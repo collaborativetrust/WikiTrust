@@ -1379,7 +1379,7 @@ class page
 			page_info <- pinfo;
 			open_page_blob_id <- bid;
 		      with Online_db.DB_Not_Found -> begin
-			db#init_page page_id;
+			db#init_page page_id None;
 			open_page_blob_id <- blob_locations.initial_location;
 		      end end
 		    end
@@ -1508,7 +1508,7 @@ class page
 		    page_info <- pinfo;
 		    open_page_blob_id <- bid;
 		  with Online_db.DB_Not_Found -> begin
-		    db#init_page page_id;
+		    db#init_page page_id None;
 		    open_page_blob_id <- blob_locations.initial_location;
 		  end end
 		end
