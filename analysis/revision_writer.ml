@@ -156,8 +156,15 @@ class writer
 	only one version of the revision (the latest) is written to disk. *)
     method write_revision (rev_id: int) (rev_txt: string) : int =
       (* Checks whether the revision should replace the last one *)
-      match blob_revisions with
-	(rev_id, old_txt) :: previous_revisions -> begin
+      let (old_text_opt, previous_revisions) = match blob_revisions with
+	  (rev_id', old_txt') :: previous_revisions' -> 
+	    if rev_id = rev_id' 
+	    then (Some old_txt', previous_revisions') 
+	    else (None, [])
+	| [] -> (None, [])
+      in 
+      match old_text_opt with
+	Some old_txt -> begin
 	  (* The revision is being written multiple times; we replace the
 	     older content. *)
 	  blob_revisions <- (rev_id, rev_txt) :: previous_revisions;
@@ -165,7 +172,7 @@ class writer
 	    blob_size - (String.length old_txt) + (String.length rev_txt);
 	  blob_id
 	end
-      | _ -> begin
+      | None -> begin
 	  (* The revision id is different from the previous one. *)
 	  (* First, checks whether the older revisions need writing to disk. *)
 	  let n_revisions = List.length blob_revisions in 
