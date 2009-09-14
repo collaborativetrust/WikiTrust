@@ -243,7 +243,7 @@ clean_batch:
 
 clean:
 	make clean_batch
-	rm -f *.o *.cmo *.cmx *.cmi .depends run_harness \
+	rm -f *.o *.cmo *.cmx *.cmi *.a *.cma *.cmxa .depends run_harness \
 	eval_online_wiki vote_revision
 
 # Boilerplate code for building ocaml dependencies.
