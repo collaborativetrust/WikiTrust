@@ -1,6 +1,6 @@
 (*
 
-Copyright (c) 2009 The Regents of the University of California
+Copyright (c) 2009 Luca de Alfaro
 All rights reserved.
 
 Authors: Luca de Alfaro
@@ -42,10 +42,8 @@ TYPE_CONV_PATH "UCSC_WIKI_RESEARCH"
    The header is guaranteed not to contain ":", so to find the start of the
    binary blob content, one can simply look for the ":". 
 
-   The header is a list of (rev_id, (rev_start, rev_len)) items 
-   (thus, in Ocaml, it has type 
-     int * (int * int) list
-   )
+   The header is a list of (rev_id, rev_start, rev_len) items 
+   (thus, in Ocaml, it has type (int * int * int) list)
    where: 
    - rev_id is the revision id
    - rev_start is the offset in the binary_blob_content
@@ -263,7 +261,7 @@ let compress (s: string) : string =
   let file_name = Filename.temp_file compress_prefix "_temp" in
   write_gzipped_file file_name s;
   let f = open_in file_name in
-  (* I hate that reading is going to be so complex. *)
+  (* Read the whole file. *)
   let buf = Buffer.create 100000 in
   let str_len = 8192 in 
   let str = String.create str_len in
@@ -291,52 +289,6 @@ let uncompress (s: string) : string =
   Unix.unlink file_name;
   r
 
-(* **************************************************************** *)
-(* Writer class to be used for batch writing. *)
-
-class writer (page_id: int) (base_path: string) = object(self)
-
-  val mutable blob_id : int = blob_locations.initial_location
-  val mutable blob_revisions : (int * string) list = []
-  val mutable blob_size = 0
-  val max_size_blob = 10000000
-  val max_n_revisions = 20
-
-  (** This method queues a revision for writing, and returns the
-      blob id where the revision will be written. *)
-  method write_revision (rev_id: int) (rev_txt: string) : int =
-    let new_blob_revisions = (rev_id, rev_txt) :: blob_revisions in
-    let new_blob_size = blob_size + String.length rev_txt in
-    let new_n_revisions = List.length new_blob_revisions in
-    let written_blob_id = blob_id in
-    (* Decides whether to write to disk or not *)
-    if new_blob_size >= max_size_blob || new_n_revisions >= max_n_revisions
-    then begin
-      (* Writes to disk. *)
-      let s = assemble_blob new_blob_revisions in
-      write_blob base_path page_id blob_id s;
-      blob_id <- blob_id + 1;
-      blob_revisions <- [];
-      blob_size <- 0
-    end else begin
-      (* Does not write yet. *)
-      blob_revisions <- new_blob_revisions;
-      blob_size <- new_blob_size 
-    end;
-    written_blob_id
-
-  (** This method finishes writing any pending revision,
-      and returns the last blob used (which is the open blob). *)
-  method close : int =
-    match blob_revisions with 
-      [] -> blob_id;
-    | _ :: _ -> begin
-	let s = assemble_blob blob_revisions in
-	write_blob base_path page_id blob_id s;
-	blob_id
-      end
-
-end (* class writer *)
 
 (* **************************************************************** *)
 (* Unit tests. *)
@@ -370,15 +322,5 @@ if false then begin
   print_string "\nCompress and uncompress:\n";
   print_string (uncompress (compress "Mi piace la pizza\n"));
 
-  print_string "\nTest for the writer:\n";
-  let w = new writer 12 "/tmp/alpha" in
-  print_string "First blob written as blob id "; 
-  print_int (w#write_revision 43 "hello hello");
-  let blob_id = w#write_revision 47 "ciao ciao" in
-  print_string "\nSecond blob written as blob id ";
-  print_int blob_id; 
-  ignore w#close;
-  print_string "\nReading the blob:\n";
-  print_blob (not_null (read_blob "/tmp/alpha" 12 blob_id))
 
 end

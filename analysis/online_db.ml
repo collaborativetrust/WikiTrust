@@ -159,6 +159,10 @@ object(self)
       raise DB_TXN_Bad
 
   (* ================================================================ *)
+  (* General methods *)
+  method get_base_path : string option = colored_base_path
+
+  (* ================================================================ *)
   (* Disconnect *)
   method close : unit = 
     Mysql.disconnect mediawiki_dbh
@@ -250,7 +254,8 @@ object(self)
   (** [fetch_last_colored_rev_time req_page_id] returns the timestamp and the 
       revision id of the most recent revision that has been colored.
       If [req_page_id] specifies a page, then only that page is considered.
-      Raises DB_Not_Found if no revisions have been colored. *)    
+      Raises DB_Not_Found if no revisions have been colored. *)
+      (* FIX: look at al the LIMIT 1 and see if you can use max instead. *)
   method fetch_last_colored_rev_time (req_page_id: int option) : (string * int) = 
     let wr = match req_page_id with
 	None -> ""
@@ -336,7 +341,7 @@ object(self)
    
   (** [read_blob page_id blob_id] reads the blob for page_id and blob_id,
       either from the database, or from the filesystem, and returns it. *)
-  method private read_blob (page_id: int) (blob_id: int) 
+  method read_blob (page_id: int) (blob_id: int) 
     : string option =
     match colored_base_path with
       None -> begin
@@ -353,7 +358,7 @@ object(self)
 
   (** [write_blob page_id blob_id blob_content] writes the blob [blob_content]
       for [page_id], [blob_id] to either the filesystem or the database. *)
-  method private write_blob 
+  method write_blob 
     (page_id: int) (blob_id: int) (blob_content: string) : unit =
     match colored_base_path with
       None -> begin
@@ -439,6 +444,12 @@ object(self)
       None -> []
     | Some s -> of_string__of__of_sexp (list_of_sexp chunk_t_of_sexp) s
     
+  (** [write_open_blob_id page_id blob_id] writes on the wikitrust_page table that
+      the open blob for [page_id] is [blob_id]. *)
+  method write_open_blob_id (page_id: int) (blob_id: int) : unit =
+    let s = Printf.sprintf "UPDATE %swikitrust_page SET last_blob = %s WHERE page_id = %s" db_prefix (ml2int blob_id) (ml2int page_id) in
+    ignore (self#db_exec mediawiki_dbh s)
+
   (* Signature methods *)
 
   (** [read_page_sigs page_id] reads and returns the sigs for page
@@ -570,12 +581,16 @@ object(self)
       and origin information. [page_id] and [rev_id] are as usual. 
       [blob_id_opt] specifies the blob in which the information should
       be written, if known.  Otherwise, the information is written in 
-      [page_open_blob] blob.  The function returns the blob in which 
-      the revision was written (this coincides with the content
-      of [blob_id_opt] when the latter is not null). *)
+      [page_open_blob] blob.  The function returns a pair, consisting of:
+      - The blob in which the revision was written 
+        (this coincides with the content of [blob_id_opt] when the latter 
+        is not null). 
+      - The new open blob for the page (this may coincide with the old
+        open blob, of course).
+   *)
   method write_colored_markup (page_id: int) (rev_id : int) 
     (blob_id_opt: int option) (page_open_blob: int)
-    (markup : string) : int =
+    (markup : string) : int * int =
     (* Figures out in which blob to write the information. *)
     let blob_id = 
       match blob_id_opt with 
@@ -600,13 +615,12 @@ object(self)
 	  if blob_size > max_size_per_blob ||
 	    new_n_revs_in_blob >= max_revs_per_blob then begin 
 	      (* We start a new blob. *)
-	      let s = Printf.sprintf "UPDATE %swikitrust_page SET last_blob = %s WHERE page_id = %s" db_prefix (ml2int (blob_id + 1)) (ml2int page_id) in
-	      ignore (self#db_exec mediawiki_dbh s);
-	      blob_id + 1
+	      self#write_open_blob_id page_id (page_open_blob + 1);
+	      page_open_blob + 1
 	    end 
-	  else blob_id
+	  else page_open_blob
 	end
-    in new_page_open_blob
+    in (blob_id, new_page_open_blob)
 
 
   (** [read_colored_markup rev_id blob_id_opt] reads the text markup
@@ -678,15 +692,6 @@ object(self)
 
 
   (* Methods on standard revisions *)
-
-  (** [fetch_rev_timestamp rev_id] returns the timestamp of revision
-      [rev_id] *)
-  method fetch_rev_timestamp (rev_id: int) : timestamp_t = 
-    let s = Printf.sprintf "SELECT rev_timestamp FROM %srevision WHERE rev_id = %s" db_prefix (ml2int rev_id) in 
-    let result = self#db_exec mediawiki_dbh s in 
-    match fetch result with 
-      None -> raise DB_Not_Found
-    | Some row -> not_null timestamp2ml row.(0)
 
   (** [get_rev_text page_id rev_id text_id] returns the text associated with
       text id [text_id] for revision [rev_id] *)
@@ -953,7 +958,8 @@ object(self)
     match Mysql.fetch result with 
       None -> begin 
 	(* Tries to read the revision using the exec API *)
-	(* ---complete--- For now I am reading from the db as usual. *)
+	(* NO: this is a bad idea.  Just say that the text can't be found, and make sure
+	   the dispatcher knows that the page is not fully updated. Luca, fix this. *)
 	super#read_rev_text page_id rev_id text_id
 	(* TODO(Bo): need to switch to true execAPI
 	 * let cmdline = Printf.sprintf "%sread_rev_text -log_file /dev/null -rev_id %d" "" rev_id in

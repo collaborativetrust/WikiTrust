@@ -1,9 +1,9 @@
 (*
 
-Copyright (c) 2007-2009 The Regents of the University of California
+Copyright (c) 2009 The Regents of the University of California
 All rights reserved.
 
-Authors: Luca de Alfaro, Ian Pye
+Authors: Ian Pye
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -35,7 +35,8 @@ POSSIBILITY OF SUCH DAMAGE.
 
 (*
   Bot_reader -- reads the wikimarkup from Wikipedia:Bots/Status and prints out
-  a list of the bots to stdout.
+  a list of the bots to stdout, in the format required for Wikitrust.
+  The wiki markup has to be passed as stdin.
 *)
 
 (* Bot regex *)

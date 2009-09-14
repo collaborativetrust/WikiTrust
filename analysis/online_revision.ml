@@ -239,15 +239,30 @@ class revision
 	 Note that blob_id_opt can be None, in case the colored data is not
 	 already in the db.  For that reason, we let the database 
 	 tell us back what the new blob id is. *)
-      let new_bid = db#write_colored_markup 
+      let (new_bid, new_page_open_blob) = db#write_colored_markup 
 	page_id rev_id blob_id_opt page_open_blob (Buffer.contents buf) in
-      let new_page_open_blob = 
-	if Some new_bid <> blob_id_opt then begin
-	  blob_id_opt <- Some new_bid;
-	  modified_quality_info <- true;
-	  new_bid
-	end else page_open_blob
-      in new_page_open_blob
+      if Some new_bid <> blob_id_opt then begin
+	blob_id_opt <- Some new_bid;
+	modified_quality_info <- true
+      end;
+      new_page_open_blob
+
+
+    (** Writes the colored text to the db, as a compressed blob,
+	using a revision writer object to accomplish that. *)
+    method write_running_text (writer: Revision_writer.writer) 
+      (trust_is_float: bool) (include_origin: bool) (include_author: bool) 
+      : unit = 
+      (* Prepares the text to be written. *)
+      let buf = Revision.produce_annotated_markup 
+	seps trust origin author 
+	trust_is_float include_origin include_author in
+      (* Writes the colored text using the writer. *)
+      let new_bid = writer#write_revision rev_id (Buffer.contents buf) in
+      if Some new_bid <> blob_id_opt then begin
+	blob_id_opt <- Some new_bid;
+	modified_quality_info <- true
+      end
 
 
     (** Writes the trust, origin, and sigs to the db, as a signature. *)

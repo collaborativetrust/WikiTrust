@@ -1,6 +1,6 @@
 (*
 
-Copyright (c) 2008 The Regents of the University of California
+Copyright (c) 2008-2009 The Regents of the University of California
 All rights reserved.
 
 Authors: Luca de Alfaro, Krishnendu Chatterjee
@@ -38,6 +38,20 @@ open Online_types;;
 type word = string
 type rev_t = Online_revision.revision 
 
+(** This is the type used for the running page information. 
+    If this information is provided, the eval method will not
+    try to read this information from disk, but use the provided one.
+    The running page information is returned at the end. 
+    In this way, when many consecutive revisions of the same page
+    are analyzed, the information is not read/written all the time
+    to disk. *)
+type running_page_info_t = {
+  mutable run_page_info: Online_types.page_info_t;
+  mutable run_chunks: chunk_t list;
+  mutable run_sigs: Online_db.page_sig_t;
+  run_writer: Revision_writer.writer;
+}
+
 (** [Missing_trust (page_id, rev)] is raised if:
     - in a vote, the trust information for a revision voted on 
       is missing.  The vote should then most likely be discarded.
@@ -60,6 +74,7 @@ class page
   (trust_coeff: trust_coeff_t) 
   (n_retries: int) 
   (robots: Read_robots.robot_set_t)
+  (running_page_info: running_page_info_t option)
 
 = 
 
@@ -76,21 +91,22 @@ class page
     (** This is the Vec of recent revisions *)
     val mutable recent_revs: rev_t Vec.t = Vec.empty 
 
-    (** These are the edit lists.  The position (i, j) is the edit list 
-        between revision id i (source, left) and revision id j (dest, right) of the 
-        revisions in revs. 
+    (** These are the edit lists.  The position (i, j) is the edit
+        list between revision id i (source, left) and revision id j
+        (dest, right) of the revisions in revs.
         The content of the hash table contains an entry (n, m, el), where:
         - n is the length of the left text
         - m is the length of the right text
         - el is the edit list. *)
-    val edit_list : ((int * int), (int * int * Editlist.edit list)) Hashtbl.t = Hashtbl.create 10
+    val edit_list : ((int * int), (int * int * Editlist.edit list)) Hashtbl.t =
+      Hashtbl.create 10
     (** These are the edit distances, indexed as above. *)
     val edit_dist : ((int * int), float) Hashtbl.t = Hashtbl.create 10
-    (** This is a hash table mapping each user id to a pair (old_rep, new_rep option). 
-	So we can keep track of both the original value, and of the updated value, if
-	any.  *)
+      (** This is a hash table mapping each user id to a pair (old_rep,
+	  new_rep option).  So we can keep track of both the original
+	  value, and of the updated value, if any.  *)
     val rep_cache : (int, (float * float option)) Hashtbl.t = Hashtbl.create 10
-    (** Current time *)
+      (** Current time *)
     val mutable curr_time = 0.
     (** List of deleted chunks *)
     val mutable del_chunks_list : Online_types.chunk_t list = []
@@ -107,7 +123,6 @@ class page
     val delta_hist = Array.make Eval_defs.max_rep_val 0.
     val mutable new_hi_median = 0.
     val mutable histogram_updated = false
-
 
     (** This method reads the revision voted on from the online database, 
         and puts it into [work_revision_opt]. *)
@@ -141,7 +156,8 @@ class page
 	  end
       end in
       (* This is a feed of colored revisions previous from the current one. *)
-      let db_p = new Db_page.page db rev_to_analyze trust_coeff.n_revs_to_consider in 
+      let db_p = 
+	new Db_page.page db rev_to_analyze trust_coeff.n_revs_to_consider in 
       let i = ref (trust_coeff.n_revs_to_consider - 1) in 
       while (!i > 0) do begin 
         match db_p#get_rev with
@@ -735,8 +751,14 @@ class page
 	rev0#set_author chunk_0_author;
 	rev0#set_sigs   chunk_0_sigs;
         (* Writes to the db the colored text. *)
-	open_page_blob_id <- rev0#write_colored_text open_page_blob_id 
-	  false true true;
+	begin
+	  match running_page_info with 
+	    None -> 
+	      open_page_blob_id <- rev0#write_colored_text open_page_blob_id 
+		false true true
+	  | Some run_info -> 
+	      rev0#write_running_text run_info.run_writer false true true 
+	end;
 	(* Writes to the db the sig for the revision. *)
 	rev0#write_words_trust_origin_sigs page_sigs;
 	(* Computes the overall trust of the revision *)
@@ -919,8 +941,14 @@ class page
 	rev0#set_origin new_origin_10_a.(0);
 	rev0#set_author new_author_10_a.(0);
 	rev0#set_sigs   new_sigs_10_a.(0);
-	open_page_blob_id <- rev0#write_colored_text open_page_blob_id 
-	  false true true;
+	begin
+	  match running_page_info with 
+	    None -> 
+	      open_page_blob_id <- rev0#write_colored_text open_page_blob_id 
+		false true true
+	  | Some run_info -> 
+	      rev0#write_running_text run_info.run_writer false true true 
+	end;
 	rev0#write_words_trust_origin_sigs page_sigs;
 	(* Now that the colored revision is written out to disk, we don't need
 	   any more its uncolored text.   If we are using the exec_api, 
@@ -981,8 +1009,14 @@ class page
 	  rev0#set_trust new_trust_a.(0); 
 	  rev0#set_sigs  new_sigs_a.(0);
 	  (* Writes the new colored markup *)
-	  open_page_blob_id <- rev0#write_colored_text open_page_blob_id 
-	    false true true;
+	  begin
+	    match running_page_info with 
+	      None -> 
+		open_page_blob_id <- rev0#write_colored_text open_page_blob_id 
+		  false true true
+	    | Some run_info -> 
+		rev0#write_running_text run_info.run_writer false true true 
+	  end;
 	  (* Writes the trust information to the revision *)
 	  rev0#write_words_trust_origin_sigs page_sigs;
 	  let t = Compute_robust_trust.compute_overall_trust new_trust_a.(0) in
@@ -1068,7 +1102,8 @@ class page
 	     between rev2 and its closest predecessor. *)
 	  let revp = Vec.get 1 revs in 
 	  let revp_id = revp#get_id in 
-	  let min_dist_to_2 = ref (Hashtbl.find edit_dist (revp_id, rev2_id)) in 
+	  let min_dist_to_2 = 
+	    ref (Hashtbl.find edit_dist (revp_id, rev2_id)) in 
 	  for i = 2 to n_revs - 1 do begin 
 	    let r = Vec.get i revs in 
 	    let r_id = r#get_id in 
@@ -1079,18 +1114,23 @@ class page
 
 	  (* Renormalizes the reputation *)
 	  let (histogram, hi_median) = db#get_histogram in 
-	  let hi_median_boost = self#compute_hi_median histogram trust_coeff.hi_median_perc_boost in
-	  let renorm_w' = rev2_weight *. ((float_of_int max_rep_val) /. hi_median_boost) ** 1.0 in 
-	  let renorm_w = max rev2_weight (min renorm_w' (float_of_int max_rep_val)) in 
+	  let hi_median_boost = 
+	    self#compute_hi_median histogram trust_coeff.hi_median_perc_boost in
+	  let renorm_w' = rev2_weight *. 
+	    ((float_of_int max_rep_val) /. hi_median_boost) ** 1.0 in 
+	  let renorm_w = max rev2_weight 
+	    (min renorm_w' (float_of_int max_rep_val)) in 
 
 	  (* If the author is not anonymous, updates the histogram *)
 	  if not_anonymous rev2_uid then begin 
 	    (* Increments the histogram according to the work of the judge *)
 	    let slot = max 0 (min 9 (int_of_float rev2_weight)) in 
 	    histogram.(slot) <- histogram.(slot) +. !min_dist_to_2; 
-	    !Online_log.online_logger#log (Printf.sprintf "\n Incrementing histogram slot %d by %f" 
+	    !Online_log.online_logger#log (Printf.sprintf 
+	      "\n Incrementing histogram slot %d by %f" 
 	      slot !min_dist_to_2);
-	    let new_hi_median' = self#compute_hi_median histogram trust_coeff.hi_median_perc in 
+	    let new_hi_median' = 
+	      self#compute_hi_median histogram trust_coeff.hi_median_perc in 
 	    new_hi_median <- max hi_median new_hi_median';
 	    (* Produces the array of differences *)
 	    delta_hist.(slot) <- !min_dist_to_2;
@@ -1101,12 +1141,14 @@ class page
 	     of the size of the recent_revision list and the union of
 	     the recent revision list, high reputation list and high
 	     trust list. *)
-	  let dynamic_rep_scaling_factor = trust_coeff.dynamic_rep_scaling n_recent_revs 
+	  let dynamic_rep_scaling_factor = 
+	    trust_coeff.dynamic_rep_scaling n_recent_revs 
 	    trust_coeff.n_revs_to_consider in
 
 	  for rev1_idx = 1 to oldest_judged_idx do begin 
 	    (* Remembers if rev1 is the first one of the page *)
-	    let rev1_is_first_page_revision = (rev1_idx = oldest_judged_idx) && include_initial_empty_rev in 
+	    let rev1_is_first_page_revision = 
+	      (rev1_idx = oldest_judged_idx) && include_initial_empty_rev in 
 	    let rev1 = Vec.get rev1_idx revs in 
 	    let rev1_uid   = rev1#get_user_id in 
 	    (* We work only on non-anonymous rev1; otherwise, there is
@@ -1273,18 +1315,24 @@ class page
 	      rev1#add_edit_quality_info delta q (new_rep -. rev1_rep) ; 
 
 	      (* For logging purposes, produces the Edit_inc line *)
-	      !Online_log.online_logger#log (Printf.sprintf "\n\nEditInc %10.0f PageId: %d Inc: %.4f Capd_inc: %.4f q: %.4f Delta: %.2f" 
+	      !Online_log.online_logger#log (Printf.sprintf 
+		"\n\nEditInc %10.0f PageId: %d Inc: %.4f Capd_inc: %.4f q: %.4f Delta: %.2f" 
 		(* time and page id *)
 		rev2_time page_id rep_inc (new_rep -. rev1_rep) q delta);
 	      (* revision and user ids *)
-	      !Online_log.online_logger#log (Printf.sprintf "\n  rev_c2: %d uid_c2: %d uname_c2: %S rev_c2_rep: %.3f" 
+	      !Online_log.online_logger#log (Printf.sprintf 
+		"\n  rev_c2: %d uid_c2: %d uname_c2: %S rev_c2_rep: %.3f" 
 		r_c2_id r_c2_uid r_c2_username r_c2_rep); 
-	      !Online_log.online_logger#log (Printf.sprintf "\n  rev1: %d uid1: %d uname1: %S r1_rep: %.3f Nixed: %B" 
+	      !Online_log.online_logger#log (Printf.sprintf 
+		"\n  rev1: %d uid1: %d uname1: %S r1_rep: %.3f Nixed: %B" 
 		rev1_id rev1_uid rev1_uname rev1_rep rev1#get_nix); 
-	      !Online_log.online_logger#log (Printf.sprintf "\n  rev2: %d uid2: %d uname2: %S r2_rep: %.3f w2_renorm: %.3f" 
+	      !Online_log.online_logger#log (Printf.sprintf 
+		"\n  rev2: %d uid2: %d uname2: %S r2_rep: %.3f w2_renorm: %.3f" 
 		rev2_id rev2_uid rev2_uname rev2_rep renorm_w); 
-	      !Online_log.online_logger#log (Printf.sprintf "\n  d_c1_1: %.2f d_c2_1: %.2f d_c2_2: %.2f d12: %.2f rev_1_to_2_time: %.3f\n"
-		delta d_c2_1 d_c2_2 d12 ((rev2_time -. rev1_time) /. (3600. *. 24.))); 
+	      !Online_log.online_logger#log (Printf.sprintf 
+		"\n  d_c1_1: %.2f d_c2_1: %.2f d_c2_2: %.2f d12: %.2f rev_1_to_2_time: %.3f\n"
+		delta d_c2_1 d_c2_2 d12 
+		((rev2_time -. rev1_time) /. (3600. *. 24.))); 
 	    end (* rev1 is by non_anonymous *)
 	  end done (* for rev1_idx *)
 	end (* If the voter is not a bot *)
@@ -1311,10 +1359,6 @@ class page
 	match work_revision_opt with
 	  None -> raise Missing_work_revision
 	| Some r -> if r#needs_coloring then begin
-	    (* Reads the page sigs *)
-	    page_sigs <- db#read_page_sigs page_id; 
-	    (* Reads the deleted chunks. *)
-	    del_chunks_list <- db#read_page_chunks page_id;
 	    (* This is the main transaction body.  We do in this body the
 	       computation that needs to be consistent for a page. *)
 	    while !n_attempts < n_retries do begin 
@@ -1322,23 +1366,38 @@ class page
 		
 		db#start_transaction;
 
-		(* Reads the page information. *)
-		begin try
-		  let (pinfo, bid) = db#read_page_info page_id in
-		  page_info <- pinfo;
-		  open_page_blob_id <- bid;
-		with Online_db.DB_Not_Found -> begin
-		  db#init_page page_id;
-		  open_page_blob_id <- blob_locations.initial_location;
-		end end;
-
+		(* Reads the page information, unless we are using
+		   the running information. *)
+		begin
+		  match running_page_info with
+		    None -> begin
+		      (* Reads from disk. *)
+		      page_sigs <- db#read_page_sigs page_id; 
+		      del_chunks_list <- db#read_page_chunks page_id;
+		      begin try
+			let (pinfo, bid) = db#read_page_info page_id in
+			page_info <- pinfo;
+			open_page_blob_id <- bid;
+		      with Online_db.DB_Not_Found -> begin
+			db#init_page page_id;
+			open_page_blob_id <- blob_locations.initial_location;
+		      end end
+		    end
+		  | Some running_info -> begin
+		      (* Uses the running information. *)
+		      page_info <- running_info.run_page_info;
+		      page_sigs <- running_info.run_sigs;
+		      del_chunks_list <- running_info.run_chunks;
+		    end
+		end;
 		(* Reads the previous revisions *)
 		self#read_page_revisions_edit; 
 		
 		(* Computes the edit distances *)
 		!Online_log.online_logger#log "   Computing edit lists...\n";
 		self#compute_edit_lists; 
-		(* Computes, and writes to disk, the trust of the newest revision *)
+		(* Computes, and writes to disk, the trust of the
+		   newest revision *)
 		!Online_log.online_logger#log "   Computing trust...\n";
 		self#compute_trust;
 		
@@ -1349,21 +1408,33 @@ class page
 		(* Inserts the revision in the list of high rep or high
 		   trust revisions, and deletes old signatures *)
 		self#insert_revision_in_lists;
-		(* We write to disk the page information *)
-		db#write_page_info page_id page_info;
-		db#write_page_chunks page_id del_chunks_list;
 		
 		(* We write back to disk the information of all revisions *)
-		!Online_log.online_logger#log "   Writing the quality information...\n";
+		!Online_log.online_logger#log 
+		  "   Writing the quality information...\n";
 		let f r = r#write_quality_to_db in 
 		Vec.iter f revs;
 		
-		(* We write to disk the page sigs. *)
-		db#write_page_sigs page_id page_sigs;
-		
+		(* Updates the running page information. *)
+		begin
+		  match running_page_info with 
+		    None -> begin
+		      (* We write to disk the page information *)
+		      db#write_page_info page_id page_info;
+		      db#write_page_chunks page_id del_chunks_list;
+		      db#write_page_sigs page_id page_sigs;
+		    end
+		  | Some running_info -> begin
+		      (* We update the running page info. *)
+		      running_info.run_page_info <- page_info;
+		      running_info.run_chunks <- del_chunks_list;
+		      running_info.run_sigs <- page_sigs;
+		    end
+		end;
+
+		(* Commits the transaction. *)
 		db#commit;
 		n_attempts := n_retries
-		  
 	      end (* try: this is the end of the main transaction *)
 	      with Online_db.DB_TXN_Bad -> begin 
 		(* Roll back *)
@@ -1424,18 +1495,32 @@ class page
 	  try 
 	    db#start_transaction;
 	    !Online_log.online_logger#log "Start vote for revision...\n";
-	    (* Reads the page information. *)
-	    begin try
-	      let (pinfo, bid) = db#read_page_info page_id in
-	      page_info <- pinfo;
-	      open_page_blob_id <- bid;
-	    with Online_db.DB_Not_Found -> begin
-	      db#init_page page_id;
-	      open_page_blob_id <- blob_locations.initial_location;
-	    end end;
-	    (* Reads the page sigs *)
-	    page_sigs <- db#read_page_sigs page_id; 
-	    (* Reads the page information and the revision *)
+	    (* Reads the page information, unless we are using
+	       the running information. *)
+	    begin
+	      match running_page_info with
+		None -> begin
+		  (* Reads from disk. *)
+		  page_sigs <- db#read_page_sigs page_id; 
+		  (* We don't need to read the deleted chunks list. *)
+		  begin try
+		    let (pinfo, bid) = db#read_page_info page_id in
+		    page_info <- pinfo;
+		    open_page_blob_id <- bid;
+		  with Online_db.DB_Not_Found -> begin
+		    db#init_page page_id;
+		    open_page_blob_id <- blob_locations.initial_location;
+		  end end
+		end
+	      | Some running_info -> begin
+		  (* Uses the running information. *)
+		  page_info <- running_info.run_page_info;
+		  page_sigs <- running_info.run_sigs;
+		  del_chunks_list <- running_info.run_chunks;
+		end
+	    end;
+
+	    (* Reads the previous revisions. *)
 	    self#read_page_revisions_vote; 
 	    (* Increases the trust of the revision, and writes the 
 	       results back to disk *)
@@ -1443,10 +1528,24 @@ class page
 	    (* Inserts the revision in the list of high rep or high
 	       trust revisions, and deletes old signatures *)
 	    self#insert_revision_in_lists;
-	    (* We write to disk the page information *)
-	    db#write_page_info page_id page_info;
-	    (* We write to disk the page sigs. *)
-	    db#write_page_sigs page_id page_sigs;
+	    (* We write to disk the page information. *)
+
+	    (* Updates the running page information. *)
+	    begin
+	      match running_page_info with 
+		None -> begin
+		  (* We write to disk the page information *)
+		  db#write_page_info page_id page_info;
+		  (* No need to write the deleted chunks. *)
+		  db#write_page_sigs page_id page_sigs;
+		end
+	      | Some running_info -> begin
+		  (* We update the running page info. *)
+		  running_info.run_page_info <- page_info;
+		  (* No need to update the deleted chunks. *)
+		  running_info.run_sigs <- page_sigs;
+		end
+	    end;
 
 	    (* Commits *)
 	    db#commit;

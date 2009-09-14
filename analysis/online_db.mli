@@ -88,6 +88,11 @@ class db :
   object
 
     (* ================================================================ *)
+    (* General methods *)
+    (* Gets the colored base path. *)
+    method get_base_path : string option
+
+    (* ================================================================ *)
     (* Disconnect *)
     method close : unit 
 
@@ -166,6 +171,18 @@ class db :
 
 
     (* ================================================================ *)
+    (* Blob methods. *)
+
+    (** [read_blob page_id blob_id] reads the blob for page_id and blob_id,
+	either from the database, or from the filesystem, and returns it. *)
+    method read_blob : int -> int -> string option
+
+    (** [write_blob page_id blob_id blob_content] writes the blob [blob_content]
+	for [page_id], [blob_id] to either the filesystem or the database. *)
+    method write_blob : int -> int -> string -> unit 
+
+
+    (* ================================================================ *)
     (* Page methods.  We assume we have a lock on the page when calling
        these methods. *)
 
@@ -199,8 +216,15 @@ class db :
 	the article, but has been deleted.  *)
     method write_page_chunks : int -> (chunk_t list) -> unit
       
-    (** [read_page_chunks page_id] returns the chunk list for page [page_id]. *)
+  (** [read_page_chunks page_id] returns the chunk list for page [page_id]. 
+      If the chunks cannot be found, returns the empty list: this happens
+      for new pages. *)
     method read_page_chunks : int -> chunk_t list
+
+  (** [write_open_blob_id page_id blob_id] writes on the wikitrust_page table that
+      the open blob for [page_id] is [blob_id]. *)
+  method write_open_blob_id : int -> int -> unit
+
 
     (* Signature methods. *)
 
@@ -249,11 +273,14 @@ class db :
       and origin information. [page_id] and [rev_id] are as usual. 
       [blob_id_opt] specifies the blob in which the information should
       be written, if known.  Otherwise, the information is written in 
-      [page_open_blob] blob.  The function returns the blob in which 
-      the revision was written (this coincides with the content
-      of [blob_id_opt] when the latter is not null). *)
+      [page_open_blob] blob.  The function returns a pair, consisting of:
+      - The blob in which the revision was written 
+        (this coincides with the content of [blob_id_opt] when the latter 
+        is not null). 
+      - The new open blob for the page (this may coincide with the old
+        open blob, of course). *)
     method write_colored_markup :
-      int -> int -> int option -> int -> string -> int
+      int -> int -> int option -> int -> string -> (int * int)
 
     (** [read_colored_markup rev_id blob_id_opt] reads the text markup
 	of a revision with id [rev_id].  The markup is the text of the
@@ -290,10 +317,6 @@ class db :
     method delete_author_sigs : int -> int -> page_sig_t -> unit
 
     (* Methods on standard revisions *)
-
-    (** [fetch_rev_timestamp rev_id] returns the timestamp of revision
-	[rev_id] *)
-    method fetch_rev_timestamp : int -> timestamp_t
 
     (** [get_rev_text page_id rev_id text_id] returns the text associated with
 	text id [text_id] for revision [rev_id] *)

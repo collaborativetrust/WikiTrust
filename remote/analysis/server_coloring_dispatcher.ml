@@ -136,7 +136,7 @@ let process_page (page_id: int) (page_title: string) =
     trust_coeff !times_to_retry_trans each_event_delay every_n_events_delay 
     !robots in
   (* Brings the page up to date.  This will take care also of the page lock. *)
-  processor#update_page new_page_id;
+  processor#update_page_fast new_page_id;
   (* Marks the page as processed. *)
   child_db#mark_page_as_processed new_page_id;
   (* End of page processing. *)
