@@ -275,15 +275,11 @@ Follow these instructions in place of step 2) above.
         Which are available from
         http://www.janestcapital.com/ocaml/index.html .
 
-2b) You need to obtain OcamlLdaLibs.  You can get them from 
-    http://ocamlldalibs.sourceforge.net as either a tarball,
-    or via git:
-        $ git clone git://ocamlldalibs.git.sourceforge.net/gitroot/ocamlldalibs
-
-2c) Make OcamlLdaLibs and install them.  
+2b) You need to obtain OcamlLdaLibs.  You can get it from 
+    http://github.com/collaborativetrust/OcamlLdaLibs
     First, do:
 
-        $ cd ocamlldalibs
+        $ cd OcamlLdaLibs
 
     Then, there are various cases:
 
@@ -296,19 +292,9 @@ Follow these instructions in place of step 2) above.
     - If you did not use godi, and you need sudo to install Ocaml libraries:
         $ make all-sudo
 
-2d) Get the WikiTrust code using git:
-
-      $ cd /var/lib/mediawiki/extensions
-      $ git clone git://wikitrust.git.sourceforge.net/gitroot/wikitrust
-      $ mv wikitrust WikiTrust
-
-2e) Compile the code.  There are various branches of git available,
-    and by default you are in the master branch, which is fine. 
-    Look at the web documentation to see if you prefer any other
-    branch.  If you want to go, e.g., in the development branch, do:
-
-      $ git checkout development
-
+2c) Go in the extensions directory of MediaWiki, and get the WikiTrust
+    code (as a tarball, or via git) from 
+    http://github.com/collaborativetrust/WikiTrust
     You can compile the code with:
 
       $ cd WikiTrust
