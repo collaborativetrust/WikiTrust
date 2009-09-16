@@ -61,14 +61,17 @@ open Online_types
 
 (* evry batch corresponds to 50 revisions, so this will do 1000 at most. *)
 let max_batches_to_do = 20
-let max_concurrent_procs = 1
+let max_concurrent_procs = ref 1
+let set_max_concurrent_procs m = max_concurrent_procs := m 
 let sleep_time_sec = 1
-let custom_line_format = [] @ command_line_format
+let custom_line_format = [
+  ("-concur_procs", Arg.Int set_max_concurrent_procs, "<int>: Number of pages to process in parellel.")
+] @ command_line_format
 
 let _ = Arg.parse custom_line_format noop "Usage: dispatcher";;
 
 (* Store the active sub-processes *)
-let working_children = Hashtbl.create max_concurrent_procs
+let working_children = Hashtbl.create !max_concurrent_procs
 
 (* Prepares the database connection information *)
 let mediawiki_db = {
@@ -180,12 +183,12 @@ in
 *)
 let main_loop () =
   while true do
-    if (Hashtbl.length working_children) >= max_concurrent_procs then begin
+    if (Hashtbl.length working_children) >= !max_concurrent_procs then begin
       (* Cleans up terminated children, if any *)
       Hashtbl.iter check_subprocess_termination working_children
     end else begin
       let pages_to_process = db#fetch_work_from_queue
-	      (max (max_concurrent_procs - Hashtbl.length working_children) 0) 
+	      (max (!max_concurrent_procs - Hashtbl.length working_children) 0) 
 	      !times_to_retry_trans
       in
         dispatch_page pages_to_process
