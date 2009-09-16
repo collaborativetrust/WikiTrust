@@ -864,22 +864,28 @@ object(self)
       (ml2int page.page_len) 
       (ml2int page.page_latest)
     in
-    ignore(self#db_exec mediawiki_dbh s);
-    self#init_page page.page_id (Some page.page_title)
+      ignore(self#db_exec mediawiki_dbh s);
+      self#init_page page.page_id (Some page.page_title)
+
+  (*
+    Actually puts the text in the db, or on the filesystem.
+  *)
+  method private write_revision_text (rev : wiki_revision_t) =
+    begin
+      match rev_base_path with
+	        None ->
+	          let s = Printf.sprintf "INSERT INTO %stext (old_id, old_text, old_flags) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE old_flags = %s" db_prefix (ml2int rev.revision_id) (ml2str rev.revision_content) (ml2str "utf8") (ml2str "utf8") in
+	            ignore (self#db_exec mediawiki_dbh s)
+        | Some b ->
+	          Filesystem_store.write_revision b 
+	            rev.revision_page rev.revision_id rev.revision_content;
+    end
 
   (** [write_revision revision_to_add] adds the given data to the
       revision and text tables of the database.  It can be used to
       import data from the mediawiki api and store it locally.  *)
   method write_revision (rev : wiki_revision_t) = 
-    begin
-      match rev_base_path with
-	None ->
-	  let s = Printf.sprintf "INSERT INTO %stext (old_id, old_text, old_flags) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE old_flags = %s" db_prefix (ml2int rev.revision_id) (ml2str rev.revision_content) (ml2str "utf8") (ml2str "utf8") in
-	  ignore (self#db_exec mediawiki_dbh s)
-      | Some b ->
-	  Filesystem_store.write_revision b 
-	    rev.revision_page rev.revision_id rev.revision_content;
-    end;
+    self#write_revision_text(rev);
     (* And then the revision metadata. *)
     let s = Printf.sprintf "INSERT INTO %srevision (rev_id, rev_page, rev_text_id, rev_comment, rev_user, rev_user_text, rev_timestamp, rev_minor_edit, rev_deleted, rev_len, rev_parent_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE rev_len = %s" 
       db_prefix 
@@ -949,6 +955,11 @@ object(self)
     max_size_per_blob max_revs_per_blob debug_mode
     as super 
 
+  (** Puts the text in the text cache, and the rest in the db using the 
+      super method *)
+  method private write_revision_text (rev : wiki_revision_t) =
+    let s = Printf.sprintf "INSERT INTO %swikitrust_text_cache (revision_id, page_id, time_string, revision_text) VALUES (%s, %s, %s, %s) ON DUPLICATE KEY UPDATE time_string = %s" db_prefix (ml2int rev.revision_id) (ml2int rev.revision_page) (ml2str rev.revision_timestamp) (ml2str rev.revision_content) (ml2str rev.revision_timestamp) in
+	    ignore (self#db_exec mediawiki_dbh s);
 
   (** [get_rev_text page_id text_id] returns the text associated with
       text id [text_id].  This method first tries to read the revision
@@ -958,20 +969,26 @@ object(self)
     let s = Printf.sprintf "SELECT revision_text FROM %swikitrust_text_cache WHERE revision_id = %s"
       db_prefix (ml2int rev_id) in 
     let result = self#db_exec mediawiki_dbh s in
-    match Mysql.fetch result with 
-      None -> begin 
-	(* Tries to read the revision using the exec API *)
-	(* NO: this is a bad idea.  Just say that the text can't be found, and make sure
-	   the dispatcher knows that the page is not fully updated. Luca, fix this. *)
-	super#read_rev_text page_id rev_id text_id
-	(* TODO(Bo): need to switch to true execAPI
-	 * let cmdline = Printf.sprintf "%sread_rev_text -log_file /dev/null -rev_id %d" "" rev_id in
-	 * get_cmd_output cmdline
-	 *)
-      end
-    | Some r -> not_null str2ml r.(0)
-
-
+      match Mysql.fetch result with 
+          None -> begin 
+          (* No -- actally, just do the getting via WmAPI -- issue of getting 
+             via page_title too annoying *)
+            
+	          (* Tries to read the revision using the exec API *)
+	          (* NO: this is a bad idea.  
+               Ian: why?
+               Just say that the text can't be found, and make sure
+	             the dispatcher knows that the page is not fully updated. 
+               Luca, fix this. 
+            *)
+            
+	          (*super#read_rev_text page_id rev_id text_id *)
+	          (* TODO(Bo): need to switch to true execAPI *)
+	          let cmdline = Printf.sprintf "%sread_rev_text -log_file /dev/null -rev_id %d" "" rev_id in
+	            get_cmd_output cmdline
+          end
+        | Some r -> not_null str2ml r.(0)
+            
   (** [erase_cached_rev_text page_id rev_id rev_time_string] erases
       the cached text of all revisions of [page_id] prior and
       including the ones for [rev_id] and [rev_time_string]. *)

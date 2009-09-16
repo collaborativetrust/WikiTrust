@@ -71,25 +71,14 @@ sub handler {
   return Apache2::Const::OK;
 }
 
-
+# To fix atomicity errors, wrapping this in a procedure.
 sub mark_for_coloring {
   my ($page, $page_title, $dbh) = @_;
-  my $select_sth = $dbh->prepare(
-    "SELECT page_title FROM wikitrust_queue WHERE page_title = ? AND"
-    . " processed <> 'processed'"
+
+  my $sth = $dbh->prepare(
+    "CALL wikitrust_add2queue(?,?)"
   ) || die $dbh->errstr;
-  # This doesn't seem safe.  What if another entry appears and gets
-  # marked as 'processing' between these two statements.  This could
-  # lead to multiple eval_online_wiki processes running, I think.
-  my $ins_sth = $dbh->prepare(
-    "INSERT INTO wikitrust_queue (page_id, page_title) VALUES (?, ?) " 
-    . "ON DUPLICATE KEY UPDATE requested_on = now(), processed = 'unprocessed'"
-  ) || die $dbh->errstr;
-  $select_sth->execute(($page_title)) || die $dbh->errstr;
-  if (!($select_sth->fetchrow_arrayref())){
-    $ins_sth->execute(($page, $page_title)) || die $dbh->errstr;
-  }
-  #Not a transaction right now! old code: $dbh->commit;
+  $sth->execute(($page, $page_title)) || die $dbh->errstr;
 }
 
 sub handle_vote {
