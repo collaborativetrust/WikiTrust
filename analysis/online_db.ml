@@ -1028,8 +1028,8 @@ let create_db
     (max_revs_per_blob: int)
     (debug_mode : bool) =
   if use_exec_api
-  then new db db_prefix mediawiki_dbh db_name rev_base_path 
-    colored_base_path max_size_per_blob max_revs_per_blob debug_mode
-  else new db_exec_api db_prefix mediawiki_dbh db_name rev_base_path 
-    colored_base_path max_size_per_blob max_revs_per_blob debug_mode
+  then (new db_exec_api db_prefix mediawiki_dbh db_name rev_base_path 
+    colored_base_path max_size_per_blob max_revs_per_blob debug_mode)
+  else (new db db_prefix mediawiki_dbh db_name rev_base_path 
+    colored_base_path max_size_per_blob max_revs_per_blob debug_mode)
 
