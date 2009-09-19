@@ -48,14 +48,14 @@ sub handler {
 	$pageid = $cgi->param('page') || 0;
 	$title = $cgi->param('page_title') || '';
 	$revid = $cgi->param('rev') || -1;
-	$time = $cgi->param('time') || '';
+	$time = $cgi->param('time') || scalar(localtime);
 	$userid = $cgi->param('user') || -1;
     } else {
 	# new parameter names
 	$pageid = $cgi->param('pageid') || 0;
 	$title = $cgi->param('title') || '';
 	$revid = $cgi->param('revid') || -1;
-	$time = $cgi->param('time') || '';
+	$time = $cgi->param('time') || scalar(localtime);
 	$userid = $cgi->param('userid') || -1;
     }
 
