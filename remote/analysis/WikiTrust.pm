@@ -61,7 +61,7 @@ sub handler {
 
     throw Error::Simple("Bad method: $method") if !exists $methods{$method};
     my $func = $methods{$method};
-    $result = $func->($revid, $pageid, $userid, $time, $title, $dbh);
+    $result = $func->($revid, $pageid, $userid, $time, $title, $dbh, $cgi);
   } otherwise {
     my $E = shift;
     print STDERR $E;
@@ -69,6 +69,13 @@ sub handler {
   $r->content_type('text/plain');
   $r->print($result);
   return Apache2::Const::OK;
+}
+
+sub secret_okay {
+    my $cgi = shift @_;
+    my $secret = $cgi->param('secret') || '';
+    my $true_secret = $ENV{WT_SECRET} || '';
+    return ($secret eq $true_secret);
 }
 
 # To fix atomicity errors, wrapping this in a procedure.
@@ -82,7 +89,10 @@ sub mark_for_coloring {
 }
 
 sub handle_vote {
-  my ($rev, $page, $user, $time, $page_title, $dbh) = @_;
+  my ($rev, $page, $user, $time, $page_title, $dbh, $cgi) = @_;
+
+  # can't trust non-verified submitters
+  $user = 0 if !secret_okay($cgi);
 
   my $sth = $dbh->prepare("INSERT INTO wikitrust_vote (revision_id, page_id, "
     . "voter_id, voted_on) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE "
@@ -188,13 +198,15 @@ sub fetch_colored_markup {
 }
 
 sub handle_edit {
-  my ($rev, $page, $user, $time, $page_title, $dbh) = @_;
+  my ($rev, $page, $user, $time, $page_title, $dbh, $cgi) = @_;
+  # since we still need to download actual text,
+  # it's safe to not verify the submitter
   mark_for_coloring($page, $page_title, $dbh);
   return "good"
 }
 
 sub handle_gettext {
-  my ($rev, $page, $user, $time, $page_title, $dbh) = @_;
+  my ($rev, $page, $user, $time, $page_title, $dbh, $cgi) = @_;
   
   my $result = fetch_colored_markup($page, $rev, $dbh);
   if ($result eq NOT_FOUND_TEXT_TOKEN){
