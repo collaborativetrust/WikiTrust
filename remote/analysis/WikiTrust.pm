@@ -124,10 +124,11 @@ sub get_median {
 
 sub util_getRevFilename {
   my ($pageid, $blobid) = @_;
-  my $page_str = sprintf("%012d", $pageid);
-  my $blob_str = sprintf("%09d", $blobid);
   my $path = $ENV{WT_COLOR_PATH};
   return undef if !defined $path;
+
+  my $page_str = sprintf("%012d", $pageid);
+  my $blob_str = sprintf("%09d", $blobid);
 
   for (my $i = 0; $i <= 3; $i++){
     $path .= "/" . substr($page_str, $i*3, 3);
