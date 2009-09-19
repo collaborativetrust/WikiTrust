@@ -149,10 +149,10 @@ sub util_extractFromBlob {
     if ($1 == $rev_id){
       $offset = $2;
       $size = $3;
+      return substr($parts[1], $offset, $size);
     }
   }
-
-  return substr($parts[1], $offset, $size);
+  throw Error::Simple("Unable to find $rev_id in blob");
 }
 
 sub fetch_colored_markup {
