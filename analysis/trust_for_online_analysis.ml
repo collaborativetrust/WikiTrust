@@ -283,8 +283,9 @@ object(self)
       let info_string_db = ml2str 
 	(string_of__of__sexp_of sexp_of_page_info_t page_info) in 
       Printf.fprintf sql_file "INSERT INTO %swikitrust_page (page_id, page_info, last_blob) VALUES (%s, %s, %s);\n"
-	db_prefix (ml2int page_id) info_string_db (ml2int open_blob_id)
-
+	db_prefix (ml2int page_id) info_string_db (ml2int open_blob_id);
+      Printf.fprintf sql_file "COMMIT\n"
+	
 
     (** This method writes the chunks to their own blob. *)
     method private write_chunks : unit = 
