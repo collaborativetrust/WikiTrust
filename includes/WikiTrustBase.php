@@ -375,8 +375,12 @@ if (1) {
     
     $output = "";
     if ($wgWikiTrustShowMouseOrigin){
+      # Need to escape single quotes
+      $matches[3]= str_replace("'", "\\'",$matches[3]);
+      $matches[3]= str_replace("&apos;", "\\'",$matches[3]);
+      $matches[3]= str_replace("&#39;", "\\'",$matches[3]);
       $output = "<span class=\"$class\"" 
-        . " onmouseover=\"Tip('".str_replace("&#39;","\\'",$matches[3])
+        . " onmouseover=\"Tip('".$matches[3]
         ."')\" onmouseout=\"UnTip()\""
         . " onclick=\"showOrigin(" 
         . $matches[2] . ")\">" . $matches[4]
