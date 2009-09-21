@@ -301,8 +301,8 @@ if (1) {
     global $wgParser, $wgUser, $wgTitle;
     $count = 0;
 
-    // fix trust tags around categories/templates
-    $colored_text = preg_replace_callback("/\{\{#t:(\d+),(\d+),([^}]+)\}\}\s*\[\[([^\]]++.*?)\]\]\s*(?=\{\{#t:|$)/D",
+    // fix trust tags around links
+    $colored_text = preg_replace_callback("/\{\{#t:(\d+),(\d+),([^}]+)\}\}\s*\[\[([^\]]+)\]\]\s*(?=\{\{#t:|$)/D",
 				"WikiTrust::regex_fixBracketTrust",
 				$colored_text,
 				-1,
