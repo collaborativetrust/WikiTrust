@@ -170,7 +170,7 @@ object(self)
       let uid = rev#get_user_id in 
       let rev_time = rev#get_time in 
       (* Gets the reputation of the author of the current revision *)
-      let rep = rep_histories#get_rep uid rev_time in 
+      let weight = rep_histories#get_precise_weight uid in 
       let new_wl = rev#get_words in 
       (* Calls the function that analyzes the difference 
          between revisions. Data relative to the previous revision
@@ -199,11 +199,10 @@ object(self)
       in
 	
       (* Computes the trust, and the sigs *)
-      let rep_float = float_of_int rep in 
       let (new_chunks_trust_a, new_chunks_sig_a) = 
 	Compute_robust_trust.compute_robust_trust
 	  chunks_trust_a chunks_sig_a new_chunks_a 
-	  rev#get_seps medit_l rep_float uid 
+	  rev#get_seps medit_l weight uid 
 	  trust_coeff_lends_rep trust_coeff_kill_decrease 
 	  trust_coeff_cut_rep_radius read_all read_part 
 	  trust_coeff_local_decay 

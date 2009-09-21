@@ -353,7 +353,7 @@ class page
 
 
     (** Computes the weight of a reputation *)
-    method private weight (r: float) : float = log (1.2 +. r)
+    method private weight (r: float) : float = log (1.1 +. r)
 
 
     (** [insert_revision_in_lists] inserts the revision in the list of
