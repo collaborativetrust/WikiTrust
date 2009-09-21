@@ -111,25 +111,6 @@ CREATE INDEX " . $wgDBprefix . "wikitrust_text_cache ON "
 
 $create_index_scripts[$wgDBprefix . "revision"]['wt_revision_id_timestamp_idx'] = "CREATE INDEX wt_revision_id_timestamp_idx ON " . $wgDBprefix . "revision (rev_id, rev_timestamp)";
 
-$create_scripts[$wgDBprefix.'wikitrust_queue_sp'] = array("
-DELIMITER ;
-
-DROP PROCEDURE IF EXISTS ".$wgDBprefix."wikitrust_add2queue;
-DELIMITER $$
-
-CREATE PROCEDURE ".$wgDBprefix."wikitrust_add2queue(in_page_id INT, in_page_title VARCHAR(255))
-BEGIN
-    DECLARE pid INT;
-    SELECT page_id FROM " . $wgDBprefix . "wikitrust_queue WHERE page_title = in_page_title AND processed <> 'processed' INTO pid;
-    IF ISNULL(pid) THEN
-      INSERT INTO " . $wgDBprefix . "wikitrust_queue (page_id, page_title) VALUES (in_page_id, in_page_title) ON DUPLICATE KEY UPDATE requested_on = now(), processed = 'unprocessed';
-    END IF;
-END$$
-DELIMITER ;
-","
-GRANT EXECUTE ON PROCEDURE ON ".$wgDBprefix."wikitrust_add2queue TO '$wgDBuser'", "
-);
-
 $remove_scripts[$wgDBprefix.'wikitrust_vote'] = array("DROP TABLE ".$wgDBprefix."wikitrust_vote");
 $remove_scripts[$wgDBprefix.'wikitrust_global'] = array("DROP TABLE ".$wgDBprefix."wikitrust_global");
 $remove_scripts[$wgDBprefix.'wikitrust_page'] = array("DROP TABLE ".$wgDBprefix."wikitrust_page");
