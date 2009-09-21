@@ -68,11 +68,12 @@ class WikiTrust extends WikiTrustBase {
 
   static function color_parseWiki($colored_text, &$options)
   {
-    global $wgWikiTrustApiURL;
+    global $wgWikiTrustApiURL, $wgTitle;
     $raw_text = self::file_post_contents($wgWikiTrustApiURL 
-			 ."action=parse"
-			 ."&format=json"
-       ."&text=".urlencode($colored_text));
+			."action=parse"
+			."&title=".urlencode($wgTitle)
+			."&format=json"
+			."&text=".urlencode($colored_text));
     $body = json_decode(array_pop(explode("\n", $raw_text)), true);
     $text = $body["parse"]["text"]["*"];
  
