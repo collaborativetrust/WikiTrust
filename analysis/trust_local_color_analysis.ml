@@ -75,7 +75,7 @@ class page
       let uid = rev#get_user_id in 
       let rev_time = rev#get_time in 
       (* Gets the reputation of the author of the current revision *)
-      let rep = rep_histories#get_rep uid rev_time in 
+      let weight = rep_histories#get_weight uid rev_time in 
       let new_wl = rev#get_words in 
       (* Calls the function that analyzes the difference 
          between revisions. Data relative to the previous revision
@@ -83,7 +83,7 @@ class page
       let (new_chunks_a, medit_l) = Chdiff.text_tracking chunks_a new_wl in 
       (* Constructs new_chunks_trust_a, which contains the trust of each word 
 	 in the text (both live text, and dead text). *)
-      let rep_float = float_of_int rep in 
+      let weight_float = float_of_int weight in 
 
       (* Fixes the coefficients of trust incease depending on whether
 	 the user is a bot... *)
@@ -109,7 +109,7 @@ class page
       let (new_chunks_trust_a, new_chunks_authorsig_a) = 
 	Compute_robust_trust.compute_robust_trust 
 	  chunks_trust_a chunks_authorsig_a new_chunks_a rev#get_seps medit_l
-	  rep_float uid trust_coeff_lends_rep trust_coeff_kill_decrease 
+	  weight_float uid trust_coeff_lends_rep trust_coeff_kill_decrease 
 	  trust_coeff_cut_rep_radius read_all 
 	  read_part trust_coeff_local_decay in 
 

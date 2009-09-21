@@ -508,7 +508,7 @@ let compute_overall_trust (trust_a: float array) : float =
 let compute_trust_histogram (trust_a: float array) : int array =
   let histogram = Array.make 10 0 in
   let inc_histogram (f: float) = 
-    let idx = max 0 (min 9 (int_of_float f)) in
+    let idx = max 0 (min 9 (int_of_float (f +. 0.5))) in
     histogram.(idx) <- histogram.(idx) + 1
   in Array.iter inc_histogram trust_a;
   histogram

@@ -89,7 +89,7 @@ class page
       let uid = new_rev#get_user_id in 
       let t = new_rev#get_time in 
       (* Gets the reputation of the author of the current revision *)
-      let rep = rep_histories#get_rep uid t in 
+      let rep = rep_histories#get_weight uid t in 
       let new_wl = new_rev#get_words in 
       (* Calls the function that analyzes the difference 
          between revisions. Data relative to the previous revision

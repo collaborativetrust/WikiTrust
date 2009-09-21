@@ -49,7 +49,7 @@ let include_anon = ref false
 let do_monthly = ref false
 let do_cumulative = ref false 
 let do_localinc = ref false
-let gen_exact_rep = ref false
+let gen_exact_rep = ref true (* We generate it exact by default. *)
 let use_reputation_cap = ref false
 let use_weak_nix = ref false
 let use_nix = ref false
@@ -113,8 +113,6 @@ let command_line_format =
   "Include user domains for anonymous users in computing reputation");
   ("-ip_nbytes", Arg.Int set_ip_nbytes, 
   "<n>: generate user ids using the first n bytes of their ip address. n should be in [1,4]");
-  ("-gen_exact_rep", Arg.Set (gen_exact_rep),
-  "Generate an extra column in the user reputation file with exact reputation values");
   ("-use_reputation_cap", Arg.Set use_reputation_cap, "Use reputation cap.");
   ("-use_weak_nix", Arg.Set use_weak_nix, 
   "Use nix by any reputation (low rep can nix high rep).");
