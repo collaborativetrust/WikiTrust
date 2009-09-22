@@ -20,6 +20,7 @@ our %methods = (
 	'edit' => \&handle_edit,
 	'vote' => \&handle_vote,
 	'gettext' => \&handle_gettext,
+	'wikiorhtml' => \&handle_wikiorhtml,
     );
 
 
@@ -223,6 +224,11 @@ sub handle_gettext {
 
   # Text may or may not have been found, but it's all the same now.
   return $result;
+}
+
+sub handle_wikiorhtml {
+  # For now, we only return Wiki markup
+  return 'W'.handle_gettext(@_);
 }
 
 1;
