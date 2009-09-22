@@ -53,7 +53,6 @@ class revision
   (user_id: int) (* user id *)
   (username: string) (* name of the user *)
   (is_minor: bool) 
-  (comment: string)
   (quality_info_opt: qual_info_t option) (* Quality information, if known. *)
   (blob_id_opt_init: int option) (* Blob id, if known. *)
   =
@@ -325,7 +324,6 @@ class revision
 	  Online_db.rev_user = user_id; 
 	  Online_db.rev_user_text = username;
 	  Online_db.rev_is_minor = is_minor;
-	  Online_db.rev_comment = comment
 	} quality_info blob_id_opt
 	  
   end (* revision class *)
@@ -341,7 +339,6 @@ let make_revision (rev : Online_db.revision_t) db: revision =
     rev.Online_db.rev_user
     rev.Online_db.rev_user_text
     rev.Online_db.rev_is_minor
-    rev.Online_db.rev_comment
     None (* No quality information known *)
     None (* No blob_id known *)
 
@@ -359,7 +356,6 @@ let make_revision_from_cursor row db: revision =
     (not_null int2ml row.(4)) (* user id *)
     (not_null str2ml row.(5)) (* user name *)
     (set_is_minor (not_null int2ml row.(6))) (* is_minor *)
-    (not_null str2ml row.(7)) (* comment *)
     None (* No quality information known *)
     None (* No blob_id known *)
 
@@ -376,7 +372,6 @@ let read_wikitrust_revision (db: Online_db.db) (id: int) : revision =
       r_data.Online_db.rev_user
       r_data.Online_db.rev_user_text
       r_data.Online_db.rev_is_minor
-      r_data.Online_db.rev_comment
       (Some q_data)
       bid_opt
     in rev

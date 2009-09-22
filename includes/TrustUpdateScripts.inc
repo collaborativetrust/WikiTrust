@@ -54,7 +54,6 @@ CREATE TABLE ".$wgDBprefix."wikitrust_revision (
         user_id                 int, 
         username                varchar(255), 
         is_minor                tinyint(3) unsigned, 
-        comment                 tinyblob, 
         quality_info            text NOT NULL, 
         blob_id                 int NOT NULL,
         reputation_delta        float DEFAULT 0.0,

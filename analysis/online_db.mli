@@ -58,7 +58,6 @@ type revision_t = {
   rev_user: int; 
   rev_user_text: string;
   rev_is_minor: bool; 
-  rev_comment: string
 } 
 
 (** This is the type of a vote data *)

@@ -67,7 +67,6 @@ type revision_t = {
   rev_user: int; 
   rev_user_text: string; 
   rev_is_minor: bool;
-  rev_comment: string
 } 
 
 let set_is_minor ism = match ism with
@@ -85,7 +84,6 @@ let rev_row2revision_t row =
     rev_user = (not_null int2ml row.(4)); (* user id *)
     rev_user_text = (not_null str2ml row.(5)); (* user name *)
     rev_is_minor = (set_is_minor (not_null int2ml row.(6))); (* is_minor *)
-    rev_comment = (not_null str2ml row.(7)); (* comment *)
   } 
 
 (* This is the type of a vote data *)
@@ -288,7 +286,7 @@ object(self)
       | None -> ""
       | Some r_id -> Printf.sprintf "rev_id = %s OR" (ml2int r_id)
     in
-    let s = Printf. sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM %srevision WHERE %s (rev_timestamp, rev_id) > (%s, %s) %s ORDER BY rev_timestamp ASC, rev_id ASC LIMIT %s" 
+    let s = Printf. sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit FROM %srevision WHERE %s (rev_timestamp, rev_id) > (%s, %s) %s ORDER BY rev_timestamp ASC, rev_id ASC LIMIT %s" 
       db_prefix
       rr (ml2str timestamp) (ml2int rev_id) wr (ml2int max_revs_to_return) in
     Mysql.map (self#db_exec mediawiki_dbh s) rev_row2revision_t
@@ -303,7 +301,7 @@ object(self)
 	None -> ""
       | Some p_id -> Printf.sprintf "WHERE rev_page = %s" (ml2int p_id) 
     in
-    let s = Printf.sprintf  "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM %srevision %s ORDER BY rev_timestamp ASC, rev_id ASC LIMIT %s" 
+    let s = Printf.sprintf  "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit FROM %srevision %s ORDER BY rev_timestamp ASC, rev_id ASC LIMIT %s" 
       db_prefix wr (ml2int max_revs_to_return) in
     Mysql.map (self#db_exec mediawiki_dbh s) rev_row2revision_t
 
@@ -421,7 +419,7 @@ object(self)
       This function is used to read the colored revisions that precede a 
       given one. *)
   method fetch_col_revs (page_id : int) (timestamp: timestamp_t) (rev_id: int) (fetch_limit: int): Mysql.result =
-    let s = Printf.sprintf "SELECT revision_id, page_id, text_id, time_string, user_id, username, is_minor, comment FROM %swikitrust_revision WHERE page_id = %s AND (time_string, revision_id) < (%s, %s) ORDER BY time_string DESC, revision_id DESC LIMIT %s" db_prefix (ml2int page_id) (ml2timestamp timestamp) (ml2int rev_id) (ml2int fetch_limit) in 
+    let s = Printf.sprintf "SELECT revision_id, page_id, text_id, time_string, user_id, username, is_minor FROM %swikitrust_revision WHERE page_id = %s AND (time_string, revision_id) < (%s, %s) ORDER BY time_string DESC, revision_id DESC LIMIT %s" db_prefix (ml2int page_id) (ml2timestamp timestamp) (ml2int rev_id) (ml2int fetch_limit) in 
     self#db_exec mediawiki_dbh s
 
   (* Chunk methods *)
@@ -501,7 +499,7 @@ object(self)
       the quality information, and the optional blob id. *)
   method read_wikitrust_revision (revision_id: int) 
     : (revision_t * qual_info_t * int option) = 
-    let s = Printf.sprintf "SELECT revision_id, page_id, text_id, time_string, user_id, username, is_minor, comment, quality_info, blob_id FROM %swikitrust_revision WHERE revision_id = %s" db_prefix (ml2int revision_id) in 
+    let s = Printf.sprintf "SELECT revision_id, page_id, text_id, time_string, user_id, username, is_minor, quality_info, blob_id FROM %swikitrust_revision WHERE revision_id = %s" db_prefix (ml2int revision_id) in 
     let result = self#db_exec mediawiki_dbh s in 
     match fetch result with 
       None -> raise DB_Not_Found
@@ -514,7 +512,6 @@ object(self)
 	  rev_user = not_null int2ml x.(4); 
 	  rev_user_text = not_null str2ml x.(5); 
 	  rev_is_minor = set_is_minor (not_null int2ml x.(6)); 
-	  rev_comment = not_null str2ml x.(7); 
 	} in 
 	let q = of_string__of__of_sexp qual_info_t_of_sexp 
 	  (not_null str2ml x.(8)) in 
@@ -546,7 +543,7 @@ object(self)
     let user_id = ml2int revision_info.rev_user in 
     let username = ml2str revision_info.rev_user_text in 
     let is_minor = ml2int (if revision_info.rev_is_minor then 1 else 0) in 
-    let comment = ml2str revision_info.rev_comment in 
+    let comment = ml2str "" in
     (* Quality parameters *)
     let q1 = ml2str (string_of__of__sexp_of sexp_of_qual_info_t quality_info) in
     let q2 =  ml2float quality_info.reputation_gain in 
@@ -892,7 +889,7 @@ object(self)
       (ml2int rev.revision_id) 
       (ml2int rev.revision_page) 
       (ml2int rev.revision_id) 
-      (ml2str rev.revision_comment) 
+      (ml2str "") 
       (ml2int rev.revision_user) 
       (ml2str rev.revision_user_text) 
       (ml2str rev.revision_timestamp) 
