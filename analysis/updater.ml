@@ -316,9 +316,19 @@ class updater
 	    new Event_feed.event_feed db (Some page_id) None n_retries in
 	  (* Reads the page sigs, and the chunks, to build a running
 	     information for the page. *)
-	  let page_sigs = db#read_page_sigs page_id in
-	  let page_chunks = db#read_page_chunks page_id in
-	  let (pinfo, bid) = db#read_page_info page_id in
+    let (pinfo, bid, page_sigs, page_chunks) =
+	    try
+	      let (pinfo', bid') = db#read_page_info page_id in
+        let page_sigs' = db#read_page_sigs page_id in
+	      let page_chunks' = db#read_page_chunks page_id in
+          (pinfo', bid', page_sigs', page_chunks')
+      with Online_db.DB_Not_Found -> begin
+        (* Initializes the page *)
+        db#page_init page_id;
+	      let (pinfo', bid') = db#read_page_info page_id in
+        (pinfo', bid', ref [], [])
+      end
+    in
 	  (* Creates a new writer for the page. *)
 	  let writer = new Revision_writer.writer 
 	    page_id (Some bid) None (Some db) true in
