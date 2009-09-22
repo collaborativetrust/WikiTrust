@@ -81,7 +81,7 @@ class rephist
 	    let r2 = RepHistory.add t next_rep r1 in 
 	    Hashtbl.add histories user_id (ref r2)
 	  end;
-	  Hashtbl.add precise_rep user_id (log (1.1 +. rep_float))
+	  Hashtbl.add precise_rep user_id (log (1.2 +. rep_float))
 	end
       in
       begin

@@ -133,11 +133,14 @@ class writer
 	       over-write rather than add any new revision. *)
 	    begin
 	      match read_general_blob write_method page_id blob_id with
-		  (* We need to read the previous blob as well *)
+		  (* We need to read the previous blob as well, if
+		     there is one. *)
 		[] -> begin 
-		  blob_id <- blob_id - 1;
-		  blob_revisions <- 
-		    read_general_blob write_method page_id blob_id
+		  if blob_id > blob_locations.initial_location then begin
+		    blob_id <- blob_id - 1;
+		    blob_revisions <- 
+		      read_general_blob write_method page_id blob_id
+		  end
 		end
 	      | l -> blob_revisions <- l
 	    end;
