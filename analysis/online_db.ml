@@ -448,6 +448,7 @@ object(self)
   (** [write_open_blob_id page_id blob_id] writes on the wikitrust_page table that
       the open blob for [page_id] is [blob_id]. *)
   method write_open_blob_id (page_id: int) (blob_id: int) : unit =
+    assert (blob_id >= blob_locations.initial_location);
     let s = Printf.sprintf "UPDATE %swikitrust_page SET last_blob = %s WHERE page_id = %s" db_prefix (ml2int blob_id) (ml2int page_id) in
     ignore (self#db_exec mediawiki_dbh s)
 
@@ -776,7 +777,7 @@ object(self)
 
   (** [mark_page_as_processed page_id] marks that a page has ben processed. *)
   method mark_page_as_processed (page_id : int) : unit =
-    let s = Printf.sprintf "UPDATE %swikitrust_queue SET processed = 'processed' WHERE page_id = %s" db_prefix (ml2int page_id) in
+    let s = Printf.sprintf "DELETE FROM %swikitrust_queue WHERE page_id = %s" db_prefix (ml2int page_id) in
     ignore (self#db_exec mediawiki_dbh s)
 
   (** [mark_page_as_unprocessed page_id] marks that a page has not
@@ -812,6 +813,7 @@ object(self)
 	  in
 	  List.iter mark_as_processing !results;
           (* We need to end this loop. *)
+          self#commit;
           n_attempts := n_retries   
 	end with _ -> begin 
 	  (* Roll back *)
