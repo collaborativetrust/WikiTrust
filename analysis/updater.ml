@@ -325,8 +325,9 @@ class updater
 	    with Online_db.DB_Not_Found -> begin
               (* Initializes the page *)
               db#init_page page_id None;
-	      let (pinfo', bid') = db#read_page_info page_id in
-              (pinfo', bid', Online_db.empty_page_sigs, [])
+	      let (pinfo', _) = db#read_page_info page_id in
+              (pinfo', Online_types.blob_locations.initial_location, 
+	       Online_db.empty_page_sigs, [])
 	    end
 	  in
 	  (* Creates a new writer for the page. *)
