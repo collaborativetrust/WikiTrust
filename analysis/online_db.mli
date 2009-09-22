@@ -71,7 +71,7 @@ type vote_t = {
 
 (** This is the type of a signature set *)
 type page_sig_t
-val empty_page_sigs : page_sig_t
+(* Exmpty page sig should be ref [] *)
 
 (* If a signatures base path is provided, then we store: 
    At position 0: the sigs of the page.

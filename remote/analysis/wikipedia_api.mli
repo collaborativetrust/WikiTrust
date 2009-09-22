@@ -81,3 +81,7 @@ val get_revs_from_pageid : int -> int -> int ->
 val get_rev_from_revid : int ->
     (Online_types.wiki_page_t option * Online_types.wiki_revision_t list * int option)
 
+(**
+  Render the html using the wikimedia api
+*)
+val fetch_rev_api : string -> string

@@ -99,7 +99,7 @@ type vote_t = {
 (* This is the type of a set of signatures, as visible from outside.
    It is a ref type to implement imperative updates. *)
 type page_sig_t = page_sig_disk_t ref 
-let empty_page_sigs = ref []
+(* The empty page sigs should be defined as ref [] *)
 
 (* Produces the key for a signature *)
 let make_blob_key (page_id: int) (blob_id: int) : string =
@@ -864,8 +864,8 @@ object(self)
       (ml2int page.page_len) 
       (ml2int page.page_latest)
     in
-      ignore(self#db_exec mediawiki_dbh s);
-      self#init_page page.page_id (Some page.page_title)
+      ignore(self#db_exec mediawiki_dbh s)
+(*      self#init_page page.page_id (Some page.page_title) *)
 
   (*
     Actually puts the text in the db, or on the filesystem.

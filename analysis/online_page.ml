@@ -118,7 +118,7 @@ class page
       (** Open page blob for writing. *)
     val mutable open_page_blob_id = blob_locations.invalid_location
     (** Signatures for the page *)
-    val mutable page_sigs = Online_db.empty_page_sigs
+    val mutable page_sigs = ref []
     (** Information about the histogram *)
     val delta_hist = Array.make Eval_defs.max_rep_val 0.
     val mutable new_hi_median = 0.
