@@ -96,10 +96,9 @@ type vote_t = {
   vote_voter_id: int;
 }
 
-(* This is the type of a set of signatures, as visible from outside.
-   It is a ref type to implement imperative updates. *)
-type page_sig_t = page_sig_disk_t ref 
-let empty_page_sigs = ref []
+(* This is the type of a set of signatures, as visible from outside. *)
+type page_sig_t = page_sig_disk_t
+let empty_page_sigs = []
 
 (* Produces the key for a signature *)
 let make_blob_key (page_id: int) (blob_id: int) : string =
@@ -459,14 +458,14 @@ object(self)
   method read_page_sigs (page_id: int) : page_sig_t =
     let s = self#read_blob page_id blob_locations.sig_location in
     match s with
-      None -> ref []
-    | Some s' -> ref (of_string__of__of_sexp page_sig_disk_t_of_sexp s')
+      None -> []
+    | Some s' -> (of_string__of__of_sexp page_sig_disk_t_of_sexp s')
 
   (** [write_page_sigs page_id sigs] writes that the sigs 
       page [page_id] are [sigs]. *)
   method write_page_sigs (page_id: int) (sigs: page_sig_t) : unit =
     (* Creates a single string for the sigs. *)
-    let sig_string = string_of__of__sexp_of sexp_of_page_sig_disk_t !sigs in
+    let sig_string = string_of__of__sexp_of sexp_of_page_sig_disk_t sigs in
     self#write_blob page_id blob_locations.sig_location sig_string
 
   (* Methods on the standard tables *)
@@ -660,7 +659,7 @@ object(self)
     (trust: float array)
     (origin: int array)
     (author: string array)
-    (author_sigs: Author_sig.packed_author_signature_t array) : unit =
+    (author_sigs: Author_sig.packed_author_signature_t array) : page_sig_t =
     let signature = {
       words_a = words;
       trust_a = trust;
@@ -669,28 +668,29 @@ object(self)
       sig_a = author_sigs;
     } in 
     (* If the revision already has sigs, removes them *)
-    let l_purged = List.remove_assoc rev_id !page_sigs in
+    let l_purged = List.remove_assoc rev_id page_sigs in
     (* Adds the new signatures *)
     let l_added = (rev_id, signature) :: l_purged in
     (* Assigns the new value *)
-    page_sigs := l_added
-
+    l_added
 
   (** [read_words_trust_origin_sigs page_id rev_id page_sigs] reads
       the words, trust, origin, and author sigs for the revision
       [rev_id] of page [page_id], given the page sigs [page_sigs]. *)
-  method read_words_trust_origin_sigs (page_id: int) (rev_id: int) (page_sigs: page_sig_t)
+  method read_words_trust_origin_sigs (page_id: int) (rev_id: int) 
+    (page_sigs: page_sig_t)
     : (string array * float array * int array * string array * Author_sig.packed_author_signature_t array) =
-    if List.mem_assoc rev_id !page_sigs
+    if List.mem_assoc rev_id page_sigs
     then begin 
-      let signature = List.assoc rev_id !page_sigs in
+      let signature = List.assoc rev_id page_sigs in
       (signature.words_a, signature.trust_a, signature.origin_a, signature.author_a, signature.sig_a)
     end else raise DB_Not_Found
 
   (** [delete_author_sigs page_id rev_id page_sigs] removes from the
       signatures [page_sigs] the signatures for [rev_id]. *)
-  method delete_author_sigs (page_id: int) (rev_id: int) (page_sigs: page_sig_t) : unit =
-    page_sigs := List.remove_assoc rev_id !page_sigs
+  method delete_author_sigs (page_id: int) (rev_id: int) (page_sigs: page_sig_t)
+    : page_sig_t =
+    List.remove_assoc rev_id page_sigs
 
 
   (* Methods on standard revisions *)
@@ -864,8 +864,8 @@ object(self)
       (ml2int page.page_len) 
       (ml2int page.page_latest)
     in
-      ignore(self#db_exec mediawiki_dbh s);
-      self#init_page page.page_id (Some page.page_title)
+      ignore(self#db_exec mediawiki_dbh s)
+(*      self#init_page page.page_id (Some page.page_title) *)
 
   (*
     Actually puts the text in the db, or on the filesystem.

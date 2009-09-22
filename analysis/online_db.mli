@@ -302,7 +302,7 @@ class db :
       float array -> 
       int array -> 
       string array ->
-      Author_sig.packed_author_signature_t array -> unit 
+      Author_sig.packed_author_signature_t array -> page_sig_t
 
   (** [read_words_trust_origin_sigs page_id rev_id page_sigs] reads
       the words, trust, origin, and author sigs for the revision
@@ -314,7 +314,7 @@ class db :
 
     (** [delete_author_sigs page_id rev_id] removes from the db the author 
 	signatures for [rev_id] of [page_id]. *)
-    method delete_author_sigs : int -> int -> page_sig_t -> unit
+    method delete_author_sigs : int -> int -> page_sig_t -> page_sig_t
 
     (* Methods on standard revisions *)
 

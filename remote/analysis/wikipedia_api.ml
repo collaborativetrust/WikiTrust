@@ -55,6 +55,30 @@ let default_timestamp = "19700201000000"
 
 let logger = Online_log.online_logger
 
+(* Types used by json-static *)
+type json wiki_parse_results = 
+    < parse "parse" :
+        < ptext "text" : star;
+        external_links "externallinks" : string list;
+        links "links" : i_link list;
+        categories "categories" : c_link list
+      >
+    > 
+and star =
+    <
+      star "*" : string  
+    >
+and i_link =
+  < 
+    namespace "ns" : int;
+    star "*": string
+  >
+and c_link =
+  <
+    sort_key "sortkey": string;
+    star "*": string
+  >
+
 (* Regex to map from a mediawiki api timestamp to a mediawiki timestamp
    YYYY-MM-DDTHH:MM:SS
  *)
@@ -455,3 +479,22 @@ let rec get_rev_from_revid (rev_id: int)
     fetch_page_and_revs_after selector
   end
 
+(**
+  Render the html using the wikimedia api
+*)
+let fetch_rev_api (rev_text : string) : string = 
+  let api_vars = [
+    ("action", "parse");
+    ("format", "json");
+    ("text", rev_text);
+  ] in
+  let raw_file = List.rev (ExtString.String.nsplit 
+    (Http_client.Convenience.http_post !Online_command_line.target_wikimedia api_vars) 
+    "\n")
+  in
+  let json_file = Json_io.json_of_string (List.hd raw_file) in
+  let cml_res = wiki_parse_results_of_json json_file in
+  let pres = cml_res#parse in
+  let tres = pres#ptext in
+  let rendered = tres#star in
+    rendered

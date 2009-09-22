@@ -30,7 +30,7 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 # Vars we use in our rules to build ocaml programs
-PACKAGES = unix,str,vec,mapmin,hashtbl_bounded,fileinfo,xml-light,intvmap,extlib,mysql,netsys,netclient,camlzip,json-wheel,sexplib.syntax 
+PACKAGES = unix,str,vec,mapmin,hashtbl_bounded,fileinfo,xml-light,intvmap,extlib,mysql,netsys,netclient,camlzip,json-wheel,json-static,sexplib.syntax 
 SYNTAX = camlp4o
 OUR_LIBS = wikitrust_lib.cma online_types.cmo online_log.cmo online_db.cmo \
 	online_revision.cmo db_page.cmo online_page.cmo event_feed.cmo  \
@@ -84,9 +84,9 @@ allopt: downloadwpopt dispatcheropt read_rev_textopt fetch_all_revs_afteropt \
 # Here are the objects that we want to build. 
 # We need two lines of these, one for the debugging compilation,
 # one for the optimizing compilation. 
-OUR_ONLINE_OBJS = tmpfile.cmo wikipedia_api.cmo
+OUR_ONLINE_OBJS = tmpfile.cmo wikipedia_api.cmo memcached.cmo
 
-OUR_OPT_ONLINE_OBJS = tmpfile.cmx wikipedia_api.cmx
+OUR_OPT_ONLINE_OBJS = tmpfile.cmx wikipedia_api.cmx memcached.cmx
 
 downloadwp: $(OUR_ONLINE_OBJS) downloadwp.ml
 	$(OCAMLC) -linkpkg -o downloadwp $(OCAML_CFLAGS) $(OUR_LIBS) $(OUR_ONLINE_OBJS) downloadwp.ml 

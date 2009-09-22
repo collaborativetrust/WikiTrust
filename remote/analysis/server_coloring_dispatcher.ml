@@ -64,8 +64,16 @@ let max_batches_to_do = 20
 let max_concurrent_procs = ref 1
 let set_max_concurrent_procs m = max_concurrent_procs := m 
 let sleep_time_sec = 1
+let memcached_host = ref "localhost"
+let set_memcached_host h = memcached_host := h
+let memcached_port = ref 11211
+let set_memcached_port p = memcached_port := p
+
 let custom_line_format = [
-  ("-concur_procs", Arg.Int set_max_concurrent_procs, "<int>: Number of pages to process in parellel.")
+  ("-concur_procs", Arg.Int set_max_concurrent_procs, "<int>: Number of pages to process in parellel.");
+  ("-memcached_host", Arg.String set_memcached_host, "<string>: memcached server (default localhost)");
+  ("-memcached_port", Arg.Int set_memcached_port, "<int>: memcached port (default 11211).")
+
 ] @ command_line_format
 
 let _ = Arg.parse custom_line_format noop "Usage: dispatcher";;
@@ -121,6 +129,19 @@ let check_subprocess_termination (page_title: string) (process_id: int) =
   end
 in
 
+(** Renders the last revision of the given page and puts it into memcached. *)
+let render_rev (rev_id : int) (page_id : int) (db : Online_db.db) : unit =
+  let (_, _, blob_id) = db#read_wikitrust_revision rev_id in
+
+    Printf.printf "blobid %d\n" (match blob_id with Some b -> b | None -> -1);
+
+  let rev_text = db#read_colored_markup page_id rev_id blob_id in
+  let rendered_text = Wikipedia_api.fetch_rev_api rev_text in
+  let cache = Memcached.open_connection !memcached_host !memcached_port in
+    Memcached.add cache (Memcached.make_revision_text_key rev_id !Online_command_line.mw_db_name) 
+      rendered_text;
+    Memcached.close_connection cache
+in
 
 (** [process_page page_id] is a child process that processes a page
     with [page_id] as id. *)
@@ -140,6 +161,8 @@ let process_page (page_id: int) (page_title: string) =
     !robots in
   (* Brings the page up to date.  This will take care also of the page lock. *)
   processor#update_page_fast new_page_id;
+  (* Renders the last revision of this page and stores it in memcached. *)
+  (* render_rev (db#get_latest_rev_id page_title) new_page_id db; *)
   (* Marks the page as processed. *)
   child_db#mark_page_as_processed new_page_id;
   (* End of page processing. *)

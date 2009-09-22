@@ -1,6 +1,6 @@
 (*
 
-Copyright (c) 2007-2008 The Regents of the University of California
+Copyright (c) 2007-2009 The Regents of the University of California
 All rights reserved.
 
 Authors: Luca de Alfaro, Vishwanath Raman
@@ -63,33 +63,37 @@ class rephist
   object (self)
   
     val histories : (int, (int RepHistory.t) ref) Hashtbl.t = Hashtbl.create 1000 
+    val precise_rep : (int, float) Hashtbl.t = Hashtbl.create 1000  
 
     method read_reps (rep_channel: in_channel) = 
-      let read_rep (t: float) (user_id: int) (prev_rep: int) (next_rep: int) : unit =
-	if Hashtbl.mem histories user_id then begin 
-	  (* The user is already in the table *)
-	  (* Inserts data in hash table *)
-	  let v = Hashtbl.find histories user_id in 
-	  v := RepHistory.add t next_rep !v
-	end else begin 
-	  (* New user *)
-	  let t' = t -. 1.0 in 
-	  (* Adds the fact that the reputation used to be 0 before *)
-	  let r1 = RepHistory.add t' 0 RepHistory.empty in 
-	  let r2 = RepHistory.add t next_rep r1 in 
-	  Hashtbl.add histories user_id (ref r2)
+      let read_rep (t: float) (user_id: int) (prev_rep: int) (next_rep: int) (rep_float: float) : unit =
+	begin
+	  if Hashtbl.mem histories user_id then begin 
+	    (* The user is already in the table *)
+	    (* Inserts data in hash table *)
+	    let v = Hashtbl.find histories user_id in 
+	    v := RepHistory.add t next_rep !v
+	  end else begin 
+	    (* New user *)
+	    let t' = t -. 1.0 in 
+	    (* Adds the fact that the reputation used to be 0 before *)
+	    let r1 = RepHistory.add t' 0 RepHistory.empty in 
+	    let r2 = RepHistory.add t next_rep r1 in 
+	    Hashtbl.add histories user_id (ref r2)
+	  end;
+	  Hashtbl.add precise_rep user_id (log (1.1 +. rep_float))
 	end
       in
       begin
 	try
 	  while true do begin 
             let l = input_line rep_channel in 
-	    Scanf.sscanf l "%f %d %d %d" read_rep
+	    Scanf.sscanf l "%f %d %d %d %f" read_rep
 	  end done
 	with End_of_file -> ()
       end
 
-    method get_rep (user_id: int) (t: float) : int = 
+    method get_weight (user_id: int) (t: float) : int = 
       try 
 	let v = Hashtbl.find histories user_id in 
 	let ((t1, r1), (t2, r2)) = RepHistory.bracket t !v in 
@@ -97,5 +101,10 @@ class rephist
       with 
 	(* Non-existent users have no reputation *)
 	Not_found -> 0
+
+    method get_precise_weight (user_id: int) : float =
+      try
+	Hashtbl.find precise_rep user_id
+      with Not_found -> log 0.1
 
   end (* rephist object *)

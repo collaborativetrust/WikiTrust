@@ -88,7 +88,7 @@ class page
       let uid = rev#get_user_id in 
       let rev_time = rev#get_time in 
       (* Gets the reputation of the author of the current revision *)
-      let rep = rep_histories#get_rep uid rev_time in 
+      let weight = rep_histories#get_weight uid rev_time in 
       let new_wl = rev#get_words in 
       (* Calls the function that analyzes the difference 
          between revisions. Data relative to the previous revision
@@ -96,7 +96,7 @@ class page
       let (new_chunks_a, medit_l) = Chdiff.text_tracking chunks_a new_wl in 
       (* Constructs new_chunks_attr_a, which contains the reputation range of the 
          author of each word in the text. *)
-      let rep_float = float_of_int rep in 
+      let weight_float = float_of_int weight in 
 
       (* Fixes read_all depending on whether the user is a bot, and on
 	 the interval between revisions. *)
@@ -118,7 +118,7 @@ class page
 	  read_all' *. time_factor
 	end
       in
-      let new_chunks_trust_a = self#compute_word_trust new_chunks_a medit_l rep_float rev read_all in 
+      let new_chunks_trust_a = self#compute_word_trust new_chunks_a medit_l weight_float rev read_all in 
       (* Computes the origin of the words in the new revision. *)
       let new_chunks_origin_a = self#compute_origin new_chunks_a medit_l rev in 
       (* Now, replaces chunks_trust_a and chunks_a for the next iteration *)

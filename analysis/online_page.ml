@@ -353,7 +353,7 @@ class page
 
 
     (** Computes the weight of a reputation *)
-    method private weight (r: float) : float = log (1.2 +. r)
+    method private weight (r: float) : float = log (1.1 +. r)
 
 
     (** [insert_revision_in_lists] inserts the revision in the list of
@@ -471,7 +471,8 @@ class page
       in
       let is_not_in_any_list id = not (is_in_some_list id) in
       let not_in_any_list = List.filter is_not_in_any_list !thrown_out in 
-      let delete_sigs_of_rev id = db#delete_author_sigs page_id id page_sigs in 
+      let delete_sigs_of_rev id = 
+	page_sigs <- db#delete_author_sigs page_id id page_sigs in 
       List.iter delete_sigs_of_rev not_in_any_list
 
 
@@ -760,7 +761,7 @@ class page
 	      rev0#write_running_text run_info.run_writer false true true 
 	end;
 	(* Writes to the db the sig for the revision. *)
-	rev0#write_words_trust_origin_sigs page_sigs;
+	page_sigs <- rev0#write_words_trust_origin_sigs page_sigs;
 	(* Computes the overall trust of the revision *)
 	let t = Compute_robust_trust.compute_overall_trust chunk_0_trust in 
 	rev0#set_overall_trust t;
@@ -949,7 +950,7 @@ class page
 	  | Some run_info -> 
 	      rev0#write_running_text run_info.run_writer false true true 
 	end;
-	rev0#write_words_trust_origin_sigs page_sigs;
+	page_sigs <- rev0#write_words_trust_origin_sigs page_sigs;
 	(* Now that the colored revision is written out to disk, we don't need
 	   any more its uncolored text.   If we are using the exec_api, 
 	   we erase from the disk cache the text of all previous
@@ -1021,7 +1022,7 @@ class page
 		rev0#write_running_text run_info.run_writer false true true 
 	  end;
 	  (* Writes the trust information to the revision *)
-	  rev0#write_words_trust_origin_sigs page_sigs;
+	  page_sigs <- rev0#write_words_trust_origin_sigs page_sigs;
 	  let t = Compute_robust_trust.compute_overall_trust new_trust_a.(0) in
 	  rev0#set_overall_trust t;
 	  let th = 

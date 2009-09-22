@@ -266,7 +266,7 @@ class revision
 
 
     (** Writes the trust, origin, and sigs to the db, as a signature. *)
-    method write_words_trust_origin_sigs page_sigs : unit = 
+    method write_words_trust_origin_sigs page_sigs = 
       db#write_words_trust_origin_sigs 
 	page_id rev_id page_sigs words trust origin author sigs
 
