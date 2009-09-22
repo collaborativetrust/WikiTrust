@@ -972,6 +972,9 @@ class page
       match work_revision_opt with
 	None -> raise Missing_work_revision
       | Some rev0 -> begin
+	  (** TODO(Luca): Please double check this next line.
+	   * Ian and I added this when it was blanking colored text
+	   * in the database. -Bo *)
 	  rev0#read_words_trust_origin_sigs page_sigs;
 	  let rev0_t = rev0#get_words in 
 	  let rev0_l = Array.length rev0_t in 
