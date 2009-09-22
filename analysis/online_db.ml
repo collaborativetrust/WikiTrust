@@ -479,6 +479,14 @@ object(self)
       None -> raise DB_Not_Found
     | Some x -> not_null int2ml x.(0)
 
+  (** [get_latest_rev_id_from_id page_id] returns the revision id of the most 
+      recent revision of page [page_id], according. *)
+  method get_latest_rev_id_from_id(page_id: int) : int = 
+    let s = Printf.sprintf "SELECT revision_id FROM %swikitrust_revision WHERE page_id = %s ORDER BY time_string DESC, revision_id DESC LIMIT 1" db_prefix (ml2int page_id) in 
+    match fetch (self#db_exec mediawiki_dbh s) with 
+      None -> raise DB_Not_Found
+    | Some x -> not_null int2ml x.(0)
+
   (** [get_page_id page_title] returns the page id of the named page *)
   method get_page_id (page_title: string) : int = 
     let s = Printf.sprintf "SELECT page_id FROM %swikitrust_page WHERE page_title = %s LIMIT 1" db_prefix (ml2str page_title) in 

@@ -153,7 +153,8 @@ let process_page (page_id: int) (page_title: string) =
   in
   (* If I am using the WikiMedia API, I need to first download any new
      revisions of the page. *)
-  if !use_wikimedia_api then Wikipedia_api.download_page child_db page_title;
+  if !use_wikimedia_api then Wikipedia_api.download_page_from_id child_db 
+    page_id;
   let new_page_id = if page_id <> 0 then page_id else child_db#update_queue_page page_title page_id in  
   (* Creates a new updater. *)
   let processor = new Updater.updater child_db

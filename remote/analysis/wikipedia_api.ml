@@ -55,6 +55,11 @@ let default_timestamp = "19700201000000"
 
 let logger = Online_log.online_logger
 
+(* types used internally *)
+type page_selector_t =
+  | Title_Selector of string
+  | Id_Selector of int
+
 (* Types used by json-static *)
 type json wiki_parse_results = 
     < parse "parse" :
@@ -358,83 +363,6 @@ let get_user_id (user_name: string) (db: Online_db.db) : int =
     with 
       | int_of_string -> 0
 
-
-(**
-   [get_revs_from_api page_title last_id db 0] reads 
-   a group of revisions of the given page (usually something like
-   50 revisions, see the Wikimedia API) from the Wikimedia API,
-   stores them to disk, and returns:
-   - an optional id of the next revision to read.  Is None, then
-     all revisions of the page have been read.
-   Raises API_error if the API is unreachable.
-*)
-let rec get_revs_from_api (page_title: string) (last_id: int) 
-    (db: Online_db.db)
-    (rev_lim: int) : (int option) =
-  try begin
-    if rev_lim = 0 then raise (API_error "get_revs_from_api: couldn't find working rev_lim value");
-    !logger#log (Printf.sprintf "Getting revs from api for page '%s'\n" page_title);
-    (* Retrieve a page and revision list from mediawiki. *)
-    let (wiki_page', wiki_revs, next_id) = 
-      let selector = title_selector page_title last_id rev_lim in
-      fetch_page_and_revs_after selector in  
-    match wiki_page' with
-      None -> None
-    | Some wiki_page -> begin
-	let the_page_id = try
-	    let db_pageid = db#get_page_id wiki_page.page_title in
-	    if db_pageid <> wiki_page.page_id then raise (API_error_noretry "get_revs_from_api: mismatched page_id")
-	    else wiki_page.page_id
-	  with Online_db.DB_Not_Found -> wiki_page.page_id
-	in
-	let the_page_title = try
-	    let db_pagetitle = db#get_page_title the_page_id in
-	    if db_pagetitle <> wiki_page.page_title then raise (API_error_noretry "get_revs_from_api: mismatched page_title")
-	    else wiki_page.page_title
-	  with Online_db.DB_Not_Found -> wiki_page.page_title
-	in
-	(* Write the updated or new page info to the page table. *)
-	!logger#log (Printf.sprintf "Got page titled %s\n" the_page_title);
-	(* Write the new page to the page table. *)
-	db#write_page wiki_page;
-	(* Writes the revisions to the db. *)
-	let update_and_write_rev rev =
-	  rev.revision_page <- wiki_page.page_id;
-	  (* User ids are not given by the api, so we have to use the toolserver. *)
-	  rev.revision_user <- (get_user_id rev.revision_user_text db);
-	  !logger#log (Printf.sprintf "Writing to db revision %d.\n" rev.revision_id);
-	  db#write_revision rev
-	in List.iter update_and_write_rev wiki_revs;
-	(* Finally, return the next id to read *)
-	next_id
-      end
-  end with API_error msg -> begin
-    if rev_lim > 2 then begin
-      !logger#log (Printf.sprintf "Page load error for page %s.  msg=%s\nTrying again\n" page_title msg);
-      Unix.sleep retry_delay_sec;
-      get_revs_from_api page_title last_id db (rev_lim / 2);
-    end else raise (API_error "get_revs_from_api: no good rev_lim available")
-  end
- | API_error_noretry msg -> raise (API_error msg)
-
-let rec download_page_starting_with (db: Online_db.db) (title: string) (last_rev: int) : unit =
-  let next_rev = get_revs_from_api title last_rev db 50 in 
-  let _ = Unix.sleep sleep_time_sec in
-  match next_rev with
-    Some next_id -> begin
-      !logger#log (Printf.sprintf "Loading next batch: %s -> %d\n" title next_id);
-      download_page_starting_with db title next_id
-    end
-  | None -> ()
-
-(** Downloads all revisions of a page, given the title, and sticks them into the db. *)
-let download_page (db: Online_db.db) (title: string) : unit = 
-  let lastid =
-    try
-      db#get_latest_rev_id title
-    with Online_db.DB_Not_Found -> 0
-  in download_page_starting_with db title lastid
-
 (**
    [get_revs_from_pageid page_id last_id 50] reads 
    a group of revisions of the given page (usually something like
@@ -460,6 +388,114 @@ let rec get_revs_from_pageid (page_id: int) (last_id: int) (rev_lim: int)
     end else raise (API_error msg)
   end
  | API_error_noretry msg -> raise (API_error msg)
+
+(**
+   [get_revs_from_api page_title last_id db 0] reads 
+   a group of revisions of the given page (usually something like
+   50 revisions, see the Wikimedia API) from the Wikimedia API,
+   stores them to disk, and returns:
+   - an optional id of the next revision to read.  Is None, then
+     all revisions of the page have been read.
+   Raises API_error if the API is unreachable.
+*)
+(* (page_title: string) *)
+let rec get_revs_from_api
+    (page_selector : page_selector_t) (last_id: int) 
+    (db: Online_db.db)
+    (rev_lim: int) : (int option) =
+  let error_page_ident = match page_selector with
+      | Title_Selector ts -> ts
+      | Id_Selector is -> string_of_int is
+  in
+  try begin
+    if rev_lim = 0 then raise (API_error "get_revs_from_api: couldn't find working rev_lim value");
+    !logger#log (Printf.sprintf "Getting revs from api for page '%s'\n" error_page_ident);
+    (* Retrieve a page and revision list from mediawiki. *)
+    let (wiki_page', wiki_revs, next_id) = 
+      match page_selector with
+        | Title_Selector ts -> (let selector = title_selector ts 
+                                  last_id rev_lim in
+                                  fetch_page_and_revs_after selector
+                               )
+        | Id_Selector is -> get_revs_from_pageid is last_id rev_lim
+    in  
+    match wiki_page' with
+      None -> None
+    | Some wiki_page -> begin
+	    let the_page_id = try
+	      let db_pageid = (match page_selector with
+            | Title_Selector ts -> db#get_page_id wiki_page.page_title
+            | Id_Selector id -> id
+                        ) in
+	        if db_pageid <> wiki_page.page_id then raise (API_error_noretry "get_revs_from_api: mismatched page_id")
+	        else wiki_page.page_id
+	    with Online_db.DB_Not_Found -> wiki_page.page_id
+	    in
+	    let the_page_title = try
+	      let db_pagetitle = db#get_page_title the_page_id in
+	        if db_pagetitle <> wiki_page.page_title then raise (API_error_noretry "get_revs_from_api: mismatched page_title")
+	        else wiki_page.page_title
+	    with Online_db.DB_Not_Found -> wiki_page.page_title
+	    in
+	      (* Write the updated or new page info to the page table. *)
+	      !logger#log (Printf.sprintf "Got page titled %s\n" the_page_title);
+	      (* Write the new page to the page table. *)
+	      db#write_page wiki_page;
+	      (* Writes the revisions to the db. *)
+	      let update_and_write_rev rev =
+	        rev.revision_page <- wiki_page.page_id;
+	        (* User ids are not given by the api, so we have to use the toolserver. *)
+	        rev.revision_user <- (get_user_id rev.revision_user_text db);
+	        !logger#log (Printf.sprintf "Writing to db revision %d.\n" rev.revision_id);
+	        db#write_revision rev
+	      in List.iter update_and_write_rev wiki_revs;
+	        (* Finally, return the next id to read *)
+	next_id
+      end
+  end with API_error msg -> begin
+    if rev_lim > 2 then begin
+      !logger#log (Printf.sprintf "Page load error for page %s.  msg=%s\nTrying again\n" error_page_ident msg);
+      Unix.sleep retry_delay_sec;
+      get_revs_from_api page_selector last_id db (rev_lim / 2);
+    end else raise (API_error "get_revs_from_api: no good rev_lim available")
+  end
+ | API_error_noretry msg -> raise (API_error msg)
+
+let rec download_page_starting_with (db: Online_db.db) (title: string) (last_rev: int) : unit =
+  let next_rev = get_revs_from_api (Title_Selector title) last_rev db 50 in 
+  let _ = Unix.sleep sleep_time_sec in
+  match next_rev with
+    Some next_id -> begin
+      !logger#log (Printf.sprintf "Loading next batch: %s -> %d\n" title next_id);
+      download_page_starting_with db title next_id
+    end
+  | None -> ()
+
+(** Downloads all revisions of a page, given the title, and sticks them into the db. *)
+let download_page (db: Online_db.db) (title: string) : unit = 
+  let lastid =
+    try
+      db#get_latest_rev_id title
+    with Online_db.DB_Not_Found -> 0
+  in download_page_starting_with db title lastid
+
+let rec download_page_starting_with_from_id (db: Online_db.db) (page_id: int) (last_rev: int) : unit =
+  let next_rev = get_revs_from_api (Id_Selector page_id) last_rev db 50 in 
+  let _ = Unix.sleep sleep_time_sec in
+  match next_rev with
+    Some next_id -> begin
+      !logger#log (Printf.sprintf "Loading next batch: %d -> %d\n" page_id next_id);
+      download_page_starting_with_from_id db page_id next_id
+    end
+  | None -> ()
+
+(** Downloads all revisions of a page, given the title, and sticks them into the db. *)
+let download_page_from_id (db: Online_db.db) (page_id : int) : unit = 
+  let lastid =
+    try
+      db#get_latest_rev_id_from_id page_id
+    with Online_db.DB_Not_Found -> 0
+  in download_page_starting_with_from_id db page_id lastid
 
 (**
    [get_rev_from_revid rev_id] reads 

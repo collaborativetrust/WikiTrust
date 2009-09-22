@@ -238,8 +238,12 @@ class db :
     (* Methods on the standard tables. *)
 
     (** [get_latest_rev_id page_title] returns the revision id of the most 
-	recent revision of page [page_title]. *)
+	      recent revision of page [page_title]. *)
     method get_latest_rev_id : string -> int
+
+    (** [get_latest_rev_id_from_id page_id] returns the revision id of the 
+        most recent revision of page [page_id]. *)
+    method get_latest_rev_id_from_id : int -> int 
 
     (** [get_page_id page_title] returns the page id of the named page *)
     method get_page_id : string -> int
