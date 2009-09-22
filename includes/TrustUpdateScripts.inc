@@ -36,7 +36,7 @@ $create_scripts[$wgDBprefix.'wikitrust_vote'] = array("
 CREATE TABLE ".$wgDBprefix."wikitrust_vote (
        revision_id         int NOT NULL,
        page_id             int NOT NULL,   
-       voter_id            int NOT NULL,
+       voter_name            int NOT NULL,
        voted_on            varchar(32) NOT NULL,
        processed           bool DEFAULT false,
        PRIMARY KEY (revision_id, voter_id)

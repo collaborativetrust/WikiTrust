@@ -91,7 +91,7 @@ type vote_t = {
   vote_time: string;
   vote_page_id: int; 
   vote_revision_id: int;
-  vote_voter_id: int;
+  vote_voter_name: string;
 }
 
 (* This is the type of a set of signatures, as visible from outside. *)
@@ -315,22 +315,24 @@ object(self)
 	None -> ""
       | Some p_id -> Printf.sprintf "page_id = %s AND" (ml2int p_id) 
     in
-    let s = Printf.sprintf  "SELECT voted_on, page_id, revision_id, voter_id FROM %swikitrust_vote WHERE %s NOT processed ORDER BY voted_on ASC LIMIT %s" db_prefix wr (ml2int n_events) in
+    let s = Printf.sprintf  "SELECT voted_on, page_id, revision_id, voter_name FROM %swikitrust_vote WHERE %s NOT processed ORDER BY voted_on ASC LIMIT %s" db_prefix wr (ml2int n_events) in
     let vote_row2vote_t row =
       {
 	vote_time = (not_null str2ml row.(0));
 	vote_page_id = (not_null int2ml row.(1));
 	vote_revision_id = (not_null int2ml row.(2));
-	vote_voter_id = (not_null int2ml row.(3));
+	vote_voter_name = (not_null str2ml row.(3));
       }
     in
     Mysql.map (self#db_exec mediawiki_dbh s) vote_row2vote_t
 
 
-  (** [mark_vote_as_processed (revision_id: int) (voter_id : int)] marks a vote as processed. *)
-  method mark_vote_as_processed (revision_id: int) (voter_id : int) : unit = 
-    let s = Printf.sprintf "UPDATE %swikitrust_vote SET processed = TRUE WHERE revision_id = %s AND voter_id = %s" 
-      db_prefix (ml2int revision_id) (ml2int voter_id) in
+  (** [mark_vote_as_processed (revision_id: int) (voter_name :
+      string)] marks a vote as processed. *)
+  method mark_vote_as_processed (revision_id: int) (voter_name : string) 
+    : unit = 
+    let s = Printf.sprintf "UPDATE %swikitrust_vote SET processed = TRUE WHERE revision_id = %s AND voter_name = %s" 
+      db_prefix (ml2int revision_id) (ml2str voter_name) in
     ignore (self#db_exec mediawiki_dbh s)
 
   (* ================================================================ *)
@@ -713,12 +715,14 @@ object(self)
   (* ================================================================ *)
   (* User methods. *)
 
-  (** [inc_rep uid delta] increments the reputation of user [uid] by
-      [delta] in a single operation, so to avoid database problems. *)
-  method inc_rep (uid : int) (delta : float) =
-    let s = Printf.sprintf "INSERT INTO %swikitrust_user (user_id, user_rep) VALUES (%s, %s) ON DUPLICATE KEY UPDATE user_rep = user_rep + %s" 
+  (** [inc_rep uid delta uname] increments the reputation of user [uid] by
+      [delta] in a single operation, so to avoid database problems. 
+      [uname] is the username of the user, to ensure that we know 
+      the names of the users. *)
+  method inc_rep (uid : int) (delta : float) (uname: string) =
+    let s = Printf.sprintf "INSERT INTO %swikitrust_user (user_id, user_rep, username) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE user_rep = user_rep + %s" 
       db_prefix
-      (ml2int uid) (ml2float delta) (ml2float delta) in 
+      (ml2int uid) (ml2float delta) (ml2str uname) (ml2float delta) in 
     ignore (self#db_exec mediawiki_dbh s)
       
   (** [get_rep uid] gets the reputation of user [uid], from a table 
@@ -757,7 +761,7 @@ object(self)
 
   (** Add the vote to the db *)
   method vote (vote : vote_t) =
-    let s = Printf.sprintf "INSERT INTO %swikitrust_vote (revision_id, page_id, voter_id, voted_on) VALUES (%s, %s, %s, %s)" db_prefix (ml2int vote.vote_revision_id) (ml2int vote.vote_page_id) (ml2int vote.vote_voter_id) (ml2str vote.vote_time) in
+    let s = Printf.sprintf "INSERT INTO %swikitrust_vote (revision_id, page_id, voter_name, voted_on) VALUES (%s, %s, %s, %s)" db_prefix (ml2int vote.vote_revision_id) (ml2int vote.vote_page_id) (ml2str vote.vote_voter_name) (ml2str vote.vote_time) in
     ignore (self#db_exec mediawiki_dbh s)
 
 

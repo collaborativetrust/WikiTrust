@@ -102,11 +102,12 @@ class page
       Hashtbl.create 10
     (** These are the edit distances, indexed as above. *)
     val edit_dist : ((int * int), float) Hashtbl.t = Hashtbl.create 10
-      (** This is a hash table mapping each user id to a pair (old_rep,
-	  new_rep option).  So we can keep track of both the original
+      (** This is a hash table mapping each user id to a triple (old_rep,
+	  new_rep option, username).  So we can keep track of both the original
 	  value, and of the updated value, if any.  *)
-    val rep_cache : (int, (float * float option)) Hashtbl.t = Hashtbl.create 10
-      (** Current time *)
+    val rep_cache : (int, (float * float option * string)) Hashtbl.t 
+      = Hashtbl.create 10
+    (** Current time *)
     val mutable curr_time = 0.
     (** List of deleted chunks *)
     val mutable del_chunks_list : Online_types.chunk_t list = []
@@ -285,10 +286,10 @@ class page
       !median
 
     (** This method returns the current value of the user reputation *)
-    method private get_rep (uid: int) : float = 
+    method private get_rep (uid: int) (uname: string) : float = 
       if is_anonymous uid then 0. else begin 
 	if Hashtbl.mem rep_cache uid then begin 
-	  let (old_rep, new_rep_opt) = Hashtbl.find rep_cache uid in 
+	  let (old_rep, new_rep_opt, _) = Hashtbl.find rep_cache uid in 
 	  match new_rep_opt with 
 	    Some r -> r
 	  | None -> old_rep
@@ -298,20 +299,20 @@ class page
  	    try db#get_rep uid
 	    with Online_db.DB_Not_Found -> 0.
 	  in 
-	  Hashtbl.add rep_cache uid (r, None); 
+	  Hashtbl.add rep_cache uid (r, None, uname); 
 	  r
 	end
       end
 
     (** This method sets, but does not write to disk, a new user reputation. *)
-    method private set_rep (uid: int) (r: float) : unit = 
+    method private set_rep (uid: int) (r: float) (uname: string) : unit = 
       if not_anonymous uid then begin 
 	(* Reputations must be in the interval [0...maxrep] *)
 	let r' = max 0. (min trust_coeff.max_rep r) in 
 	(* Printf.printf "set_rep uid: %d r: %f\n" uid r'; debug *)
 	if Hashtbl.mem rep_cache uid then begin 
-	  let (old_rep, _) = Hashtbl.find rep_cache uid in 
-	  Hashtbl.replace rep_cache uid (old_rep, Some r')
+	  let (old_rep, _, uname') = Hashtbl.find rep_cache uid in 
+	  Hashtbl.replace rep_cache uid (old_rep, Some r', uname')
 	end else begin 
 	  (* We have to read it from disk *)
 	  let old_rep = 
@@ -320,7 +321,7 @@ class page
 	      with Online_db.DB_Not_Found -> 0.
 	    end
 	  in 
-	  Hashtbl.add rep_cache uid (old_rep, Some r')
+	  Hashtbl.add rep_cache uid (old_rep, Some r', uname)
 	end
       end
 
@@ -331,14 +332,14 @@ class page
         needed. *)
     method private write_all_reps : unit = 
       let f uid = function 
-	  (old_r, Some r) ->  if abs_float (r -. old_r) > 0.001 then begin 
+	  (old_r, Some r, uname) ->  if abs_float (r -. old_r) > 0.001 then begin 
 	    (* Writes the reputation change to disk, as a small transaction *)
 	    let n_attempts = ref 0 in 
 	    while !n_attempts < n_retries do 
 	      begin 
 		try begin 
 		  db#start_transaction;
-		  db#inc_rep uid (r -. old_r);
+		  db#inc_rep uid (r -. old_r) uname;
 		  db#commit;
 		  n_attempts := n_retries
 		end with _ -> begin 
@@ -348,7 +349,7 @@ class page
 		end
 	      end done (* End of the multiple attempts at the transaction *)
 	  end
-	| (old_r, None) -> ()
+	| (_, None, _) -> ()
       in Hashtbl.iter f rep_cache
 
 
@@ -369,7 +370,7 @@ class page
       let cur_trust = cur_rev#get_overall_trust in 
       let cur_id  = cur_rev#get_id in
       let cur_uid = cur_rev#get_user_id in 
-      let cur_rep = self#get_rep cur_uid in 
+      let cur_rep = self#get_rep cur_uid cur_rev#get_user_name in 
 
       (* We keep track of which revisions we are throwing out, so that
          we can later remove the signatures. 
@@ -724,7 +725,7 @@ class page
       let rev0_seps = rev0#get_seps in 
 
       (* Gets the author reputation *)
-      let rep_user = self#get_rep rev0_uid in 
+      let rep_user = self#get_rep rev0_uid rev0_uname in 
       let weight_user = self#weight (rep_user) in 
 
       (* Now we proceed by cases, depending on whether this is the
@@ -968,7 +969,7 @@ class page
 
     (** [vote_for_trust voter_uid] increases the trust of a piece of text 
 	due to voting by [voter_uid] *)
-    method private vote_for_trust (voter_uid: int) : unit = 
+    method private vote_for_trust (voter_uid: int) (voter_uname: string): unit = 
       match work_revision_opt with
 	None -> raise Missing_work_revision
       | Some rev0 -> begin
@@ -980,7 +981,7 @@ class page
 	  let rev0_l = Array.length rev0_t in 
 	  let rev0_seps = rev0#get_seps in 
 	  (* Gets the voter reputation *)
-	  let voter_rep = self#get_rep voter_uid in 
+	  let voter_rep = self#get_rep voter_uid voter_uname in 
 	  let voter_weight = self#weight (voter_rep) in 
 	  (* Prepares the arguments for a call to compute_robust_trust *)
 	  (* Prepares the arrays trust_a, sig_a as if they were for
@@ -1084,7 +1085,7 @@ class page
         let rev2_uid   = rev2#get_user_id in 
         let rev2_uname = rev2#get_user_name in
         let rev2_time  = rev2#get_time in 
-	let rev2_rep   = self#get_rep rev2_uid in 
+	let rev2_rep   = self#get_rep rev2_uid rev2_uname in 
 	let rev2_weight = self#weight rev2_rep in 
 
 	(* If the judge revision is a robot, we do not do anything. *)
@@ -1163,7 +1164,7 @@ class page
 	      let rev1_uname = rev1#get_user_name in 
 	      let rev1_time  = rev1#get_time in 
 	      let rev1_nix   = ref (rev1#get_nix) in 
-	      let rev1_rep   = self#get_rep rev1_uid in 
+	      let rev1_rep   = self#get_rep rev1_uid rev1_uname in 
 	      let d12        = Hashtbl.find edit_dist (rev2_id, rev1_id) in 
 
 	      (* The revision r_c2 is the revision prior to rev1, and
@@ -1214,11 +1215,12 @@ class page
 		  end done;
 		  let r_c2_id = (!r_c2)#get_id in
 		  let r_c2_uid = (!r_c2)#get_user_id in 
+		  let r_c2_uname = (!r_c2)#get_user_name in
 		  (* outputs the results *)
 		  (r_c2_id,
 		  r_c2_uid,
-		  (!r_c2)#get_user_name,
-		  self#get_rep r_c2_uid, 
+		  r_c2_uname,
+		  self#get_rep r_c2_uid r_c2_uname,
 		  Hashtbl.find edit_dist (r_c2_id, rev1_id), 
 		  !min_dist_to_2,
 		  !min_dist_to_1
@@ -1272,7 +1274,8 @@ class page
 		  let rev1_prev        = Vec.get (rev1_idx + 1) revs in 
 		  let rev1_prev_id     = rev1_prev#get_id in 
 		  let rev1_prev_uid    = rev1_prev#get_user_id in 
-		  let rev1_prev_rep    = self#get_rep rev1_prev_uid in 
+		  let rev1_prev_uname  = rev1_prev#get_user_name in
+		  let rev1_prev_rep    = self#get_rep rev1_prev_uid rev1_prev_uname in
 		  let dist_prev1       = Hashtbl.find edit_dist (rev1_prev_id, rev1_id) in 
 		  let dist_prev2       = Hashtbl.find edit_dist (rev1_prev_id, rev2_id) in 
 		  let q_local          = qual dist_prev1 d12 dist_prev2 in 
@@ -1313,7 +1316,7 @@ class page
 		    end
 		end
 	      in 
-	      self#set_rep rev1_uid new_rep;
+	      self#set_rep rev1_uid new_rep rev1_uname;
 
 	      (* Adds quality information for the revision *)
 	      rev1#add_edit_quality_info delta q (new_rep -. rev1_rep) ; 
@@ -1487,7 +1490,7 @@ class page
         The method only does somethign if the revision is the last 
         for the page, and returns, in a flag, whether it has done 
         something or not. *)
-    method vote (voter_id: int) : bool = 
+    method vote (voter_id: int) (voter_name: string) : bool = 
 
       (* Keeps track of whether we have done any work *)
       let done_something = ref false in 
@@ -1528,7 +1531,7 @@ class page
 	    self#read_page_revisions_vote; 
 	    (* Increases the trust of the revision, and writes the 
 	       results back to disk *)
-	    self#vote_for_trust voter_id; 
+	    self#vote_for_trust voter_id voter_name; 
 	    (* Inserts the revision in the list of high rep or high
 	       trust revisions, and deletes old signatures *)
 	    self#insert_revision_in_lists;
