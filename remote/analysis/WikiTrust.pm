@@ -12,6 +12,7 @@ use CGI;
 use CGI::Carp;
 use IO::Zlib;
 use Compress::Zlib;
+#use Time::HiRes qw(gettimeofday tv_interval);
 
 use constant SLEEP_TIME => 3;
 use constant NOT_FOUND_TEXT_TOKEN => "TEXT_NOT_FOUND";
@@ -31,7 +32,8 @@ sub handler {
   my $dbh = DBI->connect(
     $ENV{WT_DBNAME},
     $ENV{WT_DBUSER},
-    $ENV{WT_DBPASS}
+    $ENV{WT_DBPASS},
+    { RaiseError => 1, AutoCommit => 1 }
   );
 
   my $result = "";
