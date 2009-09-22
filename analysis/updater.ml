@@ -316,19 +316,19 @@ class updater
 	    new Event_feed.event_feed db (Some page_id) None n_retries in
 	  (* Reads the page sigs, and the chunks, to build a running
 	     information for the page. *)
-    let (pinfo, bid, page_sigs, page_chunks) =
+	  let (pinfo, bid, page_sigs, page_chunks) =
 	    try
 	      let (pinfo', bid') = db#read_page_info page_id in
-        let page_sigs' = db#read_page_sigs page_id in
+              let page_sigs' = db#read_page_sigs page_id in
 	      let page_chunks' = db#read_page_chunks page_id in
-          (pinfo', bid', page_sigs', page_chunks')
-      with Online_db.DB_Not_Found -> begin
-        (* Initializes the page *)
-        db#page_init page_id;
+              (pinfo', bid', page_sigs', page_chunks')
+	    with Online_db.DB_Not_Found -> begin
+              (* Initializes the page *)
+              db#init_page page_id None;
 	      let (pinfo', bid') = db#read_page_info page_id in
-        (pinfo', bid', ref [], [])
-      end
-    in
+              (pinfo', bid', Online_db.empty_page_sigs, [])
+	    end
+	  in
 	  (* Creates a new writer for the page. *)
 	  let writer = new Revision_writer.writer 
 	    page_id (Some bid) None (Some db) true in
@@ -361,7 +361,7 @@ class updater
 			"\nDone revision %d of page %d\n" rev_id page_id)
 		      else !Online_log.online_logger#log (Printf.sprintf 
 			"\nRevision %d of page %d was already done\n" 
-			rev_id page_id);
+			rev_id page_id)
 		    end
 		  | Event_feed.Vote_event (rev_id, voter_id) -> begin
 		      !Online_log.online_logger#log (Printf.sprintf
@@ -383,7 +383,7 @@ class updater
 	  (* Writes the page information to disk. *)
 	  db#write_page_info page_id running_info.Online_page.run_page_info;
 	  db#write_page_chunks page_id running_info.Online_page.run_chunks;
-	  db#write_page_sigs page_id page_sigs;
+	  db#write_page_sigs page_id running_info.Online_page.run_sigs;
 	  let open_page_blob_id = writer#close in
 	  db#write_open_blob_id page_id open_page_blob_id;
 	  db#commit;
@@ -393,7 +393,7 @@ class updater
 	  raise e
 	end
       end
-	    
+	
 
     (** [update_page page_id] updates the page [page_id], analyzing in
 	chronological order the revisions and votes that have not been
