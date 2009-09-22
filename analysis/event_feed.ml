@@ -75,7 +75,7 @@ let n_events_to_read = 100
 (** This is the type of an event that needs to be processed. *)
 type event_t = 
     Revision_event of Online_revision.revision
-  | Vote_event of int * int (* revision_id, voter_id *)
+  | Vote_event of int * string (* revision_id, voter_name *)
 
 (** This is a time, a page_id, and an event.  The reason the page_id is 
     factored apart is that we need the page id for all types of events, 
@@ -134,11 +134,11 @@ object (self)
 		  in
 		  begin 
 		    match last_colored with 
-		      Some (last_timestamp, last_id) -> (
-			      db#fetch_all_revs_after requested_page_id requested_rev_id
-			        last_timestamp last_id n_events_to_read
-          )
-		      | None -> db#fetch_all_revs requested_page_id n_events_to_read
+		      Some (last_timestamp, last_id) -> begin
+			db#fetch_all_revs_after requested_page_id requested_rev_id
+			  last_timestamp last_id n_events_to_read
+		      end
+		    | None -> db#fetch_all_revs requested_page_id n_events_to_read
 		  end
 		end
 	      in 
@@ -174,7 +174,7 @@ object (self)
 	      in 
 	      there_are_more_votes <- (List.length votes_list) >= n_events_to_read; 
 	      (* f makes a vote into an event_occurrence_t *)
-	      let f v = (Timeconv.time_string_to_float v.vote_time), v.vote_page_id, Vote_event (v.vote_revision_id, v.vote_voter_id) in 
+	      let f v = (Timeconv.time_string_to_float v.vote_time), v.vote_page_id, Vote_event (v.vote_revision_id, v.vote_voter_name) in 
 	      votes <- Vec.concat votes (Vec.of_list (List.map f votes_list));
 	      db#commit;
 	      times_tried := n_retries

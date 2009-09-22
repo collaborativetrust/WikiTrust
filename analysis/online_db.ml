@@ -67,7 +67,6 @@ type revision_t = {
   rev_user: int; 
   rev_user_text: string; 
   rev_is_minor: bool;
-  rev_comment: string
 } 
 
 let set_is_minor ism = match ism with
@@ -85,7 +84,6 @@ let rev_row2revision_t row =
     rev_user = (not_null int2ml row.(4)); (* user id *)
     rev_user_text = (not_null str2ml row.(5)); (* user name *)
     rev_is_minor = (set_is_minor (not_null int2ml row.(6))); (* is_minor *)
-    rev_comment = (not_null str2ml row.(7)); (* comment *)
   } 
 
 (* This is the type of a vote data *)
@@ -93,7 +91,7 @@ type vote_t = {
   vote_time: string;
   vote_page_id: int; 
   vote_revision_id: int;
-  vote_voter_id: int;
+  vote_voter_name: string;
 }
 
 (* This is the type of a set of signatures, as visible from outside. *)
@@ -288,7 +286,7 @@ object(self)
       | None -> ""
       | Some r_id -> Printf.sprintf "rev_id = %s OR" (ml2int r_id)
     in
-    let s = Printf. sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM %srevision WHERE %s (rev_timestamp, rev_id) > (%s, %s) %s ORDER BY rev_timestamp ASC, rev_id ASC LIMIT %s" 
+    let s = Printf. sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit FROM %srevision WHERE %s (rev_timestamp, rev_id) > (%s, %s) %s ORDER BY rev_timestamp ASC, rev_id ASC LIMIT %s" 
       db_prefix
       rr (ml2str timestamp) (ml2int rev_id) wr (ml2int max_revs_to_return) in
     Mysql.map (self#db_exec mediawiki_dbh s) rev_row2revision_t
@@ -303,7 +301,7 @@ object(self)
 	None -> ""
       | Some p_id -> Printf.sprintf "WHERE rev_page = %s" (ml2int p_id) 
     in
-    let s = Printf.sprintf  "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM %srevision %s ORDER BY rev_timestamp ASC, rev_id ASC LIMIT %s" 
+    let s = Printf.sprintf  "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit FROM %srevision %s ORDER BY rev_timestamp ASC, rev_id ASC LIMIT %s" 
       db_prefix wr (ml2int max_revs_to_return) in
     Mysql.map (self#db_exec mediawiki_dbh s) rev_row2revision_t
 
@@ -317,22 +315,24 @@ object(self)
 	None -> ""
       | Some p_id -> Printf.sprintf "page_id = %s AND" (ml2int p_id) 
     in
-    let s = Printf.sprintf  "SELECT voted_on, page_id, revision_id, voter_id FROM %swikitrust_vote WHERE %s NOT processed ORDER BY voted_on ASC LIMIT %s" db_prefix wr (ml2int n_events) in
+    let s = Printf.sprintf  "SELECT voted_on, page_id, revision_id, voter_name FROM %swikitrust_vote WHERE %s NOT processed ORDER BY voted_on ASC LIMIT %s" db_prefix wr (ml2int n_events) in
     let vote_row2vote_t row =
       {
 	vote_time = (not_null str2ml row.(0));
 	vote_page_id = (not_null int2ml row.(1));
 	vote_revision_id = (not_null int2ml row.(2));
-	vote_voter_id = (not_null int2ml row.(3));
+	vote_voter_name = (not_null str2ml row.(3));
       }
     in
     Mysql.map (self#db_exec mediawiki_dbh s) vote_row2vote_t
 
 
-  (** [mark_vote_as_processed (revision_id: int) (voter_id : int)] marks a vote as processed. *)
-  method mark_vote_as_processed (revision_id: int) (voter_id : int) : unit = 
-    let s = Printf.sprintf "UPDATE %swikitrust_vote SET processed = TRUE WHERE revision_id = %s AND voter_id = %s" 
-      db_prefix (ml2int revision_id) (ml2int voter_id) in
+  (** [mark_vote_as_processed (revision_id: int) (voter_name :
+      string)] marks a vote as processed. *)
+  method mark_vote_as_processed (revision_id: int) (voter_name : string) 
+    : unit = 
+    let s = Printf.sprintf "UPDATE %swikitrust_vote SET processed = TRUE WHERE revision_id = %s AND voter_name = %s" 
+      db_prefix (ml2int revision_id) (ml2str voter_name) in
     ignore (self#db_exec mediawiki_dbh s)
 
   (* ================================================================ *)
@@ -421,7 +421,7 @@ object(self)
       This function is used to read the colored revisions that precede a 
       given one. *)
   method fetch_col_revs (page_id : int) (timestamp: timestamp_t) (rev_id: int) (fetch_limit: int): Mysql.result =
-    let s = Printf.sprintf "SELECT revision_id, page_id, text_id, time_string, user_id, username, is_minor, comment FROM %swikitrust_revision WHERE page_id = %s AND (time_string, revision_id) < (%s, %s) ORDER BY time_string DESC, revision_id DESC LIMIT %s" db_prefix (ml2int page_id) (ml2timestamp timestamp) (ml2int rev_id) (ml2int fetch_limit) in 
+    let s = Printf.sprintf "SELECT revision_id, page_id, text_id, time_string, user_id, username, is_minor FROM %swikitrust_revision WHERE page_id = %s AND (time_string, revision_id) < (%s, %s) ORDER BY time_string DESC, revision_id DESC LIMIT %s" db_prefix (ml2int page_id) (ml2timestamp timestamp) (ml2int rev_id) (ml2int fetch_limit) in 
     self#db_exec mediawiki_dbh s
 
   (* Chunk methods *)
@@ -502,7 +502,7 @@ object(self)
       the quality information, and the optional blob id. *)
   method read_wikitrust_revision (revision_id: int) 
     : (revision_t * qual_info_t * int option) = 
-    let s = Printf.sprintf "SELECT revision_id, page_id, text_id, time_string, user_id, username, is_minor, comment, quality_info, blob_id FROM %swikitrust_revision WHERE revision_id = %s" db_prefix (ml2int revision_id) in 
+    let s = Printf.sprintf "SELECT revision_id, page_id, text_id, time_string, user_id, username, is_minor, quality_info, blob_id FROM %swikitrust_revision WHERE revision_id = %s" db_prefix (ml2int revision_id) in 
     let result = self#db_exec mediawiki_dbh s in 
     match fetch result with 
       None -> raise DB_Not_Found
@@ -515,7 +515,6 @@ object(self)
 	  rev_user = not_null int2ml x.(4); 
 	  rev_user_text = not_null str2ml x.(5); 
 	  rev_is_minor = set_is_minor (not_null int2ml x.(6)); 
-	  rev_comment = not_null str2ml x.(7); 
 	} in 
 	let q = of_string__of__of_sexp qual_info_t_of_sexp 
 	  (not_null str2ml x.(8)) in 
@@ -547,7 +546,7 @@ object(self)
     let user_id = ml2int revision_info.rev_user in 
     let username = ml2str revision_info.rev_user_text in 
     let is_minor = ml2int (if revision_info.rev_is_minor then 1 else 0) in 
-    let comment = ml2str revision_info.rev_comment in 
+    let comment = ml2str "" in
     (* Quality parameters *)
     let q1 = ml2str (string_of__of__sexp_of sexp_of_qual_info_t quality_info) in
     let q2 =  ml2float quality_info.reputation_gain in 
@@ -717,12 +716,14 @@ object(self)
   (* ================================================================ *)
   (* User methods. *)
 
-  (** [inc_rep uid delta] increments the reputation of user [uid] by
-      [delta] in a single operation, so to avoid database problems. *)
-  method inc_rep (uid : int) (delta : float) =
-    let s = Printf.sprintf "INSERT INTO %swikitrust_user (user_id, user_rep) VALUES (%s, %s) ON DUPLICATE KEY UPDATE user_rep = user_rep + %s" 
+  (** [inc_rep uid delta uname] increments the reputation of user [uid] by
+      [delta] in a single operation, so to avoid database problems. 
+      [uname] is the username of the user, to ensure that we know 
+      the names of the users. *)
+  method inc_rep (uid : int) (delta : float) (uname: string) =
+    let s = Printf.sprintf "INSERT INTO %swikitrust_user (user_id, user_rep, username) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE user_rep = user_rep + %s" 
       db_prefix
-      (ml2int uid) (ml2float delta) (ml2float delta) in 
+      (ml2int uid) (ml2float delta) (ml2str uname) (ml2float delta) in 
     ignore (self#db_exec mediawiki_dbh s)
       
   (** [get_rep uid] gets the reputation of user [uid], from a table 
@@ -761,7 +762,7 @@ object(self)
 
   (** Add the vote to the db *)
   method vote (vote : vote_t) =
-    let s = Printf.sprintf "INSERT INTO %swikitrust_vote (revision_id, page_id, voter_id, voted_on) VALUES (%s, %s, %s, %s)" db_prefix (ml2int vote.vote_revision_id) (ml2int vote.vote_page_id) (ml2int vote.vote_voter_id) (ml2str vote.vote_time) in
+    let s = Printf.sprintf "INSERT INTO %swikitrust_vote (revision_id, page_id, voter_name, voted_on) VALUES (%s, %s, %s, %s)" db_prefix (ml2int vote.vote_revision_id) (ml2int vote.vote_page_id) (ml2str vote.vote_voter_name) (ml2str vote.vote_time) in
     ignore (self#db_exec mediawiki_dbh s)
 
 
@@ -894,7 +895,7 @@ object(self)
       (ml2int rev.revision_id) 
       (ml2int rev.revision_page) 
       (ml2int rev.revision_id) 
-      (ml2str rev.revision_comment) 
+      (ml2str "") 
       (ml2int rev.revision_user) 
       (ml2str rev.revision_user_text) 
       (ml2str rev.revision_timestamp) 

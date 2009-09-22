@@ -49,15 +49,15 @@ sub handler {
 	$pageid = $cgi->param('page') || 0;
 	$title = $cgi->param('page_title') || '';
 	$revid = $cgi->param('rev') || -1;
-	$time = $cgi->param('time') || scalar(localtime);
-	$userid = $cgi->param('user') || -1;
+	$time = $cgi->param('time') || timestamp();
+	$userid = $cgi->param('user') || 0;
     } else {
 	# new parameter names
 	$pageid = $cgi->param('pageid') || 0;
 	$title = $cgi->param('title') || '';
 	$revid = $cgi->param('revid') || -1;
-	$time = $cgi->param('time') || scalar(localtime);
-	$userid = $cgi->param('userid') || -1;
+	$time = $cgi->param('time') || timestamp();
+	$userid = $cgi->param('userid') || 0;
     }
 
     throw Error::Simple("Bad method: $method") if !exists $methods{$method};
@@ -70,6 +70,11 @@ sub handler {
   $r->content_type('text/plain');
   $r->print($result);
   return Apache2::Const::OK;
+}
+
+sub timestamp {
+    my @time = localtime();
+    return sprintf("%04d%02d%02d%02d%02d%02d", $time[5]+1900, $time[4]+1, $time[3], $time[2], $time[1], $time[0]);
 }
 
 sub secret_okay {

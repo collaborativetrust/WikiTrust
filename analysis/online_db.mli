@@ -58,7 +58,6 @@ type revision_t = {
   rev_user: int; 
   rev_user_text: string;
   rev_is_minor: bool; 
-  rev_comment: string
 } 
 
 (** This is the type of a vote data *)
@@ -66,7 +65,7 @@ type vote_t = {
   vote_time: string;
   vote_page_id: int; 
   vote_revision_id: int;
-  vote_voter_id: int;
+  vote_voter_name: string;
 }
 
 (** This is the type of a signature set *)
@@ -159,15 +158,15 @@ class db :
 	specifies a page, then only that page is considered. *)
     method fetch_all_revs : int option -> int -> revision_t list
 
-    (** [fetch_unprocessed_votes req_page_id n_events] returns at most [n_events]
-	unprocessed votes, starting from the oldest unprocessed
-	vote.
-	If [req_page_id] specifies a page, then only that page is considered. *)
+    (** [fetch_unprocessed_votes req_page_id n_events] returns at most
+	[n_events] unprocessed votes, starting from the oldest
+	unprocessed vote.  If [req_page_id] specifies a page, then
+	only that page is considered. *)
     method fetch_unprocessed_votes : int option -> int -> vote_t list
 
-    (** [mark_vote_as_processed (revision_id: int) (voter_id : int)]
+    (** [mark_vote_as_processed (revision_id: int) (voter_name : string)]
 	marks a vote as processed. *)
-    method mark_vote_as_processed : int -> int -> unit
+    method mark_vote_as_processed : int -> string -> unit
 
 
     (* ================================================================ *)
@@ -326,9 +325,11 @@ class db :
     (* ================================================================ *)
     (* User methods. *)
 
-    (** [inc_rep uid delta] increments the reputation of user [uid] by [delta] in
-	a single operation, so to avoid database problems. *)
-    method inc_rep : int -> float -> unit
+  (** [inc_rep uid delta uname] increments the reputation of user [uid] by
+      [delta] in a single operation, so to avoid database problems. 
+      [uname] is the username of the user, to ensure that we know 
+      the names of the users. *)
+    method inc_rep : int -> float -> string -> unit
 
     (** [get_rep uid] gets the reputation of user [uid], from a table 
 	relating user ids to their reputation *)
