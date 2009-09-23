@@ -525,8 +525,8 @@ object(self)
 	  rev_is_minor = set_is_minor (not_null int2ml x.(6)); 
 	} in 
 	let q = of_string__of__of_sexp qual_info_t_of_sexp 
-	  (not_null str2ml x.(8)) in 
-	let bid = not_null int2ml x.(9) in
+	  (not_null str2ml x.(7)) in 
+	let bid = not_null int2ml x.(8) in
 	let bid_opt = 
 	  if bid = blob_locations.invalid_location
 	  then None
@@ -785,9 +785,10 @@ object(self)
     ignore (self#db_exec mediawiki_dbh s)
 
   (** [mark_page_as_processed page_id] marks that a page has ben processed. *)
-  method mark_page_as_processed (page_id : int) : unit =
+  method mark_page_as_processed (page_id : int) (page_title : string) : unit =
     let s = Printf.sprintf "DELETE FROM %swikitrust_queue WHERE page_id = %s" db_prefix (ml2int page_id) in
-    ignore (self#db_exec mediawiki_dbh s)
+    ignore (self#db_exec mediawiki_dbh s);
+      self#write_wikitrust_page_title page_id page_title
 
   (** [mark_page_as_unprocessed page_id] marks that a page has not
       been fully processed. *)
@@ -915,6 +916,18 @@ object(self)
     in
     ignore (self#db_exec mediawiki_dbh s)
 
+  (** [write_wikitrust_page_title page_title] updates the wikitrust_page 
+      table with the given page title. *)
+  method private write_wikitrust_page_title (page_id : int) 
+    (page_title : string) 
+    : unit =
+    (* And then the revision metadata. *)
+    let s = Printf.sprintf "UPDATE %swikitrust_page SET page_title = %s WHERE page_id = %s" 
+      db_prefix 
+      (ml2str page_title) 
+      (ml2int page_id) 
+    in
+      ignore (self#db_exec mediawiki_dbh s)
 
   (* ================================================================ *)
 

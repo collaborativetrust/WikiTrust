@@ -163,9 +163,9 @@ let process_page (page_id: int) (page_title: string) =
   (* Brings the page up to date.  This will take care also of the page lock. *)
   processor#update_page_fast new_page_id;
   (* Renders the last revision of this page and stores it in memcached. *)
-  (* render_rev (db#get_latest_rev_id page_title) new_page_id db; *)
+  (* render_rev (db#get_latest_rev_id_from_id page_id) new_page_id db; *)
   (* Marks the page as processed. *)
-  child_db#mark_page_as_processed new_page_id;
+  child_db#mark_page_as_processed new_page_id page_title;
   (* End of page processing. *)
     Printf.printf "Done with %s.\n" page_title; flush_all ();
     exit 0;
