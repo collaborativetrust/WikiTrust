@@ -107,8 +107,8 @@ let set_times_to_retry_trans n = times_to_retry_trans := n
 let dump_db_calls = ref false
 let eval_type = ref EVENT
 let set_vote () = eval_type := VOTE
-let requested_voter_id = ref None
-let set_requested_voter_id f = requested_voter_id := Some f
+let requested_voter_name = ref None
+let set_requested_voter_name f = requested_voter_name := Some f
 let requested_page_id = ref None
 let set_requested_page_id f = requested_page_id := Some f
 (* Robot set *)
@@ -144,7 +144,7 @@ let command_line_format =
    ("-sync_log", Arg.Set synch_log, ": Flush writes to the log immediately. This is very slow; use only for debugging.  This option must be used BEFORE the log_file option is used.");
    ("-log_file", Arg.String set_log_name, "<filename>: Logger output file (default: /dev/null)");
    ("-eval_vote", Arg.Unit set_vote, ": Just evaluate the given vote");
-   ("-voter_id",  Arg.Int set_requested_voter_id, "<int>: (optional) voter ID that we want to evaluate the vote of");
+   ("-voter_name",  Arg.String set_requested_voter_name, "<string>: (optional) voter that we want to evaluate the vote of");
    ("-page_id",  Arg.Int set_requested_page_id, "<int>: (optional) page ID that we want to evaluate the vote on");
    ("-rep_speed", Arg.Float set_reputation_speed, "<float>: Speed at which users gain reputation; 1.0 for large wikis");
    ("-throttle_delay", Arg.Float set_color_delay, "<float>: Amount of time (on average) to wait between analysis of events.  This can be used to throttle the computation, not to use too many resources.");

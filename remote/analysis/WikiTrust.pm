@@ -1,6 +1,6 @@
 package WikiTrust;
 
-use constant DEBUG => 0;
+use constant DEBUG => 1;
 
 use strict;
 use warnings;
@@ -38,7 +38,7 @@ sub handler {
 
   my $result = "";
   try {
-    my ($pageid, $title, $revid, $time, $userid, $method);
+    my ($pageid, $title, $revid, $time, $username, $method);
     $method = $cgi->param('method');
     if (!$method) {
 	$method = 'gettext';
@@ -52,19 +52,19 @@ sub handler {
 	$title = $cgi->param('page_title') || '';
 	$revid = $cgi->param('rev') || -1;
 	$time = $cgi->param('time') || timestamp();
-	$userid = $cgi->param('user') || 0;
+	$username = $cgi->param('user') || '';
     } else {
 	# new parameter names
 	$pageid = $cgi->param('pageid') || 0;
 	$title = $cgi->param('title') || '';
 	$revid = $cgi->param('revid') || -1;
 	$time = $cgi->param('time') || timestamp();
-	$userid = $cgi->param('userid') || 0;
+	$username = $cgi->param('username') || '';
     }
 
     throw Error::Simple("Bad method: $method") if !exists $methods{$method};
     my $func = $methods{$method};
-    $result = $func->($revid, $pageid, $userid, $time, $title, $dbh, $cgi);
+    $result = $func->($revid, $pageid, $username, $time, $title, $dbh, $cgi);
   } otherwise {
     my $E = shift;
     print STDERR $E;
@@ -103,6 +103,11 @@ sub handle_vote {
   # can't trust non-verified submitters
   $user = 0 if !secret_okay($cgi);
 
+  my $sel_sql = "SELECT voter_name FROM wikitrust_vote WHERE voter_name = ? AND revision_id = ?";
+  if (my $ref = $dbh->selectrow_hashref($sel_sql, {}, ($user, $rev))){
+    return "dup"
+  }
+
   my $sth = $dbh->prepare("INSERT INTO wikitrust_vote (revision_id, page_id, "
     . "voter_name, voted_on) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE "
     . "voted_on = ?") || die $dbh->errstr;
@@ -118,7 +123,7 @@ sub handle_vote {
   # that the vote was recorded.
   # We could change this to be the re-colored wiki-text, reflecting the
   # effect of the vote, if you like.
-  return "good"
+  return "good";
 }
 
 sub get_median {

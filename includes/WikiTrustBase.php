@@ -80,11 +80,11 @@ class WikiTrustBase {
     $memcKey = wfMemcKey( 'revisiontext', 'revid', $rev_id);
     $wgMemc->delete($memcKey);
 
-    return WikiTrust::vote_recordVote($dbr, $user_id, $page_id, $rev_id, $pageTitle);
+    return WikiTrust::vote_recordVote($dbr, $userName, $page_id, $rev_id, $pageTitle);
   }
 
 
-  static function vote_recordVote(&$dbr, $user_id, $page_id, $rev_id, $pageTitle)
+  static function vote_recordVote(&$dbr, $userName, $page_id, $rev_id, $pageTitle)
   {
     // Now see if this user has not already voted, 
     // and count the vote if its the first time though.
@@ -104,7 +104,7 @@ class WikiTrustBase {
     $insert_vals = array(
        "revision_id" => $rev_id,
 			 "page_id" => $page_id ,
-			 "voter_id" => $user_id,
+			 "voter_name" => $userName,
 			 "voted_on" => wfTimestampNow()
 		   );
 

@@ -493,7 +493,7 @@ let rec download_page_starting_with_from_id (db: Online_db.db) (page_id: int) (l
 let download_page_from_id (db: Online_db.db) (page_id : int) : unit = 
   let lastid =
     try
-      db#get_latest_rev_id_from_id page_id
+      (db#get_latest_rev_id_from_id page_id) + 1
     with Online_db.DB_Not_Found -> 0
   in download_page_starting_with_from_id db page_id lastid
 

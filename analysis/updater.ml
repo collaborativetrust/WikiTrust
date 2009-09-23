@@ -307,17 +307,23 @@ class updater
 
     (** [update_vote page_id revision_id voter_id] tries to get the page lock,
 	and process a vote. *)
-    method eval_vote (page_id: int) (revision_id: int) (voter_id: int) : unit =
+    method eval_vote (page_id: int) (revision_id: int) (voter_name : string) : unit =
+      match self#get_voter_id voter_name with 
+			    (* If we don't have a record of the voter, it has
+			       reputation 0, so we don't care. *)
+			  | None -> ()
+        | Some voter_id -> (
     let got_it = db#get_page_lock page_id Online_command_line.lock_timeout in 
     if got_it then begin
       try
-	self#evaluate_vote page_id revision_id voter_id;
+	self#evaluate_vote page_id revision_id voter_id voter_name;
 	db#release_page_lock page_id
       with e -> begin
 	db#release_page_lock page_id;
 	raise e
       end
     end
+          )
 
 
     (** [update_page page_id] updates the page [page_id], analyzing in

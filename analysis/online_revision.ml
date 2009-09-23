@@ -155,47 +155,49 @@ class revision
 	   since otherwise Text chokes on it *)
 	let buf = Textbuf.add (db#read_rev_text page_id rev_id text_id) 
 	  Textbuf.empty in 
-        let (w, t, o, a, s_idx, s) = 
+  let (w, t, o, a, s_idx, s) = 
 	  Text.split_into_words_seps_and_info false (Textbuf.get buf) in 
-        words <- w; 
-        seps <- s; 
-        sep_word_idx <- s_idx;
+    words <- w; 
+    seps <- s; 
+    sep_word_idx <- s_idx;
       with Online_db.DB_Not_Found -> ()
 
     (** Reads the text, trust and sigs of text from the db. *)
-    method read_words_trust_origin_sigs page_sigs : unit = 
+    method read_words_trust_origin_sigs (page_sigs : Online_db.page_sig_t) 
+      : unit = 
       (* For the older revisions, we don't need the seps.  So, we read
 	 the words, trust, etc, from the sigs table, if we can.  This
 	 has two advantages.  First, less parsing is needed, so it's
 	 faster.  Second, the information is consistent.  If this is
 	 not found, then we parse the colored text. *)
       try begin 
-	let (w, t, o, a, s) = db#read_words_trust_origin_sigs 
-	  page_id rev_id page_sigs in 
-	words <- w; 
-	trust <- t; 
-	origin <- o; 
-	author <- a;
-	sigs <- s
-      end with Online_db.DB_Not_Found -> begin 
-	(* Not found: we parse the colored text.  If this is also not found, 
-	   we let the error pop up, so that the caller knows that the revision 
-	   needs to be colored. *)
-	(* We have to use Textbuf here to split text into smaller chunks, 
-	   since otherwise Text chokes on it. *)
-	let buf = Textbuf.add 
-	  (db#read_colored_markup page_id rev_id blob_id_opt) Textbuf.empty in 
+	      let (w, t, o, a, s) = db#read_words_trust_origin_sigs 
+	        page_id rev_id page_sigs in 
+	        words <- w; 
+	        trust <- t; 
+	        origin <- o; 
+	        author <- a;
+	        sigs <- s
+      end with Online_db.DB_Not_Found ->  
+      begin 
+	      (* Not found: we parse the colored text.  If this is also not found, 
+	         we let the error pop up, so that the caller knows that the revision 
+	         needs to be colored. *)
+	      (* We have to use Textbuf here to split text into smaller chunks, 
+	         since otherwise Text chokes on it. *)
+	      let buf = Textbuf.add 
+	        (db#read_colored_markup page_id rev_id blob_id_opt) Textbuf.empty in 
         let (w, t, o, a, s_idx, s) = Text.split_into_words_seps_and_info 
-	  false (Textbuf.get buf) in 
-	words <- w; 
-	trust <- t; 
-	origin <- o; 
-	author <- a;
-	sigs <- [| |];
-	seps <- s; 
-	sep_word_idx <- s_idx;
-	!Online_log.online_logger#log 
-	  (Printf.sprintf "Warning: pre-parsed text of revision %d not found, reconstructed.\n" rev_id)
+	        false (Textbuf.get buf) in 
+	        words <- w; 
+	        trust <- t; 
+	        origin <- o; 
+	        author <- a;
+	        sigs <- [| |];
+	        seps <- s; 
+	        sep_word_idx <- s_idx;
+	        !Online_log.online_logger#log 
+	          (Printf.sprintf "Warning: pre-parsed text of revision %d not found, reconstructed.\n" rev_id)
       end; 
 	(* Checks that the text and trust, sigs information have the 
 	   same length. *)

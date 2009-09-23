@@ -68,11 +68,13 @@ let memcached_host = ref "localhost"
 let set_memcached_host h = memcached_host := h
 let memcached_port = ref 11211
 let set_memcached_port p = memcached_port := p
+let render_last_rev = ref false
 
 let custom_line_format = [
   ("-concur_procs", Arg.Int set_max_concurrent_procs, "<int>: Number of pages to process in parellel.");
   ("-memcached_host", Arg.String set_memcached_host, "<string>: memcached server (default localhost)");
-  ("-memcached_port", Arg.Int set_memcached_port, "<int>: memcached port (default 11211).")
+  ("-memcached_port", Arg.Int set_memcached_port, "<int>: memcached port (default 11211).");
+  ("-render_last_rev", Arg.Set render_last_rev, "render the most current rev and save it in memcached.")
 
 ] @ command_line_format
 
@@ -161,7 +163,8 @@ let process_page (page_id: int) (page_title: string) =
   (* Brings the page up to date.  This will take care also of the page lock. *)
   processor#update_page_fast new_page_id;
   (* Renders the last revision of this page and stores it in memcached. *)
-  render_rev (db#get_latest_rev_id_from_id page_id) new_page_id db;
+  if !render_last_rev then render_rev (db#get_latest_rev_id_from_id page_id) 
+    new_page_id db;
   (* Marks the page as processed. *)
   child_db#mark_page_as_processed new_page_id page_title;
   (* End of page processing. *)
