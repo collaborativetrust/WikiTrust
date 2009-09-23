@@ -132,11 +132,9 @@ in
 (** Renders the last revision of the given page and puts it into memcached. *)
 let render_rev (rev_id : int) (page_id : int) (db : Online_db.db) : unit =
   let (_, _, blob_id) = db#read_wikitrust_revision rev_id in
-
-    Printf.printf "blobid %d\n" (match blob_id with Some b -> b | None -> -1);
-
   let rev_text = db#read_colored_markup page_id rev_id blob_id in
-  let rendered_text = Wikipedia_api.fetch_rev_api rev_text in
+  let raw_rendered_text = Wikipedia_api.fetch_rev_api rev_text in
+  let rendered_text = Renderer.render raw_rendered_text in
   let cache = Memcached.open_connection !memcached_host !memcached_port in
     Memcached.add cache (Memcached.make_revision_text_key rev_id !Online_command_line.mw_db_name) 
       rendered_text;
@@ -163,7 +161,7 @@ let process_page (page_id: int) (page_title: string) =
   (* Brings the page up to date.  This will take care also of the page lock. *)
   processor#update_page_fast new_page_id;
   (* Renders the last revision of this page and stores it in memcached. *)
-  (* render_rev (db#get_latest_rev_id_from_id page_id) new_page_id db; *)
+  render_rev (db#get_latest_rev_id_from_id page_id) new_page_id db;
   (* Marks the page as processed. *)
   child_db#mark_page_as_processed new_page_id page_title;
   (* End of page processing. *)

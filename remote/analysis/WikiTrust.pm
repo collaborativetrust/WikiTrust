@@ -104,7 +104,7 @@ sub handle_vote {
   $user = 0 if !secret_okay($cgi);
 
   my $sth = $dbh->prepare("INSERT INTO wikitrust_vote (revision_id, page_id, "
-    . "voter_id, voted_on) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE "
+    . "voter_name, voted_on) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE "
     . "voted_on = ?") || die $dbh->errstr;
   $sth->execute($rev, $page, $user, $time, $time) || die $dbh->errstr;
   # Not a transaction: $dbh->commit();
