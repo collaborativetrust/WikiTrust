@@ -37,28 +37,6 @@ POSSIBILITY OF SUCH DAMAGE.
 open Evaltypes;;
 open Mysql;;
 
-(* First, I want to figure out which version I am. *)
-let p = Unix.open_process_in "git show --pretty=format:\"%H\" @{0}";;
-let version_str = input_line p;;
-ignore (Unix.close_process_in p);;
-(* Then passes this information to fileinfo *)
-Fileinfo.make_info_obj version_str "";;
-
-(* Input defaults *)
-let bucket_dir = ref ""
-let user_file = ref ""
-let db_prefix = ref ""
-let noop s = ()
-
-let command_line_format = 
-  [("-buckets", Arg.Set_string bucket_dir, 
-   "Directory where the stat buckets are.");
-   ("-db_prefix", Arg.Set_string db_prefix, 
-   "DB prefix for the wiki.");
-   ("-user_sql_file", Arg.Set_string user_file, 
-   "File where the user reputations are stored.");
-]
-
 let _ = Arg.parse command_line_format noop "Usage: batch_reputation_db\n"
 
 
