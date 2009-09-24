@@ -39,7 +39,7 @@ CREATE TABLE ".$wgDBprefix."wikitrust_vote (
        voter_name            int NOT NULL,
        voted_on            varchar(32) NOT NULL,
        processed           bool DEFAULT false,
-       PRIMARY KEY (revision_id, voter_id)
+       PRIMARY KEY (revision_id, voter_name)
 ) ENGINE=InnoDB","
 GRANT ALL ON ".$wgDBprefix."wikitrust_vote TO '$wgDBuser'","
 CREATE INDEX ".$wgDBprefix."wikitrust_voted_processed_idx ON ".$wgDBprefix."wikitrust_vote (voted_on, processed)
