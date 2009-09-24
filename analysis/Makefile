@@ -113,12 +113,12 @@ OUR_OPT_GENERATE_REPUTATION_OBJS = timeconv.cmx textbuf.cmx text.cmx \
 	eval_defs.cmx rephist.cmx  evaltypes.cmx wikidata.cmx \
 	computestats.cmx computerep.cmx generate_reputation.cmx 
 
-OUR_FIND_USERNAMES_OBJS = textbuf.cmo eval_defs.cmo evaltypes.cmo \
-	wikidata.cmo extract_usernames.cmo
+OUR_BATCH_REPUTATION_DB_OBJS = textbuf.cmo eval_defs.cmo evaltypes.cmo \
+	wikidata.cmo batch_reputation_db.cmo
 
 
-OUR_OPT_FIND_USERNAMES_OBJS = textbuf.cmx eval_defs.cmx evaltypes.cmx \
-	wikidata.cmx extract_usernames.cmx
+OUR_OPT_BATCH_REPUTATION_DB_OBJS = textbuf.cmx eval_defs.cmx evaltypes.cmx \
+	wikidata.cmx batch_reputation_db.cmx
 
 # Splitwiki splits a wiki xml file into smaller files. 
 OUR_SPLITWIKI_OBJS = splitwiki.cmo
@@ -177,11 +177,11 @@ generate_reputation:  $(OUR_GENERATE_REPUTATION_OBJS)
 generate_reputationopt:  $(OUR_OPT_GENERATE_REPUTATION_OBJS)
 	$(OCAMLOPT) -linkpkg -o generate_reputation $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) $(OUR_OPT_GENERATE_REPUTATION_OBJS)
 
-find_usernames:  $(OUR_FIND_USERNAMES_OBJS)
-	$(OCAMLC) -linkpkg -o extract_usernames $(OCAML_CFLAGS) $(OUR_FIND_USERNAMES_OBJS)
+batch_reputations_db:  $(OUR_BATCH_REPUTATIONS_DB_OBJS)
+	$(OCAMLC) -linkpkg -o extract_usernames $(OCAML_CFLAGS) $(OUR_BATCH_REPUTATIONS_DB_OBJS)
 
-find_usernamesopt:  $(OUR_OPT_FIND_USERNAMES_OBJS)
-	$(OCAMLOPT) -linkpkg -o extract_usernames $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) $(OUR_OPT_FIND_USERNAMES_OBJS)
+batch_reputations_dbopt:  $(OUR_OPT_BATCH_REPUTATION_DB_OBJS)
+	$(OCAMLOPT) -linkpkg -o extract_usernames $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) $(OUR_OPT_BATCH_REPUTATION_DB_OBJS)
 
 # splitwiki is used to split a wiki xml dump file into smaller files
 
@@ -231,11 +231,11 @@ revision_store: $(REVISION_STORE_OBJS)
 
 all: evalwiki eval_online_wiki vote_revision \
 	generate_reputation splitwiki combinestats \
-	extract_wiki_subset find_usernames
+	extract_wiki_subset batch_reputation_db
 
 allopt: evalwikiopt eval_online_wikiopt vote_revisionopt \
 	generate_reputationopt splitwikiopt combinestatsopt \
-	extract_wiki_subsetopt find_usernamesopt
+	extract_wiki_subsetopt batch_reputation_dbopt
 
 clean_batch:
 	rm -f evalwiki generate_reputation chdiff text splitwiki \

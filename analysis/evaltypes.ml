@@ -126,6 +126,7 @@ type time_intv_t = {
 type user_data_t = {
   mutable rep: int; (* We remember it up to 1/100 precision *)
   mutable rep_bin: int; (* Last reputation bin where the user was *)
+  mutable username: string (* User name *)
 }
 
 type stats_t = {
