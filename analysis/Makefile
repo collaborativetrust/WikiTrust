@@ -116,7 +116,6 @@ OUR_OPT_GENERATE_REPUTATION_OBJS = timeconv.cmx textbuf.cmx text.cmx \
 OUR_BATCH_REPUTATION_DB_OBJS = textbuf.cmo eval_defs.cmo evaltypes.cmo \
 	wikidata.cmo batch_reputation_db.cmo
 
-
 OUR_OPT_BATCH_REPUTATION_DB_OBJS = textbuf.cmx eval_defs.cmx evaltypes.cmx \
 	wikidata.cmx batch_reputation_db.cmx
 
