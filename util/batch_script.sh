@@ -27,7 +27,11 @@
 # ONLY IF NEEDED, remove previous version trees and sql.
 sudo rm -rf /home/luca/wiki-data/enwork/blobtree
 sudo rm -rf /home/luca/wiki-data/enwork/sigtree
-sudo rm -f /home/luca/wiki-data/enwork/sql/*
+sudo rm -rf /home/luca/wiki-data/enwork/sql/*
+# Or if you can do it without being root:
+rm -rf /home/luca/wiki-data/enwork/blobtree
+rm -rf /home/luca/wiki-data/enwork/sigtree
+rm -rf /home/luca/wiki-data/enwork/sql/*
 
 # Generating the colored pages and the sql file for batch-online:
 ./evalwiki -trust_for_online \
@@ -38,7 +42,7 @@ sudo rm -f /home/luca/wiki-data/enwork/sql/*
     -d ~/wiki-data/enwork/sql \
     /home/luca/wiki-data/enwiki/wiki-00100000.xml.gz
 
-./evalwiki -trust_for_online \
+ ./evalwiki -trust_for_online \
     -historyfile ~/wiki-data/enwork/reps/rep_history.txt \
     -blob_base_path ~/wiki-data/enwork/blobtree \
     -n_sigs 8 \
