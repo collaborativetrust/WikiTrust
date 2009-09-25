@@ -129,7 +129,6 @@ object(self)
       let user_id = ml2int r#get_user_id in
       let username = ml2str r#get_user_name in
       let is_minor = ml2int (if r#get_is_minor then 1 else 0) in 
-      let comment = ml2str r#get_comment in
       (* Quality parameters *)
       (* I do field-by-field initialization, rather than copying the whole
 	 structure, because otherwise we get two references to the SAME
@@ -154,8 +153,8 @@ object(self)
       let db_overall_trust = ml2float quality_info.overall_trust in
       let db_overall_quality = ml2float 0.0 in
       (* Db write access *)
-      Printf.fprintf sql_file "REPLACE INTO %swikitrust_revision (revision_id, page_id, text_id, time_string, user_id, username, is_minor, comment, quality_info, blob_id, reputation_delta, overall_trust, overall_quality) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);\n"
-	db_prefix rev_id page_id text_id time_string user_id username is_minor comment db_qual_info (ml2int blob_id) aq2 db_overall_trust db_overall_quality
+      Printf.fprintf sql_file "REPLACE INTO %swikitrust_revision (revision_id, page_id, text_id, time_string, user_id, username, is_minor, quality_info, blob_id, reputation_delta, overall_trust, overall_quality) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);\n"
+	db_prefix rev_id page_id text_id time_string user_id username is_minor db_qual_info (ml2int blob_id) aq2 db_overall_trust db_overall_quality
 	
 
     (** Processes a new revision, computing trust, author, and origin, 

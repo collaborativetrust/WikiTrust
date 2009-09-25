@@ -17,7 +17,7 @@
 # Computing the reputations (whole histories):
 ./generate_reputation -u ~/wiki-data/enwork/reps/rep_history.txt \
     -buckets ~/wiki-data/enwork/buckets/ \
-    -robots ~/wiki-data/wp_bots.txt ~/wiki-data/enwork/buckets/ 
+    -robots ~/wiki-data/wp_bots.txt
 
 # Computing the reputations (only the final ones):
 ./generate_reputation -u ~/wiki-data/enwork/reps/rep_history.txt \

@@ -1372,7 +1372,7 @@ class page
 	      try begin 
 		
 		db#start_transaction;
-
+		
 		(* Reads the page information, unless we are using
 		   the running information. *)
 		begin
@@ -1569,9 +1569,9 @@ class page
 	    n_attempts := !n_attempts + 1
 	  end 
 	end done; (* End of the multiple attempts at the transaction *)
-	(* Returns whether we have done something *)
-	!done_something
-	(* End of vote method *)
-
+      (* Returns whether we have done something *)
+      !done_something
+      (* End of vote method *)
+	
   end (* class *)
 
