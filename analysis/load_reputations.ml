@@ -34,9 +34,53 @@ POSSIBILITY OF SUCH DAMAGE.
  *)
 
 
-open Evaltypes;;
-open Mysql;;
+open Online_command_line;;
 
-let _ = Arg.parse command_line_format noop "Usage: batch_reputation_db\n"
+(* Figure out what to do and how we are going to do it. *)
+let custom_line_format = [] @ command_line_format
 
+let _ = Arg.parse custom_line_format noop "Usage: cat rep_file | load_reputations -db_user ...\n";;
+
+(* returns the next line of the input file *)
+let get_line input =
+  try 
+    Some (input_line input) 
+  with
+      End_of_file -> None
+in
+
+let add_rep (time : float) (user_id : int) (int1 : int) 
+    (int2 : int)
+    (user_rep : float) 
+    (user_name : string) (db : Online_db.db) : unit = 
+  db#inc_rep user_id user_rep user_name
+in
+
+let rec main (db : Online_db.db) =
+  let line = get_line stdin in
+    match line with 
+      | Some l -> (
+          (try 
+             Scanf.sscanf l "%f %d %d %d %f %S" add_rep db
+	         with Scanf.Scan_failure _ -> 
+             Printf.fprintf stderr "Error reading line: %s\n" l
+          );
+          main db
+        )
+      | None -> ()
+in
+
+(* Prepares the database connection information *)
+let mediawiki_db = {
+  Mysql.dbhost = Some !mw_db_host;
+  Mysql.dbname = Some !mw_db_name;
+  Mysql.dbport = Some !mw_db_port;
+  Mysql.dbpwd  = Some !mw_db_pass;
+  Mysql.dbuser = Some !mw_db_user;
+} in
+let mediawiki_dbh = Mysql.connect mediawiki_db in 
+let db = Online_db.create_db !use_exec_api !db_prefix mediawiki_dbh !mw_db_name
+  !wt_db_rev_base_path !wt_db_blob_base_path 
+  !max_uncompressed_blob_size !max_revs_per_blob !dump_db_calls in  
+main db
 

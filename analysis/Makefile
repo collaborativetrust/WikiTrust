@@ -110,14 +110,8 @@ OUR_GENERATE_REPUTATION_OBJS = timeconv.cmo textbuf.cmo text.cmo \
 
 OUR_OPT_GENERATE_REPUTATION_OBJS = timeconv.cmx textbuf.cmx text.cmx \
 	read_robots.cmx \
-	eval_defs.cmx rephist.cmx  evaltypes.cmx wikidata.cmx \
+	eval_defs.cmx rephist.cmx evaltypes.cmx wikidata.cmx \
 	computestats.cmx computerep.cmx generate_reputation.cmx 
-
-OUR_LOAD_REPUTATION_OBJS = textbuf.cmo eval_defs.cmo evaltypes.cmo \
-	wikidata.cmo load_reputations.cmo
-
-OUR_OPT_LOAD_REPUTATIONS_OBJS = textbuf.cmx eval_defs.cmx evaltypes.cmx \
-	wikidata.cmx load_reputations.cmx
 
 # Splitwiki splits a wiki xml file into smaller files. 
 OUR_SPLITWIKI_OBJS = splitwiki.cmo
@@ -176,11 +170,11 @@ generate_reputation:  $(OUR_GENERATE_REPUTATION_OBJS)
 generate_reputationopt:  $(OUR_OPT_GENERATE_REPUTATION_OBJS)
 	$(OCAMLOPT) -linkpkg -o generate_reputation $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) $(OUR_OPT_GENERATE_REPUTATION_OBJS)
 
-load_reputations:  $(OUR_LOAD_REPUTATIONS_OBJS)
-	$(OCAMLC) -linkpkg -o load_reputations $(OCAML_CFLAGS) $(OUR_LOAD_REPUTATIONS_OBJS)
+load_reputations:  $(OUR_LIB_OBJS)
+	$(OCAMLC) -linkpkg -o load_reputations $(OCAML_CFLAGS) $(OUR_LIB_OBJS) load_reputations.ml
 
-load_reputationsopt:  $(OUR_OPT_LOAD_REPUTATIONS_OBJS)
-	$(OCAMLOPT) -linkpkg -o load_reputations $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) $(OUR_OPT_LOAD_REPUTATIONS_OBJS)
+load_reputationsopt:  $(OUR_OPT_LIB_OBJS)
+	$(OCAMLOPT) -linkpkg -o load_reputations $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) $(OUR_OPT_LIB_OBJS) load_reputations.ml
 
 # splitwiki is used to split a wiki xml dump file into smaller files
 
