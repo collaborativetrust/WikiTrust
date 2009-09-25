@@ -1417,9 +1417,10 @@ class page
 		
 		(* We write back to disk the information of all revisions *)
 		!Online_log.online_logger#log 
-		  "   Writing the quality information...\n";
+		  "   Writing the quality information...";
 		let f r = r#write_quality_to_db in 
 		Vec.iter f revs;
+		!Online_log.online_logger#log " done.\n";
 		
 		(* Updates the running page information. *)
 		begin

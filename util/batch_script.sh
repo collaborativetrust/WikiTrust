@@ -16,12 +16,12 @@
 
 # Computing the reputations (whole histories):
 ./generate_reputation -u ~/wiki-data/enwork/reps/rep_history.txt \
-    -buckets -gen_exact_rep \
+    -buckets ~/wiki-data/enwork/buckets/ \
     -robots ~/wiki-data/wp_bots.txt ~/wiki-data/enwork/buckets/ 
 
 # Computing the reputations (only the final ones):
 ./generate_reputation -u ~/wiki-data/enwork/reps/rep_history.txt \
-    -buckets ~/wiki-data/enwork/buckets/ -gen_exact_rep \
+    -buckets ~/wiki-data/enwork/buckets/ \
     -robots ~/wiki-data/wp_bots.txt -write_final_reps
 
 # ONLY IF NEEDED, remove previous version trees and sql.

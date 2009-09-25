@@ -1,11 +1,9 @@
 (*
 
-Copyright (c) 2007-2009 The Regents of the University of California
+Copyright (c) 2009 Luca de Alfaro
 All rights reserved.
 
-Authors: Luca de Alfaro, B. Thomas Adler, Vishwanath Raman
-
-All rights reserved.
+Authors: Luca de Alfaro
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -35,36 +33,10 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
-val initial_reputation : float
-val debug : bool
-val single_debug : bool
-val single_debug_id : int
-class rep :
-  (* parameters *) Evaltypes.params_t ->
-  (* include_anons *) bool ->
-  (* rep_intv *) Evaltypes.time_intv_t ->
-  (* eval_intv *) Evaltypes.time_intv_t ->
-  (* user_history_file *) out_channel option ->
-  (* write_final_reps *) bool ->
-  (* print_monthly_stats *) bool -> 
-  (* do_cumulative_months *) bool ->
-  (* do_localinc *) bool ->
-  (* gen_exact_rep *) bool ->
-  (* user_contrib_order_asc *) bool ->
-  (* include_domains *) bool ->
-  (* ip_nbytes *) int ->
-  (* output_channel *) out_channel -> 
-  (* use_reputation_cap *) bool -> 
-  (* use_nix *) bool ->
-  (* use_weak_nix *) bool -> 
-  (* nix_interval *) float ->
-  (* n_edit_judging *) int -> 
-  (* gen_almost_truthful_rep *) bool -> 
-  (* gen_truthful_rep *) bool -> 
-  (* do_compute_rep *) bool ->
-  (* init_rep_file *) string option ->
-  (* robots *) Read_robots.robot_set_t ->
-  object
-    method add_data : Evaltypes.wiki_data_t -> unit
-    method compute_stats : out_channel -> Evaltypes.stats_t * Evaltypes.stats_t
-  end
+
+open Evaltypes;;
+open Mysql;;
+
+let _ = Arg.parse command_line_format noop "Usage: batch_reputation_db\n"
+
+

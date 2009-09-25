@@ -2,6 +2,8 @@ Debugging command line:
 
 ocamldebug -I `ocamlfind query unix` -I `ocamlfind query str` -I `ocamlfind query vec` -I `ocamlfind query mapmin` -I `ocamlfind query hashtbl_bounded` -I `ocamlfind query fileinfo` -I `ocamlfind query intvmap` -I `ocamlfind query extlib` -I `ocamlfind query mysql` -I `ocamlfind query sexplib` ./eval_online_wiki -db_user wikiuser -db_pass localwiki -db_name wikidb -dump_db_calls -blob_base_path ~/enwiki/online -n_events 10 
 
+ocamldebug -I `ocamlfind query unix` -I `ocamlfind query str` -I `ocamlfind query vec` -I `ocamlfind query mapmin` -I `ocamlfind query hashtbl_bounded` -I `ocamlfind query fileinfo` -I `ocamlfind query intvmap` -I `ocamlfind query extlib` -I `ocamlfind query mysql` -I `ocamlfind query sexplib` ./eval_online_wiki -db_user wikiuser -db_pass localwiki -db_name wikidb -dump_db_calls -n_events 10 
+
 
 
 
