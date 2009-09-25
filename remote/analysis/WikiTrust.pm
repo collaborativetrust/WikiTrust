@@ -41,12 +41,12 @@ sub handler {
     my ($pageid, $title, $revid, $time, $username, $method);
     $method = $cgi->param('method');
     if (!$method) {
-	$method = 'gettext';
-	if ($cgi->param('vote')) {
-	    $method = 'vote';
-	} elsif ($cgi->param('edit')) {
-	    $method = 'edit';
-	}
+      $method = 'gettext';
+      if ($cgi->param('vote')) {
+        $method = 'vote';
+      } elsif ($cgi->param('edit')) {
+        $method = 'edit';
+      }
 	# old parameter names
 	$pageid = $cgi->param('page') || 0;
 	$title = $cgi->param('page_title') || '';
