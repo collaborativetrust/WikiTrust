@@ -1019,7 +1019,8 @@ class page
 	      None -> (
 		open_page_blob_id <-  rev0#write_colored_text open_page_blob_id
 		  false true true)
-	    | Some run_info -> rev0#write_running_text run_info.run_writer false true true 
+	    | Some run_info -> rev0#write_running_text run_info.run_writer 
+		false true true 
 	  end;
 	  (* Writes the trust information to the revision *)
 	  page_sigs <- rev0#write_words_trust_origin_sigs page_sigs;

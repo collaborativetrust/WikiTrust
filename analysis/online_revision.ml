@@ -155,13 +155,13 @@ class revision
 	   since otherwise Text chokes on it *)
 	let buf = Textbuf.add (db#read_rev_text page_id rev_id text_id) 
 	  Textbuf.empty in 
-  let (w, t, o, a, s_idx, s) = 
+	let (w, t, o, a, s_idx, s) = 
 	  Text.split_into_words_seps_and_info false (Textbuf.get buf) in 
-    words <- w; 
-    seps <- s; 
-    sep_word_idx <- s_idx;
+	words <- w; 
+	seps <- s; 
+	sep_word_idx <- s_idx;
       with Online_db.DB_Not_Found -> ()
-
+	
     (** Reads the text, trust and sigs of text from the db. *)
     method read_words_trust_origin_sigs (page_sigs : Online_db.page_sig_t) 
       : unit = 
@@ -171,58 +171,58 @@ class revision
 	 faster.  Second, the information is consistent.  If this is
 	 not found, then we parse the colored text. *)
       try begin 
-	      let (w, t, o, a, s) = db#read_words_trust_origin_sigs 
-	        page_id rev_id page_sigs in 
-	        words <- w; 
-	        trust <- t; 
-	        origin <- o; 
-	        author <- a;
-	        sigs <- s
+	let (w, t, o, a, s) = db#read_words_trust_origin_sigs 
+	  page_id rev_id page_sigs in 
+	words <- w; 
+	trust <- t; 
+	origin <- o; 
+	author <- a;
+	sigs <- s
       end with Online_db.DB_Not_Found ->  
-      begin 
-	      (* Not found: we parse the colored text.  If this is also not found, 
-	         we let the error pop up, so that the caller knows that the revision 
-	         needs to be colored. *)
-	      (* We have to use Textbuf here to split text into smaller chunks, 
-	         since otherwise Text chokes on it. *)
-	      let buf = Textbuf.add 
-	        (db#read_colored_markup page_id rev_id blob_id_opt) Textbuf.empty in 
-        let (w, t, o, a, s_idx, s) = Text.split_into_words_seps_and_info 
-	        false (Textbuf.get buf) in 
-	        words <- w; 
-	        trust <- t; 
-	        origin <- o; 
-	        author <- a;
-	        sigs <- [| |];
-	        seps <- s; 
-	        sep_word_idx <- s_idx;
-	        !Online_log.online_logger#log 
-	          (Printf.sprintf "Warning: pre-parsed text of revision %d not found, reconstructed.\n" rev_id)
-      end; 
+	begin 
+	  (* Not found: we parse the colored text.  If this is also not found, 
+	     we let the error pop up, so that the caller knows that the revision 
+	     needs to be colored. *)
+	  (* We have to use Textbuf here to split text into smaller chunks, 
+	     since otherwise Text chokes on it. *)
+	  let buf = Textbuf.add 
+	    (db#read_colored_markup page_id rev_id blob_id_opt) Textbuf.empty in 
+          let (w, t, o, a, s_idx, s) = Text.split_into_words_seps_and_info 
+	    false (Textbuf.get buf) in 
+	  words <- w; 
+	  trust <- t; 
+	  origin <- o; 
+	  author <- a;
+	  sigs <- [| |];
+	  seps <- s; 
+	  sep_word_idx <- s_idx;
+	  !Online_log.online_logger#log 
+	    (Printf.sprintf "Warning: pre-parsed text of revision %d not found, reconstructed.\n" rev_id)
+	end; 
 	(* Checks that the text and trust, sigs information have the 
 	   same length. *)
-      let sigs_len = Array.length sigs in 
-      let trust_len = Array.length trust in 
-      let origin_len = Array.length origin in 
-      let author_len = Array.length author in 
-      let text_len = Array.length words in 
-      if sigs_len <> text_len then begin
-	sigs <- Array.create text_len Author_sig.empty_sigs;
-	!Online_log.online_logger#log (Printf.sprintf "Warning: reconstructed sigs for revision %d\n" rev_id);
-      end;
-      if trust_len <> text_len then begin
-	trust <- Array.create text_len 0.;
-	!Online_log.online_logger#log (Printf.sprintf "Warning: reconstructed trust for revision %d\n" rev_id);
-      end;
-      if origin_len <> text_len then begin
-	origin <- Array.create text_len rev_id;
-	!Online_log.online_logger#log (Printf.sprintf "Warning: reconstructed origin for revision %d\n" rev_id);
-      end;
-      if author_len <> text_len then begin
-	author <- Array.create text_len username;
-	!Online_log.online_logger#log (Printf.sprintf "Warning: reconstructed authors for revision %d\n" rev_id);
-      end
-
+	let sigs_len = Array.length sigs in 
+	let trust_len = Array.length trust in 
+	let origin_len = Array.length origin in 
+	let author_len = Array.length author in 
+	let text_len = Array.length words in 
+	if sigs_len <> text_len then begin
+	  sigs <- Array.create text_len Author_sig.empty_sigs;
+	  !Online_log.online_logger#log (Printf.sprintf "Warning: reconstructed sigs for revision %d\n" rev_id);
+	end;
+	if trust_len <> text_len then begin
+	  trust <- Array.create text_len 0.;
+	  !Online_log.online_logger#log (Printf.sprintf "Warning: reconstructed trust for revision %d\n" rev_id);
+	end;
+	if origin_len <> text_len then begin
+	  origin <- Array.create text_len rev_id;
+	  !Online_log.online_logger#log (Printf.sprintf "Warning: reconstructed origin for revision %d\n" rev_id);
+	end;
+	if author_len <> text_len then begin
+	  author <- Array.create text_len username;
+	  !Online_log.online_logger#log (Printf.sprintf "Warning: reconstructed authors for revision %d\n" rev_id);
+	end
+	  
     (** Writes the colored text to the db, as a compressed blob. 
         It takes as first parameter the open blob id for the page, 
         and it returns the updated information, if any.  Note
@@ -247,8 +247,8 @@ class revision
 	modified_quality_info <- true
       end;
       new_page_open_blob
-
-
+	
+	
     (** Writes the colored text to the db, as a compressed blob,
 	using a revision writer object to accomplish that. *)
     method write_running_text (writer: Revision_writer.writer) 
@@ -264,8 +264,8 @@ class revision
 	blob_id_opt <- Some new_bid;
 	modified_quality_info <- true
       end
-
-
+	
+	
     (** Writes the trust, origin, and sigs to the db, as a signature. *)
     method write_words_trust_origin_sigs page_sigs = 
       db#write_words_trust_origin_sigs 

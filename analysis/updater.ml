@@ -251,7 +251,8 @@ class updater
 			     reputation 0, so we don't care. *)
 			  None -> ()
 			| Some voter_id -> 
-			    self#evaluate_vote page_id revision_id voter_id voter_name
+			    self#evaluate_vote page_id revision_id 
+			      voter_id voter_name
 		      end
 		  end;
 		  db#release_page_lock page_id
