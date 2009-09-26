@@ -57,7 +57,7 @@ let add_rep (time : float) (user_id : int) (old_bin : int)
     (user_rep : float) 
     (user_name : string) (db : Online_db.db) : unit = 
   (* Writes the reputation increment. *)
-  db#inc_rep user_id user_rep user_name;
+  db#set_rep user_id user_rep user_name;
   (* Updates the histogram, somehow. *)
   histogram.(new_bin) <- histogram.(new_bin) +. sqrt(user_rep)
 in
@@ -77,7 +77,7 @@ let rec main (db : Online_db.db) =
 	  (* Writes the histogram.  Note that this essentially
 	     is a fake, assuming the wiki is large. *)
 	  let median = Online_types.compute_reputation_median histogram in
-	  db#write_histogram histogram median
+	  db#set_histogram histogram median
 	)
 in
 

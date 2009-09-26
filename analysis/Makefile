@@ -170,10 +170,10 @@ generate_reputation:  $(OUR_GENERATE_REPUTATION_OBJS)
 generate_reputationopt:  $(OUR_OPT_GENERATE_REPUTATION_OBJS)
 	$(OCAMLOPT) -linkpkg -o generate_reputation $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) $(OUR_OPT_GENERATE_REPUTATION_OBJS)
 
-load_reputations:  $(OUR_LIB_OBJS)
+load_reputations:  load_reputations.ml wikitrust_lib.cma
 	$(OCAMLC) -linkpkg -o load_reputations $(OCAML_CFLAGS) $(OUR_LIB_OBJS) load_reputations.ml
 
-load_reputationsopt:  $(OUR_OPT_LIB_OBJS)
+load_reputationsopt:  load_reputations.ml wikitrust_lib.cmxa
 	$(OCAMLOPT) -linkpkg -o load_reputations $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) $(OUR_OPT_LIB_OBJS) load_reputations.ml
 
 # splitwiki is used to split a wiki xml dump file into smaller files

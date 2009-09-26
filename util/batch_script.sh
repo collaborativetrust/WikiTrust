@@ -51,7 +51,7 @@ rm -rf /home/luca/wiki-data/enwork/sql/*
     /home/luca/wiki-data/enwiki/wiki-00100220.xml.gz
 
 # Load the xml files in the wiki db:
-cd test-scripts 
+cd ../test-scripts 
 python load_data.py --clear_db /home/luca/wiki-data/enwiki/wiki-00100000.xml /home/luca/wiki-data/enwiki/wiki-00100220.xml
 # Or simply:
 python load_data.py --clear_db /home/luca/wiki-data/enwiki/wiki-00100000.xml
@@ -59,10 +59,13 @@ python load_data.py --clear_db /home/luca/wiki-data/enwiki/wiki-00100000.xml
 # clears the old wikitrust information:
 python truncate_wikitrust_tables.py
 
-# Loads the reputations in the wiki db:
-python load_reputations.py --clear_db --set_histogram ~/wiki-data/enwork/reps/rep_history.txt
-
 # Loads the sql in the wiki db:
 mysql wikidb -u wikiuser -p < ~/wiki-data/enwork/sql/wiki-00100000.sql
 mysql wikidb -u wikiuser -p < ~/wiki-data/enwork/sql/wiki-00100220.sql
+
+# Loads the reputations in the wiki db:
+cd ../analysis
+cat ~/wiki-data/enwork/reps/rep_history.txt | \
+  ./load_reputations -db_user wikiuser -db_pass localwiki -db_name wikidb
+
 
