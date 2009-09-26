@@ -137,6 +137,10 @@ class db :
 	writes that the new median is [median]. *)
     method write_histogram : float array -> float -> unit 
 
+    (** set_histogram hist median] sets the histogram and the median in the
+	database. *)
+    method set_histogram : float array -> float -> unit 
+
     (** [fetch_last_colored_rev_time req_page_id] returns the timestamp and the 
 	revision id of the most recent revision that has been colored.
 	If [req_page_id] specifies a page, then only that page is considered.
@@ -334,6 +338,10 @@ class db :
       [uname] is the username of the user, to ensure that we know 
       the names of the users. *)
     method inc_rep : int -> float -> string -> unit
+
+  (** [set_rep uid rep uname] sets the fact that the reputation for [uid]
+      is [rep], and the username is [uname]. *)
+    method set_rep : int -> float -> string -> unit
 
     (** [get_rep uid] gets the reputation of user [uid], from a table 
 	relating user ids to their reputation *)

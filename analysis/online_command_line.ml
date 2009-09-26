@@ -130,8 +130,7 @@ let command_line_format =
    ("-db_name", Arg.String set_mw_db_name, "<string>: Mediawiki DB name (default: wikidb)");
    ("-db_pass", Arg.String set_mw_db_pass, "<string>: Mediawiki DB password");
    ("-db_host", Arg.String set_mw_db_host, "<string>: Mediawiki DB host (default: localhost)");
-   ("-db_port", Arg.Int set_mw_db_port,    "<int>: Mediawiki DB port
-   (default: 3306)");
+   ("-db_port", Arg.Int set_mw_db_port,    "<int>: Mediawiki DB port (default: 3306)");
    ("-wiki_api", Arg.String set_target_wikimedia, "<string>: Mediawiki api to target for missing revs");
    ("-user_id_api", Arg.String set_user_id_server, "<string>: location of a tool which turns user_names into user_ids"); 
    ("-dump_db_calls", Arg.Set dump_db_calls, ": Writes to the db log all

@@ -41,12 +41,11 @@ $wgWikiTrustDebugVerbosity = WIKITRUST_WARN; // how much information to write;
 $wgWikiTrustLog = "/dev/null";
 $wgWikiTrustDebugLog = "/dev/null";
 $wgWikiTrustShowMouseOrigin = false;
-global $wgWikiTrustCmd, $wgWikiTrustCmdExtraArgs, $wgWikiTrustColorPath,
-  $wgWikiTrustSigPath, $wgWikiTrustRepSpeed, $wgWikiTrustApiURL;
+global $wgWikiTrustCmd, $wgWikiTrustCmdExtraArgs, 
+  $wgWikiTrustBlobPath, $wgWikiTrustRepSpeed, $wgWikiTrustApiURL;
 $wgWikiTrustCmd = dirname(__FILE__) . "/eval_online_wiki";
 $wgWikiTrustCmdExtraArgs = "";
-$wgWikiTrustColorPath = NULL;
-$wgWikiTrustSigPath = NULL;
+$wgWikiTrustBlobPath = NULL;
 $wgWikiTrustRepSpeed = 1.0;
 $wgWikiTrustApiURL = "http://en.wikipedia.org/w/api.php?";
 $wgWikiTrustRobots = NULL;
@@ -82,14 +81,10 @@ function wfWikiTrustSetup() {
     $wgExtensionMessagesFiles['WikiTrust'] = $dir.'/WikiTrust.i18n.php';
 
     // Fixes the command-line options for eval_online_wiki.
-    global $wgWikiTrustColorPath, $wgWikiTrustSigPath, $wgWikiTrustCmdExtraArgs;
-    if ($wgWikiTrustColorPath) {
+    global $wgWikiTrustBlobPath, $wgWikiTrustCmdExtraArgs;
+    if ($wgWikiTrustBlobPath) {
        $wgWikiTrustCmdExtraArgs = $wgWikiTrustCmdExtraArgs . 
-	 " -wt_db_colored_base_path " . $wgWikiTrustColorPath;
-    }
-    if ($wgWikiTrustSigPath) {
-      $wgWikiTrustCmdExtraArgs = $wgWikiTrustCmdExtraArgs .
-	" -wt_db_sig_base_path " . $wgWikiTrustSigPath;
+	 " -blob_base_path " . $wgWikiTrustBlobPath;
     }
 
     global $wgAutoloadClasses, $wgHooks, $wgWikiTrustVersion;

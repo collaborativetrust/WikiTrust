@@ -248,6 +248,19 @@ object(self)
     ignore (self#db_exec mediawiki_dbh s)
 
 
+  (** set_histogram hist median] sets the histogram and the median in the
+      database. *)
+  method set_histogram (hist : float array) (median: float) : unit =
+    let s = Printf.sprintf "REPLACE INTO %swikitrust_global (rep_0, rep_1, rep_2, rep_3, rep_4, rep_5, rep_6, rep_7, rep_8, rep_9, median) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+      db_prefix
+      (ml2float hist.(0)) (ml2float hist.(1)) (ml2float hist.(2))
+      (ml2float hist.(3)) (ml2float hist.(4)) (ml2float hist.(5))
+      (ml2float hist.(6)) (ml2float hist.(7)) (ml2float hist.(8))
+      (ml2float hist.(9)) (ml2float median)
+    in 
+    ignore (self#db_exec mediawiki_dbh s)
+
+
   (** [fetch_last_colored_rev_time req_page_id] returns the timestamp and the 
       revision id of the most recent revision that has been colored.
       If [req_page_id] specifies a page, then only that page is considered.
@@ -732,7 +745,14 @@ object(self)
       db_prefix
       (ml2int uid) (ml2float delta) (ml2str uname) (ml2float delta) in 
     ignore (self#db_exec mediawiki_dbh s)
-      
+
+  (** [set_rep uid rep uname] sets the fact that the reputation for [uid]
+      is [rep], and the username is [uname]. *)
+  method set_rep (uid : int) (rep : float) (uname: string) =
+    let s = Printf.sprintf "REPLACE INTO %swikitrust_user (user_id, user_rep, username) VALUES (%s, %s, %s)"
+      db_prefix (ml2int uid) (ml2float rep) (ml2str uname) in 
+    ignore (self#db_exec mediawiki_dbh s)
+
   (** [get_rep uid] gets the reputation of user [uid], from a table 
       relating user ids to their reputation 
       @raise DB_Not_Found if no tuple is returned by the database.

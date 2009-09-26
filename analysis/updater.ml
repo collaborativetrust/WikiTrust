@@ -251,7 +251,8 @@ class updater
 			     reputation 0, so we don't care. *)
 			  None -> ()
 			| Some voter_id -> 
-			    self#evaluate_vote page_id revision_id voter_id voter_name
+			    self#evaluate_vote page_id revision_id 
+			      voter_id voter_name
 		      end
 		  end;
 		  db#release_page_lock page_id
@@ -365,6 +366,7 @@ class updater
 	    Online_page.run_chunks = page_chunks;
 	    Online_page.run_page_info = pinfo;
 	    Online_page.run_writer = writer;
+	    Online_page.last_colored_text = None;
 	  } in 
 	  (* Loops over the feed and processes it. *)
 	  let do_more = ref true in 

@@ -46,10 +46,17 @@ type rev_t = Online_revision.revision
     are analyzed, the information is not read/written all the time
     to disk. *)
 type running_page_info_t = {
+  (* Running version of page information. *)
   mutable run_page_info: Online_types.page_info_t;
+  (* Running version of page chunks. *)
   mutable run_chunks: chunk_t list;
+  (* Running version of page signatures. *)
   mutable run_sigs: Online_db.page_sig_t;
+  (* Writer object to write revisions to disk. *)
   run_writer: Revision_writer.writer;
+  (* Cached version of last colored revision text, to speed-up voting.
+     It is an optional pair of revision_id, revision_text. *)
+  mutable last_colored_text: (int * string) option;
 }
 
 (** [Missing_trust (page_id, rev)] is raised if:
@@ -131,7 +138,25 @@ class page
       begin 
 	try
 	  let r = Online_revision.read_wikitrust_revision db revision_id in 
-	  r#read_words_trust_origin_sigs page_sigs;
+	  (* First, reads the colored revision text.  This is necessary,
+	     since it is the only way to get the seps.  It tries to
+	     read it from the runner, if available. *)
+	  let last_text_opt =
+	    match running_page_info with
+	      None -> None
+	    | Some running_info -> begin
+		match running_info.last_colored_text with
+		  None -> None
+		| Some (i, t) -> begin
+		    if i = revision_id then Some t else None
+		  end
+	      end
+	  in
+	  r#read_colored_text last_text_opt;
+	  (* The only thing missing is the signatures, and possibly
+	     better versions of the trust, etc. *)
+	  r#read_author_sigs page_sigs;
+	  (* Stores the revision as the working revision. *)
 	  work_revision_opt <- Some r
 	with Online_db.DB_Not_Found -> raise Missing_work_revision
       end
@@ -260,30 +285,6 @@ class page
           with Online_db.DB_Not_Found -> raise (Missing_trust r)
 	end
       end done
-
-
-    (** High-m%-Median of an array *)
-    method private compute_hi_median (a: float array) (m: float) =
-      let total = Array.fold_left (+.) 0. a in 
-      let mass_below = ref (total *. m) in 
-      let median = ref 0. in 
-      let i = ref 0 in 
-      while (!mass_below > 0.) && (!i < max_rep_val) do begin 
-	if a.(!i) > !mass_below then begin 
-	  (* Median is in this column *)
-	  median := !median +. !mass_below /. a.(!i);
-	  mass_below := 0.; 
-	end else begin 
-	  (* Median is above this column *)
-	  mass_below := !mass_below -. a.(!i); 
-	  i := !i + 1;
-	  median := !median +. 1. 
-	end
-      end done;
-      !Online_log.online_logger#log (
-	Printf.sprintf "\n %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %2.0f%%-median: %.2f" 
-	  a.(0) a.(1) a.(2) a.(3) a.(4) a.(5) a.(6) a.(7) a.(8) a.(9) (m *. 100.) !median); 
-      !median
 
     (** This method returns the current value of the user reputation *)
     method private get_rep (uid: int) (uname: string) : float = 
@@ -570,7 +571,7 @@ class page
                 end else begin 
 		  (* Nothing suitable found, uses the brute-force
 		     approach of computing the edit distance from
-		     direct text comparison. ¯*)
+		     direct text comparison. Â¯*)
 		  let edits   = Chdiff.edit_diff rev2_t rev1_t rev1_i in 
 		  let d = Editlist.edit_distance edits (max rev1_l rev2_l) in 
 		  (edits, d)
@@ -758,8 +759,11 @@ class page
 	    None -> 
 	      open_page_blob_id <- rev0#write_colored_text open_page_blob_id 
 		false true true
-	  | Some run_info -> 
-	      rev0#write_running_text run_info.run_writer false true true 
+	  | Some run_info -> begin
+	      rev0#write_running_text run_info.run_writer false true true;
+	      run_info.last_colored_text <- 
+		Some (rev0#get_id, rev0#get_colored_text false true true)
+	    end
 	end;
 	(* Writes to the db the sig for the revision. *)
 	page_sigs <- rev0#write_words_trust_origin_sigs page_sigs;
@@ -948,8 +952,11 @@ class page
 	    None -> 
 	      open_page_blob_id <- rev0#write_colored_text open_page_blob_id 
 		false true true
-	  | Some run_info -> 
-	      rev0#write_running_text run_info.run_writer false true true 
+	  | Some run_info -> begin
+	      rev0#write_running_text run_info.run_writer false true true;
+	      run_info.last_colored_text <- 
+		Some (rev0#get_id, rev0#get_colored_text false true true)
+	    end
 	end;
 	page_sigs <- rev0#write_words_trust_origin_sigs page_sigs;
 	(* Now that the colored revision is written out to disk, we don't need
@@ -973,10 +980,6 @@ class page
       match work_revision_opt with
 	None -> raise Missing_work_revision
       | Some rev0 -> begin
-	  (** TODO(Luca): Please double check this next line.
-	   * Ian and I added this when it was blanking colored text
-	   * in the database. -Bo *)
-	  (* rev0#read_words_trust_origin_sigs page_sigs; *)
 	  let rev0_t = rev0#get_words in 
 	  let rev0_l = Array.length rev0_t in 
 	  let rev0_seps = rev0#get_seps in
@@ -993,7 +996,6 @@ class page
 	  (* Builds the edit list *)
 	  let medit_l = [ Editlist.Mmov (0, 0, 0, 0, rev0_l) ] in 
 	  (* Computes the new trust and signatures *)
-
 
 	  let (new_trust_a, new_sigs_a) = 
 	    Compute_robust_trust.compute_robust_trust 
@@ -1019,7 +1021,12 @@ class page
 	      None -> (
 		open_page_blob_id <-  rev0#write_colored_text open_page_blob_id
 		  false true true)
-	    | Some run_info -> rev0#write_running_text run_info.run_writer false true true 
+	    | Some run_info -> begin
+		rev0#write_running_text run_info.run_writer 
+		  false true true;
+		run_info.last_colored_text <- 
+		  Some (rev0#get_id, rev0#get_colored_text false true true)
+	      end
 	  end;
 	  (* Writes the trust information to the revision *)
 	  page_sigs <- rev0#write_words_trust_origin_sigs page_sigs;
@@ -1119,7 +1126,7 @@ class page
 	  (* Renormalizes the reputation *)
 	  let (histogram, hi_median) = db#get_histogram in 
 	  let hi_median_boost = 
-	    self#compute_hi_median histogram trust_coeff.hi_median_perc_boost in
+	    compute_hi_median histogram trust_coeff.hi_median_perc_boost in
 	  let renorm_w' = rev2_weight *. 
 	    ((float_of_int max_rep_val) /. hi_median_boost) ** 1.0 in 
 	  let renorm_w = max rev2_weight 
@@ -1134,7 +1141,7 @@ class page
 	      "\n Incrementing histogram slot %d by %f" 
 	      slot !min_dist_to_2);
 	    let new_hi_median' = 
-	      self#compute_hi_median histogram trust_coeff.hi_median_perc in 
+	      compute_hi_median histogram trust_coeff.hi_median_perc in 
 	    new_hi_median <- max hi_median new_hi_median';
 	    (* Produces the array of differences *)
 	    delta_hist.(slot) <- !min_dist_to_2;
@@ -1371,7 +1378,7 @@ class page
 	      try begin 
 		
 		db#start_transaction;
-
+		
 		(* Reads the page information, unless we are using
 		   the running information. *)
 		begin
@@ -1568,9 +1575,9 @@ class page
 	    n_attempts := !n_attempts + 1
 	  end 
 	end done; (* End of the multiple attempts at the transaction *)
-	(* Returns whether we have done something *)
-	!done_something
-	(* End of vote method *)
-
+      (* Returns whether we have done something *)
+      !done_something
+      (* End of vote method *)
+	
   end (* class *)
 
