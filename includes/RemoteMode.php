@@ -99,7 +99,7 @@ class WikiTrust extends WikiTrustBase {
     // If the timestamp of the requested revision is earlier than the IMS 
     // header, return 304 and do nothing further.
     $rev_ts = '19700101000000';
-    $res = $dbr->select('wikitrust_colored_markup', 
+    $res = $dbr->select(self::util_getDbTable('wikitrust_colored_markup'), 
 			array('revision_createdon'), 
 			array('revision_id' => $rev_id), array());
     if ($res && $dbr->numRows($res) > 0){
