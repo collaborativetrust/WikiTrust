@@ -280,7 +280,7 @@ object(self)
       } in 
       let info_string_db = ml2str 
 	(string_of__of__sexp_of sexp_of_page_info_t page_info) in 
-      Printf.fprintf sql_file "INSERT INTO %swikitrust_page (page_id, page_info, last_blob) VALUES (%s, %s, %s);\n"
+      Printf.fprintf sql_file "REPLACE INTO %swikitrust_page (page_id, page_info, last_blob) VALUES (%s, %s, %s);\n"
 	db_prefix (ml2int page_id) info_string_db (ml2int open_blob_id)
 
 

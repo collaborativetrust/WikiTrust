@@ -66,8 +66,34 @@ cd ../analysis
 cat ~/wiki-data/enwork/reps/rep_history.txt | \
   ./load_reputations -db_user wikiuser -db_pass localwiki -db_name wikidb
 
+# Set the permissions correctly: 
+sudo chmod -R a+rwX ~/wiki-data
+sudo chmod -R a+rX ~/WikiTrust
+
 # Check that things are indeed there:
 mysql -u wikiuser -p wikidb
 # ...look into tables...
 
 # Check that on the web it looks fine. 
+http://localhost/testwiki/index.php/Flint_Hill_Christian_School?trust
+# and pretend someone has voted for the revision: in the mysql,
+insert into wikitrust_vote values (182398671, 13409916, 'Raime', '20081204023324', 0);
+# Check manually that the colored information is there:
+zless /home/luca/wiki-data/enwork/blobtree/000/013/409/916/000013409916_000000002.gz
+# Reset the vote if needed:
+update wikitrust_vote set processed = 0 where revision_id = 182398671;
+# Call for vote processing.
+./eval_online_wiki -dump_db_calls \
+  -db_user wikiuser -db_pass localwiki -db_name wikidb \
+  -blob_base_path /home/luca/wiki-data/enwork/blobtree \
+  -log_file /tmp/test.log
+# Or with the debugger:
+ocamldebug -I `ocamlfind query unix` -I `ocamlfind query str` \
+  -I `ocamlfind query vec` -I `ocamlfind query mapmin` \
+  -I `ocamlfind query hashtbl_bounded` -I `ocamlfind query fileinfo` \
+  -I `ocamlfind query intvmap` -I `ocamlfind query extlib` \
+  -I `ocamlfind query mysql` -I `ocamlfind query sexplib` \
+  ./eval_online_wiki -dump_db_calls \
+  -db_user wikiuser -db_pass localwiki -db_name wikidb \
+  -blob_base_path /home/luca/wiki-data/enwork/blobtree \
+  -log_file /tmp/test.log
