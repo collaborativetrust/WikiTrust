@@ -224,9 +224,6 @@ object(self)
       rev#set_word_author new_chunks_author_a.(0);
       rev#set_word_sig new_chunks_sig_a.(0);
 
-      let t = rev#get_colored_text in
-      let p = page_id in 
-      let r = rev#get_id in
       (* Outputs the colored text to the blob. *)
       blob_id <- blob_writer#write_revision rev#get_id rev#get_colored_text;
       (* Now we have to write the metadata for sql. *)
@@ -283,7 +280,7 @@ object(self)
       } in 
       let info_string_db = ml2str 
 	(string_of__of__sexp_of sexp_of_page_info_t page_info) in 
-      Printf.fprintf sql_file "INSERT INTO %swikitrust_page (page_id, page_info, last_blob) VALUES (%s, %s, %s);\n"
+      Printf.fprintf sql_file "REPLACE INTO %swikitrust_page (page_id, page_info, last_blob) VALUES (%s, %s, %s);\n"
 	db_prefix (ml2int page_id) info_string_db (ml2int open_blob_id)
 
 

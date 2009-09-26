@@ -366,6 +366,7 @@ class updater
 	    Online_page.run_chunks = page_chunks;
 	    Online_page.run_page_info = pinfo;
 	    Online_page.run_writer = writer;
+	    Online_page.last_colored_text = None;
 	  } in 
 	  (* Loops over the feed and processes it. *)
 	  let do_more = ref true in 
