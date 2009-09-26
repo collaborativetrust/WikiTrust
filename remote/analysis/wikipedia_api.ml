@@ -461,13 +461,18 @@ let rec get_revs_from_api
   end
  | API_error_noretry msg -> raise (API_error msg)
 
-let rec download_page_starting_with (db: Online_db.db) (title: string) (last_rev: int) : unit =
+let rec download_page_starting_with (db: Online_db.db) (title: string) 
+    (last_rev: int) (prev_last_rev: int) : unit =
   let next_rev = get_revs_from_api (Title_Selector title) last_rev db 50 in 
   let _ = Unix.sleep sleep_time_sec in
   match next_rev with
     Some next_id -> begin
-      !logger#log (Printf.sprintf "Loading next batch: %s -> %d\n" title next_id);
-      download_page_starting_with db title next_id
+      if next_id = prev_last_rev then
+        !logger#log (Printf.sprintf "Not making forward progress -- giving up")
+      else (
+        !logger#log (Printf.sprintf "Loading next batch: %s -> %d\n" title next_id);
+        download_page_starting_with db title next_id last_rev
+      )
     end
   | None -> ()
 
@@ -477,15 +482,20 @@ let download_page (db: Online_db.db) (title: string) : unit =
     try
       db#get_latest_rev_id title
     with Online_db.DB_Not_Found -> 0
-  in download_page_starting_with db title lastid
+  in download_page_starting_with db title lastid 0
 
-let rec download_page_starting_with_from_id (db: Online_db.db) (page_id: int) (last_rev: int) : unit =
+let rec download_page_starting_with_from_id (db: Online_db.db) (page_id: int) 
+    (last_rev: int) (prev_last_rev: int) : unit =
   let next_rev = get_revs_from_api (Id_Selector page_id) last_rev db 50 in 
   let _ = Unix.sleep sleep_time_sec in
   match next_rev with
     Some next_id -> begin
-      !logger#log (Printf.sprintf "Loading next batch: %d -> %d\n" page_id next_id);
-      download_page_starting_with_from_id db page_id next_id
+      if next_id = prev_last_rev then
+        !logger#log (Printf.sprintf "Not making forward progress -- giving up")
+      else (
+        !logger#log (Printf.sprintf "Loading next batch: %d -> %d\n" page_id next_id);
+        download_page_starting_with_from_id db page_id next_id last_rev
+      )
     end
   | None -> ()
 
@@ -495,7 +505,7 @@ let download_page_from_id (db: Online_db.db) (page_id : int) : unit =
     try
       (db#get_latest_rev_id_from_id page_id) + 1
     with Online_db.DB_Not_Found -> 0
-  in download_page_starting_with_from_id db page_id lastid
+  in download_page_starting_with_from_id db page_id lastid 0
 
 (**
    [get_rev_from_revid rev_id] reads 
