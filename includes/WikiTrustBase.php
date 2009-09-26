@@ -130,6 +130,7 @@ class WikiTrustBase {
     if (!self::$colored_text_loaded){
       list($page_title, $page_id, $rev_id) = self::util_ResolveRevSpec(NULL, 0, $rev_id);
       $colored_text = WikiTrust::color_getColorData($page_title, $page_id, $rev_id);
+
       self::color_fixup($colored_text);
     }
 
@@ -479,7 +480,6 @@ if (0) {
     $rev_id = self::util_getRev();
     list($page_title, $page_id, $rev_id) = self::util_ResolveRevSpec(NULL, 0, $rev_id);
     $colored_text = WikiTrust::color_getColorData($page_title, $page_id, $rev_id);
-
     self::color_fixup($colored_text);
     self::$colored_text = $colored_text;
     self::$colored_text_loaded = true;
