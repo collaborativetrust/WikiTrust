@@ -72,3 +72,4 @@ cat ~/wiki-data/enwork/reps/rep_history.txt | \
 mysql -u wikiuser -p wikidb
 # ...look into tables...
 
+# Check that on the web it looks fine. 

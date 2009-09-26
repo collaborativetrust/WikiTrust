@@ -223,7 +223,7 @@ class WikiTrustBase {
 
     $dbr =& wfGetDB( DB_SLAVE );
 
-    global $wgWikiTrustColorPath;
+    global $wgWikiTrustBlobPath;
     wfWikiTrustDebug(__FILE__.":".__LINE__ . ": Looks in the database.");
     $res = $dbr->select('wikitrust_revision', 'blob_id',
         array( 'revision_id' => $rev_id ), 
@@ -237,7 +237,7 @@ class WikiTrustBase {
     $row = $dbr->fetchRow($res);
     $blob_id = $row[0];
 
-    if (!$wgWikiTrustColorPath) {
+    if (!$wgWikiTrustBlobPath) {
       $new_blob_id = sprintf("%012d%012d", $page_id, $blob_id);
       $res = $dbr->select('wikitrust_blob', 'blob_content',
 			    array( 'blob_id' => $new_blob_id ), 
@@ -603,10 +603,10 @@ if (0) {
 			      $rev_id = -1, $page_id = -1,
 			      $voter_id = -1)
   {
-    global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgWikiTrustCmd, $wgWikiTrustLog, $wgWikiTrustDebugLog, $wgWikiTrustRepSpeed, $wgDBprefix, $wgWikiTrustCmdExtraArgs, $wgWikiTrustColorPath, $wgWikiTrustRobots;
+    global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgWikiTrustCmd, $wgWikiTrustLog, $wgWikiTrustDebugLog, $wgWikiTrustRepSpeed, $wgDBprefix, $wgWikiTrustCmdExtraArgs, $wgWikiTrustBlobPath, $wgWikiTrustRobots;
 
-    if ($wgWikiTrustColorPath){
-      $wgWikiTrustCmdExtraArgs .= " -blob_base_path " . $wgWikiTrustColorPath;
+    if ($wgWikiTrustBlobPath){
+      $wgWikiTrustCmdExtraArgs .= " -blob_base_path " . $wgWikiTrustBlobPath;
     }
 
     if ($wgWikiTrustRobots){
@@ -779,8 +779,8 @@ if (0) {
   {
     $page_str = sprintf("%012d", $page_id);
     $blob_str = sprintf("%09d", $blob_id);
-    global $wgWikiTrustColorPath;
-    $path = $wgWikiTrustColorPath;
+    global $wgWikiTrustBlobPath;
+    $path = $wgWikiTrustBlobPath;
     for ($i = 0; $i <= 3; $i++){
       $path .= "/" . substr($page_str, $i*3, 3);
     }

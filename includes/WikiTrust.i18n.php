@@ -5,7 +5,7 @@ $messages['en'] = array (
 			 'wgTrustVote' => 
 			 "I believe this information is correct",
 			 'wgTrustVoteDone' => "Thank you for your vote",
-			 'wgTrustTabText' => "trust info", 
+			 'wgTrustTabText' => "text trust", 
 			 'wgTrustExplanation' => 
 			 '{| border="1" cellpadding="5" cellspacing="0" style="background:lightgreen; color:black; margin-top: 10px; margin-bottom: 10px;" id="wt-expl"
   |-
