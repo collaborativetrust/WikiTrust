@@ -79,7 +79,7 @@ let main_loop () =
       let line = input_line stdin in
       let (title, start_rev) = splitLine2TitleRev line in
       try
-	Wikipedia_api.download_page_starting_with db title start_rev
+	Wikipedia_api.download_page_starting_with db title start_rev 0
       with
 	Wikipedia_api.API_error msg ->
 	  (!Online_log.online_logger)#log (Printf.sprintf "ERROR: %s\nmsg=%s\n" title msg);
