@@ -26,11 +26,9 @@
 
 # ONLY IF NEEDED, remove previous version trees and sql.
 sudo rm -rf /home/luca/wiki-data/enwork/blobtree
-sudo rm -rf /home/luca/wiki-data/enwork/sigtree
 sudo rm -rf /home/luca/wiki-data/enwork/sql/*
 # Or if you can do it without being root:
 rm -rf /home/luca/wiki-data/enwork/blobtree
-rm -rf /home/luca/wiki-data/enwork/sigtree
 rm -rf /home/luca/wiki-data/enwork/sql/*
 
 # Generating the colored pages and the sql file for batch-online:

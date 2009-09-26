@@ -196,7 +196,6 @@ object(self)
 	  (read_all' *. time_factor, read_part' *. time_factor)
 	end
       in
-	
       (* Computes the trust, and the sigs *)
       let (new_chunks_trust_a, new_chunks_sig_a) = 
 	Compute_robust_trust.compute_robust_trust
@@ -225,6 +224,9 @@ object(self)
       rev#set_word_author new_chunks_author_a.(0);
       rev#set_word_sig new_chunks_sig_a.(0);
 
+      let t = rev#get_colored_text in
+      let p = page_id in 
+      let r = rev#get_id in
       (* Outputs the colored text to the blob. *)
       blob_id <- blob_writer#write_revision rev#get_id rev#get_colored_text;
       (* Now we have to write the metadata for sql. *)
