@@ -224,9 +224,6 @@ object(self)
       rev#set_word_author new_chunks_author_a.(0);
       rev#set_word_sig new_chunks_sig_a.(0);
 
-      let t = rev#get_colored_text in
-      let p = page_id in 
-      let r = rev#get_id in
       (* Outputs the colored text to the blob. *)
       blob_id <- blob_writer#write_revision rev#get_id rev#get_colored_text;
       (* Now we have to write the metadata for sql. *)
