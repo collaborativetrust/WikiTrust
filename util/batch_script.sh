@@ -68,4 +68,7 @@ cd ../analysis
 cat ~/wiki-data/enwork/reps/rep_history.txt | \
   ./load_reputations -db_user wikiuser -db_pass localwiki -db_name wikidb
 
+# Check that things are indeed there:
+mysql -u wikiuser -p wikidb
+# ...look into tables...
 
