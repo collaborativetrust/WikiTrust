@@ -41,6 +41,9 @@ let custom_line_format = [] @ command_line_format
 
 let _ = Arg.parse custom_line_format noop "Usage: cat rep_file | load_reputations -db_user ...\n";;
 
+(* Histogram of reputations *)
+let histogram = Array.make 10 0. in
+
 (* returns the next line of the input file *)
 let get_line input =
   try 
@@ -49,11 +52,14 @@ let get_line input =
       End_of_file -> None
 in
 
-let add_rep (time : float) (user_id : int) (int1 : int) 
-    (int2 : int)
+let add_rep (time : float) (user_id : int) (old_bin : int) 
+    (new_bin : int)
     (user_rep : float) 
     (user_name : string) (db : Online_db.db) : unit = 
-  db#inc_rep user_id user_rep user_name
+  (* Writes the reputation increment. *)
+  db#inc_rep user_id user_rep user_name;
+  (* Updates the histogram, somehow. *)
+  histogram.(new_bin) <- histogram.(new_bin) +. sqrt(user_rep)
 in
 
 let rec main (db : Online_db.db) =
@@ -67,7 +73,12 @@ let rec main (db : Online_db.db) =
           );
           main db
         )
-      | None -> ()
+      | None -> (
+	  (* Writes the histogram.  Note that this essentially
+	     is a fake, assuming the wiki is large. *)
+	  let median = Online_types.compute_reputation_median histogram in
+	  db#write_histogram histogram median
+	)
 in
 
 (* Prepares the database connection information *)

@@ -261,30 +261,6 @@ class page
 	end
       end done
 
-
-    (** High-m%-Median of an array *)
-    method private compute_hi_median (a: float array) (m: float) =
-      let total = Array.fold_left (+.) 0. a in 
-      let mass_below = ref (total *. m) in 
-      let median = ref 0. in 
-      let i = ref 0 in 
-      while (!mass_below > 0.) && (!i < max_rep_val) do begin 
-	if a.(!i) > !mass_below then begin 
-	  (* Median is in this column *)
-	  median := !median +. !mass_below /. a.(!i);
-	  mass_below := 0.; 
-	end else begin 
-	  (* Median is above this column *)
-	  mass_below := !mass_below -. a.(!i); 
-	  i := !i + 1;
-	  median := !median +. 1. 
-	end
-      end done;
-      !Online_log.online_logger#log (
-	Printf.sprintf "\n %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %2.0f%%-median: %.2f" 
-	  a.(0) a.(1) a.(2) a.(3) a.(4) a.(5) a.(6) a.(7) a.(8) a.(9) (m *. 100.) !median); 
-      !median
-
     (** This method returns the current value of the user reputation *)
     method private get_rep (uid: int) (uname: string) : float = 
       if is_anonymous uid then 0. else begin 
@@ -1120,7 +1096,7 @@ class page
 	  (* Renormalizes the reputation *)
 	  let (histogram, hi_median) = db#get_histogram in 
 	  let hi_median_boost = 
-	    self#compute_hi_median histogram trust_coeff.hi_median_perc_boost in
+	    compute_hi_median histogram trust_coeff.hi_median_perc_boost in
 	  let renorm_w' = rev2_weight *. 
 	    ((float_of_int max_rep_val) /. hi_median_boost) ** 1.0 in 
 	  let renorm_w = max rev2_weight 
@@ -1135,7 +1111,7 @@ class page
 	      "\n Incrementing histogram slot %d by %f" 
 	      slot !min_dist_to_2);
 	    let new_hi_median' = 
-	      self#compute_hi_median histogram trust_coeff.hi_median_perc in 
+	      compute_hi_median histogram trust_coeff.hi_median_perc in 
 	    new_hi_median <- max hi_median new_hi_median';
 	    (* Produces the array of differences *)
 	    delta_hist.(slot) <- !min_dist_to_2;
