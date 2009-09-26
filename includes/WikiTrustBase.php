@@ -88,7 +88,8 @@ class WikiTrustBase {
   {
     // Now see if this user has not already voted, 
     // and count the vote if its the first time though.
-    $res = $dbr->select('wikitrust_vote', array('revision_id'),
+    $res = $dbr->select(self::util_getDbTable('wikitrust_vote'),
+		array('revision_id'),
 		array('revision_id' => $rev_id, 'voter_id' => $user_id),
 		array());
     if (!$res) {
@@ -112,7 +113,7 @@ class WikiTrustBase {
         . __LINE__ . " Inserting vote values: ".print_r($insert_vals, true));
 
     $dbw =& wfGetDB( DB_MASTER );
-    if ($dbw->insert( 'wikitrust_vote', $insert_vals)) {
+    if ($dbw->insert( self::util_getDbTable('wikitrust_vote'), $insert_vals)) {
       $dbw->commit();
       self::runEvalEdit(self::TRUST_EVAL_VOTE, $rev_id, $page_id, $user_id); 
       return new AjaxResponse(implode  ( ",", $insert_vals));
@@ -197,7 +198,7 @@ class WikiTrustBase {
   {
     $voteToProcess = false;
     $dbr =& wfGetDB( DB_SLAVE );
-    $res = $dbr->select('wikitrust_vote', 'processed',
+    $res = $dbr->select(self::util_getDbTable('wikitrust_vote'), 'processed',
 			array( 'revision_id' => $rev_id ), 
       array());
     if ($res && $dbr->numRows($res) > 0) {
@@ -226,9 +227,10 @@ class WikiTrustBase {
 
     global $wgWikiTrustBlobPath;
     wfWikiTrustDebug(__FILE__.":".__LINE__ . ": Looks in the database.");
-    $res = $dbr->select('wikitrust_revision', 'blob_id',
-        array( 'revision_id' => $rev_id ), 
-			  array());
+    $res = $dbr->select(self::util_getDbTable('wikitrust_revision'),
+		'blob_id',
+		array( 'revision_id' => $rev_id ), 
+		array());
     if (!$res || $dbr->numRows($res) == 0) {
 	    wfWikiTrustDebug(__FILE__.":".__LINE__ . ": Calls the evaluation.");
 	    self::runEvalEdit(self::TRUST_EVAL_EDIT);
@@ -240,9 +242,11 @@ class WikiTrustBase {
 
     if (!$wgWikiTrustBlobPath) {
       $new_blob_id = sprintf("%012d%012d", $page_id, $blob_id);
-      $res = $dbr->select('wikitrust_blob', 'blob_content',
-			    array( 'blob_id' => $new_blob_id ), 
-          array());
+      wfWikiTrustDebug(__FILE__.":".__LINE__ . ": fetching content from wikitrust_blob, blob_id = " . $new_blob_id);
+      $res = $dbr->select(self::util_getDbTable('wikitrust_blob'),
+			'blob_content',
+			array( 'blob_id' => $new_blob_id ), 
+			array());
       if (!$res || $dbr->numRows($res) == 0) {
 	      wfWikiTrustDebug(__FILE__.":".__LINE__ . ": Calls the evaluation.");
 	      self::runEvalEdit(self::TRUST_EVAL_EDIT);
@@ -277,7 +281,7 @@ if (1) {
 
     // wfWikiTrustDebug(__FILE__ . ":" . __LINE__ . "/* $colored_text */");
 
-    $res = $dbr->select('wikitrust_global', 'median', array(), array());
+    $res = $dbr->select(self::util_getDbTable('wikitrust_global'), 'median', array(), array());
     if ($res && $dbr->numRows($res) > 0) {
       $row = $dbr->fetchRow($res);
       self::$median = $row[0];
@@ -790,6 +794,12 @@ if (0) {
     }
     $path .= "/" . $page_str . "_" . $blob_str . ".gz";
     return $path;
+  }
+
+  static function util_getDbTable($table)
+  {
+    global $wgDBprefix;
+    return ($wgDBprefix ? $wgDBprefix.$table : $table);
   }
 
   static function debug($msg, $level)
