@@ -36,6 +36,10 @@ POSSIBILITY OF SUCH DAMAGE.
 exception API_error of string;;
 exception API_error_noretry of string;;
 
+type selector_t =
+  | Title_Selector of string
+  | Id_Selector of int
+
 (* 19700201000000 *) 
 val default_timestamp : string
 
@@ -66,10 +70,11 @@ val download_page_starting_with_from_id : Online_db.db -> int -> int -> int -> u
 (** Downloads all revisions of a page, given the page_title, and sticks them into the db. *)
 val download_page_starting_with : Online_db.db -> string -> int -> int -> unit
 
-val get_revs_from_pageid : int -> int -> int ->
-    (Online_types.wiki_page_t option * Online_types.wiki_revision_t list * int option)
 val get_rev_from_revid : int ->
     (Online_types.wiki_page_t option * Online_types.wiki_revision_t list * int option)
+
+(** Reads a group of rev_lim revisions from the WpAPI and sticks them in the db. *)
+val get_revs_from_api : selector_t -> int -> Online_db.db -> int -> int option
 
 (**
   Render the html using the wikimedia api

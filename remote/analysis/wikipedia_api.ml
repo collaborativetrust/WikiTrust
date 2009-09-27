@@ -55,10 +55,11 @@ let default_timestamp = "19700201000000"
 
 let logger = Online_log.online_logger
 
-(* types used internally *)
-type page_selector_t =
+type selector_t =
   | Title_Selector of string
   | Id_Selector of int
+
+(* types used internally *)
 
 (* Types used by json-static *)
 type json wiki_parse_results = 
@@ -364,32 +365,6 @@ let get_user_id (user_name: string) (db: Online_db.db) : int =
       | int_of_string -> 0
 
 (**
-   [get_revs_from_pageid page_id last_id 50] reads 
-   a group of revisions of the given page (usually something like
-   50 revisions, see the Wikimedia API) from the Wikimedia API,
-   stores them to disk, and returns:
-   - an optional id of the next revision to read.  Is None, then
-     all revisions of the page have been read.
-   Raises API_error if the API is unreachable.
-*)
-let rec get_revs_from_pageid (page_id: int) (last_id: int) (rev_lim: int)
-    : (wiki_page_t option * wiki_revision_t list * int option) =
-  try begin
-    if rev_lim = 0 then raise (API_error "get_revs_from_pageid: bad rev_lim");
-    !logger#log (Printf.sprintf "Getting revs from api for page '%d'\n" page_id);
-    (* Retrieve a page and revision list from mediawiki. *)
-    let selector = page_selector page_id last_id rev_lim in
-    fetch_page_and_revs_after selector
-  end with API_error msg -> begin
-    if rev_lim > 2 then begin
-      !logger#log (Printf.sprintf "Page load error for page %d.\n  msg=%s\nTrying again\n" page_id msg);
-      Unix.sleep retry_delay_sec;
-      get_revs_from_pageid page_id last_id (rev_lim / 2);
-    end else raise (API_error msg)
-  end
- | API_error_noretry msg -> raise (API_error msg)
-
-(**
    [get_revs_from_api page_title last_id db 0] reads 
    a group of revisions of the given page (usually something like
    50 revisions, see the Wikimedia API) from the Wikimedia API,
@@ -400,10 +375,10 @@ let rec get_revs_from_pageid (page_id: int) (last_id: int) (rev_lim: int)
 *)
 (* (page_title: string) *)
 let rec get_revs_from_api
-    (page_selector : page_selector_t) (last_id: int) 
+    (selector : selector_t) (last_id: int) 
     (db: Online_db.db)
     (rev_lim: int) : (int option) =
-  let error_page_ident = match page_selector with
+  let error_page_ident = match selector with
       | Title_Selector ts -> ts
       | Id_Selector is -> string_of_int is
   in
@@ -411,12 +386,11 @@ let rec get_revs_from_api
     if rev_lim = 0 then raise (API_error "get_revs_from_api: couldn't find working rev_lim value");
     !logger#log (Printf.sprintf "Getting revs from api for page '%s'\n" error_page_ident);
     (* Retrieve a page and revision list from mediawiki. *)
-    let (wiki_page', wiki_revs, next_id) = 
-      match page_selector with
-	| Title_Selector ts -> (let s = title_selector ts last_id rev_lim in
-				fetch_page_and_revs_after s)
-        | Id_Selector is -> get_revs_from_pageid is last_id rev_lim
-    in  
+    let sel = match selector with
+      | Title_Selector ts -> title_selector ts last_id rev_lim
+      | Id_Selector is -> page_selector is last_id rev_lim 
+    in
+    let (wiki_page', wiki_revs, next_id) = fetch_page_and_revs_after sel in
     match wiki_page' with
       None -> None
     | Some wiki_page -> begin
@@ -441,7 +415,7 @@ let rec get_revs_from_api
     if rev_lim > 2 then begin
       !logger#log (Printf.sprintf "Page load error for page %s.  msg=%s\nTrying again\n" error_page_ident msg);
       Unix.sleep retry_delay_sec;
-      get_revs_from_api page_selector last_id db (rev_lim / 2);
+      get_revs_from_api selector last_id db (rev_lim / 2);
     end else raise (API_error "get_revs_from_api: no good rev_lim available")
   end
  | API_error_noretry msg -> raise (API_error msg)
