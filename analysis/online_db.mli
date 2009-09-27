@@ -241,19 +241,12 @@ class db :
 
     (* Methods on the standard tables. *)
 
-    (** [get_latest_rev_id page_title] returns the revision id of the most 
-	      recent revision of page [page_title]. *)
-    method get_latest_rev_id : string -> int
-
     (** [get_latest_rev_id_from_id page_id] returns the revision id of the 
         most recent revision of page [page_id]. *)
-    method get_latest_rev_id_from_id : int -> int 
-
-    (** [get_page_id page_title] returns the page id of the named page *)
-    method get_page_id : string -> int
+    method get_latest_rev_id_from_id : int -> int
 
     (** [get_page_title page_id] returns the page title of the named page *)
-    method get_page_title : int -> string
+    method get_page_title : int -> string option
 
     (* ================================================================ *)
     (* Revision methods.  We assume we have a lock on the page to which 
@@ -387,11 +380,6 @@ class db :
 	the cached text of all revisions of [page_id] prior and
 	including the ones for [rev_id] and [rev_time_string]. *)
     method erase_cached_rev_text : int -> int -> string -> unit
-
-    (** [update_queue_page page_title] updates the default page_id to a
-	real one. *)
-    method update_queue_page : string -> int -> int
-
 
     (* ================================================================ *)
     (* WikiMedia Api *)
