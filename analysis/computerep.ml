@@ -132,7 +132,9 @@ class users
       in
       let r_bounded = max 0. (min max_rep r) in
       let r_int = int_of_float (r_bounded *. 100.) in
-      u.rep <- r_int
+      u.rep <- r_int;
+      u.rep_bin <- new_bin
+
 
     method inc_rep (uid: int) (username: string) (q: float) (timestamp: Rephist.RepHistory.key) : unit = 
       let user_id = self#generate_user_id uid username in
