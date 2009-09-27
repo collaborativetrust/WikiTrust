@@ -501,11 +501,14 @@ object(self)
     | Some x -> not_null int2ml x.(0)
 
   (** [get_page_id page_title] returns the page id of the named page *)
-  method get_page_id (page_title: string) : int = 
+  method get_page_id (page_title: string) : int option = 
     let s = Printf.sprintf "SELECT page_id FROM %swikitrust_page WHERE page_title = %s LIMIT 1" db_prefix (ml2str page_title) in 
     match fetch (self#db_exec mediawiki_dbh s) with 
       None -> raise DB_Not_Found
-    | Some x -> not_null int2ml x.(0)
+    | Some x -> (match x.(0) with
+        | Some y -> Some (int2ml y)
+        | None -> None
+                )
 
   (** [get_page_title page_id] returns the page title of the named page *)
   method get_page_title (page_id: int) : string = 

@@ -250,7 +250,7 @@ class db :
     method get_latest_rev_id_from_id : int -> int 
 
     (** [get_page_id page_title] returns the page id of the named page *)
-    method get_page_id : string -> int
+    method get_page_id : string -> int option
 
     (** [get_page_title page_id] returns the page title of the named page *)
     method get_page_title : int -> string
