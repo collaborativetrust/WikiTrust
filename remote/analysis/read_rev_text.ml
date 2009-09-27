@@ -46,7 +46,7 @@ let _ = Arg.parse custom_line_format noop "Usage: read_rev_text [options]";;
 
 let main () =
     let (wiki_page', wiki_revs, next_id) = 
-	Wikipedia_api.get_rev_from_revid !rev_id
+	Wikipedia_api.get_revs_from_api (Wikipedia_api.Rev_Selector !rev_id) 0 1
     in
     match wiki_page' with
       None -> raise (Wikipedia_api.API_error "read_rev_text: No such page")

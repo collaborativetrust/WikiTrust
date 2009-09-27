@@ -48,7 +48,7 @@ let _ = Arg.parse custom_line_format noop "Usage: fetch_all_revs_after [options]
 
 let main () =
     let (wiki_page', wiki_revs, next_id) = 
-	Wikipedia_api.get_revs_from_api (Wikipedia_api.Id_Selector !page_id) !last_rev 50
+	Wikipedia_api.get_revs_from_api (Wikipedia_api.Page_Selector !page_id) !last_rev 50
     in
     match wiki_page' with
       None -> raise (Wikipedia_api.API_error "fetch_all_revs_after: No such page")
