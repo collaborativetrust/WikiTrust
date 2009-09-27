@@ -83,8 +83,6 @@ let main_loop () =
       with
 	Wikipedia_api.API_error msg ->
 	  (!Online_log.online_logger)#log (Printf.sprintf "ERROR: %s\nmsg=%s\n" title msg);
-      | Failure x ->
-	  (!Online_log.online_logger)#log (Printf.sprintf "ERROR: %s\n" title);
     end done
   with End_of_file -> ()
 in

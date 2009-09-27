@@ -90,7 +90,7 @@ class WikiTrustBase {
     // and count the vote if its the first time though.
     $res = $dbr->select(self::util_getDbTable('wikitrust_vote'),
 		array('revision_id'),
-		array('revision_id' => $rev_id, 'voter_id' => $user_id),
+		array('revision_id' => $rev_id, 'voter_name' => $userName),
 		array());
     if (!$res) {
 	// TODO: do we also need to $dbr->freeResult($res)?
@@ -115,7 +115,7 @@ class WikiTrustBase {
     $dbw =& wfGetDB( DB_MASTER );
     if ($dbw->insert( self::util_getDbTable('wikitrust_vote'), $insert_vals)) {
       $dbw->commit();
-      self::runEvalEdit(self::TRUST_EVAL_VOTE, $rev_id, $page_id, $user_id); 
+      self::runEvalEdit(self::TRUST_EVAL_VOTE, $rev_id, $page_id, $userName); 
       return new AjaxResponse(implode  ( ",", $insert_vals));
     } else {
       return new AjaxResponse("0");
@@ -605,7 +605,7 @@ if (0) {
    */
   private static function runEvalEdit($eval_type = self::TRUST_EVAL_EDIT,
 			      $rev_id = -1, $page_id = -1,
-			      $voter_id = -1)
+			      $voter_name = "")
   {
     global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgWikiTrustCmd, $wgWikiTrustLog, $wgWikiTrustDebugLog, $wgWikiTrustRepSpeed, $wgDBprefix, $wgWikiTrustCmdExtraArgs, $wgWikiTrustBlobPath, $wgWikiTrustRobots;
 
@@ -630,9 +630,9 @@ if (0) {
       $command = escapeshellcmd("$wgWikiTrustCmd -rep_speed $wgWikiTrustRepSpeed -log_file $wgWikiTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix $wgWikiTrustCmdExtraArgs") . " &";
       break;
 	  case self::TRUST_EVAL_VOTE:
-      if ($rev_id == -1 || $page_id == -1 || $voter_id == -1)
+      if ($rev_id == -1 || $page_id == -1 || $voter_name == "")
         return -1;
-      $command = escapeshellcmd("$wgWikiTrustCmd -eval_vote -rev_id " . $dbr->strencode($rev_id) . " -voter_id " . $dbr->strencode($voter_id) . " -page_id " . $dbr->strencode($page_id) . " -rep_speed $wgWikiTrustRepSpeed -log_file $wgWikiTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix $wgWikiTrustCmdExtraArgs") . " &";
+      $command = escapeshellcmd("$wgWikiTrustCmd -eval_vote -rev_id " . $dbr->strencode($rev_id) . " -voter_name " . $dbr->strencode($voter_name) . " -page_id " . $dbr->strencode($page_id) . " -rep_speed $wgWikiTrustRepSpeed -log_file $wgWikiTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix $wgWikiTrustCmdExtraArgs") . " &";
       break;
     }
 	  

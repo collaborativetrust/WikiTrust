@@ -36,11 +36,6 @@ POSSIBILITY OF SUCH DAMAGE.
 exception API_error of string;;
 exception API_error_noretry of string;;
 
-(* types used internally *)
-type page_selector_t =
-  | Title_Selector of string
-  | Id_Selector of int
-
 (* 19700201000000 *) 
 val default_timestamp : string
 
@@ -64,27 +59,12 @@ val fetch_page_and_revs_after : string ->
  *)
 val get_user_id : string -> Online_db.db -> int
 
-(**
-   [get_revs_from_api page_title last_timestamp db rev_lim] reads 
-   a group of rev_lim revisions of the given page from the Wikimedia API,
-   stores them to disk, and returns:
-   - an optional id of the next revision to read.  If None, then
-     all revisions of the page have been read.
-   Raises API_error if the API is unreachable.
-*)
-val get_revs_from_api : page_selector_t -> int -> 
-    Online_db.db -> int ->
-    int option
-
-(** Downloads all revisions of a page, given the title, and sticks them into the db. *)
-val download_page : Online_db.db -> string -> unit
-
-val download_page_starting_with : Online_db.db -> string -> int -> int -> unit
-
-(** As above, but works on the page_id *)
+(** Downloads all revisions of a page, given the page_id, and sticks them into the db. *)
 val download_page_from_id : Online_db.db -> int -> unit
 
 val download_page_starting_with_from_id : Online_db.db -> int -> int -> int -> unit
+(** Downloads all revisions of a page, given the page_title, and sticks them into the db. *)
+val download_page_starting_with : Online_db.db -> string -> int -> int -> unit
 
 val get_revs_from_pageid : int -> int -> int ->
     (Online_types.wiki_page_t option * Online_types.wiki_revision_t list * int option)
