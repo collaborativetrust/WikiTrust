@@ -383,25 +383,31 @@ let rec get_revs_from_api
       | Page_Selector is -> (Printf.sprintf "PageId %d" is)
       | Rev_Selector is -> (Printf.sprintf "RevId %d" is)
   in
-  try begin
-    if rev_lim = 0 then raise (API_error "get_revs_from_api: couldn't find working rev_lim value");
-    !logger#log (Printf.sprintf "Getting revs from api for page '%s'\n" error_page_ident);
-    (* Retrieve a page and revision list from mediawiki. *)
-    let sel = match selector with
-      | Title_Selector ts -> title_selector ts last_id rev_lim
-      | Page_Selector is -> page_selector is last_id rev_lim 
-      | Rev_Selector is -> rev_selector is
-    in
-    fetch_page_and_revs_after sel
-  end with API_error msg -> begin
-    if rev_lim > 2 then begin
-      !logger#log (Printf.sprintf "Page load error for page %s.  msg=%s\nTrying again\n" error_page_ident msg);
+  let sel = match selector with
+    | Title_Selector ts -> title_selector ts last_id rev_lim
+    | Page_Selector is -> page_selector is last_id rev_lim 
+    | Rev_Selector is -> rev_selector is
+  in
+  let resultopt =
+    try
+      if rev_lim = 0 then raise (API_error_noretry "get_revs_from_api: illegal rev_lim of zero");
+      !logger#log (Printf.sprintf "Getting revs from api for page '%s'\n" error_page_ident);
+      Some (fetch_page_and_revs_after sel)
+    with
+    | API_error_noretry msg -> raise (API_error msg)
+    | API_error msg -> begin
+	if rev_lim < 2 then
+	  raise (API_error "get_revs_from_api: no good rev_lim available")
+	else
+	  None
+      end
+  in
+  match resultopt with
+  | Some res -> res
+  | None -> begin
       Unix.sleep retry_delay_sec;
       get_revs_from_api selector last_id (rev_lim / 2);
-    end else raise (API_error "get_revs_from_api: no good rev_lim available")
-  end
- | API_error_noretry msg -> raise (API_error msg)
-
+    end
 
 let store_wiki_revs  (db: Online_db.db) (wiki_page: wiki_page_t) (wiki_revs: wiki_revision_t list) : unit =
     let the_page_title = wiki_page.page_title in
