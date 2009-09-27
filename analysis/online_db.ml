@@ -484,14 +484,6 @@ object(self)
 
   (* Methods on the standard tables *)
 
-  (** [get_latest_rev_id page_title] returns the revision id of the most 
-      recent revision of page [page_title], according. *)
-  method get_latest_rev_id (page_title: string) : int = 
-    let s = Printf.sprintf "SELECT revision_id FROM %swikitrust_revision AS A JOIN %swikitrust_page AS B on A.page_id = B.page_id AND page_title = %s ORDER BY time_string DESC, revision_id DESC LIMIT 1" db_prefix db_prefix (ml2str page_title) in 
-    match fetch (self#db_exec mediawiki_dbh s) with 
-      None -> raise DB_Not_Found
-    | Some x -> not_null int2ml x.(0)
-
   (** [get_latest_rev_id_from_id page_id] returns the revision id of the most 
       recent revision of page [page_id], according. *)
   method get_latest_rev_id_from_id(page_id: int) : int = 
@@ -500,19 +492,14 @@ object(self)
       None -> raise DB_Not_Found
     | Some x -> not_null int2ml x.(0)
 
-  (** [get_page_id page_title] returns the page id of the named page *)
-  method get_page_id (page_title: string) : int = 
-    let s = Printf.sprintf "SELECT page_id FROM %swikitrust_page WHERE page_title = %s LIMIT 1" db_prefix (ml2str page_title) in 
-    match fetch (self#db_exec mediawiki_dbh s) with 
-      None -> raise DB_Not_Found
-    | Some x -> not_null int2ml x.(0)
-
   (** [get_page_title page_id] returns the page title of the named page *)
-  method get_page_title (page_id: int) : string = 
+  method get_page_title (page_id: int) : string option = 
     let s = Printf.sprintf "SELECT page_title FROM %swikitrust_page WHERE page_id = %d LIMIT 1" db_prefix page_id in 
     match fetch (self#db_exec mediawiki_dbh s) with 
       None -> raise DB_Not_Found
-    | Some x -> not_null str2ml x.(0)
+    | Some x -> match x.(0) with 
+        | None -> None
+        | Some p -> Some (str2ml p)
 
 
   (* ================================================================ *)
@@ -856,23 +843,6 @@ object(self)
       it does something only in the subclass that uses the exec api. *)
   method erase_cached_rev_text (page_id: int) (rev_id: int) 
     (rev_time_string: string) : unit = ()
-
-  (** [update_queue_page page_title] updates the default page_id to a
-      real one. *)
-  method update_queue_page (page_title : string) (o_page_id : int) : int =
-    let s = Printf.sprintf "SELECT page_id FROM %swikitrust_page WHERE page_title = %s" 
-      db_prefix (ml2str page_title) in
-    let result = self#db_exec mediawiki_dbh s in
-    match Mysql.fetch result with 
-      None -> o_page_id
-    | Some x -> begin
-        let page_id = not_null int2ml x.(0) in
-        let u = Printf.sprintf "UPDATE %swikitrust_queue SET page_id = %s WHERE page_title = %s" 
-          db_prefix
-          (ml2int page_id) (ml2str page_title) in 
-        ignore (self#db_exec mediawiki_dbh u);
-        page_id
-      end
 
   (* ================================================================ *)
   (* WikiMedia Api *)

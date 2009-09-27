@@ -117,7 +117,7 @@ in
    This function cleans out the hashtable working_children, removing all of the 
    entries which correspond to child processes which have stopped working.
 *)
-let check_subprocess_termination (page_title: string) (process_id: int) = 
+let check_subprocess_termination (page_id: int) (process_id: int) = 
   let stat = Unix.waitpid [Unix.WNOHANG] process_id in
     begin
     match (stat) with
@@ -127,7 +127,7 @@ let check_subprocess_termination (page_title: string) (process_id: int) =
 	(* TODO(Luca): release the db lock! *)
     | (_, Unix.WEXITED s) 
     | (_, Unix.WSIGNALED s) 
-    | (_, Unix.WSTOPPED s) -> Hashtbl.remove working_children page_title
+    | (_, Unix.WSTOPPED s) -> Hashtbl.remove working_children page_id
   end
 in
 
@@ -155,18 +155,17 @@ let process_page (page_id: int) (page_title: string) =
      revisions of the page. *)
   if !use_wikimedia_api then Wikipedia_api.download_page_from_id child_db 
     page_id;
-  let new_page_id = if page_id <> 0 then page_id else child_db#update_queue_page page_title page_id in  
   (* Creates a new updater. *)
   let processor = new Updater.updater child_db
     trust_coeff !times_to_retry_trans each_event_delay every_n_events_delay 
     !robots in
   (* Brings the page up to date.  This will take care also of the page lock. *)
-  processor#update_page_fast new_page_id;
+  processor#update_page_fast page_id;
   (* Renders the last revision of this page and stores it in memcached. *)
   if !render_last_rev then render_rev (db#get_latest_rev_id_from_id page_id) 
-    new_page_id db;
+    page_id db;
   (* Marks the page as processed. *)
-  child_db#mark_page_as_processed new_page_id page_title;
+  child_db#mark_page_as_processed page_id page_title;
   (* End of page processing. *)
     Printf.printf "Done with %s.\n" page_title; flush_all ();
     exit 0;
@@ -183,7 +182,7 @@ let dispatch_page (pages : (int * string) list) =
        Given a page_id, forks a child which brings the page up to date. *)
   let launch_processing (page_id, page_title) = begin
     (* If the page is currently being processed, does nothing. *)
-    if not (Hashtbl.mem working_children page_title) then begin
+    if not (Hashtbl.mem working_children page_id) then begin
       let new_pid = Unix.fork () in
       match new_pid with 
       | 0 -> begin
@@ -193,7 +192,7 @@ let dispatch_page (pages : (int * string) list) =
 	      end
       | _ -> begin
 	        logger#log (Printf.sprintf "Parent of pid %d\n" new_pid);  
-	        Hashtbl.add working_children page_title (new_pid)
+	        Hashtbl.add working_children page_id (new_pid)
 	      end
     end  (* if the page is already begin processed *)
   end in

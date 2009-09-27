@@ -38,7 +38,6 @@ exception API_error_noretry of string;;
 
 (* types used internally *)
 type page_selector_t =
-  | Title_Selector of string
   | Id_Selector of int
 
 (* 19700201000000 *) 
@@ -76,12 +75,7 @@ val get_revs_from_api : page_selector_t -> int ->
     Online_db.db -> int ->
     int option
 
-(** Downloads all revisions of a page, given the title, and sticks them into the db. *)
-val download_page : Online_db.db -> string -> unit
-
-val download_page_starting_with : Online_db.db -> string -> int -> int -> unit
-
-(** As above, but works on the page_id *)
+(** Downloads all revisions of a page, given the page_id, and sticks them into the db. *)
 val download_page_from_id : Online_db.db -> int -> unit
 
 val download_page_starting_with_from_id : Online_db.db -> int -> int -> int -> unit
