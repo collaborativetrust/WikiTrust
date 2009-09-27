@@ -26,7 +26,7 @@ CREATE TABLE ".$wgDBprefix."wikitrust_page (
        page_id             int PRIMARY KEY,
        page_title          varbinary(255),
        page_info           text NOT NULL,
-       last_blob           int DEFAULT 2
+       last_blob           int DEFAULT 8
 ) ENGINE=InnoDB","
 GRANT ALL ON ".$wgDBprefix."wikitrust_page TO '$wgDBuser'","
 CREATE INDEX ".$wgDBprefix."wikitrust_page_title_idx ON ".$wgDBprefix."wikitrust_page (page_title)
