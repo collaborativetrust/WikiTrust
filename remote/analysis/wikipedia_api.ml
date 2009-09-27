@@ -63,20 +63,20 @@ type selector_t =
 (* types used internally *)
 
 (* Types used by json-static *)
-type json wiki_parse_results = 
+type json wiki_parse_results =
     < parse "parse" :
         < ptext "text" : star;
         external_links "externallinks" : string list;
         links "links" : i_link list;
         categories "categories" : c_link list
       >
-    > 
+    >
 and star =
     <
-      star "*" : string  
+      star "*" : string
     >
 and i_link =
-  < 
+  <
     namespace "ns" : int;
     star "*": string
   >
@@ -96,20 +96,20 @@ let ip_re = Str.regexp "^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$"
 (** [api_ts2mw_ts timestamp] maps the Wikipedias api timestamp to our internal one.
 *)
 let api_ts2mw_ts s =
-  let ts = if Str.string_match api_tz_re s 0 then 
+  let ts = if Str.string_match api_tz_re s 0 then
     (Str.matched_group 1 s) ^ (Str.matched_group 2 s) ^ (Str.matched_group 3 s)
-    ^ (Str.matched_group 4 s) ^ (Str.matched_group 5 s) 
-    ^ (Str.matched_group 6 s) 
+    ^ (Str.matched_group 4 s) ^ (Str.matched_group 5 s)
+    ^ (Str.matched_group 6 s)
   else default_timestamp in
   ts
 
 
-(** [get_url url] makes a get call to [url] and returns the result as a string. *)      
-let get_url (url: string) : string = 
+(** [get_url url] makes a get call to [url] and returns the result as a string. *)
+let get_url (url: string) : string =
   let call = new Http_client.get url in
   let request_header = call#request_header `Base in
   (* Accept gziped format *)
-  request_header#update_field "Accept-encoding" requested_encoding_type; 
+  request_header#update_field "Accept-encoding" requested_encoding_type;
   call#set_request_header request_header;
   pipeline#add call;
   pipeline#run();
@@ -156,11 +156,11 @@ let get_children (node: result_tree): (string * result_tree) list =
 
 (** [get_child node tag] returns the first child on [node] that has
     [tag], if there is one, or None if there is none. *)
-let get_child (node: result_tree) (tag: string) : result_tree option = 
+let get_child (node: result_tree) (tag: string) : result_tree option =
   let l = get_children node in
   let rec find_first = function
       [] -> None
-    | (k, v) :: rest -> if (k = tag) then Some v else find_first rest 
+    | (k, v) :: rest -> if (k = tag) then Some v else find_first rest
   in find_first l
 
 
@@ -212,14 +212,14 @@ let get_text (node: result_tree) : string =
     | XML xnode -> begin
 	try
 	  let xmlstr = Xml.to_string (List.hd (Xml.children xnode)) in
-	    (Netencoding.Html.decode ~in_enc:`Enc_utf8 
+	    (Netencoding.Html.decode ~in_enc:`Enc_utf8
 	       ~out_enc:`Enc_utf8 () xmlstr)
 	with Failure f -> ""
       end
     | JSON jnode -> (get_property node "*" None)
 
 
-(** [process_rev rev] takes as input a xml tag [rev], and returns 
+(** [process_rev rev] takes as input a xml tag [rev], and returns
      wiki_revision_t stucture. *)
 let process_rev ((key, rev) : (string * result_tree)) : wiki_revision_t =
   let revid = int_of_string (get_property rev "revid" None) in
@@ -237,7 +237,7 @@ let process_rev ((key, rev) : (string * result_tree)) : wiki_revision_t =
     revision_len = int_of_string (get_property rev "size" (Some "0"));
     revision_parent_id = 0;
     revision_content = get_text rev;
-  } 
+  }
   in r
 
 let check_for_download_error ((key, page): (string * result_tree)) =
@@ -245,8 +245,8 @@ let check_for_download_error ((key, page): (string * result_tree)) =
   else (key, page)
 
 (** [process_page page] takes as input a structure representing a page,
-    and returns a pair consisting of a wiki_page_t structure, and a 
-    list of corresponding wiki_revision_t. 
+    and returns a pair consisting of a wiki_page_t structure, and a
+    list of corresponding wiki_revision_t.
    *)
 let process_page ((key, page): (string * result_tree))
 	: (wiki_page_t * wiki_revision_t list) =
@@ -263,9 +263,9 @@ let process_page ((key, page): (string * result_tree))
     page_is_redirect = if redirect_attr = "" then false
                        else true;
     page_is_new = false;
-    (* For random page extraction.  The idea is just broken, of course. *) 
+    (* For random page extraction.  The idea is just broken, of course. *)
     page_random = (Random.float 1.0);
-    page_touched = api_ts2mw_ts (get_property page "touched" None); 
+    page_touched = api_ts2mw_ts (get_property page "touched" None);
     page_latest = int_of_string (get_property page "lastrevid" None);
     page_len = int_of_string (get_property page "length" None)
   } in
@@ -295,7 +295,7 @@ let rev_selector (rev_id : int) : string =
     "revids=" ^ (Netencoding.Url.encode (string_of_int rev_id))
 
 let fetch_page_and_revs_after_xml (selector : string) : result_tree =
-  let url = !Online_command_line.target_wikimedia 
+  let url = !Online_command_line.target_wikimedia
     ^ "?action=query&prop=revisions|info"
     ^ "&format=xml&inprop=&rvprop=ids|flags|timestamp|user|size|comment|content"
     (* ^ "rvexpandtemplates=1&"   -- even =0 triggers template expansion! *)
@@ -308,7 +308,7 @@ let fetch_page_and_revs_after_xml (selector : string) : result_tree =
 
 
 let fetch_page_and_revs_after_json (selector : string) : result_tree =
-  let url = !Online_command_line.target_wikimedia 
+  let url = !Online_command_line.target_wikimedia
     ^ "?action=query&prop=revisions|"
     ^ "info&format=json&inprop=&rvprop=ids|flags|timestamp|user|size|comment|"
     ^ "content&"
@@ -322,13 +322,13 @@ let fetch_page_and_revs_after_json (selector : string) : result_tree =
 
 
 (**
-   [fetch_page_and_revs after selector rev_start_id db], given a [selector] 
-   and a [rev_start_id], returns all the revisions of [selector] after 
-   [rev_start_id]. 
+   [fetch_page_and_revs after selector rev_start_id db], given a [selector]
+   and a [rev_start_id], returns all the revisions of [selector] after
+   [rev_start_id].
    It returns a triple, consisting of:
    - optional page info (if nothing is returned, then there is nothing to return)
    - list of revisions
-   - revision id from which to start the next request; if None, 
+   - revision id from which to start the next request; if None,
      there are no more revisions.
    See http://en.wikipedia.org/w/api.php for more details.
 *)
@@ -352,22 +352,22 @@ let fetch_page_and_revs_after (selector : string)
     end
 
 
-(** [get_user_id user_name db]   
-    Returns the user id of the user name if we have it, 
-    or asks a web service for it if we do not. 
+(** [get_user_id user_name db]
+    Returns the user id of the user name if we have it,
+    or asks a web service for it if we do not.
 *)
 let get_user_id (user_name: string) (db: Online_db.db) : int =
   try
     if Str.string_match ip_re user_name 0 then 0
-    else db#get_user_id user_name 
+    else db#get_user_id user_name
   with Online_db.DB_Not_Found ->
     try
       db#write_user_id user_name
-    with 
+    with
       | int_of_string -> 0
 
 (**
-   [get_revs_from_api page_title last_id db 0] reads 
+   [get_revs_from_api page_title last_id db 0] reads
    a group of revisions of the given page (usually something like
    50 revisions, see the Wikimedia API) from the Wikimedia API,
    stores them to disk, and returns:
@@ -376,7 +376,7 @@ let get_user_id (user_name: string) (db: Online_db.db) : int =
    Raises API_error if the API is unreachable.
 *)
 let rec get_revs_from_api
-    (selector : selector_t) (last_id: int) 
+    (selector : selector_t) (last_id: int)
     (rev_lim: int) =
   let error_page_ident = match selector with
       | Title_Selector ts -> ts
@@ -385,7 +385,7 @@ let rec get_revs_from_api
   in
   let sel = match selector with
     | Title_Selector ts -> title_selector ts last_id rev_lim
-    | Page_Selector is -> page_selector is last_id rev_lim 
+    | Page_Selector is -> page_selector is last_id rev_lim
     | Rev_Selector is -> rev_selector is
   in
   let resultopt =
@@ -448,9 +448,9 @@ let rec download_page_starting_with (db: Online_db.db) (title: string)
 
 
 
-let rec download_page_starting_with_from_id (db: Online_db.db) (page_id: int) 
+let rec download_page_starting_with_from_id (db: Online_db.db) (page_id: int)
     (last_rev: int) (prev_last_rev: int) : unit =
-  let (wiki_page, wiki_rev, next_rev) = get_revs_from_api (Page_Selector page_id) last_rev 50 in 
+  let (wiki_page, wiki_rev, next_rev) = get_revs_from_api (Page_Selector page_id) last_rev 50 in
   begin
     let _ = Unix.sleep sleep_time_sec in
     match next_rev with
@@ -466,7 +466,7 @@ let rec download_page_starting_with_from_id (db: Online_db.db) (page_id: int)
   end
 
 (** Downloads all revisions of a page, given the title, and sticks them into the db. *)
-let download_page_from_id (db: Online_db.db) (page_id : int) : unit = 
+let download_page_from_id (db: Online_db.db) (page_id : int) : unit =
   let lastid =
     try
       (db#get_latest_rev_id_from_id page_id) + 1
@@ -476,14 +476,14 @@ let download_page_from_id (db: Online_db.db) (page_id : int) : unit =
 (**
   Render the html using the wikimedia api
 *)
-let fetch_rev_api (rev_text : string) : string = 
+let fetch_rev_api (rev_text : string) : string =
   let api_vars = [
     ("action", "parse");
     ("format", "json");
     ("text", rev_text);
   ] in
-  let raw_file = List.rev (ExtString.String.nsplit 
-    (Http_client.Convenience.http_post !Online_command_line.target_wikimedia api_vars) 
+  let raw_file = List.rev (ExtString.String.nsplit
+    (Http_client.Convenience.http_post !Online_command_line.target_wikimedia api_vars)
     "\n")
   in
   let json_file = Json_io.json_of_string (List.hd raw_file) in
