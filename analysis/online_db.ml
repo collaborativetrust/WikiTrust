@@ -67,7 +67,6 @@ type revision_t = {
   rev_user: int; 
   rev_user_text: string; 
   rev_is_minor: bool;
-  rev_comment: string
 } 
 
 let set_is_minor ism = match ism with
@@ -85,7 +84,6 @@ let rev_row2revision_t row =
     rev_user = (not_null int2ml row.(4)); (* user id *)
     rev_user_text = (not_null str2ml row.(5)); (* user name *)
     rev_is_minor = (set_is_minor (not_null int2ml row.(6))); (* is_minor *)
-    rev_comment = (not_null str2ml row.(7)); (* comment *)
   } 
 
 (* This is the type of a vote data *)
@@ -93,13 +91,12 @@ type vote_t = {
   vote_time: string;
   vote_page_id: int; 
   vote_revision_id: int;
-  vote_voter_id: int;
+  vote_voter_name: string;
 }
 
-(* This is the type of a set of signatures, as visible from outside.
-   It is a ref type to implement imperative updates. *)
-type page_sig_t = page_sig_disk_t ref 
-let empty_page_sigs = ref []
+(* This is the type of a set of signatures, as visible from outside. *)
+type page_sig_t = page_sig_disk_t
+let empty_page_sigs = []
 
 (* Produces the key for a signature *)
 let make_blob_key (page_id: int) (blob_id: int) : string =
@@ -251,6 +248,19 @@ object(self)
     ignore (self#db_exec mediawiki_dbh s)
 
 
+  (** set_histogram hist median] sets the histogram and the median in the
+      database. *)
+  method set_histogram (hist : float array) (median: float) : unit =
+    let s = Printf.sprintf "REPLACE INTO %swikitrust_global (rep_0, rep_1, rep_2, rep_3, rep_4, rep_5, rep_6, rep_7, rep_8, rep_9, median) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+      db_prefix
+      (ml2float hist.(0)) (ml2float hist.(1)) (ml2float hist.(2))
+      (ml2float hist.(3)) (ml2float hist.(4)) (ml2float hist.(5))
+      (ml2float hist.(6)) (ml2float hist.(7)) (ml2float hist.(8))
+      (ml2float hist.(9)) (ml2float median)
+    in 
+    ignore (self#db_exec mediawiki_dbh s)
+
+
   (** [fetch_last_colored_rev_time req_page_id] returns the timestamp and the 
       revision id of the most recent revision that has been colored.
       If [req_page_id] specifies a page, then only that page is considered.
@@ -289,7 +299,7 @@ object(self)
       | None -> ""
       | Some r_id -> Printf.sprintf "rev_id = %s OR" (ml2int r_id)
     in
-    let s = Printf. sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM %srevision WHERE %s (rev_timestamp, rev_id) > (%s, %s) %s ORDER BY rev_timestamp ASC, rev_id ASC LIMIT %s" 
+    let s = Printf. sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit FROM %srevision WHERE %s (rev_timestamp, rev_id) > (%s, %s) %s ORDER BY rev_timestamp ASC, rev_id ASC LIMIT %s" 
       db_prefix
       rr (ml2str timestamp) (ml2int rev_id) wr (ml2int max_revs_to_return) in
     Mysql.map (self#db_exec mediawiki_dbh s) rev_row2revision_t
@@ -304,7 +314,7 @@ object(self)
 	None -> ""
       | Some p_id -> Printf.sprintf "WHERE rev_page = %s" (ml2int p_id) 
     in
-    let s = Printf.sprintf  "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit, rev_comment FROM %srevision %s ORDER BY rev_timestamp ASC, rev_id ASC LIMIT %s" 
+    let s = Printf.sprintf  "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit FROM %srevision %s ORDER BY rev_timestamp ASC, rev_id ASC LIMIT %s" 
       db_prefix wr (ml2int max_revs_to_return) in
     Mysql.map (self#db_exec mediawiki_dbh s) rev_row2revision_t
 
@@ -318,22 +328,24 @@ object(self)
 	None -> ""
       | Some p_id -> Printf.sprintf "page_id = %s AND" (ml2int p_id) 
     in
-    let s = Printf.sprintf  "SELECT voted_on, page_id, revision_id, voter_id FROM %swikitrust_vote WHERE %s NOT processed ORDER BY voted_on ASC LIMIT %s" db_prefix wr (ml2int n_events) in
+    let s = Printf.sprintf  "SELECT voted_on, page_id, revision_id, voter_name FROM %swikitrust_vote WHERE %s NOT processed ORDER BY voted_on ASC LIMIT %s" db_prefix wr (ml2int n_events) in
     let vote_row2vote_t row =
       {
 	vote_time = (not_null str2ml row.(0));
 	vote_page_id = (not_null int2ml row.(1));
 	vote_revision_id = (not_null int2ml row.(2));
-	vote_voter_id = (not_null int2ml row.(3));
+	vote_voter_name = (not_null str2ml row.(3));
       }
     in
     Mysql.map (self#db_exec mediawiki_dbh s) vote_row2vote_t
 
 
-  (** [mark_vote_as_processed (revision_id: int) (voter_id : int)] marks a vote as processed. *)
-  method mark_vote_as_processed (revision_id: int) (voter_id : int) : unit = 
-    let s = Printf.sprintf "UPDATE %swikitrust_vote SET processed = TRUE WHERE revision_id = %s AND voter_id = %s" 
-      db_prefix (ml2int revision_id) (ml2int voter_id) in
+  (** [mark_vote_as_processed (revision_id: int) (voter_name :
+      string)] marks a vote as processed. *)
+  method mark_vote_as_processed (revision_id: int) (voter_name : string) 
+    : unit = 
+    let s = Printf.sprintf "UPDATE %swikitrust_vote SET processed = TRUE WHERE revision_id = %s AND voter_name = %s" 
+      db_prefix (ml2int revision_id) (ml2str voter_name) in
     ignore (self#db_exec mediawiki_dbh s)
 
   (* ================================================================ *)
@@ -382,12 +394,14 @@ object(self)
 
   (** [init_page page_id] initializes the page information for 
       page [page_id]. *)
-  method init_page (page_id : int) : unit =
+  method init_page (page_id : int) (page_title : string option) : unit =
     let info_string = ml2str 
       (string_of__of__sexp_of sexp_of_page_info_t 
 	Online_types.page_info_default) in 
-    let s = Printf.sprintf "INSERT INTO %swikitrust_page (page_id, page_info, last_blob) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE last_blob = last_blob" 
-      db_prefix (ml2int page_id) info_string 
+    let s = Printf.sprintf "INSERT INTO %swikitrust_page (page_id, page_info, page_title, last_blob) VALUES (%s, %s, %s, %s) ON DUPLICATE KEY UPDATE last_blob = last_blob" 
+      db_prefix (ml2int page_id) info_string (match page_title with 
+                                                | Some pt -> ml2str pt 
+                                                | None -> "null")
       (ml2int blob_locations.initial_location) in
     ignore (self#db_exec mediawiki_dbh s)    
     
@@ -420,7 +434,7 @@ object(self)
       This function is used to read the colored revisions that precede a 
       given one. *)
   method fetch_col_revs (page_id : int) (timestamp: timestamp_t) (rev_id: int) (fetch_limit: int): Mysql.result =
-    let s = Printf.sprintf "SELECT revision_id, page_id, text_id, time_string, user_id, username, is_minor, comment FROM %swikitrust_revision WHERE page_id = %s AND (time_string, revision_id) < (%s, %s) ORDER BY time_string DESC, revision_id DESC LIMIT %s" db_prefix (ml2int page_id) (ml2timestamp timestamp) (ml2int rev_id) (ml2int fetch_limit) in 
+    let s = Printf.sprintf "SELECT revision_id, page_id, text_id, time_string, user_id, username, is_minor FROM %swikitrust_revision WHERE page_id = %s AND (time_string, revision_id) < (%s, %s) ORDER BY time_string DESC, revision_id DESC LIMIT %s" db_prefix (ml2int page_id) (ml2timestamp timestamp) (ml2int rev_id) (ml2int fetch_limit) in 
     self#db_exec mediawiki_dbh s
 
   (* Chunk methods *)
@@ -447,6 +461,7 @@ object(self)
   (** [write_open_blob_id page_id blob_id] writes on the wikitrust_page table that
       the open blob for [page_id] is [blob_id]. *)
   method write_open_blob_id (page_id: int) (blob_id: int) : unit =
+    assert (blob_id >= blob_locations.initial_location);
     let s = Printf.sprintf "UPDATE %swikitrust_page SET last_blob = %s WHERE page_id = %s" db_prefix (ml2int blob_id) (ml2int page_id) in
     ignore (self#db_exec mediawiki_dbh s)
 
@@ -457,14 +472,14 @@ object(self)
   method read_page_sigs (page_id: int) : page_sig_t =
     let s = self#read_blob page_id blob_locations.sig_location in
     match s with
-      None -> ref []
-    | Some s' -> ref (of_string__of__of_sexp page_sig_disk_t_of_sexp s')
+      None -> []
+    | Some s' -> (of_string__of__of_sexp page_sig_disk_t_of_sexp s')
 
   (** [write_page_sigs page_id sigs] writes that the sigs 
       page [page_id] are [sigs]. *)
   method write_page_sigs (page_id: int) (sigs: page_sig_t) : unit =
     (* Creates a single string for the sigs. *)
-    let sig_string = string_of__of__sexp_of sexp_of_page_sig_disk_t !sigs in
+    let sig_string = string_of__of__sexp_of sexp_of_page_sig_disk_t sigs in
     self#write_blob page_id blob_locations.sig_location sig_string
 
   (* Methods on the standard tables *)
@@ -472,21 +487,29 @@ object(self)
   (** [get_latest_rev_id page_title] returns the revision id of the most 
       recent revision of page [page_title], according. *)
   method get_latest_rev_id (page_title: string) : int = 
-    let s = Printf.sprintf "SELECT rev_id FROM %srevision, %spage WHERE rev_page = page_id AND page_title = %s ORDER BY rev_timestamp DESC, rev_id DESC LIMIT 1" db_prefix db_prefix (ml2str page_title) in 
+    let s = Printf.sprintf "SELECT revision_id FROM %swikitrust_revision AS A JOIN %swikitrust_page AS B on A.page_id = B.page_id AND page_title = %s ORDER BY time_string DESC, revision_id DESC LIMIT 1" db_prefix db_prefix (ml2str page_title) in 
+    match fetch (self#db_exec mediawiki_dbh s) with 
+      None -> raise DB_Not_Found
+    | Some x -> not_null int2ml x.(0)
+
+  (** [get_latest_rev_id_from_id page_id] returns the revision id of the most 
+      recent revision of page [page_id], according. *)
+  method get_latest_rev_id_from_id(page_id: int) : int = 
+    let s = Printf.sprintf "SELECT revision_id FROM %swikitrust_revision WHERE page_id = %s ORDER BY time_string DESC, revision_id DESC LIMIT 1" db_prefix (ml2int page_id) in 
     match fetch (self#db_exec mediawiki_dbh s) with 
       None -> raise DB_Not_Found
     | Some x -> not_null int2ml x.(0)
 
   (** [get_page_id page_title] returns the page id of the named page *)
   method get_page_id (page_title: string) : int = 
-    let s = Printf.sprintf "SELECT page_id FROM %spage WHERE page_title = %s LIMIT 1" db_prefix (ml2str page_title) in 
+    let s = Printf.sprintf "SELECT page_id FROM %swikitrust_page WHERE page_title = %s LIMIT 1" db_prefix (ml2str page_title) in 
     match fetch (self#db_exec mediawiki_dbh s) with 
       None -> raise DB_Not_Found
     | Some x -> not_null int2ml x.(0)
 
   (** [get_page_title page_id] returns the page title of the named page *)
   method get_page_title (page_id: int) : string = 
-    let s = Printf.sprintf "SELECT page_title FROM %spage WHERE page_id = %d LIMIT 1" db_prefix page_id in 
+    let s = Printf.sprintf "SELECT page_title FROM %swikitrust_page WHERE page_id = %d LIMIT 1" db_prefix page_id in 
     match fetch (self#db_exec mediawiki_dbh s) with 
       None -> raise DB_Not_Found
     | Some x -> not_null str2ml x.(0)
@@ -500,7 +523,7 @@ object(self)
       the quality information, and the optional blob id. *)
   method read_wikitrust_revision (revision_id: int) 
     : (revision_t * qual_info_t * int option) = 
-    let s = Printf.sprintf "SELECT revision_id, page_id, text_id, time_string, user_id, username, is_minor, comment, quality_info, blob_id FROM %swikitrust_revision WHERE revision_id = %s" db_prefix (ml2int revision_id) in 
+    let s = Printf.sprintf "SELECT revision_id, page_id, text_id, time_string, user_id, username, is_minor, quality_info, blob_id FROM %swikitrust_revision WHERE revision_id = %s" db_prefix (ml2int revision_id) in 
     let result = self#db_exec mediawiki_dbh s in 
     match fetch result with 
       None -> raise DB_Not_Found
@@ -513,11 +536,10 @@ object(self)
 	  rev_user = not_null int2ml x.(4); 
 	  rev_user_text = not_null str2ml x.(5); 
 	  rev_is_minor = set_is_minor (not_null int2ml x.(6)); 
-	  rev_comment = not_null str2ml x.(7); 
 	} in 
 	let q = of_string__of__of_sexp qual_info_t_of_sexp 
-	  (not_null str2ml x.(8)) in 
-	let bid = not_null int2ml x.(9) in
+	  (not_null str2ml x.(7)) in 
+	let bid = not_null int2ml x.(8) in
 	let bid_opt = 
 	  if bid = blob_locations.invalid_location
 	  then None
@@ -545,15 +567,14 @@ object(self)
     let user_id = ml2int revision_info.rev_user in 
     let username = ml2str revision_info.rev_user_text in 
     let is_minor = ml2int (if revision_info.rev_is_minor then 1 else 0) in 
-    let comment = ml2str revision_info.rev_comment in 
     (* Quality parameters *)
     let q1 = ml2str (string_of__of__sexp_of sexp_of_qual_info_t quality_info) in
     let q2 =  ml2float quality_info.reputation_gain in 
     let aq2 = if (q2 = "inf") then (ml2float infinity) else q2 in
     let q3 = ml2float quality_info.overall_trust in
     (* Db write access *)
-    let s2 =  Printf.sprintf "INSERT INTO %swikitrust_revision (revision_id, page_id, text_id, time_string, user_id, username, is_minor, comment, quality_info, reputation_delta, overall_trust, blob_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE quality_info = %s, reputation_delta = %s, overall_trust = %s, blob_id = %s"
-      db_prefix rev_id page_id text_id time_string user_id username is_minor comment q1 aq2 q3 blob_id_db q1 aq2 q3 blob_id_db in
+    let s2 =  Printf.sprintf "INSERT INTO %swikitrust_revision (revision_id, page_id, text_id, time_string, user_id, username, is_minor, quality_info, reputation_delta, overall_trust, blob_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE quality_info = %s, reputation_delta = %s, overall_trust = %s, blob_id = %s"
+      db_prefix rev_id page_id text_id time_string user_id username is_minor q1 aq2 q3 blob_id_db q1 aq2 q3 blob_id_db in
     ignore (self#db_exec mediawiki_dbh s2)
 
 
@@ -658,7 +679,7 @@ object(self)
     (trust: float array)
     (origin: int array)
     (author: string array)
-    (author_sigs: Author_sig.packed_author_signature_t array) : unit =
+    (author_sigs: Author_sig.packed_author_signature_t array) : page_sig_t =
     let signature = {
       words_a = words;
       trust_a = trust;
@@ -667,28 +688,29 @@ object(self)
       sig_a = author_sigs;
     } in 
     (* If the revision already has sigs, removes them *)
-    let l_purged = List.remove_assoc rev_id !page_sigs in
+    let l_purged = List.remove_assoc rev_id page_sigs in
     (* Adds the new signatures *)
     let l_added = (rev_id, signature) :: l_purged in
     (* Assigns the new value *)
-    page_sigs := l_added
-
+    l_added
 
   (** [read_words_trust_origin_sigs page_id rev_id page_sigs] reads
       the words, trust, origin, and author sigs for the revision
       [rev_id] of page [page_id], given the page sigs [page_sigs]. *)
-  method read_words_trust_origin_sigs (page_id: int) (rev_id: int) (page_sigs: page_sig_t)
+  method read_words_trust_origin_sigs (page_id: int) (rev_id: int) 
+    (page_sigs: page_sig_t)
     : (string array * float array * int array * string array * Author_sig.packed_author_signature_t array) =
-    if List.mem_assoc rev_id !page_sigs
+    if List.mem_assoc rev_id page_sigs
     then begin 
-      let signature = List.assoc rev_id !page_sigs in
+      let signature = List.assoc rev_id page_sigs in
       (signature.words_a, signature.trust_a, signature.origin_a, signature.author_a, signature.sig_a)
     end else raise DB_Not_Found
 
   (** [delete_author_sigs page_id rev_id page_sigs] removes from the
       signatures [page_sigs] the signatures for [rev_id]. *)
-  method delete_author_sigs (page_id: int) (rev_id: int) (page_sigs: page_sig_t) : unit =
-    page_sigs := List.remove_assoc rev_id !page_sigs
+  method delete_author_sigs (page_id: int) (rev_id: int) (page_sigs: page_sig_t)
+    : page_sig_t =
+    List.remove_assoc rev_id page_sigs
 
 
   (* Methods on standard revisions *)
@@ -714,14 +736,23 @@ object(self)
   (* ================================================================ *)
   (* User methods. *)
 
-  (** [inc_rep uid delta] increments the reputation of user [uid] by
-      [delta] in a single operation, so to avoid database problems. *)
-  method inc_rep (uid : int) (delta : float) =
-    let s = Printf.sprintf "INSERT INTO %swikitrust_user (user_id, user_rep) VALUES (%s, %s) ON DUPLICATE KEY UPDATE user_rep = user_rep + %s" 
+  (** [inc_rep uid delta uname] increments the reputation of user [uid] by
+      [delta] in a single operation, so to avoid database problems. 
+      [uname] is the username of the user, to ensure that we know 
+      the names of the users. *)
+  method inc_rep (uid : int) (delta : float) (uname: string) =
+    let s = Printf.sprintf "INSERT INTO %swikitrust_user (user_id, user_rep, username) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE user_rep = user_rep + %s" 
       db_prefix
-      (ml2int uid) (ml2float delta) (ml2float delta) in 
+      (ml2int uid) (ml2float delta) (ml2str uname) (ml2float delta) in 
     ignore (self#db_exec mediawiki_dbh s)
-      
+
+  (** [set_rep uid rep uname] sets the fact that the reputation for [uid]
+      is [rep], and the username is [uname]. *)
+  method set_rep (uid : int) (rep : float) (uname: string) =
+    let s = Printf.sprintf "REPLACE INTO %swikitrust_user (user_id, user_rep, username) VALUES (%s, %s, %s)"
+      db_prefix (ml2int uid) (ml2float rep) (ml2str uname) in 
+    ignore (self#db_exec mediawiki_dbh s)
+
   (** [get_rep uid] gets the reputation of user [uid], from a table 
       relating user ids to their reputation 
       @raise DB_Not_Found if no tuple is returned by the database.
@@ -758,7 +789,7 @@ object(self)
 
   (** Add the vote to the db *)
   method vote (vote : vote_t) =
-    let s = Printf.sprintf "INSERT INTO %swikitrust_vote (revision_id, page_id, voter_id, voted_on) VALUES (%s, %s, %s, %s)" db_prefix (ml2int vote.vote_revision_id) (ml2int vote.vote_page_id) (ml2int vote.vote_voter_id) (ml2str vote.vote_time) in
+    let s = Printf.sprintf "INSERT INTO %swikitrust_vote (revision_id, page_id, voter_name, voted_on) VALUES (%s, %s, %s, %s)" db_prefix (ml2int vote.vote_revision_id) (ml2int vote.vote_page_id) (ml2str vote.vote_voter_name) (ml2str vote.vote_time) in
     ignore (self#db_exec mediawiki_dbh s)
 
 
@@ -773,9 +804,10 @@ object(self)
     ignore (self#db_exec mediawiki_dbh s)
 
   (** [mark_page_as_processed page_id] marks that a page has ben processed. *)
-  method mark_page_as_processed (page_id : int) : unit =
-    let s = Printf.sprintf "UPDATE %swikitrust_queue SET processed = 'processed' WHERE page_id = %s" db_prefix (ml2int page_id) in
-    ignore (self#db_exec mediawiki_dbh s)
+  method mark_page_as_processed (page_id : int) (page_title : string) : unit =
+    let s = Printf.sprintf "DELETE FROM %swikitrust_queue WHERE page_id = %s" db_prefix (ml2int page_id) in
+    ignore (self#db_exec mediawiki_dbh s);
+      self#write_wikitrust_page_title page_id page_title
 
   (** [mark_page_as_unprocessed page_id] marks that a page has not
       been fully processed. *)
@@ -810,6 +842,7 @@ object(self)
 	  in
 	  List.iter mark_as_processing !results;
           (* We need to end this loop. *)
+          self#commit;
           n_attempts := n_retries   
 	end with _ -> begin 
 	  (* Roll back *)
@@ -827,7 +860,7 @@ object(self)
   (** [update_queue_page page_title] updates the default page_id to a
       real one. *)
   method update_queue_page (page_title : string) (o_page_id : int) : int =
-    let s = Printf.sprintf "SELECT page_id FROM %spage WHERE page_title = %s" 
+    let s = Printf.sprintf "SELECT page_id FROM %swikitrust_page WHERE page_title = %s" 
       db_prefix (ml2str page_title) in
     let result = self#db_exec mediawiki_dbh s in
     match Mysql.fetch result with 
@@ -862,28 +895,35 @@ object(self)
       (ml2int page.page_len) 
       (ml2int page.page_latest)
     in
-    ignore(self#db_exec mediawiki_dbh s)
+      ignore(self#db_exec mediawiki_dbh s)
+(*      self#init_page page.page_id (Some page.page_title) *)
+
+  (*
+    Actually puts the text in the db, or on the filesystem.
+  *)
+  method private write_revision_text (rev : wiki_revision_t) =
+    begin
+      match rev_base_path with
+	        None ->
+	          let s = Printf.sprintf "INSERT INTO %stext (old_id, old_text, old_flags) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE old_flags = %s" db_prefix (ml2int rev.revision_id) (ml2str rev.revision_content) (ml2str "utf8") (ml2str "utf8") in
+	            ignore (self#db_exec mediawiki_dbh s)
+        | Some b ->
+	          Filesystem_store.write_revision b 
+	            rev.revision_page rev.revision_id rev.revision_content;
+    end
 
   (** [write_revision revision_to_add] adds the given data to the
       revision and text tables of the database.  It can be used to
       import data from the mediawiki api and store it locally.  *)
   method write_revision (rev : wiki_revision_t) = 
-    begin
-      match rev_base_path with
-	None ->
-	  let s = Printf.sprintf "INSERT INTO %stext (old_id, old_text, old_flags) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE old_flags = %s" db_prefix (ml2int rev.revision_id) (ml2str rev.revision_content) (ml2str "utf8") (ml2str "utf8") in
-	  ignore (self#db_exec mediawiki_dbh s)
-      | Some b ->
-	  Filesystem_store.write_revision b 
-	    rev.revision_page rev.revision_id rev.revision_content;
-    end;
+    self#write_revision_text(rev);
     (* And then the revision metadata. *)
     let s = Printf.sprintf "INSERT INTO %srevision (rev_id, rev_page, rev_text_id, rev_comment, rev_user, rev_user_text, rev_timestamp, rev_minor_edit, rev_deleted, rev_len, rev_parent_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE rev_len = %s" 
       db_prefix 
       (ml2int rev.revision_id) 
       (ml2int rev.revision_page) 
       (ml2int rev.revision_id) 
-      (ml2str rev.revision_comment) 
+      (ml2str "") 
       (ml2int rev.revision_user) 
       (ml2str rev.revision_user_text) 
       (ml2str rev.revision_timestamp) 
@@ -895,6 +935,18 @@ object(self)
     in
     ignore (self#db_exec mediawiki_dbh s)
 
+  (** [write_wikitrust_page_title page_title] updates the wikitrust_page 
+      table with the given page title. *)
+  method private write_wikitrust_page_title (page_id : int) 
+    (page_title : string) 
+    : unit =
+    (* And then the revision metadata. *)
+    let s = Printf.sprintf "UPDATE %swikitrust_page SET page_title = %s WHERE page_id = %s" 
+      db_prefix 
+      (ml2str page_title) 
+      (ml2int page_id) 
+    in
+      ignore (self#db_exec mediawiki_dbh s)
 
   (* ================================================================ *)
 
@@ -946,6 +998,11 @@ object(self)
     max_size_per_blob max_revs_per_blob debug_mode
     as super 
 
+  (** Puts the text in the text cache, and the rest in the db using the 
+      super method *)
+  method private write_revision_text (rev : wiki_revision_t) =
+    let s = Printf.sprintf "INSERT INTO %swikitrust_text_cache (revision_id, page_id, time_string, revision_text) VALUES (%s, %s, %s, %s) ON DUPLICATE KEY UPDATE time_string = %s" db_prefix (ml2int rev.revision_id) (ml2int rev.revision_page) (ml2str rev.revision_timestamp) (ml2str rev.revision_content) (ml2str rev.revision_timestamp) in
+	    ignore (self#db_exec mediawiki_dbh s);
 
   (** [get_rev_text page_id text_id] returns the text associated with
       text id [text_id].  This method first tries to read the revision
@@ -955,20 +1012,26 @@ object(self)
     let s = Printf.sprintf "SELECT revision_text FROM %swikitrust_text_cache WHERE revision_id = %s"
       db_prefix (ml2int rev_id) in 
     let result = self#db_exec mediawiki_dbh s in
-    match Mysql.fetch result with 
-      None -> begin 
-	(* Tries to read the revision using the exec API *)
-	(* NO: this is a bad idea.  Just say that the text can't be found, and make sure
-	   the dispatcher knows that the page is not fully updated. Luca, fix this. *)
-	super#read_rev_text page_id rev_id text_id
-	(* TODO(Bo): need to switch to true execAPI
-	 * let cmdline = Printf.sprintf "%sread_rev_text -log_file /dev/null -rev_id %d" "" rev_id in
-	 * get_cmd_output cmdline
-	 *)
-      end
-    | Some r -> not_null str2ml r.(0)
-
-
+      match Mysql.fetch result with 
+          None -> begin 
+          (* No -- actally, just do the getting via WmAPI -- issue of getting 
+             via page_title too annoying *)
+            
+	          (* Tries to read the revision using the exec API *)
+	          (* NO: this is a bad idea.  
+               Ian: why?
+               Just say that the text can't be found, and make sure
+	             the dispatcher knows that the page is not fully updated. 
+               Luca, fix this. 
+            *)
+            
+	          (*super#read_rev_text page_id rev_id text_id *)
+	          (* TODO(Bo): need to switch to true execAPI *)
+	          let cmdline = Printf.sprintf "%sread_rev_text -log_file /dev/null -rev_id %d" "" rev_id in
+	            get_cmd_output cmdline
+          end
+        | Some r -> not_null str2ml r.(0)
+            
   (** [erase_cached_rev_text page_id rev_id rev_time_string] erases
       the cached text of all revisions of [page_id] prior and
       including the ones for [rev_id] and [rev_time_string]. *)
@@ -1008,8 +1071,8 @@ let create_db
     (max_revs_per_blob: int)
     (debug_mode : bool) =
   if use_exec_api
-  then new db db_prefix mediawiki_dbh db_name rev_base_path 
-    colored_base_path max_size_per_blob max_revs_per_blob debug_mode
-  else new db_exec_api db_prefix mediawiki_dbh db_name rev_base_path 
-    colored_base_path max_size_per_blob max_revs_per_blob debug_mode
+  then (new db_exec_api db_prefix mediawiki_dbh db_name rev_base_path 
+    colored_base_path max_size_per_blob max_revs_per_blob debug_mode)
+  else (new db db_prefix mediawiki_dbh db_name rev_base_path 
+    colored_base_path max_size_per_blob max_revs_per_blob debug_mode)
 

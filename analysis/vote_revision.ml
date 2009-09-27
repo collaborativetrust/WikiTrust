@@ -46,8 +46,8 @@ let rev_id_opt = ref None
 let set_rev_id d = rev_id_opt := Some d
 let page_id_opt = ref None
 let set_page_id d = page_id_opt := Some d
-let voter_id_opt = ref None
-let set_voter_id d = voter_id_opt := Some d
+let voter_name_opt = ref None
+let set_voter_name d = voter_name_opt := Some d
 let vote_time_opt = ref None
 let set_vote_time d = vote_time_opt := Some d
 
@@ -57,7 +57,7 @@ let custom_line_format =
   [
    ("-rev_id",  Arg.Int set_rev_id, "<int>: revision ID that is voted");
    ("-page_id", Arg.Int set_page_id, "<int>: page ID that is voted");
-   ("-voter_id", Arg.Int set_voter_id, "<int>: user ID that votes");
+   ("-voter_name", Arg.String set_voter_name, "<string>: username of voter");
    ("-vote_time", Arg.String set_vote_time, "<string>: timestamp for the vote in form YYYYMMDDHHMMSS. Ex: 20080927231134");
   ] @ command_line_format
 
@@ -89,7 +89,7 @@ let page_id = match !page_id_opt with
 let revision_id = match !rev_id_opt with 
     None -> raise MissingInformation
   | Some d -> d;;
-let voter_id = match !voter_id_opt with 
+let voter_name = match !voter_name_opt with 
     None -> raise MissingInformation
   | Some d -> d;;
 let vote_time = match !vote_time_opt with 
@@ -107,7 +107,7 @@ db#vote {
   Online_db.vote_time = vote_time;
   Online_db.vote_page_id = page_id;
   Online_db.vote_revision_id = revision_id;
-  Online_db.vote_voter_id = voter_id;
+  Online_db.vote_voter_name = voter_name;
 };;
 
 

@@ -129,7 +129,6 @@ object(self)
       let user_id = ml2int r#get_user_id in
       let username = ml2str r#get_user_name in
       let is_minor = ml2int (if r#get_is_minor then 1 else 0) in 
-      let comment = ml2str r#get_comment in
       (* Quality parameters *)
       (* I do field-by-field initialization, rather than copying the whole
 	 structure, because otherwise we get two references to the SAME
@@ -154,8 +153,8 @@ object(self)
       let db_overall_trust = ml2float quality_info.overall_trust in
       let db_overall_quality = ml2float 0.0 in
       (* Db write access *)
-      Printf.fprintf sql_file "REPLACE INTO %swikitrust_revision (revision_id, page_id, text_id, time_string, user_id, username, is_minor, comment, quality_info, blob_id, reputation_delta, overall_trust, overall_quality) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);\n"
-	db_prefix rev_id page_id text_id time_string user_id username is_minor comment db_qual_info (ml2int blob_id) aq2 db_overall_trust db_overall_quality
+      Printf.fprintf sql_file "REPLACE INTO %swikitrust_revision (revision_id, page_id, text_id, time_string, user_id, username, is_minor, quality_info, blob_id, reputation_delta, overall_trust, overall_quality) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);\n"
+	db_prefix rev_id page_id text_id time_string user_id username is_minor db_qual_info (ml2int blob_id) aq2 db_overall_trust db_overall_quality
 	
 
     (** Processes a new revision, computing trust, author, and origin, 
@@ -197,7 +196,6 @@ object(self)
 	  (read_all' *. time_factor, read_part' *. time_factor)
 	end
       in
-	
       (* Computes the trust, and the sigs *)
       let (new_chunks_trust_a, new_chunks_sig_a) = 
 	Compute_robust_trust.compute_robust_trust
@@ -282,10 +280,9 @@ object(self)
       } in 
       let info_string_db = ml2str 
 	(string_of__of__sexp_of sexp_of_page_info_t page_info) in 
-      Printf.fprintf sql_file "INSERT INTO %swikitrust_page (page_id, page_info, last_blob) VALUES (%s, %s, %s);\n"
-	db_prefix (ml2int page_id) info_string_db (ml2int open_blob_id);
-      Printf.fprintf sql_file "COMMIT\n"
-	
+      Printf.fprintf sql_file "REPLACE INTO %swikitrust_page (page_id, page_info, last_blob) VALUES (%s, %s, %s);\n"
+	db_prefix (ml2int page_id) info_string_db (ml2int open_blob_id)
+
 
     (** This method writes the chunks to their own blob. *)
     method private write_chunks : unit = 

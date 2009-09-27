@@ -261,7 +261,9 @@ let blob_locations = {
   invalid_location = 0; (* A revision sig can never be here. *)
   sig_location = 0;
   chunks_location = 1;
-  initial_location = 2;
+  (* I use 8 as an initial location to leave a bit of space for other
+     information we may wish to compress. *)
+  initial_location = 8;
 }
 
 (* Things for the WMF implementation *)
@@ -298,3 +300,25 @@ type wiki_revision_t = {
   revision_content : string;
 } with sexp
 
+(** High-m%-Median of an array *)
+let compute_hi_median (a: float array) (m: float) =
+  let total = Array.fold_left (+.) 0. a in 
+  let mass_below = ref (total *. m) in 
+  let median = ref 0. in 
+  let i = ref 0 in 
+  while (!mass_below > 0.) && (!i < Eval_defs.max_rep_val) do begin 
+    if a.(!i) > !mass_below then begin 
+      (* Median is in this column *)
+      median := !median +. !mass_below /. a.(!i);
+      mass_below := 0.; 
+    end else begin 
+      (* Median is above this column *)
+      mass_below := !mass_below -. a.(!i); 
+      i := !i + 1;
+      median := !median +. 1. 
+    end
+  end done;
+  !median
+
+let compute_reputation_median a = 
+  compute_hi_median a default_trust_coeff.hi_median_perc

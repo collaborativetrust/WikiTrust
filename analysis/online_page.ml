@@ -46,10 +46,17 @@ type rev_t = Online_revision.revision
     are analyzed, the information is not read/written all the time
     to disk. *)
 type running_page_info_t = {
+  (* Running version of page information. *)
   mutable run_page_info: Online_types.page_info_t;
+  (* Running version of page chunks. *)
   mutable run_chunks: chunk_t list;
+  (* Running version of page signatures. *)
   mutable run_sigs: Online_db.page_sig_t;
+  (* Writer object to write revisions to disk. *)
   run_writer: Revision_writer.writer;
+  (* Cached version of last colored revision text, to speed-up voting.
+     It is an optional pair of revision_id, revision_text. *)
+  mutable last_colored_text: (int * string) option;
 }
 
 (** [Missing_trust (page_id, rev)] is raised if:
@@ -102,11 +109,12 @@ class page
       Hashtbl.create 10
     (** These are the edit distances, indexed as above. *)
     val edit_dist : ((int * int), float) Hashtbl.t = Hashtbl.create 10
-      (** This is a hash table mapping each user id to a pair (old_rep,
-	  new_rep option).  So we can keep track of both the original
+      (** This is a hash table mapping each user id to a triple (old_rep,
+	  new_rep option, username).  So we can keep track of both the original
 	  value, and of the updated value, if any.  *)
-    val rep_cache : (int, (float * float option)) Hashtbl.t = Hashtbl.create 10
-      (** Current time *)
+    val rep_cache : (int, (float * float option * string)) Hashtbl.t 
+      = Hashtbl.create 10
+    (** Current time *)
     val mutable curr_time = 0.
     (** List of deleted chunks *)
     val mutable del_chunks_list : Online_types.chunk_t list = []
@@ -130,7 +138,25 @@ class page
       begin 
 	try
 	  let r = Online_revision.read_wikitrust_revision db revision_id in 
-	  r#read_words_trust_origin_sigs page_sigs;
+	  (* First, reads the colored revision text.  This is necessary,
+	     since it is the only way to get the seps.  It tries to
+	     read it from the runner, if available. *)
+	  let last_text_opt =
+	    match running_page_info with
+	      None -> None
+	    | Some running_info -> begin
+		match running_info.last_colored_text with
+		  None -> None
+		| Some (i, t) -> begin
+		    if i = revision_id then Some t else None
+		  end
+	      end
+	  in
+	  r#read_colored_text last_text_opt;
+	  (* The only thing missing is the signatures, and possibly
+	     better versions of the trust, etc. *)
+	  r#read_author_sigs page_sigs;
+	  (* Stores the revision as the working revision. *)
 	  work_revision_opt <- Some r
 	with Online_db.DB_Not_Found -> raise Missing_work_revision
       end
@@ -260,35 +286,11 @@ class page
 	end
       end done
 
-
-    (** High-m%-Median of an array *)
-    method private compute_hi_median (a: float array) (m: float) =
-      let total = Array.fold_left (+.) 0. a in 
-      let mass_below = ref (total *. m) in 
-      let median = ref 0. in 
-      let i = ref 0 in 
-      while (!mass_below > 0.) && (!i < max_rep_val) do begin 
-	if a.(!i) > !mass_below then begin 
-	  (* Median is in this column *)
-	  median := !median +. !mass_below /. a.(!i);
-	  mass_below := 0.; 
-	end else begin 
-	  (* Median is above this column *)
-	  mass_below := !mass_below -. a.(!i); 
-	  i := !i + 1;
-	  median := !median +. 1. 
-	end
-      end done;
-      !Online_log.online_logger#log (
-	Printf.sprintf "\n %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %2.0f%%-median: %.2f" 
-	  a.(0) a.(1) a.(2) a.(3) a.(4) a.(5) a.(6) a.(7) a.(8) a.(9) (m *. 100.) !median); 
-      !median
-
     (** This method returns the current value of the user reputation *)
-    method private get_rep (uid: int) : float = 
+    method private get_rep (uid: int) (uname: string) : float = 
       if is_anonymous uid then 0. else begin 
 	if Hashtbl.mem rep_cache uid then begin 
-	  let (old_rep, new_rep_opt) = Hashtbl.find rep_cache uid in 
+	  let (old_rep, new_rep_opt, _) = Hashtbl.find rep_cache uid in 
 	  match new_rep_opt with 
 	    Some r -> r
 	  | None -> old_rep
@@ -298,20 +300,20 @@ class page
  	    try db#get_rep uid
 	    with Online_db.DB_Not_Found -> 0.
 	  in 
-	  Hashtbl.add rep_cache uid (r, None); 
+	  Hashtbl.add rep_cache uid (r, None, uname); 
 	  r
 	end
       end
 
     (** This method sets, but does not write to disk, a new user reputation. *)
-    method private set_rep (uid: int) (r: float) : unit = 
+    method private set_rep (uid: int) (r: float) (uname: string) : unit = 
       if not_anonymous uid then begin 
 	(* Reputations must be in the interval [0...maxrep] *)
 	let r' = max 0. (min trust_coeff.max_rep r) in 
 	(* Printf.printf "set_rep uid: %d r: %f\n" uid r'; debug *)
 	if Hashtbl.mem rep_cache uid then begin 
-	  let (old_rep, _) = Hashtbl.find rep_cache uid in 
-	  Hashtbl.replace rep_cache uid (old_rep, Some r')
+	  let (old_rep, _, uname') = Hashtbl.find rep_cache uid in 
+	  Hashtbl.replace rep_cache uid (old_rep, Some r', uname')
 	end else begin 
 	  (* We have to read it from disk *)
 	  let old_rep = 
@@ -320,7 +322,7 @@ class page
 	      with Online_db.DB_Not_Found -> 0.
 	    end
 	  in 
-	  Hashtbl.add rep_cache uid (old_rep, Some r')
+	  Hashtbl.add rep_cache uid (old_rep, Some r', uname)
 	end
       end
 
@@ -331,14 +333,14 @@ class page
         needed. *)
     method private write_all_reps : unit = 
       let f uid = function 
-	  (old_r, Some r) ->  if abs_float (r -. old_r) > 0.001 then begin 
+	  (old_r, Some r, uname) ->  if abs_float (r -. old_r) > 0.001 then begin 
 	    (* Writes the reputation change to disk, as a small transaction *)
 	    let n_attempts = ref 0 in 
 	    while !n_attempts < n_retries do 
 	      begin 
 		try begin 
 		  db#start_transaction;
-		  db#inc_rep uid (r -. old_r);
+		  db#inc_rep uid (r -. old_r) uname;
 		  db#commit;
 		  n_attempts := n_retries
 		end with _ -> begin 
@@ -348,12 +350,12 @@ class page
 		end
 	      end done (* End of the multiple attempts at the transaction *)
 	  end
-	| (old_r, None) -> ()
+	| (_, None, _) -> ()
       in Hashtbl.iter f rep_cache
 
 
     (** Computes the weight of a reputation *)
-    method private weight (r: float) : float = log (1.1 +. r)
+    method private weight (r: float) : float = log (1.2 +. r)
 
 
     (** [insert_revision_in_lists] inserts the revision in the list of
@@ -369,7 +371,7 @@ class page
       let cur_trust = cur_rev#get_overall_trust in 
       let cur_id  = cur_rev#get_id in
       let cur_uid = cur_rev#get_user_id in 
-      let cur_rep = self#get_rep cur_uid in 
+      let cur_rep = self#get_rep cur_uid cur_rev#get_user_name in 
 
       (* We keep track of which revisions we are throwing out, so that
          we can later remove the signatures. 
@@ -471,7 +473,8 @@ class page
       in
       let is_not_in_any_list id = not (is_in_some_list id) in
       let not_in_any_list = List.filter is_not_in_any_list !thrown_out in 
-      let delete_sigs_of_rev id = db#delete_author_sigs page_id id page_sigs in 
+      let delete_sigs_of_rev id = 
+	page_sigs <- db#delete_author_sigs page_id id page_sigs in 
       List.iter delete_sigs_of_rev not_in_any_list
 
 
@@ -568,7 +571,7 @@ class page
                 end else begin 
 		  (* Nothing suitable found, uses the brute-force
 		     approach of computing the edit distance from
-		     direct text comparison. ¯*)
+		     direct text comparison. Â¯*)
 		  let edits   = Chdiff.edit_diff rev2_t rev1_t rev1_i in 
 		  let d = Editlist.edit_distance edits (max rev1_l rev2_l) in 
 		  (edits, d)
@@ -723,7 +726,7 @@ class page
       let rev0_seps = rev0#get_seps in 
 
       (* Gets the author reputation *)
-      let rep_user = self#get_rep rev0_uid in 
+      let rep_user = self#get_rep rev0_uid rev0_uname in 
       let weight_user = self#weight (rep_user) in 
 
       (* Now we proceed by cases, depending on whether this is the
@@ -756,11 +759,14 @@ class page
 	    None -> 
 	      open_page_blob_id <- rev0#write_colored_text open_page_blob_id 
 		false true true
-	  | Some run_info -> 
-	      rev0#write_running_text run_info.run_writer false true true 
+	  | Some run_info -> begin
+	      rev0#write_running_text run_info.run_writer false true true;
+	      run_info.last_colored_text <- 
+		Some (rev0#get_id, rev0#get_colored_text false true true)
+	    end
 	end;
 	(* Writes to the db the sig for the revision. *)
-	rev0#write_words_trust_origin_sigs page_sigs;
+	page_sigs <- rev0#write_words_trust_origin_sigs page_sigs;
 	(* Computes the overall trust of the revision *)
 	let t = Compute_robust_trust.compute_overall_trust chunk_0_trust in 
 	rev0#set_overall_trust t;
@@ -946,10 +952,13 @@ class page
 	    None -> 
 	      open_page_blob_id <- rev0#write_colored_text open_page_blob_id 
 		false true true
-	  | Some run_info -> 
-	      rev0#write_running_text run_info.run_writer false true true 
+	  | Some run_info -> begin
+	      rev0#write_running_text run_info.run_writer false true true;
+	      run_info.last_colored_text <- 
+		Some (rev0#get_id, rev0#get_colored_text false true true)
+	    end
 	end;
-	rev0#write_words_trust_origin_sigs page_sigs;
+	page_sigs <- rev0#write_words_trust_origin_sigs page_sigs;
 	(* Now that the colored revision is written out to disk, we don't need
 	   any more its uncolored text.   If we are using the exec_api, 
 	   we erase from the disk cache the text of all previous
@@ -967,16 +976,15 @@ class page
 
     (** [vote_for_trust voter_uid] increases the trust of a piece of text 
 	due to voting by [voter_uid] *)
-    method private vote_for_trust (voter_uid: int) : unit = 
+    method private vote_for_trust (voter_uid: int) (voter_uname: string): unit = 
       match work_revision_opt with
 	None -> raise Missing_work_revision
       | Some rev0 -> begin
-	  rev0#read_words_trust_origin_sigs page_sigs;
 	  let rev0_t = rev0#get_words in 
 	  let rev0_l = Array.length rev0_t in 
-	  let rev0_seps = rev0#get_seps in 
+	  let rev0_seps = rev0#get_seps in
 	  (* Gets the voter reputation *)
-	  let voter_rep = self#get_rep voter_uid in 
+	  let voter_rep = self#get_rep voter_uid voter_uname in 
 	  let voter_weight = self#weight (voter_rep) in 
 	  (* Prepares the arguments for a call to compute_robust_trust *)
 	  (* Prepares the arrays trust_a, sig_a as if they were for
@@ -988,7 +996,6 @@ class page
 	  (* Builds the edit list *)
 	  let medit_l = [ Editlist.Mmov (0, 0, 0, 0, rev0_l) ] in 
 	  (* Computes the new trust and signatures *)
-
 
 	  let (new_trust_a, new_sigs_a) = 
 	    Compute_robust_trust.compute_robust_trust 
@@ -1011,14 +1018,18 @@ class page
 	  (* Writes the new colored markup *)
 	  begin
 	    match running_page_info with 
-	      None -> 
-		open_page_blob_id <- rev0#write_colored_text open_page_blob_id 
-		  false true true
-	    | Some run_info -> 
-		rev0#write_running_text run_info.run_writer false true true 
+	      None -> (
+		open_page_blob_id <-  rev0#write_colored_text open_page_blob_id
+		  false true true)
+	    | Some run_info -> begin
+		rev0#write_running_text run_info.run_writer 
+		  false true true;
+		run_info.last_colored_text <- 
+		  Some (rev0#get_id, rev0#get_colored_text false true true)
+	      end
 	  end;
 	  (* Writes the trust information to the revision *)
-	  rev0#write_words_trust_origin_sigs page_sigs;
+	  page_sigs <- rev0#write_words_trust_origin_sigs page_sigs;
 	  let t = Compute_robust_trust.compute_overall_trust new_trust_a.(0) in
 	  rev0#set_overall_trust t;
 	  let th = 
@@ -1080,7 +1091,7 @@ class page
         let rev2_uid   = rev2#get_user_id in 
         let rev2_uname = rev2#get_user_name in
         let rev2_time  = rev2#get_time in 
-	let rev2_rep   = self#get_rep rev2_uid in 
+	let rev2_rep   = self#get_rep rev2_uid rev2_uname in 
 	let rev2_weight = self#weight rev2_rep in 
 
 	(* If the judge revision is a robot, we do not do anything. *)
@@ -1115,7 +1126,7 @@ class page
 	  (* Renormalizes the reputation *)
 	  let (histogram, hi_median) = db#get_histogram in 
 	  let hi_median_boost = 
-	    self#compute_hi_median histogram trust_coeff.hi_median_perc_boost in
+	    compute_hi_median histogram trust_coeff.hi_median_perc_boost in
 	  let renorm_w' = rev2_weight *. 
 	    ((float_of_int max_rep_val) /. hi_median_boost) ** 1.0 in 
 	  let renorm_w = max rev2_weight 
@@ -1130,7 +1141,7 @@ class page
 	      "\n Incrementing histogram slot %d by %f" 
 	      slot !min_dist_to_2);
 	    let new_hi_median' = 
-	      self#compute_hi_median histogram trust_coeff.hi_median_perc in 
+	      compute_hi_median histogram trust_coeff.hi_median_perc in 
 	    new_hi_median <- max hi_median new_hi_median';
 	    (* Produces the array of differences *)
 	    delta_hist.(slot) <- !min_dist_to_2;
@@ -1159,7 +1170,7 @@ class page
 	      let rev1_uname = rev1#get_user_name in 
 	      let rev1_time  = rev1#get_time in 
 	      let rev1_nix   = ref (rev1#get_nix) in 
-	      let rev1_rep   = self#get_rep rev1_uid in 
+	      let rev1_rep   = self#get_rep rev1_uid rev1_uname in 
 	      let d12        = Hashtbl.find edit_dist (rev2_id, rev1_id) in 
 
 	      (* The revision r_c2 is the revision prior to rev1, and
@@ -1210,11 +1221,12 @@ class page
 		  end done;
 		  let r_c2_id = (!r_c2)#get_id in
 		  let r_c2_uid = (!r_c2)#get_user_id in 
+		  let r_c2_uname = (!r_c2)#get_user_name in
 		  (* outputs the results *)
 		  (r_c2_id,
 		  r_c2_uid,
-		  (!r_c2)#get_user_name,
-		  self#get_rep r_c2_uid, 
+		  r_c2_uname,
+		  self#get_rep r_c2_uid r_c2_uname,
 		  Hashtbl.find edit_dist (r_c2_id, rev1_id), 
 		  !min_dist_to_2,
 		  !min_dist_to_1
@@ -1268,7 +1280,8 @@ class page
 		  let rev1_prev        = Vec.get (rev1_idx + 1) revs in 
 		  let rev1_prev_id     = rev1_prev#get_id in 
 		  let rev1_prev_uid    = rev1_prev#get_user_id in 
-		  let rev1_prev_rep    = self#get_rep rev1_prev_uid in 
+		  let rev1_prev_uname  = rev1_prev#get_user_name in
+		  let rev1_prev_rep    = self#get_rep rev1_prev_uid rev1_prev_uname in
 		  let dist_prev1       = Hashtbl.find edit_dist (rev1_prev_id, rev1_id) in 
 		  let dist_prev2       = Hashtbl.find edit_dist (rev1_prev_id, rev2_id) in 
 		  let q_local          = qual dist_prev1 d12 dist_prev2 in 
@@ -1309,7 +1322,7 @@ class page
 		    end
 		end
 	      in 
-	      self#set_rep rev1_uid new_rep;
+	      self#set_rep rev1_uid new_rep rev1_uname;
 
 	      (* Adds quality information for the revision *)
 	      rev1#add_edit_quality_info delta q (new_rep -. rev1_rep) ; 
@@ -1365,7 +1378,7 @@ class page
 	      try begin 
 		
 		db#start_transaction;
-
+		
 		(* Reads the page information, unless we are using
 		   the running information. *)
 		begin
@@ -1379,7 +1392,7 @@ class page
 			page_info <- pinfo;
 			open_page_blob_id <- bid;
 		      with Online_db.DB_Not_Found -> begin
-			db#init_page page_id;
+			db#init_page page_id None;
 			open_page_blob_id <- blob_locations.initial_location;
 		      end end
 		    end
@@ -1411,9 +1424,10 @@ class page
 		
 		(* We write back to disk the information of all revisions *)
 		!Online_log.online_logger#log 
-		  "   Writing the quality information...\n";
+		  "   Writing the quality information...";
 		let f r = r#write_quality_to_db in 
 		Vec.iter f revs;
+		!Online_log.online_logger#log " done.\n";
 		
 		(* Updates the running page information. *)
 		begin
@@ -1483,7 +1497,7 @@ class page
         The method only does somethign if the revision is the last 
         for the page, and returns, in a flag, whether it has done 
         something or not. *)
-    method vote (voter_id: int) : bool = 
+    method vote (voter_id: int) (voter_name: string) : bool = 
 
       (* Keeps track of whether we have done any work *)
       let done_something = ref false in 
@@ -1508,7 +1522,7 @@ class page
 		    page_info <- pinfo;
 		    open_page_blob_id <- bid;
 		  with Online_db.DB_Not_Found -> begin
-		    db#init_page page_id;
+		    db#init_page page_id None;
 		    open_page_blob_id <- blob_locations.initial_location;
 		  end end
 		end
@@ -1524,7 +1538,7 @@ class page
 	    self#read_page_revisions_vote; 
 	    (* Increases the trust of the revision, and writes the 
 	       results back to disk *)
-	    self#vote_for_trust voter_id; 
+	    self#vote_for_trust voter_id voter_name; 
 	    (* Inserts the revision in the list of high rep or high
 	       trust revisions, and deletes old signatures *)
 	    self#insert_revision_in_lists;
@@ -1561,9 +1575,9 @@ class page
 	    n_attempts := !n_attempts + 1
 	  end 
 	end done; (* End of the multiple attempts at the transaction *)
-	(* Returns whether we have done something *)
-	!done_something
-	(* End of vote method *)
-
+      (* Returns whether we have done something *)
+      !done_something
+      (* End of vote method *)
+	
   end (* class *)
 

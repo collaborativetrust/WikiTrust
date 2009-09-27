@@ -39,6 +39,8 @@ POSSIBILITY OF SUCH DAMAGE.
 
 open Unix;;
 
+let default_time = (1970,01,01,00,00,00)
+
 (** Converts a time as Y,M,D,h,m,s to time as float *)
 let time_to_float (year: int) (month: int) (day: int) (hour: int) (minute: int) (second: int) : float = 
   let tmrec = {
@@ -58,14 +60,20 @@ let time_to_float (year: int) (month: int) (day: int) (hour: int) (minute: int) 
 
 (** Converts a time as a string yyyymmddhhmmss to a time as a floating point.
     This type of time strings is found in the database. *)
-let time_string_to_float (s: string) : float = 
-  let yy = int_of_string (String.sub s  0 4) in 
-  let mm = int_of_string (String.sub s  4 2) in 
-  let dd = int_of_string (String.sub s  6 2) in 
-  let h  = int_of_string (String.sub s  8 2) in 
-  let m  = int_of_string (String.sub s 10 2) in 
-  let s  = int_of_string (String.sub s 12 2) in 
-  time_to_float yy mm dd h m s
+let time_string_to_float (s: string) : float =
+  let (yy,mm,dd,h,m,s) = (try
+    let yy' = int_of_string (String.sub s  0 4) in 
+    let mm' = int_of_string (String.sub s  4 2) in 
+    let dd' = int_of_string (String.sub s  6 2) in 
+    let h'  = int_of_string (String.sub s  8 2) in 
+    let m'  = int_of_string (String.sub s 10 2) in 
+    let s'  = int_of_string (String.sub s 12 2) in 
+      (yy',mm',dd',h',m',s')
+    with
+        Invalid_argument _ -> default_time
+                         ) 
+  in
+    time_to_float yy mm dd h m s
 
 (** Converts a time as a string yyyymmddhhmmss to a time as a timestamp.
     This type of time strings is found in the database. *)

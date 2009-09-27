@@ -1,6 +1,6 @@
 package WikiTrust;
 
-use constant DEBUG => 0;
+use constant DEBUG => 1;
 
 use strict;
 use warnings;
@@ -12,6 +12,7 @@ use CGI;
 use CGI::Carp;
 use IO::Zlib;
 use Compress::Zlib;
+#use Time::HiRes qw(gettimeofday tv_interval);
 
 use constant SLEEP_TIME => 3;
 use constant NOT_FOUND_TEXT_TOKEN => "TEXT_NOT_FOUND";
@@ -20,6 +21,7 @@ our %methods = (
 	'edit' => \&handle_edit,
 	'vote' => \&handle_vote,
 	'gettext' => \&handle_gettext,
+	'wikiorhtml' => \&handle_wikiorhtml,
     );
 
 
@@ -30,12 +32,13 @@ sub handler {
   my $dbh = DBI->connect(
     $ENV{WT_DBNAME},
     $ENV{WT_DBUSER},
-    $ENV{WT_DBPASS}
+    $ENV{WT_DBPASS},
+    { RaiseError => 1, AutoCommit => 1 }
   );
 
   my $result = "";
   try {
-    my ($pageid, $title, $revid, $time, $userid, $method);
+    my ($pageid, $title, $revid, $time, $username, $method);
     $method = $cgi->param('method');
     if (!$method) {
 	$method = 'gettext';
@@ -48,20 +51,20 @@ sub handler {
 	$pageid = $cgi->param('page') || 0;
 	$title = $cgi->param('page_title') || '';
 	$revid = $cgi->param('rev') || -1;
-	$time = $cgi->param('time') || '';
-	$userid = $cgi->param('user') || -1;
+	$time = $cgi->param('time') || timestamp();
+	$username = $cgi->param('user') || '';
     } else {
 	# new parameter names
 	$pageid = $cgi->param('pageid') || 0;
 	$title = $cgi->param('title') || '';
 	$revid = $cgi->param('revid') || -1;
-	$time = $cgi->param('time') || '';
-	$userid = $cgi->param('userid') || -1;
+	$time = $cgi->param('time') || timestamp();
+	$username = $cgi->param('username') || '';
     }
 
     throw Error::Simple("Bad method: $method") if !exists $methods{$method};
     my $func = $methods{$method};
-    $result = $func->($revid, $pageid, $userid, $time, $title, $dbh);
+    $result = $func->($revid, $pageid, $username, $time, $title, $dbh, $cgi);
   } otherwise {
     my $E = shift;
     print STDERR $E;
@@ -71,32 +74,42 @@ sub handler {
   return Apache2::Const::OK;
 }
 
+sub timestamp {
+    my @time = localtime();
+    return sprintf("%04d%02d%02d%02d%02d%02d", $time[5]+1900, $time[4]+1, $time[3], $time[2], $time[1], $time[0]);
+}
 
+sub secret_okay {
+    my $cgi = shift @_;
+    my $secret = $cgi->param('secret') || '';
+    my $true_secret = $ENV{WT_SECRET} || '';
+    return ($secret eq $true_secret);
+}
+
+# To fix atomicity errors, wrapping this in a procedure.
 sub mark_for_coloring {
   my ($page, $page_title, $dbh) = @_;
-  my $select_sth = $dbh->prepare(
-    "SELECT page_title FROM wikitrust_queue WHERE page_title = ? AND"
-    . " processed <> 'processed'"
+
+  my $sth = $dbh->prepare(
+    "INSERT INTO wikitrust_queue (page_id, page_title) VALUES (?, ?)"
+	." ON DUPLICATE KEY UPDATE requested_on = now()"
   ) || die $dbh->errstr;
-  # This doesn't seem safe.  What if another entry appears and gets
-  # marked as 'processing' between these two statements.  This could
-  # lead to multiple eval_online_wiki processes running, I think.
-  my $ins_sth = $dbh->prepare(
-    "INSERT INTO wikitrust_queue (page_id, page_title) VALUES (?, ?) " 
-    . "ON DUPLICATE KEY UPDATE requested_on = now(), processed = 'unprocessed'"
-  ) || die $dbh->errstr;
-  $select_sth->execute(($page_title)) || die $dbh->errstr;
-  if (!($select_sth->fetchrow_arrayref())){
-    $ins_sth->execute(($page, $page_title)) || die $dbh->errstr;
-  }
-  #Not a transaction right now! old code: $dbh->commit;
+  $sth->execute($page, $page_title) || die $dbh->errstr;
 }
 
 sub handle_vote {
-  my ($rev, $page, $user, $time, $page_title, $dbh) = @_;
+  my ($rev, $page, $user, $time, $page_title, $dbh, $cgi) = @_;
+
+  # can't trust non-verified submitters
+  $user = 0 if !secret_okay($cgi);
+
+  my $sel_sql = "SELECT voter_name FROM wikitrust_vote WHERE voter_name = ? AND revision_id = ?";
+  if (my $ref = $dbh->selectrow_hashref($sel_sql, {}, ($user, $rev))){
+    return "dup"
+  }
 
   my $sth = $dbh->prepare("INSERT INTO wikitrust_vote (revision_id, page_id, "
-    . "voter_id, voted_on) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE "
+    . "voter_name, voted_on) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE "
     . "voted_on = ?") || die $dbh->errstr;
   $sth->execute($rev, $page, $user, $time, $time) || die $dbh->errstr;
   # Not a transaction: $dbh->commit();
@@ -110,7 +123,7 @@ sub handle_vote {
   # that the vote was recorded.
   # We could change this to be the re-colored wiki-text, reflecting the
   # effect of the vote, if you like.
-  return "good"
+  return "good";
 }
 
 sub get_median {
@@ -125,10 +138,11 @@ sub get_median {
 
 sub util_getRevFilename {
   my ($pageid, $blobid) = @_;
-  my $page_str = sprintf("%012d", $pageid);
-  my $blob_str = sprintf("%09d", $blobid);
   my $path = $ENV{WT_COLOR_PATH};
   return undef if !defined $path;
+
+  my $page_str = sprintf("%012d", $pageid);
+  my $blob_str = sprintf("%09d", $blobid);
 
   for (my $i = 0; $i <= 3; $i++){
     $path .= "/" . substr($page_str, $i*3, 3);
@@ -150,10 +164,10 @@ sub util_extractFromBlob {
     if ($1 == $rev_id){
       $offset = $2;
       $size = $3;
+      return substr($parts[1], $offset, $size);
     }
   }
-
-  return substr($parts[1], $offset, $size);
+  throw Error::Simple("Unable to find $rev_id in blob");
 }
 
 sub fetch_colored_markup {
@@ -199,13 +213,15 @@ sub fetch_colored_markup {
 }
 
 sub handle_edit {
-  my ($rev, $page, $user, $time, $page_title, $dbh) = @_;
+  my ($rev, $page, $user, $time, $page_title, $dbh, $cgi) = @_;
+  # since we still need to download actual text,
+  # it's safe to not verify the submitter
   mark_for_coloring($page, $page_title, $dbh);
   return "good"
 }
 
 sub handle_gettext {
-  my ($rev, $page, $user, $time, $page_title, $dbh) = @_;
+  my ($rev, $page, $user, $time, $page_title, $dbh, $cgi) = @_;
   
   my $result = fetch_colored_markup($page, $rev, $dbh);
   if ($result eq NOT_FOUND_TEXT_TOKEN){
@@ -220,6 +236,11 @@ sub handle_gettext {
 
   # Text may or may not have been found, but it's all the same now.
   return $result;
+}
+
+sub handle_wikiorhtml {
+  # For now, we only return Wiki markup
+  return 'W'.handle_gettext(@_);
 }
 
 1;

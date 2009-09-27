@@ -11,13 +11,15 @@ SetEnv WT_DBNAME DBI:mysql:database=wikidb:host=localhost
 SetEnv WT_DBUSER wikiuser
 SetEnv WT_DBPASS wikipass
 SetEnv WT_COLOR_PATH "/home/thumper/research/tmp/colors"
+SetEnv WT_SECRET miS3kr3t
 
 
 <IfModule mod_perl.c>
     PerlModule ModPerl::Registry
     PerlModule Apache::DBI DBD::mysql
-    PerlModule CGI Apache2::Const
-    PerlModule IO::Zlib
+    PerlModule CGI CGI::Carp
+    PerlModule Apache2::Const Apache2::RequestRec
+    PerlModule IO::Zlib Compress::Zlib
     <Perl>
 	use lib '/var/lib/mediawiki/extensions/WikiTrust/remote/analysis';
 	use WikiTrust;

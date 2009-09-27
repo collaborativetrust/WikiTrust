@@ -80,15 +80,16 @@ class WikiTrustBase {
     $memcKey = wfMemcKey( 'revisiontext', 'revid', $rev_id);
     $wgMemc->delete($memcKey);
 
-    return WikiTrust::vote_recordVote($dbr, $user_id, $page_id, $rev_id, $pageTitle);
+    return WikiTrust::vote_recordVote($dbr, $userName, $page_id, $rev_id, $pageTitle);
   }
 
 
-  static function vote_recordVote(&$dbr, $user_id, $page_id, $rev_id, $pageTitle)
+  static function vote_recordVote(&$dbr, $userName, $page_id, $rev_id, $pageTitle)
   {
     // Now see if this user has not already voted, 
     // and count the vote if its the first time though.
-    $res = $dbr->select('wikitrust_vote', array('revision_id'),
+    $res = $dbr->select(self::util_getDbTable('wikitrust_vote'),
+		array('revision_id'),
 		array('revision_id' => $rev_id, 'voter_id' => $user_id),
 		array());
     if (!$res) {
@@ -104,7 +105,7 @@ class WikiTrustBase {
     $insert_vals = array(
        "revision_id" => $rev_id,
 			 "page_id" => $page_id ,
-			 "voter_id" => $user_id,
+			 "voter_name" => $userName,
 			 "voted_on" => wfTimestampNow()
 		   );
 
@@ -112,7 +113,7 @@ class WikiTrustBase {
         . __LINE__ . " Inserting vote values: ".print_r($insert_vals, true));
 
     $dbw =& wfGetDB( DB_MASTER );
-    if ($dbw->insert( 'wikitrust_vote', $insert_vals)) {
+    if ($dbw->insert( self::util_getDbTable('wikitrust_vote'), $insert_vals)) {
       $dbw->commit();
       self::runEvalEdit(self::TRUST_EVAL_VOTE, $rev_id, $page_id, $user_id); 
       return new AjaxResponse(implode  ( ",", $insert_vals));
@@ -130,6 +131,7 @@ class WikiTrustBase {
     if (!self::$colored_text_loaded){
       list($page_title, $page_id, $rev_id) = self::util_ResolveRevSpec(NULL, 0, $rev_id);
       $colored_text = WikiTrust::color_getColorData($page_title, $page_id, $rev_id);
+
       self::color_fixup($colored_text);
     }
 
@@ -196,7 +198,7 @@ class WikiTrustBase {
   {
     $voteToProcess = false;
     $dbr =& wfGetDB( DB_SLAVE );
-    $res = $dbr->select('wikitrust_vote', 'processed',
+    $res = $dbr->select(self::util_getDbTable('wikitrust_vote'), 'processed',
 			array( 'revision_id' => $rev_id ), 
       array());
     if ($res && $dbr->numRows($res) > 0) {
@@ -223,11 +225,12 @@ class WikiTrustBase {
 
     $dbr =& wfGetDB( DB_SLAVE );
 
-    global $wgWikiTrustColorPath;
+    global $wgWikiTrustBlobPath;
     wfWikiTrustDebug(__FILE__.":".__LINE__ . ": Looks in the database.");
-    $res = $dbr->select('wikitrust_revision', 'blob_id',
-        array( 'revision_id' => $rev_id ), 
-			  array());
+    $res = $dbr->select(self::util_getDbTable('wikitrust_revision'),
+		'blob_id',
+		array( 'revision_id' => $rev_id ), 
+		array());
     if (!$res || $dbr->numRows($res) == 0) {
 	    wfWikiTrustDebug(__FILE__.":".__LINE__ . ": Calls the evaluation.");
 	    self::runEvalEdit(self::TRUST_EVAL_EDIT);
@@ -237,11 +240,13 @@ class WikiTrustBase {
     $row = $dbr->fetchRow($res);
     $blob_id = $row[0];
 
-    if (!$wgWikiTrustColorPath) {
+    if (!$wgWikiTrustBlobPath) {
       $new_blob_id = sprintf("%012d%012d", $page_id, $blob_id);
-      $res = $dbr->select('wikitrust_blob', 'blob_content',
-			    array( 'blob_id' => $new_blob_id ), 
-          array());
+      wfWikiTrustDebug(__FILE__.":".__LINE__ . ": fetching content from wikitrust_blob, blob_id = " . $new_blob_id);
+      $res = $dbr->select(self::util_getDbTable('wikitrust_blob'),
+			'blob_content',
+			array( 'blob_id' => $new_blob_id ), 
+			array());
       if (!$res || $dbr->numRows($res) == 0) {
 	      wfWikiTrustDebug(__FILE__.":".__LINE__ . ": Calls the evaluation.");
 	      self::runEvalEdit(self::TRUST_EVAL_EDIT);
@@ -276,7 +281,7 @@ if (1) {
 
     // wfWikiTrustDebug(__FILE__ . ":" . __LINE__ . "/* $colored_text */");
 
-    $res = $dbr->select('wikitrust_global', 'median', array(), array());
+    $res = $dbr->select(self::util_getDbTable('wikitrust_global'), 'median', array(), array());
     if ($res && $dbr->numRows($res) > 0) {
       $row = $dbr->fetchRow($res);
       self::$median = $row[0];
@@ -301,20 +306,12 @@ if (1) {
     global $wgParser, $wgUser, $wgTitle;
     $count = 0;
 
-    // fix trust tags around categories/templates
-    $colored_text = preg_replace_callback("/\{\{#t:(\d+),(\d+),([^}]+)\}\}\s*\[\[([^\]]++.*?)\]\]\s*(?=\{\{#t:|$)/D",
+    // fix trust tags around links
+    $colored_text = preg_replace_callback("/\{\{#t:(\d+),(\d+),([^}]+)\}\}\s*\[\[([^\]]+)\]\]\s*(?=\{\{#t:|$)/D",
 				"WikiTrust::regex_fixBracketTrust",
 				$colored_text,
 				-1,
 				$count);
-
-
-    // Add back in missing \n lines 
-    $colored_text = preg_replace("/\{\{#t:(\d+),(\d+),([^}]+)\}\}\{\{#t:(\d+),(\d+),([^}]+)\}\}/",
-        "\n{{#t:$1,$2,$3}}",
-        $colored_text,  
-        -1,
-        $count);
 
     $options = ParserOptions::newFromUser($wgUser);
     $text = WikiTrust::color_parseWiki($colored_text, $options);
@@ -383,8 +380,12 @@ if (1) {
     
     $output = "";
     if ($wgWikiTrustShowMouseOrigin){
+      # Need to escape single quotes
+      $matches[3]= str_replace("'", "\\'",$matches[3]);
+      $matches[3]= str_replace("&apos;", "\\'",$matches[3]);
+      $matches[3]= str_replace("&#39;", "\\'",$matches[3]);
       $output = "<span class=\"$class\"" 
-        . " onmouseover=\"Tip('".str_replace("&#39;","\\'",$matches[3])
+        . " onmouseover=\"Tip('".$matches[3]
         ."')\" onmouseout=\"UnTip()\""
         . " onclick=\"showOrigin(" 
         . $matches[2] . ")\">" . $matches[4]
@@ -483,7 +484,6 @@ if (0) {
     $rev_id = self::util_getRev();
     list($page_title, $page_id, $rev_id) = self::util_ResolveRevSpec(NULL, 0, $rev_id);
     $colored_text = WikiTrust::color_getColorData($page_title, $page_id, $rev_id);
-
     self::color_fixup($colored_text);
     self::$colored_text = $colored_text;
     self::$colored_text_loaded = true;
@@ -607,10 +607,10 @@ if (0) {
 			      $rev_id = -1, $page_id = -1,
 			      $voter_id = -1)
   {
-    global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgWikiTrustCmd, $wgWikiTrustLog, $wgWikiTrustDebugLog, $wgWikiTrustRepSpeed, $wgDBprefix, $wgWikiTrustCmdExtraArgs, $wgWikiTrustColorPath, $wgWikiTrustRobots;
+    global $wgDBname, $wgDBuser, $wgDBpassword, $wgDBserver, $wgDBtype, $wgWikiTrustCmd, $wgWikiTrustLog, $wgWikiTrustDebugLog, $wgWikiTrustRepSpeed, $wgDBprefix, $wgWikiTrustCmdExtraArgs, $wgWikiTrustBlobPath, $wgWikiTrustRobots;
 
-    if ($wgWikiTrustColorPath){
-      $wgWikiTrustCmdExtraArgs .= " -blob_base_path " . $wgWikiTrustColorPath;
+    if ($wgWikiTrustBlobPath){
+      $wgWikiTrustCmdExtraArgs .= " -blob_base_path " . $wgWikiTrustBlobPath;
     }
 
     if ($wgWikiTrustRobots){
@@ -783,8 +783,8 @@ if (0) {
   {
     $page_str = sprintf("%012d", $page_id);
     $blob_str = sprintf("%09d", $blob_id);
-    global $wgWikiTrustColorPath;
-    $path = $wgWikiTrustColorPath;
+    global $wgWikiTrustBlobPath;
+    $path = $wgWikiTrustBlobPath;
     for ($i = 0; $i <= 3; $i++){
       $path .= "/" . substr($page_str, $i*3, 3);
     }
@@ -794,6 +794,12 @@ if (0) {
     }
     $path .= "/" . $page_str . "_" . $blob_str . ".gz";
     return $path;
+  }
+
+  static function util_getDbTable($table)
+  {
+    global $wgDBprefix;
+    return ($wgDBprefix ? $wgDBprefix.$table : $table);
   }
 
   static function debug($msg, $level)

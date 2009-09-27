@@ -61,14 +61,27 @@ open Online_types
 
 (* evry batch corresponds to 50 revisions, so this will do 1000 at most. *)
 let max_batches_to_do = 20
-let max_concurrent_procs = 10
+let max_concurrent_procs = ref 1
+let set_max_concurrent_procs m = max_concurrent_procs := m 
 let sleep_time_sec = 1
-let custom_line_format = [] @ command_line_format
+let memcached_host = ref "localhost"
+let set_memcached_host h = memcached_host := h
+let memcached_port = ref 11211
+let set_memcached_port p = memcached_port := p
+let render_last_rev = ref false
+
+let custom_line_format = [
+  ("-concur_procs", Arg.Int set_max_concurrent_procs, "<int>: Number of pages to process in parellel.");
+  ("-memcached_host", Arg.String set_memcached_host, "<string>: memcached server (default localhost)");
+  ("-memcached_port", Arg.Int set_memcached_port, "<int>: memcached port (default 11211).");
+  ("-render_last_rev", Arg.Set render_last_rev, "render the most current rev and save it in memcached.")
+
+] @ command_line_format
 
 let _ = Arg.parse custom_line_format noop "Usage: dispatcher";;
 
 (* Store the active sub-processes *)
-let working_children = Hashtbl.create max_concurrent_procs
+let working_children = Hashtbl.create !max_concurrent_procs
 
 (* Prepares the database connection information *)
 let mediawiki_db = {
@@ -118,6 +131,17 @@ let check_subprocess_termination (page_title: string) (process_id: int) =
   end
 in
 
+(** Renders the last revision of the given page and puts it into memcached. *)
+let render_rev (rev_id : int) (page_id : int) (db : Online_db.db) : unit =
+  let (_, _, blob_id) = db#read_wikitrust_revision rev_id in
+  let rev_text = db#read_colored_markup page_id rev_id blob_id in
+  let raw_rendered_text = Wikipedia_api.fetch_rev_api rev_text in
+  let rendered_text = Renderer.render raw_rendered_text in
+  let cache = Memcached.open_connection !memcached_host !memcached_port in
+    Memcached.add cache (Memcached.make_revision_text_key rev_id !Online_command_line.mw_db_name) 
+      rendered_text;
+    Memcached.close_connection cache
+in
 
 (** [process_page page_id] is a child process that processes a page
     with [page_id] as id. *)
@@ -129,16 +153,20 @@ let process_page (page_id: int) (page_title: string) =
   in
   (* If I am using the WikiMedia API, I need to first download any new
      revisions of the page. *)
-  if !use_wikimedia_api then Wikipedia_api.download_page child_db page_title;
-  let new_page_id = child_db#update_queue_page page_title page_id in  
+  if !use_wikimedia_api then Wikipedia_api.download_page_from_id child_db 
+    page_id;
+  let new_page_id = if page_id <> 0 then page_id else child_db#update_queue_page page_title page_id in  
   (* Creates a new updater. *)
   let processor = new Updater.updater child_db
     trust_coeff !times_to_retry_trans each_event_delay every_n_events_delay 
     !robots in
   (* Brings the page up to date.  This will take care also of the page lock. *)
   processor#update_page_fast new_page_id;
+  (* Renders the last revision of this page and stores it in memcached. *)
+  if !render_last_rev then render_rev (db#get_latest_rev_id_from_id page_id) 
+    new_page_id db;
   (* Marks the page as processed. *)
-  child_db#mark_page_as_processed new_page_id;
+  child_db#mark_page_as_processed new_page_id page_title;
   (* End of page processing. *)
     Printf.printf "Done with %s.\n" page_title; flush_all ();
     exit 0;
@@ -180,12 +208,12 @@ in
 *)
 let main_loop () =
   while true do
-    if (Hashtbl.length working_children) >= max_concurrent_procs then begin
+    if (Hashtbl.length working_children) >= !max_concurrent_procs then begin
       (* Cleans up terminated children, if any *)
       Hashtbl.iter check_subprocess_termination working_children
     end else begin
       let pages_to_process = db#fetch_work_from_queue
-	      (max (max_concurrent_procs - Hashtbl.length working_children) 0) 
+	      (max (!max_concurrent_procs - Hashtbl.length working_children) 0) 
 	      !times_to_retry_trans
       in
         dispatch_page pages_to_process

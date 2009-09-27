@@ -116,11 +116,11 @@ begin
 	  None -> raise MissingInformation
 	| Some d -> d
       in
-      let voter_id = match !requested_voter_id with 
+      let voter_name = match !requested_voter_name with 
 	  None -> raise MissingInformation
 	| Some d -> d
       in
-      processor#eval_vote page_id revision_id voter_id
+      processor#eval_vote page_id revision_id voter_name
     end
 
   | EVENT -> begin

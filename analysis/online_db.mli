@@ -58,7 +58,6 @@ type revision_t = {
   rev_user: int; 
   rev_user_text: string;
   rev_is_minor: bool; 
-  rev_comment: string
 } 
 
 (** This is the type of a vote data *)
@@ -66,7 +65,7 @@ type vote_t = {
   vote_time: string;
   vote_page_id: int; 
   vote_revision_id: int;
-  vote_voter_id: int;
+  vote_voter_name: string;
 }
 
 (** This is the type of a signature set *)
@@ -138,6 +137,10 @@ class db :
 	writes that the new median is [median]. *)
     method write_histogram : float array -> float -> unit 
 
+    (** set_histogram hist median] sets the histogram and the median in the
+	database. *)
+    method set_histogram : float array -> float -> unit 
+
     (** [fetch_last_colored_rev_time req_page_id] returns the timestamp and the 
 	revision id of the most recent revision that has been colored.
 	If [req_page_id] specifies a page, then only that page is considered.
@@ -159,15 +162,15 @@ class db :
 	specifies a page, then only that page is considered. *)
     method fetch_all_revs : int option -> int -> revision_t list
 
-    (** [fetch_unprocessed_votes req_page_id n_events] returns at most [n_events]
-	unprocessed votes, starting from the oldest unprocessed
-	vote.
-	If [req_page_id] specifies a page, then only that page is considered. *)
+    (** [fetch_unprocessed_votes req_page_id n_events] returns at most
+	[n_events] unprocessed votes, starting from the oldest
+	unprocessed vote.  If [req_page_id] specifies a page, then
+	only that page is considered. *)
     method fetch_unprocessed_votes : int option -> int -> vote_t list
 
-    (** [mark_vote_as_processed (revision_id: int) (voter_id : int)]
+    (** [mark_vote_as_processed (revision_id: int) (voter_name : string)]
 	marks a vote as processed. *)
-    method mark_vote_as_processed : int -> int -> unit
+    method mark_vote_as_processed : int -> string -> unit
 
 
     (* ================================================================ *)
@@ -190,7 +193,7 @@ class db :
 
     (** [init_page page_id] initializes the page information for 
 	page [page_id]. *)
-    method init_page : int -> unit
+    method init_page : int -> string option -> unit
 
     (** [write_page_info page_id p_info] writes that the page [page_id]
 	has associated information [p_info].  The list of deleted chunks
@@ -239,8 +242,12 @@ class db :
     (* Methods on the standard tables. *)
 
     (** [get_latest_rev_id page_title] returns the revision id of the most 
-	recent revision of page [page_title]. *)
+	      recent revision of page [page_title]. *)
     method get_latest_rev_id : string -> int
+
+    (** [get_latest_rev_id_from_id page_id] returns the revision id of the 
+        most recent revision of page [page_id]. *)
+    method get_latest_rev_id_from_id : int -> int 
 
     (** [get_page_id page_title] returns the page id of the named page *)
     method get_page_id : string -> int
@@ -302,7 +309,7 @@ class db :
       float array -> 
       int array -> 
       string array ->
-      Author_sig.packed_author_signature_t array -> unit 
+      Author_sig.packed_author_signature_t array -> page_sig_t
 
   (** [read_words_trust_origin_sigs page_id rev_id page_sigs] reads
       the words, trust, origin, and author sigs for the revision
@@ -314,7 +321,7 @@ class db :
 
     (** [delete_author_sigs page_id rev_id] removes from the db the author 
 	signatures for [rev_id] of [page_id]. *)
-    method delete_author_sigs : int -> int -> page_sig_t -> unit
+    method delete_author_sigs : int -> int -> page_sig_t -> page_sig_t
 
     (* Methods on standard revisions *)
 
@@ -326,9 +333,15 @@ class db :
     (* ================================================================ *)
     (* User methods. *)
 
-    (** [inc_rep uid delta] increments the reputation of user [uid] by [delta] in
-	a single operation, so to avoid database problems. *)
-    method inc_rep : int -> float -> unit
+  (** [inc_rep uid delta uname] increments the reputation of user [uid] by
+      [delta] in a single operation, so to avoid database problems. 
+      [uname] is the username of the user, to ensure that we know 
+      the names of the users. *)
+    method inc_rep : int -> float -> string -> unit
+
+  (** [set_rep uid rep uname] sets the fact that the reputation for [uid]
+      is [rep], and the username is [uname]. *)
+    method set_rep : int -> float -> string -> unit
 
     (** [get_rep uid] gets the reputation of user [uid], from a table 
 	relating user ids to their reputation *)
@@ -354,8 +367,8 @@ class db :
 	must be brought up to date, due to a vote or a new revision. *)
     method mark_page_to_process : int -> string -> unit
       
-    (** [mark_page_as_processed page_id] marks that a page has ben processed. *)
-    method mark_page_as_processed : int -> unit
+    (** [mark_page_as_processed page_id page_title] marks that a page has ben processed. *)
+    method mark_page_as_processed : int -> string -> unit
 
     (** [mark_page_as_unprocessed page_id] marks that a page has not
 	been fully processed. *)

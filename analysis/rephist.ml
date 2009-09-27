@@ -66,7 +66,7 @@ class rephist
     val precise_rep : (int, float) Hashtbl.t = Hashtbl.create 1000  
 
     method read_reps (rep_channel: in_channel) = 
-      let read_rep (t: float) (user_id: int) (prev_rep: int) (next_rep: int) (rep_float: float) : unit =
+      let read_rep (t: float) (user_id: int) (prev_rep: int) (next_rep: int) (rep_float: float) (s: string) : unit =
 	begin
 	  if Hashtbl.mem histories user_id then begin 
 	    (* The user is already in the table *)
@@ -81,14 +81,15 @@ class rephist
 	    let r2 = RepHistory.add t next_rep r1 in 
 	    Hashtbl.add histories user_id (ref r2)
 	  end;
-	  Hashtbl.add precise_rep user_id (log (1.1 +. rep_float))
+	  let w = log (1.2 +. rep_float) in
+	  Hashtbl.add precise_rep user_id w
 	end
       in
       begin
 	try
 	  while true do begin 
             let l = input_line rep_channel in 
-	    Scanf.sscanf l "%f %d %d %d %f" read_rep
+	    Scanf.sscanf l "%f %d %d %d %f %S" read_rep
 	  end done
 	with End_of_file -> ()
       end
@@ -105,6 +106,6 @@ class rephist
     method get_precise_weight (user_id: int) : float =
       try
 	Hashtbl.find precise_rep user_id
-      with Not_found -> log 0.1
+      with Not_found -> log 1.2
 
   end (* rephist object *)
