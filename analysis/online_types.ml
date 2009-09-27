@@ -261,7 +261,9 @@ let blob_locations = {
   invalid_location = 0; (* A revision sig can never be here. *)
   sig_location = 0;
   chunks_location = 1;
-  initial_location = 2;
+  (* I use 8 as an initial location to leave a bit of space for other
+     information we may wish to compress. *)
+  initial_location = 8;
 }
 
 (* Things for the WMF implementation *)
