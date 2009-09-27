@@ -54,9 +54,6 @@ type running_page_info_t = {
   mutable run_sigs: Online_db.page_sig_t;
   (* Writer object to write revisions to disk. *)
   run_writer: Revision_writer.writer;
-  (* Cached version of last colored revision text, to speed-up voting.
-     It is an optional pair of revision_id, revision_text. *)
-  mutable last_colored_text: (int * string) option;
 }
 
 (** [Missing_trust (page_id, rev)] is raised if:
@@ -144,13 +141,8 @@ class page
 	  let last_text_opt =
 	    match running_page_info with
 	      None -> None
-	    | Some running_info -> begin
-		match running_info.last_colored_text with
-		  None -> None
-		| Some (i, t) -> begin
-		    if i = revision_id then Some t else None
-		  end
-	      end
+	    | Some running_info -> 
+		running_info.run_writer#read_revision revision_id
 	  in
 	  r#read_colored_text last_text_opt;
 	  (* The only thing missing is the signatures, and possibly
@@ -759,11 +751,8 @@ class page
 	    None -> 
 	      open_page_blob_id <- rev0#write_colored_text open_page_blob_id 
 		false true true
-	  | Some run_info -> begin
-	      rev0#write_running_text run_info.run_writer false true true;
-	      run_info.last_colored_text <- 
-		Some (rev0#get_id, rev0#get_colored_text false true true)
-	    end
+	  | Some run_info ->
+	      rev0#write_running_text run_info.run_writer false true true
 	end;
 	(* Writes to the db the sig for the revision. *)
 	page_sigs <- rev0#write_words_trust_origin_sigs page_sigs;
@@ -953,9 +942,7 @@ class page
 	      open_page_blob_id <- rev0#write_colored_text open_page_blob_id 
 		false true true
 	  | Some run_info -> begin
-	      rev0#write_running_text run_info.run_writer false true true;
-	      run_info.last_colored_text <- 
-		Some (rev0#get_id, rev0#get_colored_text false true true)
+	      rev0#write_running_text run_info.run_writer false true true
 	    end
 	end;
 	page_sigs <- rev0#write_words_trust_origin_sigs page_sigs;
@@ -1018,15 +1005,11 @@ class page
 	  (* Writes the new colored markup *)
 	  begin
 	    match running_page_info with 
-	      None -> (
-		open_page_blob_id <-  rev0#write_colored_text open_page_blob_id
-		  false true true)
-	    | Some run_info -> begin
-		rev0#write_running_text run_info.run_writer 
-		  false true true;
-		run_info.last_colored_text <- 
-		  Some (rev0#get_id, rev0#get_colored_text false true true)
-	      end
+	      None -> 
+		open_page_blob_id <- rev0#write_colored_text open_page_blob_id
+		  false true true
+	    | Some run_info -> rev0#write_running_text run_info.run_writer 
+		false true true
 	  end;
 	  (* Writes the trust information to the revision *)
 	  page_sigs <- rev0#write_words_trust_origin_sigs page_sigs;
@@ -1542,8 +1525,8 @@ class page
 	    (* Inserts the revision in the list of high rep or high
 	       trust revisions, and deletes old signatures *)
 	    self#insert_revision_in_lists;
-	    (* We write to disk the page information. *)
 
+	    (* We write to disk the page information. *)
 	    (* Updates the running page information. *)
 	    begin
 	      match running_page_info with 
@@ -1561,6 +1544,9 @@ class page
 		end
 	    end;
 
+	    (* We mark the vote as processed. *)
+	    db#mark_vote_as_processed revision_id voter_name;
+
 	    (* Commits *)
 	    db#commit;
 	    n_attempts := n_retries;
@@ -1570,10 +1556,19 @@ class page
 	      voter_id revision_id page_id);
 	    !Online_log.online_logger#flush; 
 	    
-	  with Online_db.DB_TXN_Bad | Online_db.DB_Not_Found -> begin 
-	    db#rollback_transaction;
-	    n_attempts := !n_attempts + 1
-	  end 
+	  with 
+	    Online_db.DB_TXN_Bad | Online_db.DB_Not_Found -> begin 
+	      db#rollback_transaction;
+	      n_attempts := !n_attempts + 1
+	    end 
+	  | Missing_work_revision -> begin
+	      (* In this case, we also mark the vote as processed,
+		 since it would not be useful to try again. *)
+	      db#mark_vote_as_processed revision_id voter_name;
+	      !Online_log.online_logger#log (Printf.sprintf 
+		"\nVote by %d on revision %d of page %d not processed: no colored text for page"
+		voter_id revision_id page_id)
+	    end
 	end done; (* End of the multiple attempts at the transaction *)
       (* Returns whether we have done something *)
       !done_something

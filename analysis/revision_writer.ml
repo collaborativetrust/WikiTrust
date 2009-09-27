@@ -159,13 +159,15 @@ class writer
 	only one version of the revision (the latest) is written to disk. *)
     method write_revision (rev_id: int) (rev_txt: string) : int =
       (* Checks whether the revision should replace the last one *)
-      let (old_text_opt, previous_revisions) = match blob_revisions with
-	  (rev_id', old_txt') :: previous_revisions' -> 
-	    if rev_id = rev_id' 
-	    then (Some old_txt', previous_revisions') 
-	    else (None, [])
-	| [] -> (None, [])
-      in 
+      let (old_text_opt, previous_revisions) = 
+	let rec pop_assoc k = function
+	    [] -> (None, [])
+	  | (k', el) :: l -> 
+	      if k = k' 
+	      then (Some el, l) 
+	      else let (r, l') = pop_assoc k l in (r, (k', el) :: l')
+	in pop_assoc rev_id blob_revisions
+      in
       match old_text_opt with
 	Some old_txt -> begin
 	  (* The revision is being written multiple times; we replace the
@@ -199,6 +201,16 @@ class writer
 	  blob_id
 	end
 	  
+
+    (** This method reads a revision from the ones still in memory.
+	It is used when voting, to read the colored text of the 
+	last-processed revision.  It returns [Some s] if the text [s]
+        of [rev_id] is found, and [None] otherwise. *)
+    method read_revision (rev_id: int) : string option =
+      try
+	Some (List.assoc rev_id blob_revisions)
+      with Not_found -> None
+
 	  
     (** This method finishes writing any pending revision,
 	and returns the last blob used (which is the open blob). 
