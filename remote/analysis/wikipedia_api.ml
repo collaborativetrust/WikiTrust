@@ -333,21 +333,22 @@ let fetch_page_and_revs_after_json (selector : string) : result_tree =
    See http://en.wikipedia.org/w/api.php for more details.
 *)
 let fetch_page_and_revs_after (selector : string)
-	    : (wiki_page_t option * wiki_revision_t list * int option) =
+	    : (wiki_page_t * wiki_revision_t list * int option) =
   let api = fetch_page_and_revs_after_json selector in
   match get_descendant api ["query"; "pages"] with
-    None -> (None, [], None)
+    None -> raise (API_error_noretry "No page data in result")
   | Some pages -> begin
       let pagelist = get_children pages in
       let first = List.hd pagelist in
       let validfirst = check_for_download_error first in
       let (page_info, rev_info) = process_page validfirst in
-      let nextrev = get_descendant api ["query-continue"; "revisions"] in
-      match nextrev with
-	  None -> (Some page_info, rev_info, None)
+      let nextrevprop = get_descendant api ["query-continue"; "revisions"] in
+      let nextrevopt = match nextrevprop with
+	| None -> None
 	| Some rev_cont ->
 	    let next_rev_id = int_of_string (get_property rev_cont "rvstartid" None) in
-	    (Some page_info, rev_info, Some next_rev_id)
+	    Some next_rev_id
+      in (page_info, rev_info, nextrevopt)
     end
 
 
@@ -402,27 +403,23 @@ let rec get_revs_from_api
  | API_error_noretry msg -> raise (API_error msg)
 
 
-let store_wiki_revs  (db: Online_db.db) (wiki_page': wiki_page_t option) (wiki_revs: wiki_revision_t list) : unit =
-    match wiki_page' with
-      None -> ()
-    | Some wiki_page -> begin
-	    let the_page_title = wiki_page.page_title
-	    in begin
-	      (* Write the updated or new page info to the page table. *)
-	      !logger#log (Printf.sprintf "Got page titled %s\n" the_page_title);
-	      (* Write the new page to the page table. *)
-	      db#write_page wiki_page;
-	      (* Writes the revisions to the db. *)
-	      let update_and_write_rev rev =
-	        rev.revision_page <- wiki_page.page_id;
-	        (* User ids are not given by the api, so we have to use the toolserver. *)
-	        rev.revision_user <- (get_user_id rev.revision_user_text db);
-	        !logger#log (Printf.sprintf "Writing to db revision %d.\n" rev.revision_id);
-	        db#write_revision rev
-	      in List.iter update_and_write_rev wiki_revs;
-	      ()
-	    end
-      end
+let store_wiki_revs  (db: Online_db.db) (wiki_page: wiki_page_t) (wiki_revs: wiki_revision_t list) : unit =
+    let the_page_title = wiki_page.page_title in
+    let update_and_write_rev rev =
+      rev.revision_page <- wiki_page.page_id;
+      (* User ids are not given by the api, so we have to use the toolserver. *)
+      rev.revision_user <- (get_user_id rev.revision_user_text db);
+      !logger#log (Printf.sprintf "Writing to db revision %d.\n" rev.revision_id);
+      db#write_revision rev
+    in begin
+      (* Write the updated or new page info to the page table. *)
+      !logger#log (Printf.sprintf "Got page titled %s\n" the_page_title);
+      (* Write the new page to the page table. *)
+      db#write_page wiki_page;
+      (* Writes the revisions to the db. *)
+      List.iter update_and_write_rev wiki_revs;
+      ()
+    end
 
 let rec download_page_starting_with (db: Online_db.db) (title: string)
 	(last_rev: int) (prev_last_rev: int) : unit =
