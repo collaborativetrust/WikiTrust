@@ -68,8 +68,8 @@ let tabsplit = Str.split_delim (Str.regexp "\t") in
 let splitLine2TitleRev line =
     let vals = tabsplit line in
     match vals with
-	| [page_id; rev] -> ((int_of_string page_id), (int_of_string rev))
-	| [page_id] -> ((int_of_string page_id), 0)
+	| [title; rev] -> (title, (int_of_string rev))
+	| [title] -> (title, 0)
 	| _ -> raise (Bad_Line line)
     in
 
@@ -77,14 +77,12 @@ let main_loop () =
   try
     while true do begin
       let line = input_line stdin in
-      let (page_id, start_rev) = splitLine2TitleRev line in
+      let (title, start_rev) = splitLine2TitleRev line in
       try
-	Wikipedia_api.download_page_starting_with_from_id db page_id start_rev 0
+	Wikipedia_api.download_page_starting_with db title start_rev 0
       with
 	Wikipedia_api.API_error msg ->
-	  (!Online_log.online_logger)#log (Printf.sprintf "ERROR: %d\nmsg=%s\n" page_id msg);
-      | Failure x ->
-	  (!Online_log.online_logger)#log (Printf.sprintf "ERROR: %d\n" page_id);
+	  (!Online_log.online_logger)#log (Printf.sprintf "ERROR: %s\nmsg=%s\n" title msg);
     end done
   with End_of_file -> ()
 in
