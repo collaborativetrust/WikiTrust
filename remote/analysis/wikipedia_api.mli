@@ -36,22 +36,13 @@ POSSIBILITY OF SUCH DAMAGE.
 exception API_error of string;;
 exception API_error_noretry of string;;
 
+type selector_t =
+  | Title_Selector of string
+  | Page_Selector of int
+  | Rev_Selector of int
+
 (* 19700201000000 *) 
 val default_timestamp : string
-
-(**
-   [fetch_page_and_revs after page_title rev_date], given a [page_title] 
-   and a [rev_date], returns [rev_lim] revisions of [page_title] after [rev_date]. 
-   The return value, in detail, consists of: 
-   * A page option, containing the page information.  This is present
-     if anything else is present.
-   * A list of revision metadata.
-   * The id of the next revision, if known.
-   See http://en.wikipedia.org/w/api.php for more details.
-*)
-val fetch_page_and_revs_after : string ->
-  (Online_types.wiki_page_t option * 
-			  Online_types.wiki_revision_t list * int option) 
 
 (** [get_user_id user_name] returns the user_id of user with name [user_name]. 
     This involves querying the toolserver, which is usaually heavily loaded,
@@ -66,10 +57,9 @@ val download_page_starting_with_from_id : Online_db.db -> int -> int -> int -> u
 (** Downloads all revisions of a page, given the page_title, and sticks them into the db. *)
 val download_page_starting_with : Online_db.db -> string -> int -> int -> unit
 
-val get_revs_from_pageid : int -> int -> int ->
-    (Online_types.wiki_page_t option * Online_types.wiki_revision_t list * int option)
-val get_rev_from_revid : int ->
-    (Online_types.wiki_page_t option * Online_types.wiki_revision_t list * int option)
+(** Reads a group of rev_lim revisions from the WpAPI and sticks them in the db. *)
+val get_revs_from_api : selector_t -> int -> int ->
+    (Online_types.wiki_page_t * Online_types.wiki_revision_t list * int option)
 
 (**
   Render the html using the wikimedia api

@@ -47,6 +47,25 @@ sub handler {
       } elsif ($cgi->param('edit')) {
         $method = 'edit';
       }
+    }
+
+    throw Error::Simple("Bad method: $method") if !exists $methods{$method};
+    my $func = $methods{$method};
+    $result = $func->($dbh, $cgi, $r);
+  } otherwise {
+    my $E = shift;
+    print STDERR $E;
+  };
+  $r->content_type('text/plain');
+  $r->print($result);
+  return Apache2::Const::OK;
+}
+
+sub get_stdargs {
+    my $cgi = shift @_;
+    my ($pageid, $title, $revid, $time, $username);
+    my $method = $cgi->param('method');
+    if (!$method) {
 	# old parameter names
 	$pageid = $cgi->param('page') || 0;
 	$title = $cgi->param('page_title') || '';
@@ -61,17 +80,7 @@ sub handler {
 	$time = $cgi->param('time') || timestamp();
 	$username = $cgi->param('username') || '';
     }
-
-    throw Error::Simple("Bad method: $method") if !exists $methods{$method};
-    my $func = $methods{$method};
-    $result = $func->($revid, $pageid, $username, $time, $title, $dbh, $cgi);
-  } otherwise {
-    my $E = shift;
-    print STDERR $E;
-  };
-  $r->content_type('text/plain');
-  $r->print($result);
-  return Apache2::Const::OK;
+    return ($revid, $pageid, $username, $time, $title);
 }
 
 sub timestamp {
@@ -98,7 +107,8 @@ sub mark_for_coloring {
 }
 
 sub handle_vote {
-  my ($rev, $page, $user, $time, $page_title, $dbh, $cgi) = @_;
+  my ($dbh, $cgi, $r) = @_;
+  my ($rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
 
   # can't trust non-verified submitters
   $user = 0 if !secret_okay($cgi);
@@ -138,7 +148,7 @@ sub get_median {
 
 sub util_getRevFilename {
   my ($pageid, $blobid) = @_;
-  my $path = $ENV{WT_COLOR_PATH};
+  my $path = $ENV{WT_BLOB_PATH};
   return undef if !defined $path;
 
   my $page_str = sprintf("%012d", $pageid);
@@ -213,7 +223,8 @@ sub fetch_colored_markup {
 }
 
 sub handle_edit {
-  my ($rev, $page, $user, $time, $page_title, $dbh, $cgi) = @_;
+  my ($dbh, $cgi, $r) = @_;
+  my ($rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
   # since we still need to download actual text,
   # it's safe to not verify the submitter
   mark_for_coloring($page, $page_title, $dbh);
@@ -221,7 +232,8 @@ sub handle_edit {
 }
 
 sub handle_gettext {
-  my ($rev, $page, $user, $time, $page_title, $dbh, $cgi) = @_;
+  my ($dbh, $cgi, $r) = @_;
+  my ($rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
   
   my $result = fetch_colored_markup($page, $rev, $dbh);
   if ($result eq NOT_FOUND_TEXT_TOKEN){
@@ -234,11 +246,19 @@ sub handle_gettext {
     $result = fetch_colored_markup($page, $rev, $dbh);
   }
 
+  # TODO(Bo): This needs to be adjusted once we have HTML
+  if ($result eq NOT_FOUND_TEXT_TOKEN) {
+    $r->header_out('Cache-Control', "max-age=" . 60);
+  } else {
+    $r->header_out('Cache-Control', "max-age=" . 5*24*60*60);
+  }
+
   # Text may or may not have been found, but it's all the same now.
   return $result;
 }
 
 sub handle_wikiorhtml {
+  my ($dbh, $cgi, $r) = @_;
   # For now, we only return Wiki markup
   return 'W'.handle_gettext(@_);
 }

@@ -47,17 +47,12 @@ let custom_line_format = [
 let _ = Arg.parse custom_line_format noop "Usage: fetch_all_revs_after [options]";;
 
 let main () =
-    let (wiki_page', wiki_revs, next_id) = 
-	Wikipedia_api.get_revs_from_pageid !page_id !last_rev 50
-    in
-    match wiki_page' with
-      None -> raise (Wikipedia_api.API_error "fetch_all_revs_after: No such page")
-    | Some wiki_page -> begin
-	let process_rev rev =
-	  Printf.printf "%d:%d:%s\n" wiki_page.page_id rev.revision_id rev.revision_timestamp
-	in List.iter process_rev wiki_revs;
+    let (wiki_page, wiki_revs, next_id) = 
+	Wikipedia_api.get_revs_from_api (Wikipedia_api.Page_Selector !page_id) !last_rev 50 in
+    let process_rev rev =
+	Printf.printf "%d:%d:%s\n" wiki_page.page_id rev.revision_id rev.revision_timestamp in
+    List.iter process_rev wiki_revs
 	(* TODO: Instead of iterating over list, we need to serialize the
-	 * whole list to stdout *)
-      end
+	 * whole list to stdout and/or put into the text cache *)
 in
 main ()
