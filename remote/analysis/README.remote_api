@@ -25,6 +25,8 @@ SetEnv WT_SECRET miS3kr3t
 	use WikiTrust;
     </Perl>
     <Location "/WikiTrust/RemoteAPI">
+	Order allow,deny
+	Allow from all
 	SetHandler modperl
 	PerlOptions -SetupEnv +GlobalRequest
 	PerlResponseHandler WikiTrust
