@@ -135,8 +135,6 @@ let get_url (url: string) : string =
 
 type result_tree =
   | JSON of Json_type.t
-  | XML of Xml.xml
-
 
 let get_children (node: result_tree): (string * result_tree) list =
   match node with
@@ -148,11 +146,6 @@ let get_children (node: result_tree): (string * result_tree) list =
 	| Array children -> List.map jsonify2 children
 	| _ -> raise (API_error "get_children: unknown node type")
     end
-  | XML xnode -> begin
-      let xmlify n = ((Xml.tag n), XML n) in
-      List.map xmlify (Xml.children xnode)
-    end
-
 
 (** [get_child node tag] returns the first child on [node] that has
     [tag], if there is one, or None if there is none. *)
@@ -184,11 +177,6 @@ let get_property (node: result_tree) (key: string) (defval: string option): stri
       | Some str -> str
   in
   match node with
-    | XML xnode -> begin
-	try
-	  (Xml.attrib xnode key)
-	with Xml.No_attribute e -> default ()
-      end
     | JSON jnode -> begin
 	match jnode with
 	  | Object proplist ->
@@ -209,13 +197,6 @@ let get_property (node: result_tree) (key: string) (defval: string option): stri
 
 let get_text (node: result_tree) : string =
   match node with
-    | XML xnode -> begin
-	try
-	  let xmlstr = Xml.to_string (List.hd (Xml.children xnode)) in
-	    (Netencoding.Html.decode ~in_enc:`Enc_utf8
-	       ~out_enc:`Enc_utf8 () xmlstr)
-	with Failure f -> ""
-      end
     | JSON jnode -> (get_property node "*" None)
 
 
@@ -294,19 +275,6 @@ let page_selector (page_id : int) (rev_start_id : int)
 let rev_selector (rev_id : int) : string =
     "revids=" ^ (Netencoding.Url.encode (string_of_int rev_id))
 
-let fetch_page_and_revs_after_xml (selector : string) : result_tree =
-  let url = !Online_command_line.target_wikimedia
-    ^ "?action=query&prop=revisions|info"
-    ^ "&format=xml&inprop=&rvprop=ids|flags|timestamp|user|size|comment|content"
-    (* ^ "rvexpandtemplates=1&"   -- even =0 triggers template expansion! *)
-    ^ "&" ^ selector in
-  !logger#log (Printf.sprintf "getting url: %s\n" url);
-  let res = get_url url in
-  let api = Xml.parse_string res in
-  (* logger#log (Printf.sprintf "result: %s\n" res); *)
-  XML api
-
-
 let fetch_page_and_revs_after_json (selector : string) : result_tree =
   let url = !Online_command_line.target_wikimedia
     ^ "?action=query&prop=revisions|"
@@ -317,6 +285,9 @@ let fetch_page_and_revs_after_json (selector : string) : result_tree =
   !logger#log (Printf.sprintf "getting url: %s\n" url);
   let res = get_url url in
   let api = Json_io.json_of_string res in
+
+
+
   (* logger#log (Printf.sprintf "result: %s\n" res); *)
   JSON api
 
@@ -413,7 +384,6 @@ let store_wiki_revs  (db: Online_db.db) (wiki_page: wiki_page_t) (wiki_revs: wik
     let the_page_title = wiki_page.page_title in
     let update_and_write_rev rev =
       rev.revision_page <- wiki_page.page_id;
-      (* User ids are not given by the api, so we have to use the toolserver. *)
       rev.revision_user <- (get_user_id rev.revision_user_text db);
       !logger#log (Printf.sprintf "Writing to db revision %d.\n" rev.revision_id);
       db#write_revision rev
@@ -446,12 +416,11 @@ let rec download_page_starting_with (db: Online_db.db) (title: string)
       | None -> ()
   end
 
-
-
 let rec download_page_starting_with_from_id (db: Online_db.db) (page_id: int)
     (last_rev: int) (prev_last_rev: int) : unit =
-  let (wiki_page, wiki_rev, next_rev) = get_revs_from_api (Page_Selector page_id) last_rev 50 in
-  begin
+  let (wiki_page, wiki_revs, next_rev) = get_revs_from_api (Page_Selector page_id) last_rev 50 in
+    begin
+    store_wiki_revs db wiki_page wiki_revs;
     let _ = Unix.sleep sleep_time_sec in
     match next_rev with
       Some next_id -> begin
@@ -476,7 +445,7 @@ let download_page_from_id (db: Online_db.db) (page_id : int) : unit =
 (**
   Render the html using the wikimedia api
 *)
-let fetch_rev_api (rev_text : string) : string =
+let render_revision (rev_text : string) : string =
   let api_vars = [
     ("action", "parse");
     ("format", "json");

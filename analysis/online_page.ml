@@ -946,11 +946,6 @@ class page
 	    end
 	end;
 	page_sigs <- rev0#write_words_trust_origin_sigs page_sigs;
-	(* Now that the colored revision is written out to disk, we don't need
-	   any more its uncolored text.   If we are using the exec_api, 
-	   we erase from the disk cache the text of all previous
-	   revisions for the same page. *)
-	db#erase_cached_rev_text page_id rev0_id rev0_time_string;
 	(* Computes the overall trust of the revision. *)
 	let t = Compute_robust_trust.compute_overall_trust new_trust_10_a.(0) in
 	rev0#set_overall_trust t;

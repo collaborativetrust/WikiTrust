@@ -48,7 +48,7 @@ val default_timestamp : string
     This involves querying the toolserver, which is usaually heavily loaded,
     resulting in long response times.
  *)
-val get_user_id : string -> Online_db.db -> int
+(* val get_user_id : string -> Online_db.db -> int *)
 
 (** Downloads all revisions of a page, given the page_id, and sticks them into the db. *)
 val download_page_from_id : Online_db.db -> int -> unit
@@ -64,4 +64,4 @@ val get_revs_from_api : selector_t -> int -> int ->
 (**
   Render the html using the wikimedia api
 *)
-val fetch_rev_api : string -> string
+val render_revision : string -> string

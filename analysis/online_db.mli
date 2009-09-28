@@ -373,10 +373,9 @@ class db :
       times the start / commit pair is used. *)
     method fetch_work_from_queue : int -> int -> (int * string) list
 
-    (** [erase_cached_rev_text page_id rev_id rev_time_string] erases
-	the cached text of all revisions of [page_id] prior and
-	including the ones for [rev_id] and [rev_time_string]. *)
-    method erase_cached_rev_text : int -> int -> string -> unit
+    (** [erase_cached_rev_text page_id] erases
+	      the cached text of all revisions of [page_id]. *)
+    method erase_cached_rev_text : int -> unit
 
     (* ================================================================ *)
     (* WikiMedia Api *)

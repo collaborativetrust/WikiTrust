@@ -832,8 +832,7 @@ object(self)
       
   (** [erase_cached_rev_text page_id rev_id rev_time_string] does nothing; 
       it does something only in the subclass that uses the exec api. *)
-  method erase_cached_rev_text (page_id: int) (rev_id: int) 
-    (rev_time_string: string) : unit = ()
+  method erase_cached_rev_text (page_id: int) : unit = ()
 
   (* ================================================================ *)
   (* WikiMedia Api *)
@@ -994,11 +993,11 @@ object(self)
         | Some r -> not_null str2ml r.(0)
             
   (** [erase_cached_rev_text page_id rev_id rev_time_string] erases
-      the cached text of all revisions of [page_id] prior and
-      including the ones for [rev_id] and [rev_time_string]. *)
-  method erase_cached_rev_text (page_id: int) (rev_id: int) (rev_time_string: string) : unit =
-    let s = Printf.sprintf "DELETE FROM %swikitrust_text_cache WHERE page_id = %s AND (time_string, revision_id) <= (%s, %s)" db_prefix (ml2int page_id) (ml2str rev_time_string) (ml2int rev_id) in
-    ignore (self#db_exec mediawiki_dbh s)
+      the cached text of all revisions of [page_id] *)
+  method erase_cached_rev_text (page_id: int) : unit =
+    let s = Printf.sprintf "DELETE FROM %swikitrust_text_cache WHERE page_id = %s" 
+      db_prefix (ml2int page_id) in
+      ignore (self#db_exec mediawiki_dbh s)
 
 
   (**  [fetch_all_revs_after] is like the superclass method, except that it

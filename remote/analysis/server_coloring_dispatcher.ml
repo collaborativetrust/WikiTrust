@@ -135,7 +135,7 @@ in
 let render_rev (rev_id : int) (page_id : int) (db : Online_db.db) : unit =
   let (_, _, blob_id) = db#read_wikitrust_revision rev_id in
   let rev_text = db#read_colored_markup page_id rev_id blob_id in
-  let raw_rendered_text = Wikipedia_api.fetch_rev_api rev_text in
+  let raw_rendered_text = Wikipedia_api.render_revision rev_text in
   let rendered_text = Renderer.render raw_rendered_text in
   let cache = Memcached.open_connection !memcached_host !memcached_port in
     Memcached.add cache (Memcached.make_revision_text_key rev_id !Online_command_line.mw_db_name) 
