@@ -245,9 +245,6 @@ class db :
         most recent revision of page [page_id]. *)
     method get_latest_rev_id_from_id : int -> int
 
-    (** [get_page_title page_id] returns the page title of the named page *)
-    method get_page_title : int -> string option
-
     (* ================================================================ *)
     (* Revision methods.  We assume we have a lock on the page to which 
        the revision belongs when calling these methods. *)

@@ -57,7 +57,7 @@ Sexplib.Conv.default_string_of_float := (fun n -> Printf.sprintf "%.3f" n);;
 
 class page 
   (page_id: int)
-  (title: string)
+  (page_title: string)
   (* File to use for sql command output *)
   (sql_file: out_channel)
   (* Base path for filesystem revision storage, if requested. *)
@@ -280,8 +280,9 @@ object(self)
       } in 
       let info_string_db = ml2str 
 	(string_of__of__sexp_of sexp_of_page_info_t page_info) in 
-      Printf.fprintf sql_file "REPLACE INTO %swikitrust_page (page_id, page_info, last_blob) VALUES (%s, %s, %s);\n"
-	db_prefix (ml2int page_id) info_string_db (ml2int open_blob_id)
+      Printf.fprintf sql_file "REPLACE INTO %swikitrust_page (page_id, page_title, page_info, last_blob) VALUES (%s, %s, %s, %s);\n"
+	db_prefix (ml2int page_id) (ml2str page_title) 
+	info_string_db (ml2int open_blob_id)
 
 
     (** This method writes the chunks to their own blob. *)

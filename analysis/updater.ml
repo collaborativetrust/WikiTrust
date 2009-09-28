@@ -158,26 +158,18 @@ class updater
 	    !Online_log.online_logger#log (Printf.sprintf
 	      "\nEvaluating vote by %d on revision %d of page %d" 
 	      voter_id revision_id page_id); 
+	    n_processed_events <- n_processed_events + 1;
 	    let page = new Online_page.page db page_id revision_id 
 	      None trust_coeff n_retries robots None in
-	    begin
-	      try
-		if page#vote voter_id voter_name then begin 
-		  (* We mark the vote as processed. *)
-		  db#mark_vote_as_processed revision_id voter_name;
-		  n_processed_events <- n_processed_events + 1;
-		  !Online_log.online_logger#log (Printf.sprintf 
-		    "\nDone processing vote by %d on revision %d of page %d"
-		    voter_id revision_id page_id)
-		end
-	      with Online_page.Missing_work_revision -> begin
-		(* We mark the vote as processed. *)
-		db#mark_vote_as_processed revision_id voter_name;
-		!Online_log.online_logger#log (Printf.sprintf 
-		  "\nVote by %d on revision %d of page %d not processed: no trust for page"
-		  voter_id revision_id page_id)
-	      end
-	    end
+	    if page#vote voter_id voter_name 
+	    then
+	      !Online_log.online_logger#log (Printf.sprintf 
+		"\nDone processing vote by %d on revision %d of page %d"
+		voter_id revision_id page_id)
+	    else 
+	      !Online_log.online_logger#log (Printf.sprintf 
+		"\nFailed processing vote by %d on revision %d of page %d"
+		voter_id revision_id page_id)
 	  end
 	    
     (** [process_feed feed] processes the event feed [feed], taking care of:
@@ -366,7 +358,6 @@ class updater
 	    Online_page.run_chunks = page_chunks;
 	    Online_page.run_page_info = pinfo;
 	    Online_page.run_writer = writer;
-	    Online_page.last_colored_text = None;
 	  } in 
 	  (* Loops over the feed and processes it. *)
 	  let do_more = ref true in 
@@ -404,14 +395,16 @@ class updater
 			    voter_id rev_id page_id); 
 			  let page = new Online_page.page db page_id rev_id None
 			    trust_coeff n_retries robots (Some running_info) in
-			  if page#vote voter_id voter_name then begin
-			    (* We mark the vote as processed. *)
-			    db#mark_vote_as_processed rev_id voter_name;
-			    n_processed_events <- n_processed_events + 1;
+			  n_processed_events <- n_processed_events + 1;
+			  if page#vote voter_id voter_name 
+			  then 
 			    !Online_log.online_logger#log (Printf.sprintf 
 			      "\nDone processing vote by %d on revision %d of page %d"
 			      voter_id rev_id page_id)
-			  end
+			  else 
+			    !Online_log.online_logger#log (Printf.sprintf 
+			      "\nFailed processing vote by %d on revision %d of page %d"
+			      voter_id rev_id page_id)
 			end
 		    end
 		end (* Event that needs processing. *)
