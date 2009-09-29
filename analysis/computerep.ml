@@ -71,7 +71,6 @@ module Tbl = Hashtbl
 class users 
   (rep_scaling: float) 
   (max_rep: float)
-  (gen_exact_rep: bool)
   (include_domains: bool)
   (ip_nbytes: int)
   (user_history_file: out_channel option)
@@ -116,14 +115,16 @@ class users
 	end else 0
       end
 
-    method store_rep (uid: int) (r: float) : unit = 
+    method store_rep (uid: int) (r: float) (uname: string) : unit = 
+      let new_bin = int_of_float (log (1.0 +. (max 0.0 r))) in
       let u = 
 	if Tbl.mem tbl uid
 	then Tbl.find tbl uid 
 	else begin
 	  let u' = {
 	    rep = int_of_float (initial_reputation *. 100.);
-	    rep_bin = 0
+	    rep_bin = new_bin;
+	    username = uname
 	  } in
 	  Tbl.add tbl uid u';
 	  u'
@@ -131,51 +132,28 @@ class users
       in
       let r_bounded = max 0. (min max_rep r) in
       let r_int = int_of_float (r_bounded *. 100.) in
-      u.rep <- r_int
+      u.rep <- r_int;
+      u.rep_bin <- new_bin
 
-    method store_bin (uid: int) (b: int) : unit = 
-      let u = 
-	if Tbl.mem tbl uid
-	then Tbl.find tbl uid 
-	else begin
-	  let u' = {
-	    rep = int_of_float (initial_reputation *. 100.);
-	    rep_bin = 0
-	  } in
-	  Tbl.add tbl uid u';
-	  u'
-	end
-      in u.rep_bin <- b
 
     method inc_rep (uid: int) (username: string) (q: float) (timestamp: Rephist.RepHistory.key) : unit = 
       let user_id = self#generate_user_id uid username in
       (* We do nothing for anon users (domain generate their own negative username) *)
       if user_id <> 0 then begin
 	let u_rep = self#get_rep user_id in 
+	let old_bin = self#get_bin user_id in
 	if debug then Printf.printf "Uid %d rep: %f " user_id u_rep; 
 	if debug then Printf.printf "inc: %f\n" (q /. rep_scaling);
 	let new_rep = max 0. (min max_rep (u_rep +. (q /. rep_scaling))) in
-	self#store_rep user_id new_rep;
-	let new_weight = log (1.0 +. (max 0.0 new_rep)) in 
-	let new_bin = int_of_float new_weight in
-	let old_bin = self#get_bin user_id in
-	if write_final_reps then begin
-	  (* Simply updates the bin *)
-	  self#store_bin user_id new_bin
-	end else begin 
+	self#store_rep user_id new_rep username;
+	if not write_final_reps then begin
 	  match user_history_file with 
 	    None -> ()
 	  | Some f -> begin 
-	      if new_weight > (float_of_int old_bin) +. 1.1
-		|| new_weight < (float_of_int old_bin) -. 0.2 
-		|| gen_exact_rep
-	      then begin (* must write out the change in reputation *)
-		self#store_bin user_id new_bin;
-		if gen_exact_rep 
-		then Printf.fprintf f "%f %7d %2d %2d %f\n" timestamp user_id old_bin new_bin new_rep
-		else Printf.fprintf f "%f %7d %2d %2d\n" timestamp user_id old_bin new_bin;
-		end
-	      end
+	      let new_bin = self#get_bin user_id in
+	      Printf.fprintf f "%f %7d %2d %2d %f %S\n" 
+		timestamp user_id old_bin new_bin new_rep username
+	    end
 	end;  (* If not write_final_reps *)
 	if user_id = single_debug_id && single_debug then 
 	  Printf.printf "Rep of %d: %f\n" user_id new_rep
@@ -191,13 +169,8 @@ class users
 	  None -> ()
 	| Some f -> begin
 	    let prt id u =
-	      if gen_exact_rep
-	      then begin
-		if u.rep_bin > 0 || u.rep > 0 then 
-		  Printf.fprintf f "%f %d %d %d %f\n" 0. id (-1) u.rep_bin ((float_of_int u.rep) /. 100.)
-	      end else begin
-		if u.rep_bin > 0 then Printf.fprintf f "%f %d %d %d\n" 0. id (-1) u.rep_bin
-	      end
+	      if u.rep_bin > 0 || u.rep > 0 then 
+		Printf.fprintf f "%f %d %d %d %f %S\n" 0. id (-1) u.rep_bin ((float_of_int u.rep) /. 100.) u.username
 	    in Tbl.iter prt tbl
 	  end
       end
@@ -216,7 +189,6 @@ class rep
   (print_monthly_stats: bool) (* Prints monthly precision and recall statistics *)
   (do_cumulative_months: bool) (* True if the monthly statistics have to be cumulative *)
   (do_localinc: bool) (* In EditInc, compares a revision only with the immediately preceding one *)
-  (gen_exact_rep: bool) (* True if we want to create an extra column in the user history file with exact rep values *)
   (user_contrib_order_asc: bool) (* The order in which we write out author contributions *)
   (include_domains: bool) (* Indicates that we want to extract reputation for anonymous user domains *)
   (ip_nbytes: int) (* the number of bytes to use from the user ip address *)
@@ -229,12 +201,11 @@ class rep
   (gen_almost_truthful_rep: bool) (* use algorithm for almost truthful reputation *)
   (gen_truthful_rep: bool) (* use strict algorithm for truthful reputation only *)
   (do_compute_stats: bool) (* really computes statistics *)
-  (init_rep_file: string option) (* optional file name of reputation file to read at the beginning. *)
   (robots: Read_robots.robot_set_t) (* Hash table of robot names *)
   =
 object (self)
   (* This is the object keeping track of all users *)
-  val user_data = new users params.rep_scaling params.max_rep gen_exact_rep include_domains ip_nbytes user_history_file write_final_reps
+  val user_data = new users params.rep_scaling params.max_rep include_domains ip_nbytes user_history_file write_final_reps
     (* These are for computing the statistics on the fly *)
   val mutable stat_text = new Computestats.stats params eval_intv
   val mutable stat_edit = new Computestats.stats params eval_intv
@@ -244,23 +215,6 @@ object (self)
   val nixed : (int, unit) Hashtbl.t = Hashtbl.create 1000
     (* Which revisions were never nixed. *) 
   val not_nixed : (int, unit) Hashtbl.t = Hashtbl.create 1000
-
-  initializer 
-    (* If a reputation file has been specified, reads it. *)
-    match init_rep_file with
-      None -> ()
-    | Some f_name -> begin
-	let f = open_in f_name in
-	try while true do begin
-	  let l = input_line f in
-	  let l_pieces = Str.split (Str.regexp "[ \t]+") l in
-	  let uid = int_of_string (List.nth l_pieces 1) in
-	  let b   = int_of_string (List.nth l_pieces 3) in
-	  let r   = float_of_string (List.nth l_pieces 4) in
-	  user_data#store_rep uid r;
-	  user_data#store_bin uid b
-	end done with End_of_file -> close_in f
-      end
 
   method add_data (datum: wiki_data_t) : unit = 
     (* quality normalization function *)

@@ -36,52 +36,32 @@ POSSIBILITY OF SUCH DAMAGE.
 exception API_error of string;;
 exception API_error_noretry of string;;
 
+type selector_t =
+  | Title_Selector of string
+  | Page_Selector of int
+  | Rev_Selector of int
+
 (* 19700201000000 *) 
 val default_timestamp : string
-
-(**
-   [fetch_page_and_revs after page_title rev_date], given a [page_title] 
-   and a [rev_date], returns [rev_lim] revisions of [page_title] after [rev_date]. 
-   The return value, in detail, consists of: 
-   * A page option, containing the page information.  This is present
-     if anything else is present.
-   * A list of revision metadata.
-   * The id of the next revision, if known.
-   See http://en.wikipedia.org/w/api.php for more details.
-*)
-val fetch_page_and_revs_after : string ->
-  (Online_types.wiki_page_t option * 
-			  Online_types.wiki_revision_t list * int option) 
 
 (** [get_user_id user_name] returns the user_id of user with name [user_name]. 
     This involves querying the toolserver, which is usaually heavily loaded,
     resulting in long response times.
  *)
-val get_user_id : string -> Online_db.db -> int
+(* val get_user_id : string -> Online_db.db -> int *)
 
-(**
-   [get_revs_from_api page_title last_timestamp db rev_lim] reads 
-   a group of rev_lim revisions of the given page from the Wikimedia API,
-   stores them to disk, and returns:
-   - an optional id of the next revision to read.  If None, then
-     all revisions of the page have been read.
-   Raises API_error if the API is unreachable.
-*)
-val get_revs_from_api : string -> int -> 
-    Online_db.db -> int ->
-    int option
+(** Downloads all revisions of a page, given the page_id, and sticks them into the db. *)
+val download_page_from_id : Online_db.db -> int -> unit
 
-(** Downloads all revisions of a page, given the title, and sticks them into the db. *)
-val download_page : Online_db.db -> string -> unit
+val download_page_starting_with_from_id : Online_db.db -> int -> int -> int -> unit
+(** Downloads all revisions of a page, given the page_title, and sticks them into the db. *)
+val download_page_starting_with : Online_db.db -> string -> int -> int -> unit
 
-val download_page_starting_with : Online_db.db -> string -> int -> unit
-
-val get_revs_from_pageid : int -> int -> int ->
-    (Online_types.wiki_page_t option * Online_types.wiki_revision_t list * int option)
-val get_rev_from_revid : int ->
-    (Online_types.wiki_page_t option * Online_types.wiki_revision_t list * int option)
+(** Reads a group of rev_lim revisions from the WpAPI and sticks them in the db. *)
+val get_revs_from_api : selector_t -> int -> int ->
+    (Online_types.wiki_page_t * Online_types.wiki_revision_t list * int option)
 
 (**
   Render the html using the wikimedia api
 *)
-val fetch_rev_api : string -> string
+val render_revision : string -> string

@@ -151,33 +151,25 @@ class updater
 	has already been analyzed for trust, otherwise, it does
 	nothing.  It assumes we have the page lock.  *)
     method private evaluate_vote (page_id: int) (revision_id: int) 
-      (voter_id: int) (voter_name: string) = 
+      (voter_id: int) (voter_name: string) : unit = 
       if max_events_to_process = 0 or 
 	n_processed_events < max_events_to_process then 
 	  begin 
 	    !Online_log.online_logger#log (Printf.sprintf
 	      "\nEvaluating vote by %d on revision %d of page %d" 
 	      voter_id revision_id page_id); 
+	    n_processed_events <- n_processed_events + 1;
 	    let page = new Online_page.page db page_id revision_id 
 	      None trust_coeff n_retries robots None in
-	    begin
-	      try
-		if page#vote voter_id voter_name then begin 
-		  (* We mark the vote as processed. *)
-		  db#mark_vote_as_processed revision_id voter_name;
-		  n_processed_events <- n_processed_events + 1;
-		  !Online_log.online_logger#log (Printf.sprintf 
-		    "\nDone processing vote by %d on revision %d of page %d"
-		    voter_id revision_id page_id)
-		end
-	      with Online_page.Missing_work_revision -> begin
-		(* We mark the vote as processed. *)
-		db#mark_vote_as_processed revision_id voter_name;
-		!Online_log.online_logger#log (Printf.sprintf 
-		  "\nVote by %d on revision %d of page %d not processed: no trust for page"
-		  voter_id revision_id page_id)
-	      end
-	    end
+	    if page#vote voter_id voter_name 
+	    then
+	      !Online_log.online_logger#log (Printf.sprintf 
+		"\nDone processing vote by %d on revision %d of page %d"
+		voter_id revision_id page_id)
+	    else 
+	      !Online_log.online_logger#log (Printf.sprintf 
+		"\nFailed processing vote by %d on revision %d of page %d"
+		voter_id revision_id page_id)
 	  end
 	    
     (** [process_feed feed] processes the event feed [feed], taking care of:
@@ -251,7 +243,8 @@ class updater
 			     reputation 0, so we don't care. *)
 			  None -> ()
 			| Some voter_id -> 
-			    self#evaluate_vote page_id revision_id voter_id voter_name
+			    self#evaluate_vote page_id revision_id 
+			      voter_id voter_name
 		      end
 		  end;
 		  db#release_page_lock page_id
@@ -307,18 +300,25 @@ class updater
 
     (** [update_vote page_id revision_id voter_id] tries to get the page lock,
 	and process a vote. *)
-    method eval_vote (page_id: int) (revision_id: int) (voter_id: int) : unit =
-    let got_it = db#get_page_lock page_id Online_command_line.lock_timeout in 
-    if got_it then begin
-      try
-	self#evaluate_vote page_id revision_id voter_id;
-	db#release_page_lock page_id
-      with e -> begin
-	db#release_page_lock page_id;
-	raise e
-      end
-    end
-
+    method eval_vote (page_id: int) (revision_id: int) 
+      (voter_name: string) : unit =
+      match self#get_voter_id voter_name with 
+	(* If we don't have a record of the voter, it has
+	   reputation 0, so we don't care. *)
+	None -> ()
+      | Some voter_id -> begin
+	  let got_it = db#get_page_lock page_id 
+	    Online_command_line.lock_timeout in 
+	  if got_it then begin
+	    try
+	      self#evaluate_vote page_id revision_id voter_id voter_name;
+	      db#release_page_lock page_id
+	    with e -> begin
+	      db#release_page_lock page_id;
+	      raise e
+	    end
+	  end
+	end
 
     (** [update_page page_id] updates the page [page_id], analyzing in
 	chronological order the revisions and votes that have not been
@@ -395,14 +395,16 @@ class updater
 			    voter_id rev_id page_id); 
 			  let page = new Online_page.page db page_id rev_id None
 			    trust_coeff n_retries robots (Some running_info) in
-			  if page#vote voter_id voter_name then begin
-			    (* We mark the vote as processed. *)
-			    db#mark_vote_as_processed rev_id voter_name;
-			    n_processed_events <- n_processed_events + 1;
+			  n_processed_events <- n_processed_events + 1;
+			  if page#vote voter_id voter_name 
+			  then 
 			    !Online_log.online_logger#log (Printf.sprintf 
 			      "\nDone processing vote by %d on revision %d of page %d"
 			      voter_id rev_id page_id)
-			  end
+			  else 
+			    !Online_log.online_logger#log (Printf.sprintf 
+			      "\nFailed processing vote by %d on revision %d of page %d"
+			      voter_id rev_id page_id)
 			end
 		    end
 		end (* Event that needs processing. *)
@@ -413,6 +415,8 @@ class updater
 	  db#write_page_sigs page_id running_info.Online_page.run_sigs;
 	  let open_page_blob_id = writer#close in
 	  db#write_open_blob_id page_id open_page_blob_id;
+    (* Delete the raw text from the cache *)
+    db#erase_cached_rev_text page_id;
 	  db#commit;
 	  db#release_page_lock page_id
 	with e -> begin
@@ -433,6 +437,8 @@ class updater
 	  (* Creates a feed for the page events. *)
 	  let feed = new Event_feed.event_feed db (Some page_id) None n_retries in
 	  self#process_page_feed feed;
+    (* Delete the raw text from the cache *)
+    db#erase_cached_rev_text page_id;
 	  db#release_page_lock page_id
 	with e -> begin
 	  db#release_page_lock page_id;

@@ -110,15 +110,8 @@ OUR_GENERATE_REPUTATION_OBJS = timeconv.cmo textbuf.cmo text.cmo \
 
 OUR_OPT_GENERATE_REPUTATION_OBJS = timeconv.cmx textbuf.cmx text.cmx \
 	read_robots.cmx \
-	eval_defs.cmx rephist.cmx  evaltypes.cmx wikidata.cmx \
+	eval_defs.cmx rephist.cmx evaltypes.cmx wikidata.cmx \
 	computestats.cmx computerep.cmx generate_reputation.cmx 
-
-OUR_FIND_USERNAMES_OBJS = textbuf.cmo eval_defs.cmo evaltypes.cmo \
-	wikidata.cmo extract_usernames.cmo
-
-
-OUR_OPT_FIND_USERNAMES_OBJS = textbuf.cmx eval_defs.cmx evaltypes.cmx \
-	wikidata.cmx extract_usernames.cmx
 
 # Splitwiki splits a wiki xml file into smaller files. 
 OUR_SPLITWIKI_OBJS = splitwiki.cmo
@@ -177,11 +170,11 @@ generate_reputation:  $(OUR_GENERATE_REPUTATION_OBJS)
 generate_reputationopt:  $(OUR_OPT_GENERATE_REPUTATION_OBJS)
 	$(OCAMLOPT) -linkpkg -o generate_reputation $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) $(OUR_OPT_GENERATE_REPUTATION_OBJS)
 
-find_usernames:  $(OUR_FIND_USERNAMES_OBJS)
-	$(OCAMLC) -linkpkg -o extract_usernames $(OCAML_CFLAGS) $(OUR_FIND_USERNAMES_OBJS)
+load_reputations:  load_reputations.ml wikitrust_lib.cma
+	$(OCAMLC) -linkpkg -o load_reputations $(OCAML_CFLAGS) $(OUR_LIB_OBJS) load_reputations.ml
 
-find_usernamesopt:  $(OUR_OPT_FIND_USERNAMES_OBJS)
-	$(OCAMLOPT) -linkpkg -o extract_usernames $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) $(OUR_OPT_FIND_USERNAMES_OBJS)
+load_reputationsopt:  load_reputations.ml wikitrust_lib.cmxa
+	$(OCAMLOPT) -linkpkg -o load_reputations $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) $(OUR_OPT_LIB_OBJS) load_reputations.ml
 
 # splitwiki is used to split a wiki xml dump file into smaller files
 
@@ -231,11 +224,11 @@ revision_store: $(REVISION_STORE_OBJS)
 
 all: evalwiki eval_online_wiki vote_revision \
 	generate_reputation splitwiki combinestats \
-	extract_wiki_subset find_usernames
+	extract_wiki_subset load_reputations
 
 allopt: evalwikiopt eval_online_wikiopt vote_revisionopt \
 	generate_reputationopt splitwikiopt combinestatsopt \
-	extract_wiki_subsetopt find_usernamesopt
+	extract_wiki_subsetopt load_reputationsopt
 
 clean_batch:
 	rm -f evalwiki generate_reputation chdiff text splitwiki \

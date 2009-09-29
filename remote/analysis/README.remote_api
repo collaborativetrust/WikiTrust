@@ -10,7 +10,7 @@ To configure Apache2:
 SetEnv WT_DBNAME DBI:mysql:database=wikidb:host=localhost
 SetEnv WT_DBUSER wikiuser
 SetEnv WT_DBPASS wikipass
-SetEnv WT_COLOR_PATH "/home/thumper/research/tmp/colors"
+SetEnv WT_BLOB_PATH "/home/thumper/research/tmp/colors"
 SetEnv WT_SECRET miS3kr3t
 
 
@@ -25,6 +25,8 @@ SetEnv WT_SECRET miS3kr3t
 	use WikiTrust;
     </Perl>
     <Location "/WikiTrust/RemoteAPI">
+	Order allow,deny
+	Allow from all
 	SetHandler modperl
 	PerlOptions -SetupEnv +GlobalRequest
 	PerlResponseHandler WikiTrust

@@ -137,6 +137,10 @@ class db :
 	writes that the new median is [median]. *)
     method write_histogram : float array -> float -> unit 
 
+    (** set_histogram hist median] sets the histogram and the median in the
+	database. *)
+    method set_histogram : float array -> float -> unit 
+
     (** [fetch_last_colored_rev_time req_page_id] returns the timestamp and the 
 	revision id of the most recent revision that has been colored.
 	If [req_page_id] specifies a page, then only that page is considered.
@@ -237,15 +241,9 @@ class db :
 
     (* Methods on the standard tables. *)
 
-    (** [get_latest_rev_id page_title] returns the revision id of the most 
-	recent revision of page [page_title]. *)
-    method get_latest_rev_id : string -> int
-
-    (** [get_page_id page_title] returns the page id of the named page *)
-    method get_page_id : string -> int
-
-    (** [get_page_title page_id] returns the page title of the named page *)
-    method get_page_title : int -> string
+    (** [get_latest_rev_id_from_id page_id] returns the revision id of the 
+        most recent revision of page [page_id]. *)
+    method get_latest_rev_id_from_id : int -> int
 
     (* ================================================================ *)
     (* Revision methods.  We assume we have a lock on the page to which 
@@ -331,6 +329,10 @@ class db :
       the names of the users. *)
     method inc_rep : int -> float -> string -> unit
 
+  (** [set_rep uid rep uname] sets the fact that the reputation for [uid]
+      is [rep], and the username is [uname]. *)
+    method set_rep : int -> float -> string -> unit
+
     (** [get_rep uid] gets the reputation of user [uid], from a table 
 	relating user ids to their reputation *)
     method get_rep : int -> float
@@ -355,8 +357,8 @@ class db :
 	must be brought up to date, due to a vote or a new revision. *)
     method mark_page_to_process : int -> string -> unit
       
-    (** [mark_page_as_processed page_id] marks that a page has ben processed. *)
-    method mark_page_as_processed : int -> unit
+    (** [mark_page_as_processed page_id page_title] marks that a page has ben processed. *)
+    method mark_page_as_processed : int -> string -> unit
 
     (** [mark_page_as_unprocessed page_id] marks that a page has not
 	been fully processed. *)
@@ -371,15 +373,9 @@ class db :
       times the start / commit pair is used. *)
     method fetch_work_from_queue : int -> int -> (int * string) list
 
-    (** [erase_cached_rev_text page_id rev_id rev_time_string] erases
-	the cached text of all revisions of [page_id] prior and
-	including the ones for [rev_id] and [rev_time_string]. *)
-    method erase_cached_rev_text : int -> int -> string -> unit
-
-    (** [update_queue_page page_title] updates the default page_id to a
-	real one. *)
-    method update_queue_page : string -> int -> int
-
+    (** [erase_cached_rev_text page_id] erases
+	      the cached text of all revisions of [page_id]. *)
+    method erase_cached_rev_text : int -> unit
 
     (* ================================================================ *)
     (* WikiMedia Api *)

@@ -1,6 +1,6 @@
 package WikiTrust;
 
-use constant DEBUG => 0;
+use constant DEBUG => 1;
 
 use strict;
 use warnings;
@@ -12,6 +12,7 @@ use CGI;
 use CGI::Carp;
 use IO::Zlib;
 use Compress::Zlib;
+#use Time::HiRes qw(gettimeofday tv_interval);
 
 use constant SLEEP_TIME => 3;
 use constant NOT_FOUND_TEXT_TOKEN => "TEXT_NOT_FOUND";
@@ -31,38 +32,26 @@ sub handler {
   my $dbh = DBI->connect(
     $ENV{WT_DBNAME},
     $ENV{WT_DBUSER},
-    $ENV{WT_DBPASS}
+    $ENV{WT_DBPASS},
+    { RaiseError => 1, AutoCommit => 1 }
   );
 
   my $result = "";
   try {
-    my ($pageid, $title, $revid, $time, $userid, $method);
+    my ($pageid, $title, $revid, $time, $username, $method);
     $method = $cgi->param('method');
     if (!$method) {
-	$method = 'gettext';
-	if ($cgi->param('vote')) {
-	    $method = 'vote';
-	} elsif ($cgi->param('edit')) {
-	    $method = 'edit';
-	}
-	# old parameter names
-	$pageid = $cgi->param('page') || 0;
-	$title = $cgi->param('page_title') || '';
-	$revid = $cgi->param('rev') || -1;
-	$time = $cgi->param('time') || timestamp();
-	$userid = $cgi->param('user') || 0;
-    } else {
-	# new parameter names
-	$pageid = $cgi->param('pageid') || 0;
-	$title = $cgi->param('title') || '';
-	$revid = $cgi->param('revid') || -1;
-	$time = $cgi->param('time') || timestamp();
-	$userid = $cgi->param('userid') || 0;
+      $method = 'gettext';
+      if ($cgi->param('vote')) {
+        $method = 'vote';
+      } elsif ($cgi->param('edit')) {
+        $method = 'edit';
+      }
     }
 
     throw Error::Simple("Bad method: $method") if !exists $methods{$method};
     my $func = $methods{$method};
-    $result = $func->($revid, $pageid, $userid, $time, $title, $dbh, $cgi);
+    $result = $func->($dbh, $cgi, $r);
   } otherwise {
     my $E = shift;
     print STDERR $E;
@@ -70,6 +59,28 @@ sub handler {
   $r->content_type('text/plain');
   $r->print($result);
   return Apache2::Const::OK;
+}
+
+sub get_stdargs {
+    my $cgi = shift @_;
+    my ($pageid, $title, $revid, $time, $username);
+    my $method = $cgi->param('method');
+    if (!$method) {
+	# old parameter names
+	$pageid = $cgi->param('page') || 0;
+	$title = $cgi->param('page_title') || '';
+	$revid = $cgi->param('rev') || -1;
+	$time = $cgi->param('time') || timestamp();
+	$username = $cgi->param('user') || '';
+    } else {
+	# new parameter names
+	$pageid = $cgi->param('pageid') || 0;
+	$title = $cgi->param('title') || '';
+	$revid = $cgi->param('revid') || -1;
+	$time = $cgi->param('time') || timestamp();
+	$username = $cgi->param('username') || '';
+    }
+    return ($revid, $pageid, $username, $time, $title);
 }
 
 sub timestamp {
@@ -96,13 +107,19 @@ sub mark_for_coloring {
 }
 
 sub handle_vote {
-  my ($rev, $page, $user, $time, $page_title, $dbh, $cgi) = @_;
+  my ($dbh, $cgi, $r) = @_;
+  my ($rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
 
   # can't trust non-verified submitters
   $user = 0 if !secret_okay($cgi);
 
+  my $sel_sql = "SELECT voter_name FROM wikitrust_vote WHERE voter_name = ? AND revision_id = ?";
+  if (my $ref = $dbh->selectrow_hashref($sel_sql, {}, ($user, $rev))){
+    return "dup"
+  }
+
   my $sth = $dbh->prepare("INSERT INTO wikitrust_vote (revision_id, page_id, "
-    . "voter_id, voted_on) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE "
+    . "voter_name, voted_on) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE "
     . "voted_on = ?") || die $dbh->errstr;
   $sth->execute($rev, $page, $user, $time, $time) || die $dbh->errstr;
   # Not a transaction: $dbh->commit();
@@ -116,7 +133,7 @@ sub handle_vote {
   # that the vote was recorded.
   # We could change this to be the re-colored wiki-text, reflecting the
   # effect of the vote, if you like.
-  return "good"
+  return "good";
 }
 
 sub get_median {
@@ -131,7 +148,7 @@ sub get_median {
 
 sub util_getRevFilename {
   my ($pageid, $blobid) = @_;
-  my $path = $ENV{WT_COLOR_PATH};
+  my $path = $ENV{WT_BLOB_PATH};
   return undef if !defined $path;
 
   my $page_str = sprintf("%012d", $pageid);
@@ -206,7 +223,8 @@ sub fetch_colored_markup {
 }
 
 sub handle_edit {
-  my ($rev, $page, $user, $time, $page_title, $dbh, $cgi) = @_;
+  my ($dbh, $cgi, $r) = @_;
+  my ($rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
   # since we still need to download actual text,
   # it's safe to not verify the submitter
   mark_for_coloring($page, $page_title, $dbh);
@@ -214,7 +232,8 @@ sub handle_edit {
 }
 
 sub handle_gettext {
-  my ($rev, $page, $user, $time, $page_title, $dbh, $cgi) = @_;
+  my ($dbh, $cgi, $r) = @_;
+  my ($rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
   
   my $result = fetch_colored_markup($page, $rev, $dbh);
   if ($result eq NOT_FOUND_TEXT_TOKEN){
@@ -227,11 +246,19 @@ sub handle_gettext {
     $result = fetch_colored_markup($page, $rev, $dbh);
   }
 
+  # TODO(Bo): This needs to be adjusted once we have HTML
+  if ($result eq NOT_FOUND_TEXT_TOKEN) {
+    $r->header_out('Cache-Control', "max-age=" . 60);
+  } else {
+    $r->header_out('Cache-Control', "max-age=" . 5*24*60*60);
+  }
+
   # Text may or may not have been found, but it's all the same now.
   return $result;
 }
 
 sub handle_wikiorhtml {
+  my ($dbh, $cgi, $r) = @_;
   # For now, we only return Wiki markup
   return 'W'.handle_gettext(@_);
 }

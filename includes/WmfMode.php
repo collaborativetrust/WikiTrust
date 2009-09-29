@@ -40,7 +40,7 @@ class WikiTrust extends WikiTrustBase {
     }
   }
   
-  static function vote_recordVote(&$response, $user_id, $page_id, $rev_id, $page_title)
+  static function vote_recordVote(&$response, $userName, $page_id, $rev_id, $page_title)
   {
     global $wgWikiTrustContentServerURL;
     $ctx = stream_context_create(
@@ -50,7 +50,7 @@ class WikiTrust extends WikiTrustBase {
     wfWikiTrustDebug(__FILE__.__LINE__.": ".$wgWikiTrustContentServerURL 
 		. "vote=1&rev=".urlencode($rev_id)
 		. "&page=".urlencode($page_id)
-		. "&user=".urlencode($user_id)
+		. "&user=".urlencode($userName)
 		. "&page_title=".urlencode($page_title)
     . "&time=".urlencode(wfTimestampNow()));
 
@@ -58,7 +58,7 @@ class WikiTrust extends WikiTrustBase {
     $colored_text = @file_get_contents($wgWikiTrustContentServerURL 
 		. "vote=1&rev=".urlencode($rev_id)
 		. "&page=".urlencode($page_id)
-		. "&user=".urlencode($user_id)
+		. "&user=".urlencode($userName)
 		. "&page_title=".urlencode($page_title)
 		. "&time=".urlencode(wfTimestampNow()), 0
 	    , $ctx);

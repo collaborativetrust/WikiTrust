@@ -26,7 +26,7 @@ CREATE TABLE ".$wgDBprefix."wikitrust_page (
        page_id             int PRIMARY KEY,
        page_title          varbinary(255),
        page_info           text NOT NULL,
-       last_blob           int DEFAULT 2
+       last_blob           int DEFAULT 8
 ) ENGINE=InnoDB","
 GRANT ALL ON ".$wgDBprefix."wikitrust_page TO '$wgDBuser'","
 CREATE INDEX ".$wgDBprefix."wikitrust_page_title_idx ON ".$wgDBprefix."wikitrust_page (page_title)
@@ -36,10 +36,10 @@ $create_scripts[$wgDBprefix.'wikitrust_vote'] = array("
 CREATE TABLE ".$wgDBprefix."wikitrust_vote (
        revision_id         int NOT NULL,
        page_id             int NOT NULL,   
-       voter_name            int NOT NULL,
+       voter_name          varbinary(255) NOT NULL,
        voted_on            varchar(32) NOT NULL,
        processed           bool DEFAULT false,
-       PRIMARY KEY (revision_id, voter_id)
+       PRIMARY KEY (revision_id, voter_name)
 ) ENGINE=InnoDB","
 GRANT ALL ON ".$wgDBprefix."wikitrust_vote TO '$wgDBuser'","
 CREATE INDEX ".$wgDBprefix."wikitrust_voted_processed_idx ON ".$wgDBprefix."wikitrust_vote (voted_on, processed)

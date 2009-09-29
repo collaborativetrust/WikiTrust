@@ -68,11 +68,13 @@ let memcached_host = ref "localhost"
 let set_memcached_host h = memcached_host := h
 let memcached_port = ref 11211
 let set_memcached_port p = memcached_port := p
+let render_last_rev = ref false
 
 let custom_line_format = [
   ("-concur_procs", Arg.Int set_max_concurrent_procs, "<int>: Number of pages to process in parellel.");
   ("-memcached_host", Arg.String set_memcached_host, "<string>: memcached server (default localhost)");
-  ("-memcached_port", Arg.Int set_memcached_port, "<int>: memcached port (default 11211).")
+  ("-memcached_port", Arg.Int set_memcached_port, "<int>: memcached port (default 11211).");
+  ("-render_last_rev", Arg.Set render_last_rev, "render the most current rev and save it in memcached.")
 
 ] @ command_line_format
 
@@ -115,7 +117,7 @@ in
    This function cleans out the hashtable working_children, removing all of the 
    entries which correspond to child processes which have stopped working.
 *)
-let check_subprocess_termination (page_title: string) (process_id: int) = 
+let check_subprocess_termination (page_id: int) (process_id: int) = 
   let stat = Unix.waitpid [Unix.WNOHANG] process_id in
     begin
     match (stat) with
@@ -125,18 +127,16 @@ let check_subprocess_termination (page_title: string) (process_id: int) =
 	(* TODO(Luca): release the db lock! *)
     | (_, Unix.WEXITED s) 
     | (_, Unix.WSIGNALED s) 
-    | (_, Unix.WSTOPPED s) -> Hashtbl.remove working_children page_title
+    | (_, Unix.WSTOPPED s) -> Hashtbl.remove working_children page_id
   end
 in
 
 (** Renders the last revision of the given page and puts it into memcached. *)
 let render_rev (rev_id : int) (page_id : int) (db : Online_db.db) : unit =
   let (_, _, blob_id) = db#read_wikitrust_revision rev_id in
-
-    Printf.printf "blobid %d\n" (match blob_id with Some b -> b | None -> -1);
-
   let rev_text = db#read_colored_markup page_id rev_id blob_id in
-  let rendered_text = Wikipedia_api.fetch_rev_api rev_text in
+  let raw_rendered_text = Wikipedia_api.render_revision rev_text in
+  let rendered_text = Renderer.render raw_rendered_text in
   let cache = Memcached.open_connection !memcached_host !memcached_port in
     Memcached.add cache (Memcached.make_revision_text_key rev_id !Online_command_line.mw_db_name) 
       rendered_text;
@@ -153,18 +153,19 @@ let process_page (page_id: int) (page_title: string) =
   in
   (* If I am using the WikiMedia API, I need to first download any new
      revisions of the page. *)
-  if !use_wikimedia_api then Wikipedia_api.download_page child_db page_title;
-  let new_page_id = if page_id <> 0 then page_id else child_db#update_queue_page page_title page_id in  
+  if !use_wikimedia_api then Wikipedia_api.download_page_from_id child_db 
+    page_id;
   (* Creates a new updater. *)
   let processor = new Updater.updater child_db
     trust_coeff !times_to_retry_trans each_event_delay every_n_events_delay 
     !robots in
   (* Brings the page up to date.  This will take care also of the page lock. *)
-  processor#update_page_fast new_page_id;
+  processor#update_page_fast page_id;
   (* Renders the last revision of this page and stores it in memcached. *)
-  (* render_rev (db#get_latest_rev_id page_title) new_page_id db; *)
+  if !render_last_rev then render_rev (db#get_latest_rev_id_from_id page_id) 
+    page_id db;
   (* Marks the page as processed. *)
-  child_db#mark_page_as_processed new_page_id;
+  child_db#mark_page_as_processed page_id page_title;
   (* End of page processing. *)
     Printf.printf "Done with %s.\n" page_title; flush_all ();
     exit 0;
@@ -181,7 +182,7 @@ let dispatch_page (pages : (int * string) list) =
        Given a page_id, forks a child which brings the page up to date. *)
   let launch_processing (page_id, page_title) = begin
     (* If the page is currently being processed, does nothing. *)
-    if not (Hashtbl.mem working_children page_title) then begin
+    if not (Hashtbl.mem working_children page_id) then begin
       let new_pid = Unix.fork () in
       match new_pid with 
       | 0 -> begin
@@ -191,7 +192,7 @@ let dispatch_page (pages : (int * string) list) =
 	      end
       | _ -> begin
 	        logger#log (Printf.sprintf "Parent of pid %d\n" new_pid);  
-	        Hashtbl.add working_children page_title (new_pid)
+	        Hashtbl.add working_children page_id (new_pid)
 	      end
     end  (* if the page is already begin processed *)
   end in
