@@ -69,7 +69,7 @@ class AccumulateFiles:
 
 def dodo(x):
     print x
-    # print commands.getoutput (x)
+    print commands.getoutput (x)
 
 def print_banner(s):
     print "****************************************************************"
@@ -78,7 +78,8 @@ def print_banner(s):
 
 # Splits the input file into many chunks. 
 def split_file(opt):
-    cmd = (opt["decompression"] + " | " + opt["cmd_dir"] + "/splitwiki -n " +
+    cmd = (opt["decompression"] + " " + opt["input_file"] +
+           " | " + opt["cmd_dir"] + "/splitwiki -n " +
            opt["n_pages_per_chunk"] + " -p " + opt["split_dir"])
     dodo(cmd)
 
@@ -153,7 +154,12 @@ def main():
                                     "n_pages_per_chunk=",
                                     "decomp=",
                                     "robots=",
-                                    "cleanup"
+                                    "cleanup",
+                                    "do_split",
+                                    "do_compute_stats",
+                                    "do_sort_stats",
+                                    "do_compute_rep",
+                                    "do_compute_trust",
                                     ])
 
     except getopt.GetoptError, err:
@@ -207,7 +213,7 @@ def main():
     if len(args) != 1:
         print "You must specify exacly one dump file to process."
         sys.exit(2)
-    input_file = args[0]
+    options["input_file"] = args[0]
 
     # If no particular option has been specified, then all is done.
     do_all = not (do_split or do_compute_stats or do_sort_stats or
@@ -246,6 +252,8 @@ def main():
     for root_dir, subdirs, files in os.walk(options["split_dir"]):
         subdir_list = subdirs
         break
+    subdir_list.sort()
+    print "List of subdirs: ", subdir_list
 
     # Computes the statistics.
     if do_compute_stats or do_all:
@@ -260,6 +268,7 @@ def main():
             for r, s, f in os.walk(source_dir):
                 files = f
                 break
+            files.sort()
             # Accumulates the files in chunks
             accumulator = AccumulateFiles(1000000, 20)
             for source_file in files:
@@ -305,6 +314,7 @@ def main():
                 for r, s, f in os.walk(source_dir):
                     files = f
                     break
+                files.sort()
                 # Accumulates the files in chunks
                 accumulator = AccumulateFiles(4 * history_size, 50)
                 for source_file in files:
