@@ -11,12 +11,12 @@ if [ -z $logfile ]; then
   exit 0
 fi
 
-start_tx="BEGIN"
-drop_page_idx="DROP INDEX wikitrust_page_title_idx ON wikitrust_page"
-drop_rev_idx="DROP INDEX wikitrust_revision_id_timestamp_idx ON wikitrust_revision"
-create_page_idx="CREATE INDEX wikitrust_page_title_idx ON wikitrust_page (page_title)"
-create_rev_idx="CREATE INDEX wikitrust_revision_id_timestamp_idx ON wikitrust_revision (page_id, time_string, revision_id)"
-end_tx="COMMIT"
+start_tx="BEGIN;"
+drop_page_idx="DROP INDEX wikitrust_page_title_idx ON wikitrust_page;"
+drop_rev_idx="DROP INDEX wikitrust_revision_id_timestamp_idx ON wikitrust_revision;"
+create_page_idx="CREATE INDEX wikitrust_page_title_idx ON wikitrust_page (page_title);"
+create_rev_idx="CREATE INDEX wikitrust_revision_id_timestamp_idx ON wikitrust_revision (page_id, time_string, revision_id);"
+end_tx="COMMIT;"
 
 # drop the indicis
 echo $drop_page_idx
