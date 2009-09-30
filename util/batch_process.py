@@ -290,32 +290,36 @@ def main():
     # Computes the text trust.
     if do_compute_trust or do_all:
         print_banner ("COMPUTING TEXT TRUST")
-        # Generates the list of tasks for computing the stats,
-        # and creates the output directories.
-        task_list = []
-        history_size = os.path.getsize(options["rep_file"])
-        for subdir in subdir_list:
-            source_dir = options["split_dir"] + "/" + subdir
-            dest_dir = options["sql_dir"] + "/" + subdir
-            dodo("mkdir " + dest_dir)
-            for r, s, f in os.walk(source_dir):
-                files = f
-                break
-            # Accumulates the files in chunks
-            accumulator = AccumulateFiles(4 * history_size, 50)
-            for source_file in files:
-                full_source_file = source_dir + "/" + source_file
-                accumulator.add_file(full_source_file)
-            # Appends the result to the task list.
-            chunks = accumulator.get_chunks()
-            for c in chunks:
-                task_list.append((options, dest_dir, c))
-        # At this point the task list is ready.  Gives it to the pool.
-        if len(task_list) > 0:
-            process_pool.map(compute_trust, task_list, 1)
-        # Cleans up if required
-        if do_cleanup:
-            dodo("rm -rf " + options["split_dir"])
+        # I can do this only if the reputation file already exists.
+        if not os.path.exists(options["rep_file"]):
+            print "You need to compute the user reputations first!"
+        else:
+            # Generates the list of tasks for computing the stats,
+            # and creates the output directories.
+            task_list = []
+            history_size = os.path.getsize(options["rep_file"])
+            for subdir in subdir_list:
+                source_dir = options["split_dir"] + "/" + subdir
+                dest_dir = options["sql_dir"] + "/" + subdir
+                dodo("mkdir " + dest_dir)
+                for r, s, f in os.walk(source_dir):
+                    files = f
+                    break
+                # Accumulates the files in chunks
+                accumulator = AccumulateFiles(4 * history_size, 50)
+                for source_file in files:
+                    full_source_file = source_dir + "/" + source_file
+                    accumulator.add_file(full_source_file)
+                # Appends the result to the task list.
+                chunks = accumulator.get_chunks()
+                for c in chunks:
+                    task_list.append((options, dest_dir, c))
+            # At this point the task list is ready.  Gives it to the pool.
+            if len(task_list) > 0:
+                process_pool.map(compute_trust, task_list, 1)
+            # Cleans up if required
+            if do_cleanup:
+                dodo("rm -rf " + options["split_dir"])
 
 
 if __name__ == '__main__':
