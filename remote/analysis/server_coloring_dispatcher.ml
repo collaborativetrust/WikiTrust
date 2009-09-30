@@ -110,7 +110,7 @@ let every_n_events_delay =
     then Some (max 1 (int_of_float (1. /. frac)))
     else None
 in
-
+  
 (**
    [check_subprocess_termination page_id process_id]
    Wait for the process to stop before accepting more.
@@ -120,17 +120,17 @@ in
 let check_subprocess_termination (page_id: int) (process_id: int) = 
   let stat = Unix.waitpid [Unix.WNOHANG] process_id in
     begin
-    match (stat) with
-      (* Process not yet done. *)
-    | (0,_) -> () 
-	(* Otherwise, remove the process. *)
-	(* TODO(Luca): release the db lock! *)
-    | (_, Unix.WEXITED s) 
-    | (_, Unix.WSIGNALED s) 
-    | (_, Unix.WSTOPPED s) -> Hashtbl.remove working_children page_id
-  end
+      match (stat) with
+	(* Process not yet done. *)
+      | (0,_) -> () 
+	  (* Otherwise, remove the process. *)
+	  (* TODO(Luca): release the db lock! *)
+      | (_, Unix.WEXITED s) 
+      | (_, Unix.WSIGNALED s) 
+      | (_, Unix.WSTOPPED s) -> Hashtbl.remove working_children page_id
+    end
 in
-
+  
 (** Renders the last revision of the given page and puts it into memcached. *)
 let render_rev (rev_id : int) (page_id : int) (db : Online_db.db) : unit =
   let (_, _, blob_id) = db#read_wikitrust_revision rev_id in
@@ -138,7 +138,8 @@ let render_rev (rev_id : int) (page_id : int) (db : Online_db.db) : unit =
   let raw_rendered_text = Wikipedia_api.render_revision rev_text in
   let rendered_text = Renderer.render raw_rendered_text in
   let cache = Memcached.open_connection !memcached_host !memcached_port in
-    Memcached.add cache (Memcached.make_revision_text_key rev_id !Online_command_line.mw_db_name) 
+    Memcached.add cache (Memcached.make_revision_text_key rev_id 
+      !Online_command_line.mw_db_name) 
       rendered_text;
     Memcached.close_connection cache
 in
