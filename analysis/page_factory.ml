@@ -227,9 +227,9 @@ class page_factory
     method set_eval_zip_error () = eval_zip_error <- true
     method set_be_precise () = be_precise <- true
     method set_rep_histories (s : string) = 
-      let f = Fileinfo.open_info_in s in 
+      let f = open_in s in 
       rep_histories#read_reps f; 
-      Fileinfo.close_info_in f
+      close_in f
     method set_trust_coeff_lends_rep (f : float) = trust_coeff_lends_rep <- f
     method set_trust_coeff_read_all (f : float) = trust_coeff_read_all <- f
     method set_trust_coeff_read_part (f : float) = trust_coeff_read_part <- f
