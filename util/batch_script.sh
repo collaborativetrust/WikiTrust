@@ -79,7 +79,7 @@ http://localhost/testwiki/index.php/Flint_Hill_Christian_School?trust
 # and pretend someone has voted for the revision: in the mysql,
 insert into wikitrust_vote values (182398671, 13409916, 'Raime', '20081204023324', 0);
 # Check manually that the colored information is there:
-zless /home/luca/wiki-data/enwork/blobtree/000/013/409/916/000013409916_000000002.gz
+zless /home/luca/wiki-data/enwork/blobtree/000/013/409/916/000013409916_000000008.gz
 # Reset the vote if needed:
 update wikitrust_vote set processed = 0 where revision_id = 182398671;
 # Call for vote processing.

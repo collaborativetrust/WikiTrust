@@ -42,8 +42,6 @@ let version_str =
   with _ -> "Version not available"
 ;;
 
-Fileinfo.make_info_obj version_str "";;
-
 (* This is the top-level code of the wiki xml evaluation.  *)
 
 let continue = ref false;; 
@@ -81,12 +79,11 @@ let _ = Arg.parse command_line_format set_input_files "Usage: evalwiki [input_fi
 (* Does all the work *)
 
 if !use_stdin then begin 
-  let f_out = Fileinfo.open_info_out !single_out in 
+  let f_out = open_out !single_out in 
   Do_eval.do_single_eval factory stdin f_out;
-  Fileinfo.close_info_out f_out
+  close_out f_out
 end
 else Do_eval.do_multi_eval !input_files factory !working_dir 
   !unzip_cmd !continue;;
  
-(* Annotate on stdout so that one can include the info with the rest of the information *)
-print_newline (); print_endline (Fileinfo.make_xml_string ());;
+
