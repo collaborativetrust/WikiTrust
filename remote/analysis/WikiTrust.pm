@@ -1,6 +1,6 @@
 package WikiTrust;
 
-use constant DEBUG => 1;
+use constant DEBUG => 0;
 
 use strict;
 use warnings;
@@ -248,9 +248,9 @@ sub handle_gettext {
 
   # TODO(Bo): This needs to be adjusted once we have HTML
   if ($result eq NOT_FOUND_TEXT_TOKEN) {
-    $r->header_out('Cache-Control', "max-age=" . 60);
+    $r->headers_out->{'Cache-Control'} = "max-age=" . 60;
   } else {
-    $r->header_out('Cache-Control', "max-age=" . 5*24*60*60);
+    $r->headers_out->{'Cache-Control'} = "max-age=" . 5*24*60*60;
   }
 
   # Text may or may not have been found, but it's all the same now.
