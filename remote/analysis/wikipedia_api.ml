@@ -290,7 +290,8 @@ let fetch_page_and_revs_after_json (selector : string) : result_tree =
     JSON api
   ) with
   | Failure e -> raise (API_error_noretry e)
-
+(* this means that there are certain revs we can not download -- example itwiki-Roma page. *)
+(* Should we do anything else here? *)
 
 (**
    [fetch_page_and_revs after selector rev_start_id db], given a [selector]
