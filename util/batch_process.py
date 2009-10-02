@@ -66,6 +66,9 @@ class AccumulateFiles:
         # Returns the list of all chunks.
         return self.chunk_list
 
+# So we disregard errors if the directory exists.
+def make_directory(d):
+    commands.getoutput("mkdir " + d)
 
 def dodo(x):
     print x
@@ -98,8 +101,9 @@ def compute_stats(descr):
 
 # Sorts the reduced statistics. 
 def sort_stats(opt):
+    commands.getoutput("rm -rf " + opt["bucket_dir"])
     cmd = (opt["cmd_dir"] + "/combinestats -bucket_dir " +
-           opt["bucket_dir"] + " input_dir " + opt["stats_dir"] +
+           opt["bucket_dir"] + " -input_dir " + opt["stats_dir"] +
            " -n_digits 5 -use_subdirs -remove_unsorted")
     dodo(cmd)
 
@@ -110,7 +114,10 @@ def compute_reps(opt):
            "/ -write_final_reps")
     if "robots" in opt:
         cmd += " -robots " + opt["robots"] 
-    dodo(cmd)
+    # We don't want to print the extensive output of computerep.
+    print cmd
+    commands.getoutput(cmd)
+
 
 # Computes the colored revisions.  The input format is:
 # opt: contains the options.
@@ -121,7 +128,7 @@ def compute_trust(descr):
     for f in in_file_list:
         in_file_str += f + " "
     cmd = (opt["cmd_dir"] + "/evalwiki -trust_for_online -historyfile " +
-           opt["rep_file"] + " -blob_base_path " + opt["blob_prefix"] +
+           opt["rep_file"] + " -blob_base_path " + opt["blobs_dir"] +
            " -n_sigs 8")
     if "robots" in opt:
         cmd += " -robots " + opt["robots"]
@@ -229,11 +236,10 @@ def main():
     options["blobs_dir"] = options["base_dir"] + "/blobs"
 
     # Makes the directories.
-    dodo("mkdir " + options["split_dir"])
-    dodo("mkdir " + options["stats_dir"])
-    dodo("mkdir " + options["bucket_dir"])
-    dodo("mkdir " + options["sql_dir"])
-    dodo("mkdir " + options["blobs_dir"])
+    make_directory(options["split_dir"])
+    make_directory(options["stats_dir"])
+    make_directory(options["sql_dir"])
+    make_directory(options["blobs_dir"])
 
     # Makes some filenames.
     options["rep_file"] = options["base_dir"] + "/user_reputations.txt"
@@ -264,7 +270,7 @@ def main():
         for subdir in subdir_list:
             source_dir = options["split_dir"] + "/" + subdir
             dest_dir = options["stats_dir"] + "/" + subdir
-            dodo("mkdir " + dest_dir)
+            make_directory(dest_dir)
             for r, s, f in os.walk(source_dir):
                 files = f
                 break
@@ -310,13 +316,13 @@ def main():
             for subdir in subdir_list:
                 source_dir = options["split_dir"] + "/" + subdir
                 dest_dir = options["sql_dir"] + "/" + subdir
-                dodo("mkdir " + dest_dir)
+                make_directory(dest_dir)
                 for r, s, f in os.walk(source_dir):
                     files = f
                     break
                 files.sort()
                 # Accumulates the files in chunks
-                accumulator = AccumulateFiles(4 * history_size, 50)
+                accumulator = AccumulateFiles(20 * history_size, 50)
                 for source_file in files:
                     full_source_file = source_dir + "/" + source_file
                     accumulator.add_file(full_source_file)
