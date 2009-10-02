@@ -284,12 +284,12 @@ let fetch_page_and_revs_after_json (selector : string) : result_tree =
     ^ "&" ^ selector in
   !logger#log (Printf.sprintf "getting url: %s\n" url);
   let res = get_url url in
-  let api = Json_io.json_of_string res in
-
-
-
-  (* logger#log (Printf.sprintf "result: %s\n" res); *)
-  JSON api
+  try (
+    let api = Json_io.json_of_string res in
+    (* logger#log (Printf.sprintf "result: %s\n" res); *)
+    JSON api
+  ) with
+  | Failure e -> raise (API_error_noretry e)
 
 
 (**
