@@ -966,7 +966,14 @@ object(self)
       super method *)
   method private write_revision_text (rev : wiki_revision_t) =
     let s = Printf.sprintf "INSERT INTO %swikitrust_text_cache (revision_id, page_id, time_string, revision_text) VALUES (%s, %s, %s, %s) ON DUPLICATE KEY UPDATE time_string = %s" db_prefix (ml2int rev.revision_id) (ml2int rev.revision_page) (ml2str rev.revision_timestamp) (ml2str rev.revision_content) (ml2str rev.revision_timestamp) in
-	    ignore (self#db_exec mediawiki_dbh s);
+    try
+      ignore (self#db_exec mediawiki_dbh s);
+    with
+    | DB_TXN_Bad -> ( (*If the query dies for some reason. *)
+	Mysql.ping mediawiki_dbh; (* re-connect and put in placeholder text. *)
+	let s' = Printf.sprintf "INSERT INTO %swikitrust_text_cache (revision_id, page_id, time_string, revision_text) VALUES (%s, %s, %s, %s) ON DUPLICATE KEY UPDATE time_string = %s" db_prefix (ml2int rev.revision_id) (ml2int rev.revision_page) (ml2str rev.revision_timestamp) (ml2str "Text Not Found") (ml2str rev.revision_timestamp) in
+	ignore (self#db_exec mediawiki_dbh s);
+      )
 
   (** [get_rev_text page_id text_id] returns the text associated with
       text id [text_id].  This method first tries to read the revision
