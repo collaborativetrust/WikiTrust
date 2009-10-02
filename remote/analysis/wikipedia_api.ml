@@ -331,11 +331,19 @@ let get_user_id (user_name: string) (db: Online_db.db) : int =
   try
     if Str.string_match ip_re user_name 0 then 0
     else db#get_user_id user_name
-  with Online_db.DB_Not_Found ->
-    try
-      db#write_user_id user_name
-    with
+  with 
+  | Online_db.DB_Not_Found -> (
+      try
+	db#write_user_id user_name
+      with
       | int_of_string -> 0
+    )
+  | Mysql.Error e -> (
+      try
+	db#write_user_id user_name
+      with
+      | int_of_string -> 0
+    )
 
 (**
    [get_revs_from_api page_title last_id db 0] reads

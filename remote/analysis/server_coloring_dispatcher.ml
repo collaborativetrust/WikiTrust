@@ -154,22 +154,26 @@ let process_page (page_id: int) (page_title: string) =
   in
   (* If I am using the WikiMedia API, I need to first download any new
      revisions of the page. *)
-  if !use_wikimedia_api then Wikipedia_api.download_page_from_id child_db 
-    page_id;
-  (* Creates a new updater. *)
-  let processor = new Updater.updater child_db
-    trust_coeff !times_to_retry_trans each_event_delay every_n_events_delay 
-    !robots in
-  (* Brings the page up to date.  This will take care also of the page lock. *)
-  processor#update_page_fast page_id;
-  (* Renders the last revision of this page and stores it in memcached. *)
-  if !render_last_rev then render_rev (db#get_latest_rev_id_from_id page_id) 
-    page_id db;
+  (try (
+    if !use_wikimedia_api then Wikipedia_api.download_page_from_id child_db 
+      page_id;
+    (* Creates a new updater. *)
+    let processor = new Updater.updater child_db
+      trust_coeff !times_to_retry_trans each_event_delay every_n_events_delay 
+      !robots in
+    (* Brings the page up to date.  This will take care also of the page lock. *)
+    processor#update_page_fast page_id;
+    (* Renders the last revision of this page and stores it in memcached. *)
+    if !render_last_rev then render_rev (db#get_latest_rev_id_from_id page_id) 
+      page_id db;
+  ) with
+    Wikipedia_api.API_error e -> (logger#log e)
+  );
   (* Marks the page as processed. *)
   child_db#mark_page_as_processed page_id page_title;
   (* End of page processing. *)
-    Printf.printf "Done with %s.\n" page_title; flush_all ();
-    exit 0;
+  Printf.printf "Done with %s.\n" page_title; flush_all ();
+  exit 0;
 in
 
 
