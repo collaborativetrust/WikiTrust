@@ -22,6 +22,7 @@ our %methods = (
 	'vote' => \&handle_vote,
 	'gettext' => \&handle_gettext,
 	'wikiorhtml' => \&handle_wikiorhtml,
+	'showqueue' => \&handle_showqueue,
     );
 
 
@@ -261,6 +262,26 @@ sub handle_wikiorhtml {
   my ($dbh, $cgi, $r) = @_;
   # For now, we only return Wiki markup
   return 'W'.handle_gettext(@_);
+}
+
+sub handle_showqueue {
+  my ($dbh, $cgi, $r) = @_;
+
+  my $sth = $dbh->prepare ("SELECT * FROM wikitrust_queue") || die $dbh->errstr;
+  $sth->execute() || die $dbh->errstr;
+  my $txt = "Show processing queue for WikiTrust dispatcher:\n\n";
+  my $found_header = 0;
+  while ((my $ref = $sth->fetchrow_hashref())){
+    if (!$found_header) {
+      foreach (sort keys %$ref) { $txt .= sprintf("%15s ", $_); }
+      $txt .= "\n";
+      foreach (sort keys %$ref) { $txt .= '='x16; }
+      $txt .= "\n";
+      $found_header = 1;
+    }
+    foreach (sort keys %$ref) { $txt .= sprintf("%15s ", $ref->{$_}); }
+    $txt .= "\n";
+  }
 }
 
 1;
