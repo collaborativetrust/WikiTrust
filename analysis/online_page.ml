@@ -713,7 +713,6 @@ class page
       let rev0_uname = rev0#get_user_name in 
       let rev0_t = rev0#get_words in 
       let rev0_time = rev0#get_time in 
-      let rev0_time_string = rev0#get_time_string in 
       let rev0_l = Array.length rev0_t in 
       let rev0_seps = rev0#get_seps in 
 
