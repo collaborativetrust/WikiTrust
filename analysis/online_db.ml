@@ -251,6 +251,10 @@ object(self)
   (** set_histogram hist median] sets the histogram and the median in the
       database. *)
   method set_histogram (hist : float array) (median: float) : unit =
+    (* Ensures that there is only one row. *)
+    let s = Printf.sprintf "DELETE FROM %swikitrust_global" db_prefix in
+    ignore (self#db_exec mediawiki_dbh s);
+    (* Inserts the new histogram. *)
     let s = Printf.sprintf "REPLACE INTO %swikitrust_global (rep_0, rep_1, rep_2, rep_3, rep_4, rep_5, rep_6, rep_7, rep_8, rep_9, median) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
       db_prefix
       (ml2float hist.(0)) (ml2float hist.(1)) (ml2float hist.(2))
