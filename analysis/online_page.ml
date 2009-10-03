@@ -263,9 +263,12 @@ class page
       end;
       
       (* Reads the revision text.  For the most recent revision, we
-         read the normal text; for the others, the colored text *)
-      for i = n_revs - 1 downto 0 do begin 
-	let r = Vec.get i revs in
+         read the normal text; for the others, the colored text. 
+	 If it does not find the information for old revisions, 
+         it just disregards it. *)
+      let revs_to_read = revs in
+      for i = 0 to n_revs - 1 do begin 
+	let r = Vec.get i revs_to_read in
 	if i = 0 then begin 
 	  (* This is the most recent revision, for which we read
 	     the uncolored text.  *)
@@ -274,7 +277,17 @@ class page
 	  (* These are the older revisions, for which we read the
 	     trust, origin, etc information (from the sigs, we hope. *)
 	  try r#read_words_trust_origin_sigs page_sigs
-          with Online_db.DB_Not_Found -> raise (Missing_trust r)
+          with Online_db.DB_Not_Found -> begin
+	    (* If the revision is recent, it complains. *)
+	    if i < 3 
+	    then raise (Missing_trust r)
+	    else begin
+	      (* Removes the revision from consideration. *)
+	      let f r' = (r'#get_id <> r#get_id) in
+	      revs <- Vec.filter f revs;
+	      recent_revs <- Vec.filter f recent_revs
+	    end
+	  end
 	end
       end done
 
@@ -795,17 +808,22 @@ class page
            (b) one of the revisions even before (indicating a reversion, 
                essentially). *)
         let d_prev = Hashtbl.find edit_dist (rev1_id, rev0_id) in 
+	!Online_log.online_logger#log (Printf.sprintf 
+	  "\nDistance to previous: %f" d_prev);
         let close_idx = ref 1 in 
         let closest_d = ref d_prev in 
         for i = 2 to n_revs - 1 do begin 
           let revi = Vec.get i revs in 
           let revi_id = revi#get_id in 
-          let d = Hashtbl.find edit_dist (revi_id, rev0_id) in  
+          let d = Hashtbl.find edit_dist (revi_id, rev0_id) in
+	  !Online_log.online_logger#log (Printf.sprintf 
+	    "\nDistance to %d back: %f" i d);
           (* We consider a revision to be a better candidate than the
              immediately preceding revision as the source of the most
-             recent revision if it is less than 3 times closer than
-             the current one. *)
-          if d < d_prev /. 3. && d < !closest_d then begin
+             recent revision if it is no farther away. *)
+          if d < d_prev && d < !closest_d then begin
+	    !Online_log.online_logger#log (Printf.sprintf 
+	      "\nChosen revision %d back as closest" i);
             close_idx := i; 
             closest_d := d
           end
@@ -1384,15 +1402,15 @@ class page
 		self#read_page_revisions_edit; 
 		
 		(* Computes the edit distances *)
-		!Online_log.online_logger#log "   Computing edit lists...\n";
+		!Online_log.online_logger#log "\n   Computing edit lists...";
 		self#compute_edit_lists; 
 		(* Computes, and writes to disk, the trust of the
 		   newest revision *)
-		!Online_log.online_logger#log "   Computing trust...\n";
+		!Online_log.online_logger#log "\n   Computing trust...";
 		self#compute_trust;
 		
 		(* We now process the reputation update. *)
-		!Online_log.online_logger#log "   Computing edit incs...\n";
+		!Online_log.online_logger#log "\n   Computing edit incs...";
 		self#compute_edit_inc;
 		
 		(* Inserts the revision in the list of high rep or high

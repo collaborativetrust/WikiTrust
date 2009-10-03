@@ -289,7 +289,11 @@ let fetch_page_and_revs_after_json (selector : string) : result_tree =
     (* logger#log (Printf.sprintf "result: %s\n" res); *)
     JSON api
   ) with
-  | Failure e -> raise (API_error_noretry e)
+  | Failure e -> (
+      Printf.eprintf "JSON Error: %s\nOn%s\nExc%s\n" e url
+	(Printexc.to_string (Failure e));
+      raise (API_error_noretry e) 
+    )
 (* this means that there are certain revs we can not download -- example itwiki-Roma page. *)
 (* Should we do anything else here? *)
 
