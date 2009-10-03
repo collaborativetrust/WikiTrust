@@ -263,9 +263,12 @@ class page
       end;
       
       (* Reads the revision text.  For the most recent revision, we
-         read the normal text; for the others, the colored text *)
-      for i = n_revs - 1 downto 0 do begin 
-	let r = Vec.get i revs in
+         read the normal text; for the others, the colored text. 
+	 If it does not find the information for old revisions, 
+         it just disregards it. *)
+      let revs_to_read = revs in
+      for i = 0 to n_revs - 1 do begin 
+	let r = Vec.get i revs_to_read in
 	if i = 0 then begin 
 	  (* This is the most recent revision, for which we read
 	     the uncolored text.  *)
@@ -274,7 +277,17 @@ class page
 	  (* These are the older revisions, for which we read the
 	     trust, origin, etc information (from the sigs, we hope. *)
 	  try r#read_words_trust_origin_sigs page_sigs
-          with Online_db.DB_Not_Found -> raise (Missing_trust r)
+          with Online_db.DB_Not_Found -> begin
+	    (* If the revision is recent, it complains. *)
+	    if i < 3 
+	    then raise (Missing_trust r)
+	    else begin
+	      (* Removes the revision from consideration. *)
+	      let f r' = (r'#get_id <> r#get_id) in
+	      revs <- Vec.filter f revs;
+	      recent_revs <- Vec.filter f recent_revs
+	    end
+	  end
 	end
       end done
 
