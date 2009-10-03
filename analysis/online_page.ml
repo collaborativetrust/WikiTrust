@@ -591,7 +591,25 @@ class page
 	    Hashtbl.add edit_dist (rev1_id, rev2_id) d
 
           end done (* for rev2_idx *)
-        end done (* for rev1_idx *)
+        end done; (* for rev1_idx *)
+	
+	(* Post-computation to ensure distances from revision 0 are accurate. *)
+	let rev0 = Vec.get 0 revs in
+	let rev0_id = rev0#get_id in
+	let rev0_t = rev0#get_words in
+        let rev0_i = Chdiff.make_index_diff rev0_t in 
+	let rev0_l = Array.length rev0_t in
+	for rev1_idx = 2 to last_idx do begin
+	  let rev1 = Vec.get rev1_idx revs in
+	  let rev1_id = rev1#get_id in
+	  let rev1_t = rev1#get_words in
+	  let rev1_l = Array.length rev1_t in
+          let edits  = Chdiff.edit_diff rev1_t rev0_t rev0_i in 
+          let d = Editlist.edit_distance edits (max rev0_l rev1_l) in 
+          Hashtbl.add edit_dist (rev0_id, rev1_id) d;
+          Hashtbl.add edit_dist (rev1_id, rev0_id) d
+	end done
+
       end (* if more than one revision *)
 
 
@@ -808,16 +826,22 @@ class page
            (b) one of the revisions even before (indicating a reversion, 
                essentially). *)
         let d_prev = Hashtbl.find edit_dist (rev1_id, rev0_id) in 
+	!Online_log.online_logger#log (Printf.sprintf 
+	  "\nDistance to previous: %f" d_prev);
         let close_idx = ref 1 in 
         let closest_d = ref d_prev in 
         for i = 2 to n_revs - 1 do begin 
           let revi = Vec.get i revs in 
           let revi_id = revi#get_id in 
-          let d = Hashtbl.find edit_dist (revi_id, rev0_id) in  
+          let d = Hashtbl.find edit_dist (revi_id, rev0_id) in
+	  !Online_log.online_logger#log (Printf.sprintf 
+	    "\nDistance to %d back: %f" i d);
           (* We consider a revision to be a better candidate than the
              immediately preceding revision as the source of the most
              recent revision if it is no farther away. *)
           if d < d_prev && d < !closest_d then begin
+	    !Online_log.online_logger#log (Printf.sprintf 
+	      "\nChosen revision %d back as closest" i);
             close_idx := i; 
             closest_d := d
           end
@@ -1396,15 +1420,15 @@ class page
 		self#read_page_revisions_edit; 
 		
 		(* Computes the edit distances *)
-		!Online_log.online_logger#log "   Computing edit lists...\n";
+		!Online_log.online_logger#log "\n   Computing edit lists...";
 		self#compute_edit_lists; 
 		(* Computes, and writes to disk, the trust of the
 		   newest revision *)
-		!Online_log.online_logger#log "   Computing trust...\n";
+		!Online_log.online_logger#log "\n   Computing trust...";
 		self#compute_trust;
 		
 		(* We now process the reputation update. *)
-		!Online_log.online_logger#log "   Computing edit incs...\n";
+		!Online_log.online_logger#log "\n   Computing edit incs...";
 		self#compute_edit_inc;
 		
 		(* Inserts the revision in the list of high rep or high
