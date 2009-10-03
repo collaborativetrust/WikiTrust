@@ -591,25 +591,7 @@ class page
 	    Hashtbl.add edit_dist (rev1_id, rev2_id) d
 
           end done (* for rev2_idx *)
-        end done; (* for rev1_idx *)
-	
-	(* Post-computation to ensure distances from revision 0 are accurate. *)
-	let rev0 = Vec.get 0 revs in
-	let rev0_id = rev0#get_id in
-	let rev0_t = rev0#get_words in
-        let rev0_i = Chdiff.make_index_diff rev0_t in 
-	let rev0_l = Array.length rev0_t in
-	for rev1_idx = 2 to last_idx do begin
-	  let rev1 = Vec.get rev1_idx revs in
-	  let rev1_id = rev1#get_id in
-	  let rev1_t = rev1#get_words in
-	  let rev1_l = Array.length rev1_t in
-          let edits  = Chdiff.edit_diff rev1_t rev0_t rev0_i in 
-          let d = Editlist.edit_distance edits (max rev0_l rev1_l) in 
-          Hashtbl.add edit_dist (rev0_id, rev1_id) d;
-          Hashtbl.add edit_dist (rev1_id, rev0_id) d
-	end done
-
+        end done (* for rev1_idx *)
       end (* if more than one revision *)
 
 

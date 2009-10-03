@@ -375,6 +375,11 @@ if false then begin
   let ts8 = "Volete comperare Viagra? Molto buono dato che le persone non badano a quello comune." in 
   let ts9 = ts7 in 
   let ts10 = "In generale, il bene comune non coincide con quello individuale. Questo e' causato dal fatto che le persone badano al loro bene privato, piuttosto che al bene comune." in
+  let ts11 = "aaaa bbbb cccc dddd eeee ffff gggg hhhh iiii nnnn" in
+  let ts12 = "aaaa bbbb cccc dddd ffff gggg hhhh iiii nnnn" in
+  let ts13 = "aaaa" in
+  let ts14 = "aaaa bbbb" in
+  let ts15 = "bbbb" in
 
   let ta0  = Text.split_into_words false (Vec.singleton ts0) in 
   let ta1  = Text.split_into_words false (Vec.singleton ts1) in 
@@ -387,33 +392,63 @@ if false then begin
   let ta8  = Text.split_into_words false (Vec.singleton ts8) in 
   let ta9  = Text.split_into_words false (Vec.singleton ts9) in 
   let ta10 = Text.split_into_words false (Vec.singleton ts10) in 
+  let ta11 = Text.split_into_words false (Vec.singleton ts11) in 
+  let ta12 = Text.split_into_words false (Vec.singleton ts12) in 
+  let ta13 = Text.split_into_words false (Vec.singleton ts13) in 
+  let ta14 = Text.split_into_words false (Vec.singleton ts14) in 
+  let ta15 = Text.split_into_words false (Vec.singleton ts15) in 
  
-  let w = [|ts0; ts1; ts2; ts3; ts4; ts5; ts6; ts7; ts8; ts9; ts10|] in 
-  let t = [|ta0; ta1; ta2; ta3; ta4; ta5; ta6; ta7; ta8; ta9; ta10|] in 
+  let w = [|ts0; ts1; ts2; ts3; ts4; ts5; ts6; ts7; ts8; ts9; ts10; ts11; ts12; ts11; ts12|] in 
+  let t = [|ta0; ta1; ta2; ta3; ta4; ta5; ta6; ta7; ta8; ta9; ta10; ta11; ta12; ta11; ta12|] in 
   let len = Array.length (t) in 
-  for i = 0 to len - 3 do begin
-    let w0 = t.(i) in 
-    for j = i + 1 to len - 2 do begin
-      let w1 = t.(j) in 
-      let i1 = Chdiff.make_index_diff w1 in 
-      let e1 = Chdiff.edit_diff w0 w1 i1 in 
-      for k = j + 1 to len - 1 do begin 
-	let w2 = t.(k) in 
-	let i2 = Chdiff.make_index_diff w2 in 
-	let e2 = Chdiff.edit_diff w1 w2 i2 in 
-	let e02 = Chdiff.edit_diff w0 w2 i2 in 
-	(* Difference from i to k directly *)
-	Printf.printf "\n================================================================\n";
-	Printf.printf "Difference between %d %d %d:\n" i j k; 
-	Printf.printf "String %d: %s\n" i w.(i);
-	Printf.printf "String %d: %s\n" j w.(j);
-	Printf.printf "String %d: %s\n" k w.(k);
-	Printf.printf "------------ direct:\n"; 
-	print_diff e02; 
-	(* Now interpolating *)
-	Printf.printf "------------ zipped:\n"; 
-	print_diff (edit_diff_using_zipped_edits w0 w2 e1 e2)
+  if true then begin 
+    for i = 0 to len - 3 do begin
+      let w0 = t.(i) in 
+      for j = i + 1 to len - 2 do begin
+	let w1 = t.(j) in 
+	let i1 = Chdiff.make_index_diff w1 in 
+	let e1 = Chdiff.edit_diff w0 w1 i1 in 
+	for k = j + 1 to len - 1 do begin 
+	  let w2 = t.(k) in 
+	  let i2 = Chdiff.make_index_diff w2 in 
+	  let e2 = Chdiff.edit_diff w1 w2 i2 in 
+	  let e02 = Chdiff.edit_diff w0 w2 i2 in 
+	  (* Difference from i to k directly *)
+	  Printf.printf "\n================================================================\n";
+	  Printf.printf "Difference between %d %d %d:\n" i j k; 
+	  Printf.printf "String %d: %s\n" i w.(i);
+	  Printf.printf "String %d: %s\n" j w.(j);
+	  Printf.printf "String %d: %s\n" k w.(k);
+	  Printf.printf "------------ direct:\n"; 
+	  print_diff e02; 
+	  (* Now interpolating *)
+	  Printf.printf "------------ zipped:\n"; 
+	  print_diff (edit_diff_using_zipped_edits w0 w2 e1 e2)
+	end done
       end done
     end done
-  end done
+  end;
+  if false then begin
+    Printf.printf "\n================================================================\n";
+    let i11 = Chdiff.make_index_diff ta11 in
+    let i12 = Chdiff.make_index_diff ta12 in
+    let e_11_12 = Chdiff.edit_diff ta11 ta12 i12 in 
+    let e_12_11 = Chdiff.edit_diff ta12 ta11 i11 in
+    let e_11_11 = edit_diff_using_zipped_edits ta11 ta11 e_11_12 e_12_11 in
+    let e_12_12 = edit_diff_using_zipped_edits ta12 ta12 e_12_11 e_11_12 in
+    Printf.printf "\n 11 to 12: "; print_diff e_11_12;
+    Printf.printf "\n 12 to 11: "; print_diff e_12_11;
+    Printf.printf "\n 11 to 11: "; print_diff e_11_11;
+    Printf.printf "\n 12 to 12: "; print_diff e_12_12;
+  end;
+  if true then begin
+    Printf.printf "\n================================================================\n";
+    let i13 = Chdiff.make_index_diff ta13 in
+    let i14 = Chdiff.make_index_diff ta14 in
+    let i15 = Chdiff.make_index_diff ta15 in
+    Printf.printf "\n 13 to 13: ";  print_diff (Chdiff.edit_diff ta13 ta13 i13);
+    Printf.printf "\n 13 to 14: ";  print_diff (Chdiff.edit_diff ta13 ta14 i14);
+    Printf.printf "\n 14 to 15: ";  print_diff (Chdiff.edit_diff ta14 ta15 i15);
+    Printf.printf "\n 13 to 15: ";  print_diff (Chdiff.edit_diff ta13 ta15 i15);
+  end
 end;;

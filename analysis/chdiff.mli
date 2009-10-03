@@ -45,6 +45,9 @@ val make_index_diff : word array -> index_t
     [words1] to [words2] given [index2]. *)
 val edit_diff : word array -> word array -> index_t -> Editlist.edit list
 
+(** [dezero elist] removes the 0-length elements from the edit list [elist]. *)
+val dezero : Editlist.edit list -> Editlist.edit list
+
 (** [text_tracking chunks1 words2] takes an array of text [chunks1], 
     and a new word [words2], and produces a new list of chunks [chunks2], 
     and a list of matches that pair up the new text with the old one. 
