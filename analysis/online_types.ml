@@ -163,8 +163,8 @@ let default_trust_coeff = {
   max_del_revs_chunk = 100;
   max_dead_chunk_len = 10000;
   lends_rep = 0.4;
-  read_all = 0.15;
-  read_part = 0.2;
+  read_all = 0.10;
+  read_part = 0.18;
   kill_decrease = (log 2.0) /. 9.0;
   cut_rep_radius = 2.0;
   local_decay = 0.5 ** (1. /. 10.); 
@@ -178,7 +178,7 @@ let default_trust_coeff = {
   nix_threshold = 0.1;
   hi_median_perc = 0.9;
   hi_median_perc_boost = 0.7;
-  edit_time_constant = 10. *. 60.; (* 10 minutes *)
+  edit_time_constant = 24. *. 60. *. 60.; (* 1 day *)
 };;
  
 let get_default_coeff : trust_coeff_t = default_trust_coeff ;;

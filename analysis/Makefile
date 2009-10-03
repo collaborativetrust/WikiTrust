@@ -122,6 +122,9 @@ OUR_OPT_EXTRACTWIKI_OBJS = extract_wiki_subset.cmx
 
 CHDIFF_OBJS = textbuf.cmo text.cmo prioq.cmo coda.cmo editlist.cmo chdiff.cmo
 
+EDITLIST_OBJS = textbuf.cmo text.cmo prioq.cmo coda.cmo editlist.cmo \
+	chdiff.cmo compute_edlist.cmo
+
 TEXT_OBJS = textbuf.cmo text.cmo
 
 TIMECONV_OBJS = timeconv.cmo
@@ -201,6 +204,11 @@ chdiff: $(CHDIFF_OBJS)
 
 text:   $(TEXT_OBJS)
 	$(OCAMLC) -linkpkg -o text $(OCAML_CFLAGS) $(TEXT_OBJS)
+
+# this is used to test the edit list algorithms.
+
+editlist:	$(EDITLIST_OBJS)
+	$(OCAMLC) -linkpkg -o editlist $(OCAML_CFLAGS) $(EDITLIST_OBJS)
 
 # combinestats is used to combine several sorted statistics files into a single one
 

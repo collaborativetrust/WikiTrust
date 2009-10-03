@@ -30,11 +30,15 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 all: 
-	cd analysis; make all; cp eval_online_wiki .. ; cp vote_revision ..
+	cd analysis; make all
+	cp analysis/eval_online_wiki eval_online_wiki
+	cp analysis/vote_revision vote_revision
 	cd remote/analysis; make all
 
 allopt: 
-	cd analysis; make allopt; cp eval_online_wiki .. ; cp vote_revision ..
+	cd analysis; make allopt
+	cp analysis/eval_online_wiki eval_online_wiki
+	cp analysis/vote_revision vote_revision
 	cd remote/analysis; make allopt
 
 clean:
