@@ -803,9 +803,8 @@ class page
           let d = Hashtbl.find edit_dist (revi_id, rev0_id) in  
           (* We consider a revision to be a better candidate than the
              immediately preceding revision as the source of the most
-             recent revision if it is less than 3 times closer than
-             the current one. *)
-          if d < d_prev /. 3. && d < !closest_d then begin
+             recent revision if it is no farther away. *)
+          if d < d_prev && d < !closest_d then begin
             close_idx := i; 
             closest_d := d
           end
