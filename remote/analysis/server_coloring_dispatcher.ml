@@ -154,7 +154,7 @@ let process_page (page_id: int) (page_title: string) =
   in
   (* If I am using the WikiMedia API, I need to first download any new
      revisions of the page. *)
-  (try (
+  (try Printexc.print (fun () ->
     if !use_wikimedia_api then Wikipedia_api.download_page_from_id child_db 
       page_id;
     (* Creates a new updater. *)
@@ -166,11 +166,16 @@ let process_page (page_id: int) (page_title: string) =
     (* Renders the last revision of this page and stores it in memcached. *)
     if !render_last_rev then render_rev (db#get_latest_rev_id_from_id page_id) 
       page_id db;
-  ) with
-    Wikipedia_api.API_error e -> (logger#log e)
+  ) () with
+  | Wikipedia_api.API_error e -> (
+      Printf.eprintf "Wikipedia_api Error: %s\nOn %d %s\nExp%s\n" 
+	e page_id page_title (Printexc.to_string (Wikipedia_api.API_error e));
+    )
+  | _ -> () (* All exceptions printed by the Printexc module above. *) 
   );
   (* Marks the page as processed. *)
   child_db#mark_page_as_processed page_id page_title;
+  child_db#close; (* Release any locks still held. *)
   (* End of page processing. *)
   Printf.printf "Done with %s.\n" page_title; flush_all ();
   exit 0;
