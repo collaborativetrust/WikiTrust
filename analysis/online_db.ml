@@ -810,7 +810,7 @@ object(self)
     let results = ref [] in
     while !n_attempts < n_retries do 
       begin 
-	try begin 
+	try Printexc.print (fun () -> begin 
 	  self#start_transaction;
 	  let s = Printf.sprintf "SELECT page_id, page_title FROM %swikitrust_queue WHERE processed = 'unprocessed' ORDER BY requested_on ASC LIMIT %s" 
 	    db_prefix (ml2int max_to_get) in
@@ -826,11 +826,12 @@ object(self)
           (* We need to end this loop. *)
           self#commit;
           n_attempts := n_retries   
-	end with _ -> begin 
-	  (* Roll back *)
-	  self#rollback_transaction;
-	  n_attempts := !n_attempts + 1
-	end
+	end ) () with 
+	| _ -> begin 
+	    (* Roll back *)
+	    self#rollback_transaction;
+	    n_attempts := !n_attempts + 1
+	  end
       end done; (* End of the multiple attempts at the transaction *)
     !results
       
