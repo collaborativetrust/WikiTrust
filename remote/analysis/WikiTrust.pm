@@ -8,10 +8,12 @@ use DBI;
 use Error qw(:try);
 use Apache2::RequestRec ();
 use Apache2::Const -compile => qw( OK );
+use Apache2::Connection ();
 use CGI;
 use CGI::Carp;
 use IO::Zlib;
 use Compress::Zlib;
+use Cache::Memcached;
 #use Time::HiRes qw(gettimeofday tv_interval);
 
 use constant SLEEP_TIME => 3;
@@ -22,9 +24,11 @@ our %methods = (
 	'vote' => \&handle_vote,
 	'gettext' => \&handle_gettext,
 	'wikiorhtml' => \&handle_wikiorhtml,
-	'showqueue' => \&handle_showqueue,
+	'stats' => \&handle_stats,
+	'sharehtml' => \&handle_sharehtml,
     );
 
+our $cache = undef;	# will get initialized when needed
 
 sub handler {
   my $r = shift;
@@ -232,10 +236,8 @@ sub handle_edit {
   return "good"
 }
 
-sub handle_gettext {
-  my ($dbh, $cgi, $r) = @_;
-  my ($rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
-  
+sub util_ColorIfAvailable { 
+  my ($dbh, $page, $rev) = @_;
   my $result = fetch_colored_markup($page, $rev, $dbh);
   if ($result eq NOT_FOUND_TEXT_TOKEN){
     # If the revision is not found among the colored ones,
@@ -246,43 +248,118 @@ sub handle_gettext {
     # Tries again to get it, to see if it has been colored.
     $result = fetch_colored_markup($page, $rev, $dbh);
   }
+  return $result;
+}
 
-  # TODO(Bo): This needs to be adjusted once we have HTML
+sub handle_gettext {
+  my ($dbh, $cgi, $r) = @_;
+  my ($rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
+  my $result = util_ColorIfAvailable($dbh, $page, $rev);
   if ($result eq NOT_FOUND_TEXT_TOKEN) {
     $r->headers_out->{'Cache-Control'} = "max-age=" . 60;
   } else {
     $r->headers_out->{'Cache-Control'} = "max-age=" . 5*24*60*60;
   }
-
-  # Text may or may not have been found, but it's all the same now.
-  return $result;
+  $r->content_type('text/plain');
+  $r->print($result);
+  return Apache2::Const::OK;
 }
 
 sub handle_wikiorhtml {
   my ($dbh, $cgi, $r) = @_;
-  # For now, we only return Wiki markup
-  return 'W'.handle_gettext(@_);
+  my ($rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
+  my $cache = util_getCache();
+  my $data = $cache->get($revid);
+  if (defined $data) {
+    $r->headers_out->{'Cache-Control'} = "max-age=" . 30*24*60*60;
+    $r->content_type('text/plain');
+    $r->print('H');
+    $r->print($data->{html});
+    return Apache2::Const::OK;
+  }
+
+  my $result = util_ColorIfAvailable($dbh, $page, $rev);
+  if ($result eq NOT_FOUND_TEXT_TOKEN) {
+    $r->headers_out->{'Cache-Control'} = "max-age=" . 60;
+  } else {
+    $r->headers_out->{'Cache-Control'} = "max-age=" . 5*60;
+  }
+  $r->content_type('text/plain');
+  $r->print('W');
+  $r->print($result);
+  return Apache2::Const::OK;
 }
 
-sub handle_showqueue {
+sub handle_stats {
   my ($dbh, $cgi, $r) = @_;
 
   my $sth = $dbh->prepare ("SELECT * FROM wikitrust_queue") || die $dbh->errstr;
   $sth->execute() || die $dbh->errstr;
-  my $txt = "Show processing queue for WikiTrust dispatcher:\n\n";
+  $r->print("Processing queue for WikiTrust dispatcher:\n\n");
   my $found_header = 0;
   while ((my $ref = $sth->fetchrow_hashref())){
     if (!$found_header) {
-      foreach (sort keys %$ref) { $txt .= sprintf("%20s ", $_); }
-      $txt .= "\n";
-      foreach (sort keys %$ref) { $txt .= '='x21; }
-      $txt .= "\n";
+      foreach (sort keys %$ref) { $r->print(sprintf("%20s ", $_)); }
+      $r->print("\n");
+      foreach (sort keys %$ref) { $r->print('='x21); }
+      $r->print("\n");
       $found_header = 1;
     }
-    foreach (sort keys %$ref) { $txt .= sprintf("%20s ", $ref->{$_}); }
-    $txt .= "\n";
+    foreach (sort keys %$ref) { $r->print(sprintf("%20s ", $ref->{$_})); }
+    $r->print("\n");
   }
-  return $txt;
+  $r->print("\n\nMemCache statistics:\n\n");
+  my $cache = util_getCache();
+  my $stats = $cache->stats();
+  foreach my $key (keys %$stats) {
+    $r->print("\t$key = ". $stats->{$key} . "\n");
+  }
+  return Apache2::Const::OK;
 }
+
+sub util_getCache {
+    return $cache if defined $cache;
+    my $server = $ENV{WT_MEMCACHED} || '127.0.0.1:11211';
+    return new Cache::Memcached {
+	    'servers' => [ $server ],
+	    'debug' => DEBUG,
+	    'compress_threshold' => 1000,
+	    'namespace' => $ENV{WT_NAMESPACE} || '',
+	};
+}
+
+sub handle_sharehtml {
+    my ($dbh, $cgi, $r) = @_;
+
+    my $myhtml = $cgi->param('myhtml') || '';
+    my $revid = $cgi->param('revid') || 0;
+    return 'Thanks, but no thanks.' if ($myhtml eq '') || ($revid == 0);
+
+    my $c = $r->connection;
+    my $remoteip = $c->remote_ip();
+
+    my $cache = util_getCache();
+
+    my $changed = 0;
+    my $data = $cache->get($revid);
+    if (!defined $data) {
+	$changed = 1;
+	$data = {
+	    'html' => $myhtml,
+	    'src' => { $remoteip => 1 },
+	    'srcs' => 1,
+	    };
+    }
+    if ($data->{srcs}<5 && !exists $data->{src}->{$remoteip}) {
+	$changed = 1;
+	$data->{srcs}++;
+	$data->{src}->{$remoteip} = 1;
+    }
+
+    $cache->set($revid) if $changed;
+
+    return 'Thanks';
+}
+
 
 1;
