@@ -791,11 +791,13 @@ class page
 	  else (trust_coeff.read_all, trust_coeff.read_part)
 	in
 	(* ...and depending on the time interval wrt. the previous edit *)
-	let (read_all'', read_part'') = begin
+	let (read_all, read_part) = begin
 	  let delta_time = max 0. (rev0_time -. rev1_time) in
 	  let time_factor = 
 	    1. -. exp (0. -. delta_time /. trust_coeff.edit_time_constant) 
-	  in (read_all' *. time_factor, read_part' *. time_factor)
+	  in (
+	    1. -. (1. -. read_all')  ** time_factor,
+	    1. -. (1. -. read_part') ** time_factor)
 	end in
 
         (* Makes the arrays of deleted chunks of words, trust, and origin, 
@@ -846,17 +848,12 @@ class page
 	  Compute_robust_trust.compute_origin 
 	    origin_a author_a new_chunks_10_a medit_10_l rev0_id rev0_uname in 
 	(* Computes the trust *)
-        let (c_read_all, c_read_part) = 
-          if rev0#get_user_id = rev1#get_user_id 
-          then (0., 0.) 
-          else (read_all'', read_part'')
-        in 
         let (new_trust_10_a, new_sigs_10_a) = 
 	  Compute_robust_trust.compute_robust_trust 
             trust_a sig_a new_chunks_10_a rev0_seps medit_10_l
             weight_user rev0_uid trust_coeff.lends_rep 
 	    trust_coeff.kill_decrease 
-            trust_coeff.cut_rep_radius c_read_all c_read_part 
+            trust_coeff.cut_rep_radius read_all read_part 
 	    trust_coeff.local_decay
         in 
 	(* Now we have an estimate of trust, sigs, origin, author from
@@ -885,21 +882,21 @@ class page
 	  for i = 1 to n_chunks_dual - 2 do begin 
 	    chunks_dual_a.(i + 1) <- chunks_a.(i);
 	    trust_dual_a.(i + 1)  <- trust_a.(i);
-	    sig_dual_a.(i + 1)   <- sig_a.(i);
+	    sig_dual_a.(i + 1)    <- sig_a.(i);
 	    origin_dual_a.(i + 1) <- origin_a.(i);
 	    author_dual_a.(i + 1) <- author_a.(i);
 	  end done;
 	  (* rev1, the preceding one, is considered deleted, ... *)
 	  chunks_dual_a.(1) <- rev1#get_words;
 	  trust_dual_a.(1)  <- rev1#get_trust;
-	  sig_dual_a.(1)   <- rev1#get_sigs;
+	  sig_dual_a.(1)    <- rev1#get_sigs;
 	  origin_dual_a.(1) <- rev1#get_origin;
 	  author_dual_a.(1) <- rev1#get_author;
 	  (* ... while rev2, the most similar one, is considered to be
 	     the live one *)
 	  chunks_dual_a.(0) <- rev2#get_words;
 	  trust_dual_a.(0)  <- rev2#get_trust;
-	  sig_dual_a.(0)   <- rev2#get_sigs;
+	  sig_dual_a.(0)    <- rev2#get_sigs;
 	  origin_dual_a.(0) <- rev2#get_origin;
 	  author_dual_a.(0) <- rev2#get_author;
 
@@ -913,17 +910,12 @@ class page
 	  new_author_10_a.(0) <- new_author_20_a.(0);
 
           (* Computes the trust *)
-          let (c_read_all, c_read_part) = 
-            if rev0#get_user_id = rev2#get_user_id 
-            then (0., 0.) 
-            else (read_all'', read_part'')
-          in 
           let (new_trust_20_a, new_sigs_20_a) = 
 	    Compute_robust_trust.compute_robust_trust
               trust_dual_a sig_dual_a new_chunks_20_a rev0_seps medit_20_l
               weight_user rev0_uid trust_coeff.lends_rep 
 	      trust_coeff.kill_decrease 
-              trust_coeff.cut_rep_radius c_read_all c_read_part 
+              trust_coeff.cut_rep_radius read_all read_part 
 	      trust_coeff.local_decay
           in
           (* The trust of each word is the max of the trust under both edits;
@@ -933,7 +925,7 @@ class page
 	      new_trust_10_a.(0).(i) <- new_trust_20_a.(0).(i); 
 	      new_sigs_10_a.(0).(i) <- new_sigs_20_a.(0).(i)
 	    end
-	  done;
+	  done
 
         end; (* The closest version was not the immediately preceding one. *)
 	(* After the case split of which version was the closest one, it is the
