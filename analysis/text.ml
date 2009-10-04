@@ -43,6 +43,9 @@ type word = string;;
 exception Illegal_separator
 exception Text_error
 
+(* This is the default size of a text array. *)
+let default_text_size = 5000
+
 (* This is the type of the returned tokenized string.
    The string is just that, the string.  After a revision is split
    into a list of sep_t, concatenating all strings yields the original
@@ -265,13 +268,13 @@ type token_t = LeftTok | OpenTag | RedirTok
 
 (* This function takes a piece_t Vec.t, and separates out the tags (see above regular expressions)
    into atomic pieces that won't be touched by coloring. *)
-let separate_string_tags (pv: piece_t Vec.t) : piece_t Vec.t = 
+let separate_string_tags (pv: piece_t DynArray.t) : piece_t DynArray.t = 
+  (* We accumulate the result in p. *)
+  let p = DynArray.make default_text_size in
   (* This is the function that is iterated on text *)
-  let f (piece: piece_t) (pp: piece_t Vec.t) : piece_t Vec.t = 
+  let f (piece: piece_t) : unit =
     match piece with 
     | TXT_splittable text -> begin 
-	(* We accumulate in p the result of the first analysis. *)
-	let p = ref pp in 
 	(* First, searches in text for an occurrence of an open_pattern 
 	   (such as [[ [http: {{ {| <tagname ...> )
 	   that signal the beginning of blocks.  It then puts the portion of text 
@@ -289,7 +292,7 @@ let separate_string_tags (pv: piece_t Vec.t) : piece_t Vec.t =
 	  match match_start_pos_opt with 
 	    None -> begin 
               search_again := false; 
-              p := Vec.append (TXT_splittable (Str.string_after text !start_pos)) !p 
+              DynArray.add p (TXT_splittable (Str.string_after text !start_pos))
 	    end
 	  | Some match_start_pos -> begin 
               (* Ok, there is a potential token (potential, because we don't know if 
@@ -323,11 +326,11 @@ let separate_string_tags (pv: piece_t Vec.t) : piece_t Vec.t =
 		  if before_closing = '/' then begin 
 		    if match_start_pos > !start_pos then begin 
 		      let piece_before = (String.sub text !start_pos (match_start_pos - !start_pos)) in 
-		      p := Vec.append (TXT_splittable piece_before) !p
+		      DynArray.add p (TXT_splittable piece_before)
 		    end; 
 		    (* It is a single tag of type <.../>, we don't need to look for the closing tag *)
 		    let piece_atomic = String.sub text match_start_pos (match_end_pos - match_start_pos) in 
-		    p := Vec.append (TXT_tag piece_atomic) !p; 
+		    DynArray.add p (TXT_tag piece_atomic);
 		    (* Begins from match_end_pos the rest of the analysis *)
 		    start_pos := match_end_pos; 
 		    start_search := match_end_pos
@@ -351,10 +354,10 @@ let separate_string_tags (pv: piece_t Vec.t) : piece_t Vec.t =
 			    closing_found := true; 
 			    if match_start_pos > !start_pos then begin 
 			      let piece_before = (String.sub text !start_pos (match_start_pos - !start_pos)) in 
-			      p := Vec.append (TXT_splittable piece_before) !p
+			      DynArray.add p (TXT_splittable piece_before)
 			    end; 
 			    let piece_atomic = String.sub text match_start_pos (end_closing - match_start_pos) in 
-			    p := Vec.append (TXT_tag piece_atomic) !p; 
+			    DynArray.add p (TXT_tag piece_atomic);
 			    (* Begins from end_closing the rest of the analysis *)
 			    start_pos := end_closing; 
 			    start_search := end_closing
@@ -370,10 +373,10 @@ let separate_string_tags (pv: piece_t Vec.t) : piece_t Vec.t =
 		    if not !closing_found then begin 
 		      if match_start_pos > !start_pos then begin 
 			let piece_before = (String.sub text !start_pos (match_start_pos - !start_pos)) in 
-			p := Vec.append (TXT_splittable piece_before) !p
+			DynArray.add p (TXT_splittable piece_before)
 		      end;
 		      let piece_atomic = String.sub text match_start_pos (match_end_pos - match_start_pos) in 
-		      p := Vec.append (TXT_tag piece_atomic) !p; 
+		      DynArray.add p (TXT_tag piece_atomic);
 		      start_pos := match_end_pos; 
 		      start_search := match_end_pos
 		    end
@@ -414,10 +417,10 @@ let separate_string_tags (pv: piece_t Vec.t) : piece_t Vec.t =
 			  (* Checks if matched *)
 			  if !n_open = 0 then begin 
 			    (* Yes, we have found the match *)
-			    (* Appends the splittable portion before the token to !p *)
+			    (* Appends the splittable portion before the token to p *)
 			    if match_start_pos > !start_pos then begin 
 			      let piece_before = (String.sub text !start_pos (match_start_pos - !start_pos)) in 
-			      p := Vec.append (TXT_splittable piece_before) !p
+			      DynArray.add p (TXT_splittable piece_before)
 			    end; 
 			    let tag_atomic = match tag_kind with 
 				LeftTok -> begin
@@ -447,7 +450,7 @@ let separate_string_tags (pv: piece_t Vec.t) : piece_t Vec.t =
 				end
 			      | OpenTag -> raise Text_error (* we should not be here *)
 			    in 
-			    p := Vec.append tag_atomic !p; 
+			    DynArray.add p tag_atomic;
 			    (* Begins from end_closing the rest of the analysis *)
 			    start_pos := end_closing; 
 			    start_search := end_closing;
@@ -472,12 +475,12 @@ let separate_string_tags (pv: piece_t Vec.t) : piece_t Vec.t =
 		  if not !closing_found then start_search := match_end_pos
 		end (* LeftTok *)
 	    end (* there is something found *)
-	end done; (* end of the while that searches the piece of text *)
-	!p
+	end done (* end of the while that searches the piece of text *)
       end (* TXT_splittable *)
-    | _ -> Vec.append piece pp
+    | _ -> DynArray.add p piece
   in  (* end of function f *)
-  Vec.fold f pv Vec.empty
+  DynArray.iter f pv;
+  p
 
 
 let title_start_e = "\\(\n=+\\)"
@@ -489,11 +492,10 @@ let par_break_tag_r = Str.regexp par_break_tag_e
 let one_liner_r = Str.regexp (title_start_e ^ "\\|" ^ title_end_e ^ "\\|" ^ par_break_tag_e) 
 
 (* This function separates out titles and paragraph breaks. *)
-let separate_titles (v: piece_t Vec.t) : piece_t Vec.t = 
-  (* The function f is folded on v, and does the job.
-     d is the piece that is to be analyzed. 
-     w is where the result is accumulated. *)
-  let f (d: piece_t) (w: piece_t Vec.t) : piece_t Vec.t = 
+let separate_titles (v: piece_t DynArray.t) : piece_t DynArray.t = 
+  (* The result is accumulated in w *)
+  let w = DynArray.make default_text_size in
+  let f (d: piece_t) : unit =
     match d with 
       TXT_splittable s -> begin 
         (* s is a splittable string.  Looks for titles and paragraphs in it. 
@@ -501,15 +503,13 @@ let separate_titles (v: piece_t Vec.t) : piece_t Vec.t =
 	   in the following string. *)
         let a = Array.of_list (Str.full_split one_liner_r s) in 
 	let a_last_idx = (Array.length a) - 1 in 
-        (* Now, we process the array a, adding to w the results. *)
-	let w_acc = ref w in 
-        (* Function g is iteri over a, adding to w_acc *)
+        (* Function g is iteri over a, adding to w *)
         let g (i: int) (el: Str.split_result) : unit = 
           match el with 
             Str.Delim t -> begin 
 	      (* Title starts are easy to find *)
 	      if Str.string_match title_start_r t 0 
-	      then w_acc := Vec.append (WS_title_start t) !w_acc
+	      then DynArray.add w (WS_title_start t)
 	      else begin 
 		(* This is the case for title ends and paragraph breaks. 
 		   For both of them, before accepting, we have to check that the 
@@ -523,32 +523,32 @@ let separate_titles (v: piece_t Vec.t) : piece_t Vec.t =
 		    if next_t.[0] = '\n' then begin 
 		      (* Ok, it is really a title end or paragraph break *)
 		      if Str.string_match par_break_tag_r t 0
-		      then w_acc := Vec.append (WS_par_break t) !w_acc
-		      else w_acc := Vec.append (WS_title_end t) !w_acc
+		      then DynArray.add w (WS_par_break t)
+		      else DynArray.add w (WS_title_end t)
 		    end else begin 
 		      (* No, it is not a title end or paragraph break *)
-		      w_acc := Vec.append (TXT_splittable t) !w_acc
+		      DynArray.add w (TXT_splittable t)
 		    end
 		  end else begin 
 		    (* The next string has length 0 *)
-		    w_acc := Vec.append (TXT_splittable t) !w_acc
+		    DynArray.add w (TXT_splittable t)
 		  end
 		end else begin 
 		  (* There is no next piece of text *)
 		  if Str.string_match par_break_tag_r t 0
-		  then w_acc := Vec.append (WS_par_break t) !w_acc
-		  else w_acc := Vec.append (WS_title_end t) !w_acc
+		  then DynArray.add w (WS_par_break t)
+		  else DynArray.add w (WS_title_end t)
 		end (* End of i < a_last_idx *)
 	      end (* Matched a paragraph break or title end *)
 	    end (* case for Str.Delim *)
-          | Str.Text t -> w_acc := Vec.append (TXT_splittable t) !w_acc
+          | Str.Text t -> DynArray.add w (TXT_splittable t)
         in (* end of function g *)
-	Array.iteri g a; 
-	!w_acc
+	Array.iteri g a
       end (* End of case for TXT_splittable *)
-    | _ -> Vec.append d w
+    | _ -> DynArray.add w d
   in (* end of function f *)
-  Vec.fold f v Vec.empty
+  DynArray.iter f v;
+  w
 
 (* Bullets and colons *)
 let bullet_tag = "\\(\n\\(\\*\\|#\\|:\\)+ *\\)"
@@ -580,35 +580,33 @@ let line_start_r = Str.regexp (
 
 (* This function separates out the markup language used for indentation, and
    for bullet and enumeration lists. *)
-let separate_line_tags (v: piece_t Vec.t) : piece_t Vec.t = 
-  (* The function f is folded on v, and does the job. 
-     d is the piece that is to be analyzed. 
-     w is where the result is accumulated. *)
-  let f (d: piece_t) (w: piece_t Vec.t) : piece_t Vec.t = 
+let separate_line_tags (v: piece_t DynArray.t) : piece_t DynArray.t = 
+  let w = DynArray.make default_text_size in
+  let f (d: piece_t) : unit =
     match d with 
       TXT_splittable s -> begin 
         (* s is a splittable string.  Looks for line tags in it *)
         let l = Str.full_split line_start_r s in 
-        (* Function g is folded_left on l, and on w, as above. *)
-        let g (ww: piece_t Vec.t) (el: Str.split_result) : piece_t Vec.t = 
+        (* Function g is iterated on l *)
+        let g (el: Str.split_result) : unit =
           match el with 
-	    Str.Text t -> Vec.append (TXT_splittable t) ww
+	    Str.Text t -> DynArray.add w (TXT_splittable t)
           | Str.Delim t -> begin
 	      (* We must distinguish which tag has been matched *)
 	      if (Str.string_match bullet_tag_r t 0)
-	      then Vec.append (WS_bullet t) ww
+	      then DynArray.add w (WS_bullet t)
 	      else if (Str.string_match indent_tag_r t 0) 
-	      then Vec.append (WS_indent t) ww
+	      then DynArray.add w (WS_indent t)
 	      else if (Str.string_match table_caption_r t 0)
-	      then Vec.append (WS_table_caption t) ww
-	      else Vec.append (WS_table_line t) ww
+	      then DynArray.add w (WS_table_caption t)
+	      else DynArray.add w (WS_table_line t)
 	    end
-        in List.fold_left g w l
+        in List.iter g l
       end
-    | _ -> Vec.append d w
+    | _ -> DynArray.add w d
   in (* end of f *)
-  Vec.fold f v Vec.empty
-
+  DynArray.iter f v;
+  w
 
 (* This processes table elements. The flow is as follows. 
    First, it locates the starts of the rows, via start_row.  Note that caption lines 
@@ -628,16 +626,12 @@ let format_mod_r  = Str.regexp format_mod
 (* This function separates out the table tags that occur inside a table, 
    to ensure formatting is preserved. 
    For the format of tables, see http://en.wikipedia.org/wiki/Help:Table *)
-let separate_table_tags (v: piece_t Vec.t) : piece_t Vec.t = 
-  (* The function f is folded on v, and does the job. 
-     d is the piece that is to be analyzed. 
-     w is where the result is accumulated. *)
-  let f (d: piece_t) (w: piece_t Vec.t) : piece_t Vec.t = 
+let separate_table_tags (v: piece_t DynArray.t) : piece_t DynArray.t = 
+  let w = DynArray.make default_text_size in
+  let f (d: piece_t) : unit =
     match d with 
       TXT_splittable s -> begin 
         (* s is a splittable string.  Looks for line tags in it *)
-	(* We accumulate the result in p *)
-	let p = ref w in 
 	let start_pos = ref 0 in 
 	let to_search = ref true in 
 	while !to_search do begin 
@@ -649,7 +643,7 @@ let separate_table_tags (v: piece_t Vec.t) : piece_t Vec.t =
 	    None -> begin 
 	      (* Closes the search and adds the last piece *)
 	      to_search := false; 
-	      p := Vec.append (TXT_splittable (Str.string_after s !start_pos)) !p
+	      DynArray.add w (TXT_splittable (Str.string_after s !start_pos))
 	    end
 	  | Some i -> begin 
 	      (* There is a cell beginning. *)
@@ -657,7 +651,7 @@ let separate_table_tags (v: piece_t Vec.t) : piece_t Vec.t =
 	      let j = Str.match_beginning () in 
 	      let j' = Str.match_end () in 
 	      if j > !start_pos then begin 
-		p := Vec.append (TXT_splittable (String.sub s !start_pos (j - !start_pos))) !p; 
+		DynArray.add w (TXT_splittable (String.sub s !start_pos (j - !start_pos)));
 		start_pos := j
 	      end; 
 	      (* A cell can either begin via a simple || or \n| or \n!.  The cell start portion 
@@ -669,21 +663,20 @@ let separate_table_tags (v: piece_t Vec.t) : piece_t Vec.t =
 		(* Finds the end of the match.  The -1 is to compensate for the regexp. *)
 		let k = (Str.match_end ()) - 1 in 
 		(* Adds the cell tag, and moves on *)
-		p := Vec.append (WS_table_cell (String.sub s j (k - j))) !p; 
+		DynArray.add w (WS_table_cell (String.sub s j (k - j))); 
 		start_pos := k
 	      end else begin 
 		(* There is no modifier. Adds the cell tag, and moves on *)
-		p := Vec.append (WS_table_cell (String.sub s j (j' - j))) !p; 
+		DynArray.add w (WS_table_cell (String.sub s j (j' - j)));
 		start_pos := j'
 	      end (* Search for the end of the cell declaration *)
 	    end (* There was a match for a next cell beginning *)
-	end done; (* while loop; the result is in !p *)
-	!p 
+	end done (* while loop *)
       end (* TXT_splittable *)
-    | _ -> Vec.append d w 
+    | _ -> DynArray.add w d
   in (* end of function f *)
-  Vec.fold f v Vec.empty 
-
+  DynArray.iter f v;
+  w
 
 (* Takes care of whitespace and line breaks *)
 let whitespace = "\\([,;.: \n\t]+\\)\\|\\(''+\\)"
@@ -700,69 +693,75 @@ let lt_r = Str.regexp "<"
 let gt_r = Str.regexp ">"
 (* This function splits the whitespace, 
    taking also care of the &lt; and &gt; substitution *)
-let separate_whitespace (arm: bool) (v: piece_t Vec.t) : piece_t Vec.t = 
+let separate_whitespace (arm: bool) (v: piece_t DynArray.t) : piece_t DynArray.t = 
   (* The function rearm re-arms the < and > tags *)
   let rearm (s: string) = if arm then xml_arm s else s in 
-  (* The function f is folded over v *)
-  let f (d: piece_t) (piece_v: piece_t Vec.t) : piece_t Vec.t = 
+  (* The result is left in w *)
+  let w = DynArray.make default_text_size in
+  let f (d: piece_t) : unit =
     match d with 
-      WS_title_start s -> Vec.append (WS_title_start (rearm s)) piece_v
-    | WS_title_end s -> Vec.append (WS_title_end (rearm s)) piece_v 
-    | WS_bullet s -> Vec.append (WS_bullet (rearm s)) piece_v
-    | WS_par_break s -> Vec.append (WS_par_break (rearm s)) piece_v
-    | WS_indent s -> Vec.append (WS_indent (rearm s)) piece_v
-    | WS_table_line s -> Vec.append (WS_table_line (rearm s)) piece_v
-    | WS_table_cell s -> Vec.append (WS_table_cell (rearm s)) piece_v
-    | WS_table_caption s -> Vec.append (WS_table_caption (rearm s)) piece_v 
-    | TXT_tag s -> Vec.append (TXT_tag (rearm s)) piece_v
-    | TXT_redirect s -> Vec.append (TXT_redirect (rearm s)) piece_v
+      WS_title_start s -> DynArray.add w (WS_title_start (rearm s))
+    | WS_title_end s -> DynArray.add w (WS_title_end (rearm s))  
+    | WS_bullet s -> DynArray.add w (WS_bullet (rearm s)) 
+    | WS_par_break s -> DynArray.add w (WS_par_break (rearm s)) 
+    | WS_indent s -> DynArray.add w (WS_indent (rearm s)) 
+    | WS_table_line s -> DynArray.add w (WS_table_line (rearm s)) 
+    | WS_table_cell s -> DynArray.add w (WS_table_cell (rearm s)) 
+    | WS_table_caption s -> DynArray.add w (WS_table_caption (rearm s))  
+    | TXT_tag s -> DynArray.add w (TXT_tag (rearm s)) 
+    | TXT_redirect s -> DynArray.add w (TXT_redirect (rearm s)) 
     | TXT_splittable s -> begin 
 	(* We need to split this text into units. *)
 	let l = Str.full_split nobreak_r s in 
 	(* g is left-folded over l *)
-	let g (vv: piece_t Vec.t) (el: Str.split_result) : piece_t Vec.t = 
+	let g (el: Str.split_result) : unit =
 	  match el with 
 	    Str.Delim t -> begin
 	      if Str.string_match inline_whitespace_r t 0
-	      then Vec.append (WS_space (rearm t)) vv
+	      then DynArray.add w (WS_space (rearm t))
 	      else if Str.string_match line_break_whitespace_r t 0 
-	      then Vec.append (WS_newline (rearm t)) vv
+	      then DynArray.add w (WS_newline (rearm t))
 	      else if Str.string_match xml_entity_r t 0
-	      then Vec.append (TXT_armored_char  (rearm t)) vv
-	      else vv (* quotes are discarded *)
+	      then DynArray.add w (TXT_armored_char  (rearm t))
+	      else () (* quotes are discarded *)
 	    end
-	  | Str.Text t -> Vec.append (TXT_word (rearm t)) vv
-	in List.fold_left g piece_v l 
+	  | Str.Text t -> DynArray.add w (TXT_word (rearm t))
+	in List.iter g l 
       end
-    | _ -> Vec.append d piece_v 
-  in Vec.fold f v Vec.empty
+    | _ -> DynArray.add w d
+  in DynArray.iter f v;
+  w
 
 
 (* This function splits a string respecting the Wiki markup language. *)
-let split_string_preserving_markup (arm: bool) (text: string) : piece_t Vec.t = 
+let split_string_preserving_markup (arm: bool) (text: string) : piece_t DynArray.t = 
   (* First, I replace &lt; and &gt; with < and > if requested *)
   let text2 = if arm then xml_disarm text else text in
   let text3 = remove_html_comments text2 in 
   (* Makes sure the string begins with \n, to find markup at the beginning of a line *)
   if String.length text3 = 0 
-  then Vec.empty 
+  then DynArray.create()
   else begin 
     let text4 = (if text3.[0] = '\n' then text3 else "\n" ^ text3) in 
     let text' = text4 in 
     (* Now does the splitting *)
-    let p = Vec.singleton (TXT_splittable text') in 
+    let w = DynArray.create() in
+    DynArray.add w (TXT_splittable text');
     let split = 
       separate_whitespace arm (
 	separate_table_tags (
 	  separate_line_tags (
 	    separate_titles (
-	      separate_string_tags p)))) in 
+	      separate_string_tags w)))) in 
     (* If the first piece is a newline, removes it. *)
-    if Vec.length split = 0 
+    if DynArray.length split = 0 
     then split
     else begin 
-      match Vec.get 0 split with 
-	WS_newline _ -> Vec.remove 0 split
+      match DynArray.get split 0 with 
+	WS_newline _ -> begin
+	  DynArray.delete split 0; 
+	  split
+	end
       | _ -> split
     end
   end
@@ -820,9 +819,13 @@ let split_into_words_seps_and_info (arm: bool) (text_v: string Vec.t)
     * (string array) (* author *)
     * (int array)    (* sep index *)
     * (sep_t array)  (* seps *) = 
-  (* First, uses a visitor to construct a piece_t Vec.t called piece_v *)
-  let vn l d r = Vec.concat (Vec.concat l (split_string_preserving_markup arm d)) r in 
-  let piece_v = Vec.visit_post Vec.empty vn text_v in 
+  (* First, constructs a piece_t Dynarray.t containing the split text, called piece_v *)
+  let piece_v = DynArray.make default_text_size in
+  (* f is iterated on text_v *)
+  let f t = 
+    let w = split_string_preserving_markup arm t in
+    DynArray.append w piece_v
+  in Vec.iter f text_v;
 
   (* From piece_v, makes: 
      word_v : vector of words
@@ -838,12 +841,12 @@ let split_into_words_seps_and_info (arm: bool) (text_v: string Vec.t)
   let trust = ref 0.0 in 
   let word_idx = ref 0 in 
   let sep_idx = ref 0 in 
-  let word_v = ref Vec.empty in 
-  let word_trust_v = ref Vec.empty in 
-  let word_origin_v = ref Vec.empty in 
-  let word_author_v = ref Vec.empty in
-  let word_index_v = ref Vec.empty in 
-  let sep_v = ref Vec.empty in 
+  let word_v = DynArray.make default_text_size in
+  let word_trust_v = DynArray.make default_text_size in
+  let word_origin_v = DynArray.make default_text_size in
+  let word_author_v = DynArray.make default_text_size in
+  let word_index_v = DynArray.make default_text_size in
+  let sep_v = DynArray.make default_text_size in
   (* This function is iterated on the vector of piece_t *)
   (* For each relevant string s, puts in word_v a "viword": a visible piece of text. 
      The intent is to ensure that any change to a viword corresponds to a change
@@ -856,139 +859,139 @@ let split_into_words_seps_and_info (arm: bool) (text_v: string Vec.t)
   let f (s: piece_t) = 
     match s with 
       WS_title_start s -> begin 
-	sep_v := Vec.append (Title_start (s, !word_idx)) !sep_v; 
+	DynArray.add sep_v (Title_start (s, !word_idx));
 	(* for a title start, the viword is just s; no whitespace involved *)
-	word_v := Vec.append s !word_v; 
-	word_trust_v := Vec.append !trust !word_trust_v; 
-	word_origin_v := Vec.append !origin !word_origin_v; 
-	word_author_v := Vec.append !author !word_author_v;
-	word_index_v := Vec.append !sep_idx !word_index_v; 
+	DynArray.add word_v s;
+	DynArray.add word_trust_v !trust;
+	DynArray.add word_origin_v !origin;
+	DynArray.add word_author_v !author;
+	DynArray.add word_index_v !sep_idx;
 	word_idx := !word_idx + 1;
 	sep_idx  := !sep_idx  + 1
       end
     | WS_title_end s -> begin 
-	sep_v := Vec.append (Title_end (s, !word_idx)) !sep_v; 
+	DynArray.add sep_v (Title_end (s, !word_idx));
 	(* for a title end, the viword is obtained by removing whitespace and adding
 	   a '\n' for uniqueness *)
-	word_v := Vec.append ((strip_ws_end s) ^ "\n") !word_v; 
-	word_trust_v := Vec.append !trust !word_trust_v; 
-	word_origin_v := Vec.append !origin !word_origin_v; 
-	word_author_v := Vec.append !author !word_author_v;
-	word_index_v := Vec.append !sep_idx !word_index_v; 
+	DynArray.add word_v ((strip_ws_end s) ^ "\n");
+	DynArray.add word_trust_v !trust;
+	DynArray.add word_origin_v !origin;
+	DynArray.add word_author_v !author;
+	DynArray.add word_index_v !sep_idx;
 	word_idx := !word_idx + 1;
 	sep_idx  := !sep_idx  + 1
       end
     | WS_bullet s -> begin 
-	sep_v := Vec.append (Bullet (s, !word_idx)) !sep_v; 
+	DynArray.add sep_v (Bullet (s, !word_idx));
 	(* the viword is obtained by removing whitespace. *)
-	word_v := Vec.append (strip_ws_end s) !word_v; 
-	word_trust_v := Vec.append !trust !word_trust_v; 
-	word_origin_v := Vec.append !origin !word_origin_v; 
-	word_author_v := Vec.append !author !word_author_v;
-	word_index_v := Vec.append !sep_idx !word_index_v; 
+	DynArray.add word_v (strip_ws_end s);
+	DynArray.add word_trust_v !trust;
+	DynArray.add word_origin_v !origin;
+	DynArray.add word_author_v !author;
+	DynArray.add word_index_v !sep_idx;
 	word_idx := !word_idx + 1;
 	sep_idx  := !sep_idx  + 1
       end
     | WS_par_break s -> begin 
 	(* this is a sep but no word *)
-	sep_v := Vec.append (Par_break s) !sep_v; 
+	DynArray.add sep_v (Par_break s);
 	sep_idx  := !sep_idx  + 1
       end
     | WS_indent s -> begin 
-	sep_v := Vec.append (Bullet (s, !word_idx)) !sep_v; 
+	DynArray.add sep_v (Bullet (s, !word_idx));
 	(* the viword is just the original string s *)
-	word_v := Vec.append s !word_v; 
-	word_trust_v := Vec.append !trust !word_trust_v; 
-	word_origin_v := Vec.append !origin !word_origin_v; 
-	word_author_v := Vec.append !author !word_author_v;
-	word_index_v := Vec.append !sep_idx !word_index_v; 
+	DynArray.add word_v s;
+	DynArray.add word_trust_v !trust;
+	DynArray.add word_origin_v !origin;
+	DynArray.add word_author_v !author;
+	DynArray.add word_index_v !sep_idx;
 	word_idx := !word_idx + 1;
 	sep_idx  := !sep_idx  + 1
       end
     | WS_space s -> begin 
 	(* this is a sep but no word *)
-	sep_v := Vec.append (Space s) !sep_v; 
+	DynArray.add sep_v (Space s);
 	sep_idx  := !sep_idx  + 1
       end
     | WS_newline s -> begin 
 	(* this is a sep but no word *)
-	sep_v := Vec.append (Newline s) !sep_v; 
+	DynArray.add sep_v (Newline s);
 	sep_idx  := !sep_idx  + 1
       end
     | WS_table_line s -> begin 
-	sep_v := Vec.append (Table_line (s, !word_idx)) !sep_v; 
+	DynArray.add sep_v (Table_line (s, !word_idx));
 	(* the viword is the original string s normalized for whitespace *)
-	word_v := Vec.append (normalize_ws s) !word_v; 
-	word_trust_v := Vec.append !trust !word_trust_v; 
-	word_origin_v := Vec.append !origin !word_origin_v; 
-	word_author_v := Vec.append !author !word_author_v;
-	word_index_v := Vec.append !sep_idx !word_index_v; 
+	DynArray.add word_v (normalize_ws s);
+	DynArray.add word_trust_v !trust;
+	DynArray.add word_origin_v !origin;
+	DynArray.add word_author_v !author;
+	DynArray.add word_index_v !sep_idx;
 	word_idx := !word_idx + 1;
 	sep_idx  := !sep_idx  + 1
       end
     | WS_table_caption s -> begin 
-	sep_v := Vec.append (Table_caption (s, !word_idx)) !sep_v; 
+	DynArray.add sep_v (Table_caption (s, !word_idx));
 	(* the viword is \n|+ *)
-	word_v := Vec.append "\n|+" !word_v; 
-	word_trust_v := Vec.append !trust !word_trust_v; 
-	word_origin_v := Vec.append !origin !word_origin_v; 
-	word_author_v := Vec.append !author !word_author_v;
-	word_index_v := Vec.append !sep_idx !word_index_v; 
+	DynArray.add word_v "\n|+";
+	DynArray.add word_trust_v !trust;
+	DynArray.add word_origin_v !origin;
+	DynArray.add word_author_v !author;
+	DynArray.add word_index_v !sep_idx;
 	word_idx := !word_idx + 1;
 	sep_idx  := !sep_idx  + 1
       end
     | WS_table_cell s -> begin 
-	sep_v := Vec.append (Table_cell (s, !word_idx)) !sep_v; 
+	DynArray.add sep_v (Table_cell (s, !word_idx));
 	(* the viword is the original string s, with whitespace normalized *)
-	word_v := Vec.append (normalize_ws s) !word_v; 
-	word_trust_v := Vec.append !trust !word_trust_v; 
-	word_origin_v := Vec.append !origin !word_origin_v; 
-	word_author_v := Vec.append !author !word_author_v;
-	word_index_v := Vec.append !sep_idx !word_index_v; 
+	DynArray.add word_v (normalize_ws s);
+	DynArray.add word_trust_v !trust;
+	DynArray.add word_origin_v !origin;
+	DynArray.add word_author_v !author;
+	DynArray.add word_index_v !sep_idx;
 	word_idx := !word_idx + 1;
 	sep_idx  := !sep_idx  + 1
       end
     | TXT_tag s -> begin 
-	sep_v := Vec.append (Tag (s, !word_idx)) !sep_v; 
+	DynArray.add sep_v (Tag (s, !word_idx));
 	(* the viword is just the original string s, with whitespace normalized *)
-	word_v := Vec.append (normalize_ws s) !word_v; 
-	word_trust_v := Vec.append !trust !word_trust_v; 
-	word_origin_v := Vec.append !origin !word_origin_v; 
-	word_author_v := Vec.append !author !word_author_v;
-	word_index_v := Vec.append !sep_idx !word_index_v; 
+	DynArray.add word_v (normalize_ws s);
+	DynArray.add word_trust_v !trust;
+	DynArray.add word_origin_v !origin;
+	DynArray.add word_author_v !author;
+	DynArray.add word_index_v !sep_idx;
 	word_idx := !word_idx + 1;
 	sep_idx  := !sep_idx  + 1
       end
     | TXT_redirect s -> begin 
-	sep_v := Vec.append (Redirect (s, !word_idx)) !sep_v; 
+	DynArray.add sep_v (Redirect (s, !word_idx));
 	(* the viword is just the original string s, with whitespace normalized *)
-	word_v := Vec.append (normalize_ws s) !word_v; 
-	word_trust_v := Vec.append !trust !word_trust_v; 
-	word_origin_v := Vec.append !origin !word_origin_v; 
-	word_author_v := Vec.append !author !word_author_v;
-	word_index_v := Vec.append !sep_idx !word_index_v; 
+	DynArray.add word_v (normalize_ws s);
+	DynArray.add word_trust_v !trust;
+	DynArray.add word_origin_v !origin;
+	DynArray.add word_author_v !author;
+	DynArray.add word_index_v !sep_idx;
 	word_idx := !word_idx + 1;
 	sep_idx  := !sep_idx  + 1
       end
     | TXT_armored_char s -> begin 
-	sep_v := Vec.append (Armored_char (s, !word_idx)) !sep_v; 
+	DynArray.add sep_v (Armored_char (s, !word_idx));
 	(* the viword is just the original string s *)
-	word_v := Vec.append s !word_v; 
-	word_trust_v := Vec.append !trust !word_trust_v; 
-	word_origin_v := Vec.append !origin !word_origin_v; 
-	word_author_v := Vec.append !author !word_author_v;
-	word_index_v := Vec.append !sep_idx !word_index_v; 
+	DynArray.add word_v s;
+	DynArray.add word_trust_v !trust;
+	DynArray.add word_origin_v !origin;
+	DynArray.add word_author_v !author;
+	DynArray.add word_index_v !sep_idx;
 	word_idx := !word_idx + 1;
 	sep_idx  := !sep_idx  + 1
       end
     | TXT_word s -> begin 
-	sep_v := Vec.append (Word (s, !word_idx)) !sep_v; 
+	DynArray.add sep_v (Word (s, !word_idx));
 	(* the viword is the renormalized, lowercase word *)
-	word_v := Vec.append (renormalize_word s) !word_v; 
-	word_trust_v := Vec.append !trust !word_trust_v; 
-	word_origin_v := Vec.append !origin !word_origin_v; 
-	word_author_v := Vec.append !author !word_author_v;
-	word_index_v := Vec.append !sep_idx !word_index_v; 
+	DynArray.add word_v (renormalize_word s);
+	DynArray.add word_trust_v !trust;
+	DynArray.add word_origin_v !origin;
+	DynArray.add word_author_v !author;
+	DynArray.add word_index_v !sep_idx;
 	word_idx := !word_idx + 1;
 	sep_idx  := !sep_idx  + 1
       end
@@ -1000,14 +1003,14 @@ let split_into_words_seps_and_info (arm: bool) (text_v: string Vec.t)
       end
     | TXT_splittable _ -> ()
   in 
-  Vec.iter f piece_v; 
+  DynArray.iter f piece_v; 
   (* Creates the output *)
-  let word_a = Vec.to_array !word_v in 
-  let trust_a = Vec.to_array !word_trust_v in 
-  let origin_a = Vec.to_array !word_origin_v in 
-  let author_a = Vec.to_array !word_author_v in
-  let word_index_a = Vec.to_array !word_index_v in 
-  let sep_a = Vec.to_array !sep_v in 
+  let word_a = DynArray.to_array word_v in 
+  let trust_a = DynArray.to_array word_trust_v in 
+  let origin_a = DynArray.to_array word_origin_v in 
+  let author_a = DynArray.to_array word_author_v in
+  let word_index_a = DynArray.to_array word_index_v in 
+  let sep_a = DynArray.to_array sep_v in 
   (* And returns the whole *)
   (word_a, trust_a, origin_a, author_a, word_index_a, sep_a);;
 
@@ -1027,7 +1030,7 @@ let split_into_words (arm: bool) (text_v: string Vec.t) : word array =
 (* **************************************************************** *)
 (* Unit testing *)
 
-if false then begin
+if true then begin
   let s0 = "\n[[image:Charles Lyell.jpg|thumb|Charles Lyell]]\n[[Image:Lyell Principles frontispiece.jpg|thumb|The frontispiece from ''Principles of Geology'']]\n'''Sir Charles Lyell, 1st Baronet''', [[Order of the Thistle|KT]], ([[November 14]], [[1797]] &ndash; [[February 22]], [[1875]]), [[Scotland|Scottish]] [[lawyer]], [[geologist]], and populariser of [[Uniformitarianism (science)|uniformitarianism]].\n\nHe won the [[Copley Medal]] in 1858 and the [[Wollaston Medal]] in 1866.  After the [[Great Chicago Fire]], Lyell was one of the first to donate books, to help found the [[Chicago Public Library]].\n\nUpon his death in 1875, he was buried in [[Westminster Abbey]].\n" in
   let s1 = "\n#REDIRECT [[Pollo con piselli]]\n== Titolo == \n<pre> Codice con [[markup[[ bla ]] boh]] e \n == titolo ==\n</pre>\n ==titolo2.\n=========== \n========\n == title ==" in
   let s2 = "\n{{to:,,\"Luca\"}}\n{| class=\"toccolours\"  border=1 cellpadding=2 cellspacing=2 style=\"width: 700px; margin: 0 0 1em 1em; border-collapse: collapse; border: 1px solid #E2E2E2;\"\n\n|-\n! bgcolor=\"#E7EBEE\" | 1972 Debut Tour<br><br>Roy Wood's only live ELO tour.<br>After the tour, Wood, Hunt&auml;d and <br>McDowell leave ELO and form Wizzard.\n| \n* [[Roy Wood]] - [[vocals]], [[cello]], [[bass guitar]], [[guitar]], [[woodwind]]\n* [[Jeff Lynne]] - [[vocals]], [[lead guitar]], [[piano]]\n|-\n! bgcolor=\"#E7EBEE\" | 1972 - 1973 ELO 2 Tour<br><br>Bassist Mike de Albuquerque and cellist Colin Walker join ELO after the departure of Wood, Hunt, McDowell, Craig and Smith.\n| \n* [[Jeff Lynne]] - [[Vocals]], [[lead guitar]]\n* [[Bev Bevan]] - [[drums]], [[percussion]]\n|}\n" in 
