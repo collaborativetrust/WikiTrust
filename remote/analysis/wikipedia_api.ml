@@ -285,17 +285,27 @@ let fetch_page_and_revs_after_json (selector : string) : result_tree =
   !logger#log (Printf.sprintf "getting url: %s\n" url);
   let res = get_url url in
   try (
-    let api = Json_io.json_of_string res in
-    (* logger#log (Printf.sprintf "result: %s\n" res); *)
-    JSON api
+    (* Make sure res is properly encoded *)
+    try 
+      let res_arr = Netconversion.uarray_of_ustring `Enc_utf8 res in
+      let new_res = Netconversion.ustring_of_uarray ?subst:(Some (fun i -> ""))
+	`Enc_utf8 res_arr in
+      let _ = Netconversion.verify `Enc_utf8 new_res in
+      let api = Json_io.json_of_string new_res in
+      (* logger#log (Printf.sprintf "result: %s\n" res); *)
+      JSON api
+    with
+    | Netconversion.Malformed_code_at pos -> (
+	raise (Failure (Printf.sprintf "API error: malformed code at %d\n" pos))
+      )
   ) with
   | Failure e -> (
       Printf.eprintf "JSON Error: %s\nOn%s\nExc%s\n" e url
 	(Printexc.to_string (Failure e));
       raise (API_error_noretry e) 
     )
-(* this means that there are certain revs we can not download -- example itwiki-Roma page. *)
-(* Should we do anything else here? *)
+      (* this means that there are certain revs we can not download -- 
+	 example itwiki-Roma page. *)
 
 (**
    [fetch_page_and_revs after selector rev_start_id db], given a [selector]
