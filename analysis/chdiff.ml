@@ -694,7 +694,7 @@ let text_tracking
 
 (** Unit test for text tracking *)
 
-if true then begin
+if false then begin
   let ts1 = "Il bene comune coincide col bene individuale." in 
   let ts2 = "Il bene comune non coincide col bene individuale." in 
   let ts3 = "Nella maggior parte dei casi, il bene comune non coincide con il bene individuale." in 
@@ -731,7 +731,7 @@ end;;
 
 (** One more unit test for text tracking *)
 
-if true then begin
+if false then begin
   let ts1 = "a b c d e o o o o o a b c d e" in 
   let ts2 = "a b c d e q q a b c d e q q q q a b c d e" in 
   let ts3 = "o o a b c d o o b c d e o o b c d e" in 
@@ -781,7 +781,7 @@ end;;
 
 (** Yet more unit test for text tracking *)
 
-if true then begin
+if false then begin
   let ch0 = "a b c d e o o o o o a b c d e" in 
   let ch1 = "a b c d e o o o o o a b c d e" in 
   let ts3 = "a b c d o o a b c d e z q q q q q q z a b c d e" in 
@@ -801,7 +801,7 @@ end;;
 
 
 (** Unit test for edit diff *)
-if true then 
+if false then 
   begin 
     let text1a = "la capra canta contenta sotto la collina sopra la panca la capra campa" in
     let text1b = "sotto la panca la capra crepa e la capra canta" in
@@ -827,7 +827,7 @@ if true then
   end;;
 
 (** Another unit test for edit diff *)
-if true then 
+if false then 
   begin 
     let ts1 = "a b c d e o o o o o a b c d e" in 
     let ts2 = "a b c d e q q a b c d e q q q q a b c d e" in 
