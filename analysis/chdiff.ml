@@ -52,15 +52,15 @@ let max_matches = 40
 (** This is the minimum length of any dead chunk we keep around.  Dead chunks shorter
     than this are not kept, with the idea that short amounts of text are not 
     rescued, but simply, freshly rewritten. *)
-let min_dead_chunk_len = 6
+let min_dead_chunk_len = 3
 (** This is the minimum length of a match between existing and old text for considering 
     copying to have happened.  It must be 3 <= min_copy_amount <= min_dead_chunk_len *)
 (** TODO: here it would be better to rely on word frequencies.  A project for a student? *)
-let min_copy_amount = 4
+let min_copy_amount = 3
 (** Minimum amount that can be considered copied from dead chunks.  It must satisfy 
     min_copy_amount <= min_dead_copy_amount <= min_dead_chunk_len, and it is sensible
     to take min_dead_copy_amount = min_dead_chunk_len *)
-let min_dead_copy_amount = 6
+let min_dead_copy_amount = 3
 
 
 module Heap = Coda.PriorityQueue
@@ -101,14 +101,75 @@ let make_index_diff (words: word array) : index_t =
   done; 
   idx;;
 
+(** This function searches for a word in an array. *)
+let find_word (w: word) (a: word array) : int option =
+  let found = ref false in
+  let l = Array.length a in
+  let i = ref 0 in
+  while not !found && !i < l do begin
+    if a.(!i) = w
+    then found := true
+    else i := !i + 1
+  end done;
+  if !found then (Some !i) else None
+
+(** This function searches for two consecutive words in an array. *)
+let find_two_words (w1: word) (w2: word) (a: word array) : int option =
+  let found = ref false in
+  let l = (Array.length a) - 1 in
+  let i = ref 0 in
+  while not !found && !i < l do begin
+    if a.(!i) = w1 && a.(!i + 1) == w2
+    then found := true
+    else i := !i + 1
+  end done;
+  if !found then (Some !i) else None
+
+let rec rev_elist = function
+    [] -> []
+  | Ins (i, n) :: l -> Del (i, n) :: (rev_elist l)
+  | Del (i, n) :: l -> Ins (i, n) :: (rev_elist l)
+  | Mov (i, j, n) :: l -> Mov (j, i, n) :: (rev_elist l)
+
+let rec dezero = function
+    [] -> []
+  | Ins (_, 0) :: l -> dezero l
+  | Del (_, 0) :: l -> dezero l
+  | Mov (_, _, 0) :: l -> dezero l
+  | el :: l -> el :: dezero l
+
+let single_word_edit_diff (w: word) (words2: word array) : edit list =
+  let l2 = Array.length words2 in
+  match find_word w words2 with
+    None -> dezero [ Del (0, 1); Ins (0, l2) ]
+  | Some k -> dezero [ Ins (0, k); Mov (0, k, 1); Ins (k + 1, l2 - k - 1) ]
+
+let two_words_edit_diff (w1: word) (w2: word) (words2: word array) : edit list =
+  let l2 = Array.length words2 in
+  (* Looks for the words in a row *)
+  match find_two_words w1 w2 words2 with 
+    Some k -> dezero [ Ins (0, k); Mov (0, k, 2); Ins (k + 2, l2 - k - 2) ]
+  | None -> begin
+      (* We must look for the words individually *)
+      match (find_word w1 words2, find_word w2 words2) with
+	(None, None) -> dezero [ Ins (0, l2) ]
+      | (None, Some k) -> 
+	  dezero [ Del (0, 1); Ins (0, k); Mov (1, k, 1); Ins (k + 1, l2 - k - 1) ]
+      | (Some k, None) ->
+	  dezero [ Del (1, 1); Ins (0, k); Mov (0, k, 1); Ins (k + 1, l2 - k - 1) ]
+      | (Some k, Some n) -> begin
+	  let moves = [ Mov (0, k, 1); Mov (1, n, 1) ] in
+	  if k < n then dezero
+	    ( Ins (0, k) :: Ins (k + 1, n - k - 1) :: Ins (n + 1, l2 - n - 1) :: moves)
+	  else dezero
+	    ( Ins (0, n) :: Ins (n + 1, k - n - 1) :: Ins (k + 1, l2 - k - 1) :: moves)
+	end
+    end
+
 
 (** This function computes a list of edit commands that enable to go from 
     words1 to words2 *)
-let edit_diff 
-    (words1: word array) 
-    (words2: word array) 
-    (index2: index_t) : edit list 
-    =
+let edit_diff_internal (words1: word array) (words2: word array) (index2: index_t) : edit list =
 
   (* creates the heap for the matches *)
   let heap = Heap.create () in 
@@ -288,6 +349,25 @@ let edit_diff
   (* all done *)
   !diff;;
 
+
+let edit_diff (words1: word array) (words2: word array) (index2: index_t) : edit list =
+  let l1 = Array.length words1 in
+  let l2 = Array.length words2 in
+  (* Special cases first *)
+  if      l1 = 0 then dezero [ Ins (0, l2) ]
+  else if l2 = 0 then dezero [ Del (0, l1) ]
+  else if l1 = 1 then let w = words1.(0) in single_word_edit_diff w words2
+  else if l2 = 1 then let w = words2.(0) in rev_elist (single_word_edit_diff w words1)
+  else if l1 = 2 then 
+    let w1 = words1.(0) in let w2 = words2.(0) in
+    two_words_edit_diff w1 w2 words2
+  else if l2 = 2 then
+    let w1 = words2.(0) in let w2 = words2.(0) in
+    rev_elist (two_words_edit_diff w1 w2 words1)
+  else 
+    (* We know that both strings have length at least 3. *)
+    dezero (edit_diff_internal words1 words2 index2)
+    
 
 (* **************************************************************** *)
 (* Text survival and tracking *)

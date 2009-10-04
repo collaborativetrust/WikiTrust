@@ -118,8 +118,8 @@ let set_robots s = robots := Read_robots.read_robot_file s
 (* API params *)
 let target_wikimedia = ref "http://en.wikipedia.org/w/api.php"
 let set_target_wikimedia t = target_wikimedia := t 
-let user_id_server = ref "http://toolserver.org/~Ipye/UserName2UserId.php"
-let set_user_id_server t = user_id_server := t 
+(* let user_id_server = ref "http://toolserver.org/~Ipye/UserName2UserId.php"
+let set_user_id_server t = user_id_server := t  *)
 
 
 (* Figure out what to do and how we are going to do it. *)
@@ -132,7 +132,7 @@ let command_line_format =
    ("-db_host", Arg.String set_mw_db_host, "<string>: Mediawiki DB host (default: localhost)");
    ("-db_port", Arg.Int set_mw_db_port,    "<int>: Mediawiki DB port (default: 3306)");
    ("-wiki_api", Arg.String set_target_wikimedia, "<string>: Mediawiki api to target for missing revs");
-   ("-user_id_api", Arg.String set_user_id_server, "<string>: location of a tool which turns user_names into user_ids"); 
+ (*  ("-user_id_api", Arg.String set_user_id_server, "<string>: location of a tool which turns user_names into user_ids");  *)
    ("-dump_db_calls", Arg.Set dump_db_calls, ": Writes to the db log all
  database calls.  This is very verbose; use only for debugging.");
    ("-rev_base_path", Arg.String set_wt_db_rev_base_path, "<string>: Filesystem base path for filesystem storage of revisions (default: revisions are stored in the db)");

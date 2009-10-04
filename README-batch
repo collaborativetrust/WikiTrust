@@ -16,148 +16,57 @@ The other approach consists in analyzing the dump file first, and then
 loading it into the database once the analysis is complete.  This is
 what is covered in this README file. 
 
-Note that this documentation is still somewhat preliminary.  We
-modified the code to make the analysis of a wiki as large as the
-English Wikipedia possible, and we are documenting the process.  The
-process requires multiple steps, and is somewhat complex.  We are
-working at making it easier, and documenting it better, but we
-recognize that this documentation is still preliminary.  If you
-require help, contact the developers at
-wikitrust-devel@googlegroups.com .
-
-We assume all scripts are run from the analysis directory. 
-
 PREREQUISITES:
 =============
 
 See the main README file for how to build WikiTrust. 
 Do a "make allopt" from the top level, as described there. 
 
-To have more information on any command, use: 
+You also need to have a wiki dump file. 
 
-<command> --help
+PROCESSING THE DUMP
+===================
 
+Processing the dump used to be a complex process, composed of several
+steps.  To facilitate the processing, we have written a wrapper file,
+util/batch_process.py, which takes care of performing all steps
+optimally, using the available multi-processing capabilities of your
+machine.  Consequently, all the processing is reduced to two simple
+steps:
 
-SPLITTING THE WIKI DUMP:
-=======================
+Process the dumps:
+------------------
 
-For reasons of practicality, we split a Wikipedia dump into smaller
-dumps before processing.  
+cd util
+./batch_process.py --cmd_dir <path>/WikiTrust/analysis --dir <process_dir> --do_compute_trust <dump_file_name.xml.7z>
 
-mkdir ~/work/wiki-data/split_wikis
-gunzip -c ~/work/wiki-data/wikis/my-big-wiki.xml.gz | \
-   ./splitwiki -n 100 -p ~/work/wiki-data/split_wikis
+Where:
 
-This splits a wiki in chunks of 100 pages, compressing with gzip the
-results. Obviously, use the appropriate decompress program above; the
-intent is to decompress to standard output.
+<path> is the path to WikiTrust
 
+<process_dir> is the name of a directory that will be used.
+This directory needs to be sufficiently large; as of September 2009,
+the processing of the Italian Wikipedia uses about 250 GB of space.
 
-COMPUTING THE REDUCED STATISTCS:
-===============================
+Notes:
 
-The reduced statistics are a concise summary of the actions by authors
-on wiki text.  They can be used to find out whose contributions are
-preserved, and whose contributions are reverted.  To compute them, do
-something like this for each of the 100-article chunks (or, if you
-wish, for the whole wiki at once!): 
+The command batch_process.py has many options, which allow also to do
+the processing in step-by-step fashion; do 
+./batch_process.py --help
+for more information. 
+Processing of the Italian Wikipedia as of September 2009 takes about 4
+days on an 8-CPU-core machine. 
+For the English Wikipedia, it is advisable to use a cluster; for
+cluster processing, you can adapt do_all_it_stats.py and
+do_all_it_revs.py to your needs.
 
-/bin/gunzip -c /home/luca/wiki-data/split_wiki/000/wiki-00000000.xml.gz \
-    | ./evalwiki -compute_stats -si ~/wiki-data/enwork/stats/wiki-00000000.stats
+Load the data in the db:
+------------------------
 
-If you have multiple CPU cores, you can speed up the process by
-adapting the script in util/do_all_en.py . This is not yet properly
-documented, but it is fairly easy to figure out how to use the
-script. 
+./load_db.sh <process_dir>/sql <logfile> | mysql -u dbuser dbname -p
 
-
-SORTING THE REDUCED STATISTICS:
-==============================
-
-./combinestats \
-    -bucket_dir ~/wiki-data/enwork/buckets/ \
-    -input_dir ~/wiki-data/enwork/stats/ \
-    -n_digits 4 -use_subdirs
-
-This gives you roughly 20,000 files, and is suited to large wikis. 
-For smaller wikis, use -n_digits 5 , which leads to 2,000 files.
-
-
-COMPUTING THE REPUTATION FROM A STATISTICS FILE: 
-===============================================
-
-./generate_reputation -u ~/wiki-data/enwork/reps/rep_history.txt \
-    -write_final_reps -gen_exact_rep -buckets ~/wiki-data/enwork/buckets/ 
-
-Don't worry about the output; it is some testing information we use 
-to judge the performance of the reputation.  Disregard it. 
-
-
-GENERATE THE TRUST-ANNOTATED VERSIONS OF THE PAGES:
-==================================================
-
-Early on, we tried computing the trust, author, and origin annotations
-for all revisions of a large wiki, and loading them in the database. 
-This does not work well for large wikis: mysql handles with difficulty
-the huge amount of text involved. 
-For this reason, we decided to store the analyzed revisions, and some
-caching information, in the filesystem instead.
-The following command does the job:
-
-./evalwiki -trust_for_online \
-    -historyfile ~/wiki-data/enwork/reps/rep_history.txt \
-    -rev_base_path ~/wiki-data/enwork/coltree \
-    -sig_base_path ~/wiki-data/enwork/sigtree \
-    -n_sigs 8 \
-    -d ~/wiki-data/enwork/sql \
-    /home/luca/wiki-data/enwiki/wiki-00000000.xml.gz
-
-This command will annotate with trust, origin, and author information
-all the revisions in the xml file wiki-00000000.xml.gz .
-The results will be left in: 
-
- * ~/wiki-data/enwork/coltree is the place where the colored revisions
-   will be left.  Revisions are stored in the filesytem.  You need to 
-   provide this path as an option in LocalSettings.php; see
-   WikiTrustBase.php for more information on how to do this. 
-
- * ~/wiki-data/enwork/sigtree is used as the root of a filesystem tree
-   that contains some caching information.  Again, you  need to 
-   provide this path as an option in LocalSettings.php; see
-   WikiTrustBase.php for more information on how to do this. 
-
- * The directory tree under ~/wiki-data/enwork/sql will contain sql
-   files that will need to be loaded into the database (see below).
-
-
-LOADING THE XML FILES INTO THE DATABASE:
-=======================================
-
-cd test-scripts 
-python load_data.py --clear_db <xml_file1.xml> <xml_file2.xml> ...
-
-Note: use the --clear_db option only for the first invocation of
-load_data!!
-The above function load the uncolored revisions (the original
-revisions) into the wiki.
-
-
-CLEAR THE OLD WIKITRUST INFORMATION:
-===================================
-
-python truncate_wikitrust_tables.py
-
-
-LOADING THE USER REPUTATION INTO THE DATABASE:
-=============================================
-
-python load_reputations.py --clear_db --set_histogram ~/wiki-data/enwork/reps/rep_history.txt
-
-
-LOAD THE SQL INTO THE DATABASE:
-==============================
-
-mysql wikidb -u wikiuser -p < ~/wiki-data/enwork/sql/wiki-00100000.sql
+You will have to type the mysql user password. 
+Here, <logfile> is the name of a file where loading statistics will appear.
 
 
 ...AND FINALLY...

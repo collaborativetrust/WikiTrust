@@ -284,13 +284,18 @@ let fetch_page_and_revs_after_json (selector : string) : result_tree =
     ^ "&" ^ selector in
   !logger#log (Printf.sprintf "getting url: %s\n" url);
   let res = get_url url in
-  let api = Json_io.json_of_string res in
-
-
-
-  (* logger#log (Printf.sprintf "result: %s\n" res); *)
-  JSON api
-
+  try (
+    let api = Json_io.json_of_string res in
+    (* logger#log (Printf.sprintf "result: %s\n" res); *)
+    JSON api
+  ) with
+  | Failure e -> (
+      Printf.eprintf "JSON Error: %s\nOn%s\nExc%s\n" e url
+	(Printexc.to_string (Failure e));
+      raise (API_error_noretry e) 
+    )
+(* this means that there are certain revs we can not download -- example itwiki-Roma page. *)
+(* Should we do anything else here? *)
 
 (**
    [fetch_page_and_revs after selector rev_start_id db], given a [selector]
@@ -331,11 +336,19 @@ let get_user_id (user_name: string) (db: Online_db.db) : int =
   try
     if Str.string_match ip_re user_name 0 then 0
     else db#get_user_id user_name
-  with Online_db.DB_Not_Found ->
-    try
-      db#write_user_id user_name
-    with
+  with 
+  | Online_db.DB_Not_Found -> (
+      try
+	db#write_user_id user_name
+      with
       | int_of_string -> 0
+    )
+  | Mysql.Error e -> (
+      try
+	db#write_user_id user_name
+      with
+      | int_of_string -> 0
+    )
 
 (**
    [get_revs_from_api page_title last_id db 0] reads

@@ -66,6 +66,9 @@ class AccumulateFiles:
         # Returns the list of all chunks.
         return self.chunk_list
 
+# So we disregard errors if the directory exists.
+def make_directory(d):
+    commands.getoutput("mkdir " + d)
 
 def dodo(x):
     print x
@@ -78,8 +81,8 @@ def print_banner(s):
 
 # Splits the input file into many chunks. 
 def split_file(opt):
-    cmd = (opt["decompression"] + " " + opt["input_file"] +
-           " | " + opt["cmd_dir"] + "/splitwiki -n " +
+    cmd = (opt["nice"] + opt["decompression"] + " " + opt["input_file"] +
+           " | " + opt["nice"] + opt["cmd_dir"] + "/splitwiki -n " +
            opt["n_pages_per_chunk"] + " -p " + opt["split_dir"])
     dodo(cmd)
 
@@ -92,25 +95,29 @@ def compute_stats(descr):
     in_file_str = " "
     for f in in_file_list:
         in_file_str += f + " "
-    cmd = (opt["cmd_dir"] + "/evalwiki -compute_stats -d " + dest_dir +
-           in_file_str)
+    cmd = (opt["nice"] + opt["cmd_dir"] + 
+           "/evalwiki -compute_stats -d " + dest_dir + in_file_str)
     dodo(cmd)
 
 # Sorts the reduced statistics. 
 def sort_stats(opt):
-    cmd = (opt["cmd_dir"] + "/combinestats -bucket_dir " +
-           opt["bucket_dir"] + " input_dir " + opt["stats_dir"] +
+    commands.getoutput("rm -rf " + opt["bucket_dir"])
+    cmd = (opt["nice"] + opt["cmd_dir"] + "/combinestats -bucket_dir " +
+           opt["bucket_dir"] + " -input_dir " + opt["stats_dir"] +
            " -n_digits 5 -use_subdirs -remove_unsorted")
     dodo(cmd)
 
 # Computes the user reputations.
 def compute_reps(opt):
-    cmd = (opt["cmd_dir"] + "/generate_reputation -u " + 
+    cmd = (opt["nice"] + opt["cmd_dir"] + "/generate_reputation -u " + 
            opt["rep_file"] + " -buckets " + opt["bucket_dir"] + 
            "/ -write_final_reps")
     if "robots" in opt:
         cmd += " -robots " + opt["robots"] 
-    dodo(cmd)
+    # We don't want to print the extensive output of computerep.
+    print cmd
+    commands.getoutput(cmd)
+
 
 # Computes the colored revisions.  The input format is:
 # opt: contains the options.
@@ -120,9 +127,9 @@ def compute_trust(descr):
     in_file_str = " "
     for f in in_file_list:
         in_file_str += f + " "
-    cmd = (opt["cmd_dir"] + "/evalwiki -trust_for_online -historyfile " +
-           opt["rep_file"] + " -blob_base_path " + opt["blob_prefix"] +
-           " -n_sigs 8")
+    cmd = (opt["nice"] + opt["cmd_dir"] + 
+           "/evalwiki -trust_for_online -historyfile " + opt["rep_file"] + 
+           " -blob_base_path " + opt["blobs_dir"] + " -n_sigs 8")
     if "robots" in opt:
         cmd += " -robots " + opt["robots"]
     cmd += " -d " + dest_dir + in_file_str
@@ -130,11 +137,13 @@ def compute_trust(descr):
 
 def usage():
     print "batch_process.py <options> <compressed xml file>"
-    print "--cmd_dir: Directory where the executables are."
-    print "--dir: Directory where all the processing will be done"
+    print "--cmd_dir <dir>: Directory where the executables are"
+    print "--dir <dir>: Directory where all the processing will be done"
     print "--n_pages_per_chunk: How many pages in each chunk (default: 100)"
     print "--decomp <cmd>: command used to decompress (default: 7za e -so)"
     print "--robots <file>: file containing robots to exclude from evaluation"
+    print "--n_cores <int>: number of processor cores to use (default: all)"
+    print "--nice: nice the long-running processes"
     print "--cleanup: remove results once they are used. This is used only"
     print "           if none of the do_... options below is specified."
     print "    If some of the following options are specified,"
@@ -154,6 +163,8 @@ def main():
                                     "n_pages_per_chunk=",
                                     "decomp=",
                                     "robots=",
+                                    "n_cores=",
+                                    "nice",
                                     "cleanup",
                                     "do_split",
                                     "do_compute_stats",
@@ -204,6 +215,10 @@ def main():
             do_compute_trust = True
         elif o == "--cleanup":
             do_cleanup = True
+        elif o == "--n_cores":
+            options["n_cores"] = int(a)
+        elif o == "--nice":
+            options["nice"] = "nice "
         else:
             usage()
             sys.exit(2)
@@ -221,6 +236,10 @@ def main():
     if not do_all:
         cleanup = False
 
+    # Fixes the nicing.
+    if "nice" not in options:
+        options["nice"] = ""
+
     # Generates the directory names.
     options["split_dir"] = options["base_dir"] + "/split_wiki"
     options["stats_dir"] = options["base_dir"] + "/stats"
@@ -229,17 +248,20 @@ def main():
     options["blobs_dir"] = options["base_dir"] + "/blobs"
 
     # Makes the directories.
-    dodo("mkdir " + options["split_dir"])
-    dodo("mkdir " + options["stats_dir"])
-    dodo("mkdir " + options["bucket_dir"])
-    dodo("mkdir " + options["sql_dir"])
-    dodo("mkdir " + options["blobs_dir"])
+    make_directory(options["base_dir"])
+    make_directory(options["split_dir"])
+    make_directory(options["stats_dir"])
+    make_directory(options["sql_dir"])
+    make_directory(options["blobs_dir"])
 
     # Makes some filenames.
     options["rep_file"] = options["base_dir"] + "/user_reputations.txt"
 
     # Makes the process pool.
-    process_pool = Pool()
+    if "n_cores" in options:
+        process_pool = Pool(options["n_cores"])
+    else:
+        process_pool = Pool()
 
     # Splits the input file.
     if do_split or do_all:
@@ -264,7 +286,7 @@ def main():
         for subdir in subdir_list:
             source_dir = options["split_dir"] + "/" + subdir
             dest_dir = options["stats_dir"] + "/" + subdir
-            dodo("mkdir " + dest_dir)
+            make_directory(dest_dir)
             for r, s, f in os.walk(source_dir):
                 files = f
                 break
@@ -310,13 +332,13 @@ def main():
             for subdir in subdir_list:
                 source_dir = options["split_dir"] + "/" + subdir
                 dest_dir = options["sql_dir"] + "/" + subdir
-                dodo("mkdir " + dest_dir)
+                make_directory(dest_dir)
                 for r, s, f in os.walk(source_dir):
                     files = f
                     break
                 files.sort()
                 # Accumulates the files in chunks
-                accumulator = AccumulateFiles(4 * history_size, 50)
+                accumulator = AccumulateFiles(20 * history_size, 50)
                 for source_file in files:
                     full_source_file = source_dir + "/" + source_file
                     accumulator.add_file(full_source_file)
