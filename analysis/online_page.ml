@@ -506,7 +506,6 @@ class page
           let rev1_t = rev1#get_words in 
           let rev1_l = Array.length rev1_t in 
           let rev1_id = rev1#get_id in 
-          let rev1_i = Chdiff.make_index_diff rev1_t in 
           (* We now must read or compute the distance between rev1_idx
              and all previous revisions.  I iterate with rev_2_idx
              that goes from most recent, to oldest, as it is easier
@@ -524,7 +523,7 @@ class page
                  computing the precise distance.  
                  If rev2 is the revision before rev1, there is no choice *)
               if rev2_idx = rev1_idx + 1 then begin 
-                let edits  = Chdiff.edit_diff rev2_t rev1_t rev1_i in 
+                let edits  = Chdiff.edit_diff rev2_t rev1_t in 
                 let d      = Editlist.edit_distance edits (max rev1_l rev2_l) in 
                 (edits, d)
               end else begin 
@@ -576,8 +575,8 @@ class page
                 end else begin 
 		  (* Nothing suitable found, uses the brute-force
 		     approach of computing the edit distance from
-		     direct text comparison. ¯*)
-		  let edits   = Chdiff.edit_diff rev2_t rev1_t rev1_i in 
+		     direct text comparison. *)
+		  let edits   = Chdiff.edit_diff rev2_t rev1_t in 
 		  let d = Editlist.edit_distance edits (max rev1_l rev2_l) in 
 		  (edits, d)
                 end

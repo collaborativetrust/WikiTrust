@@ -37,13 +37,9 @@ type word = string
 type index_t 
 val print_chunks : word array array -> unit
 
-(** [make_index_diff words2] makes an index of [words2] suitable for 
-    a call to [edit_diff words1 words2 index2] *) 
-val make_index_diff : word array -> index_t
-
 (** [edit_diff words1 words2 index2] returns the edit list from 
-    [words1] to [words2] given [index2]. *)
-val edit_diff : word array -> word array -> index_t -> Editlist.edit list
+    [words1] to [words2]. *)
+val edit_diff : word array -> word array -> Editlist.edit list
 
 (** [dezero elist] removes the 0-length elements from the edit list [elist]. *)
 val dezero : Editlist.edit list -> Editlist.edit list

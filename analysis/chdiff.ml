@@ -127,9 +127,9 @@ let find_two_words (w1: word) (w2: word) (a: word array) : int option =
 
 let rec rev_elist = function
     [] -> []
-  | Ins (i, n) :: l -> Del (i, n) :: (rev_elist l)
-  | Del (i, n) :: l -> Ins (i, n) :: (rev_elist l)
-  | Mov (i, j, n) :: l -> Mov (j, i, n) :: (rev_elist l)
+  | Ins (i, n) :: l -> Del (i, n) :: rev_elist l
+  | Del (i, n) :: l -> Ins (i, n) :: rev_elist l
+  | Mov (i, j, n) :: l -> Mov (j, i, n) :: rev_elist l
 
 let rec dezero = function
     [] -> []
@@ -138,31 +138,34 @@ let rec dezero = function
   | Mov (_, _, 0) :: l -> dezero l
   | el :: l -> el :: dezero l
 
+let rec inc_indices n = function
+    [] -> []
+  | Ins (i, k) :: l -> Ins (i + n, k) :: inc_indices n l
+  | Del (i, k) :: l -> Del (i + n, k) :: inc_indices n l
+  | Mov (i, j, k) :: l -> Mov (i + n, j + n, k) :: inc_indices n l
+
 let single_word_edit_diff (w: word) (words2: word array) : edit list =
   let l2 = Array.length words2 in
   match find_word w words2 with
-    None -> dezero [ Del (0, 1); Ins (0, l2) ]
-  | Some k -> dezero [ Ins (0, k); Mov (0, k, 1); Ins (k + 1, l2 - k - 1) ]
+    None -> [ Del (0, 1); Ins (0, l2) ]
+  | Some k -> [ Ins (0, k); Mov (0, k, 1); Ins (k + 1, l2 - k - 1) ]
 
 let two_words_edit_diff (w1: word) (w2: word) (words2: word array) : edit list =
   let l2 = Array.length words2 in
   (* Looks for the words in a row *)
   match find_two_words w1 w2 words2 with 
-    Some k -> dezero [ Ins (0, k); Mov (0, k, 2); Ins (k + 2, l2 - k - 2) ]
+    Some k -> [ Ins (0, k); Mov (0, k, 2); Ins (k + 2, l2 - k - 2) ]
   | None -> begin
       (* We must look for the words individually *)
       match (find_word w1 words2, find_word w2 words2) with
-	(None, None) -> dezero [ Ins (0, l2) ]
-      | (None, Some k) -> 
-	  dezero [ Del (0, 1); Ins (0, k); Mov (1, k, 1); Ins (k + 1, l2 - k - 1) ]
-      | (Some k, None) ->
-	  dezero [ Del (1, 1); Ins (0, k); Mov (0, k, 1); Ins (k + 1, l2 - k - 1) ]
+	(None, None)   -> [ Ins (0, l2) ]
+      | (None, Some k) -> [ Del (0, 1); Ins (0, k); Mov (1, k, 1); Ins (k + 1, l2 - k - 1) ]
+      | (Some k, None) -> [ Del (1, 1); Ins (0, k); Mov (0, k, 1); Ins (k + 1, l2 - k - 1) ]
       | (Some k, Some n) -> begin
 	  let moves = [ Mov (0, k, 1); Mov (1, n, 1) ] in
-	  if k < n then dezero
-	    ( Ins (0, k) :: Ins (k + 1, n - k - 1) :: Ins (n + 1, l2 - n - 1) :: moves)
-	  else dezero
-	    ( Ins (0, n) :: Ins (n + 1, k - n - 1) :: Ins (k + 1, l2 - k - 1) :: moves)
+	  if k < n 
+	  then Ins (0, k) :: Ins (k + 1, n - k - 1) :: Ins (n + 1, l2 - n - 1) :: moves
+	  else Ins (0, n) :: Ins (n + 1, k - n - 1) :: Ins (k + 1, l2 - k - 1) :: moves
 	end
     end
 
@@ -350,24 +353,65 @@ let edit_diff_internal (words1: word array) (words2: word array) (index2: index_
   !diff;;
 
 
-let edit_diff (words1: word array) (words2: word array) (index2: index_t) : edit list =
+let edit_diff_core (words1: word array) (words2: word array) : edit list =
   let l1 = Array.length words1 in
   let l2 = Array.length words2 in
   (* Special cases first *)
-  if      l1 = 0 then dezero [ Ins (0, l2) ]
-  else if l2 = 0 then dezero [ Del (0, l1) ]
+  if      l1 = 0 then [ Ins (0, l2) ]
+  else if l2 = 0 then [ Del (0, l1) ]
   else if l1 = 1 then let w = words1.(0) in single_word_edit_diff w words2
   else if l2 = 1 then let w = words2.(0) in rev_elist (single_word_edit_diff w words1)
   else if l1 = 2 then 
-    let w1 = words1.(0) in let w2 = words2.(0) in
+    let w1 = words1.(0) in let w2 = words1.(1) in
     two_words_edit_diff w1 w2 words2
   else if l2 = 2 then
-    let w1 = words2.(0) in let w2 = words2.(0) in
+    let w1 = words2.(0) in let w2 = words2.(1) in
     rev_elist (two_words_edit_diff w1 w2 words1)
   else 
     (* We know that both strings have length at least 3. *)
-    dezero (edit_diff_internal words1 words2 index2)
-    
+    let index2 = make_index_diff words2 in
+    edit_diff_internal words1 words2 index2
+
+
+let edit_diff (words1: word array) (words2: word array) : edit list =
+  (* First, as a special case, takes care of initial and final prefixes. *)
+  let l1 = Array.length words1 in
+  let l2 = Array.length words2 in
+  (* Computes initial prefix. *)
+  let k = ref 0 in
+  while !k < l1 && !k < l2 && words1.(!k) = words2.(!k) do 
+    k := !k + 1 done;
+  let front_prefix_idx = !k in
+  (* Takes care of some special cases right away. *)
+  if front_prefix_idx = l1
+  then dezero [Mov (0, 0, l1); Ins (l1, l2 - l1)]
+  else if front_prefix_idx = l2
+  then dezero [Mov (0, 0, l2); Del (l2, l2 - l1)]
+  else 
+  (* Computes final prefix. *)
+    let k = ref 0 in
+    while !k < l1 && !k < l2 && words1.(l1 - !k - 1) = words2.(l2 - !k - 1) do 
+      k := !k + 1 done;
+    let end_prefix_idx = !k in
+    (* If the two strings are different length, then it is possible that 
+       front_prefix_idx + end_prefix_idx is longer than some of l1, l2. 
+       Hence, we adjust the rear prefix length. *)
+    let min_l = min l1 l2 in
+    let end_pos = 
+      if front_prefix_idx + end_prefix_idx <= min_l
+      then end_prefix_idx
+      else min_l - front_prefix_idx
+    in
+    (* Computes the portion of word arrays that still need analysis. *)
+    let wa1 = Array.sub words1 front_prefix_idx (l1 - front_prefix_idx - end_pos) in
+    let wa2 = Array.sub words2 front_prefix_idx (l2 - front_prefix_idx - end_pos) in
+    let mid_diff = edit_diff_core wa1 wa2 in
+    let mid_diff_adjusted = inc_indices front_prefix_idx mid_diff in
+    dezero (
+      Mov (0, 0, front_prefix_idx) 
+      :: Mov (l1 - end_pos, l2 - end_pos, end_pos)
+      :: mid_diff_adjusted)
+
 
 (* **************************************************************** *)
 (* Text survival and tracking *)
@@ -1156,14 +1200,13 @@ if false then
     let text2a = "nel bel mezzo del cammin di nostra vita mi trovai in una selva oscura che la diritta via era smarrita" in
     let text2b = "nel frammezzo del cammin di nostra esistenza mi trovai nel bel mezzo di una selva oscura dove la via era smarrita e non mi trovai nel cammin di casa nostra" in
     
-    let text3a = "a me piace bere il caffe' dopo che mi sono svegliato" in
-    let text3b = "dopo che mi sono svegliato, a me piace bere il mio caffe'" in
+    let text3a = "a b c d e f g m n o p q r" in
+    let text3b = "a b c d e f g e f g m n o p q r" in
     
     let test_edit_diff t1 t2 = 
       let w1 = Text.split_into_words false (Vec.singleton t1) in 
       let w2 = Text.split_into_words false (Vec.singleton t2) in 
-      let i2 = make_index_diff w2 in 
-      let e = edit_diff w1 w2 i2 in 
+      let e = edit_diff w1 w2 in 
       Text.print_words w1; 
       Text.print_words w2;  
       print_diff e
@@ -1182,8 +1225,7 @@ if false then
     let test_edit_diff t1 t2 = 
       let w1 = Text.split_into_words false (Vec.singleton t1) in 
       let w2 = Text.split_into_words false (Vec.singleton t2) in 
-      let i2 = make_index_diff w2 in 
-      let e = edit_diff w1 w2 i2 in 
+      let e = edit_diff w1 w2 in 
       Text.print_words w1; 
       print_string "\n";
       Text.print_words w2;  
@@ -1223,13 +1265,12 @@ if false then begin
     begin
       print_newline (); 
       print_string ((string_of_int (i + 1)) ^ ": ");
-      let idx = make_index_diff t.(i) in 
       for j = 0 to i - 1 do 
 	begin
 	  let l1 = Array.length (t.(i)) in 
 	  let l2 = Array.length (t.(j)) in 
 	  let l = min l1 l2 in 
-	  print_string (string_of_float (edit_distance (edit_diff t.(j) t.(i) idx) l));
+	  print_string (string_of_float (edit_distance (edit_diff t.(j) t.(i)) l));
 	  print_string " "
 	end
       done

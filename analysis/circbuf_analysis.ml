@@ -181,7 +181,6 @@ class page
       in
       let rev2_t = rev2#get_words in 
       let rev2_l = Array.length (rev2_t) in 
-      let rev2_i = Chdiff.make_index_diff rev2_t in 
 
       (* loop over some preceding revisions *)
       for i = 0 to n_edit_judging - 1 do
@@ -197,7 +196,7 @@ class page
             let dist   = rev1#get_dist in 
             let rev1_t = rev1#get_words in 
             let rev1_l = Array.length (rev1_t) in 
-            let edits  = Chdiff.edit_diff rev1_t rev2_t rev2_i in 
+            let edits  = Chdiff.edit_diff rev1_t rev2_t in 
             let d      = Editlist.edit_distance edits (max rev1_l rev2_l) in 
             dist.(i) <- d
 

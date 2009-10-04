@@ -248,11 +248,10 @@ class page
       for rev2_idx = 1 to n_revs - 1 do 
         let rev2_t = revs.(rev2_idx)#get_words in 
         let rev2_l = Array.length (rev2_t) in 
-        let rev2_i = Chdiff.make_index_diff rev2_t in 
         for rev1_idx = (max 0 (rev2_idx - n_edit_judging)) to rev2_idx - 1 do 
           let rev1_t = revs.(rev1_idx)#get_words in 
           let rev1_l = Array.length (rev1_t) in 
-          let edits  = Chdiff.edit_diff rev1_t rev2_t rev2_i in 
+          let edits  = Chdiff.edit_diff rev1_t rev2_t in 
           let d      = Editlist.edit_distance edits (max rev1_l rev2_l) in 
           dist.(rev1_idx).(rev2_idx - rev1_idx - 1) <- d
         done
