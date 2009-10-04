@@ -438,7 +438,7 @@ class trust_revision
   (text_init: string Vec.t) (* Text of the revision, still to be split into words *)
   (text_disarm: bool) (* Whether to take care of the &gt; etc. conversion; generally, yes. *)
   =
-  let (t, _, _, _, swi, s) = Text.split_into_words_seps_and_info text_disarm text_init in 
+  let (t, swi, s) = Text.split_into_words_and_seps text_disarm text_init in 
 
   object (self)
     inherit revision id page_id timestamp time contributor user_id ip_addr username is_minor comment text_init 

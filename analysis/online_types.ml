@@ -145,7 +145,7 @@ type trust_coeff_t = {
 };;
 
 (* Number of past revisions to consider *)
-let n_past_revs = 6;;
+let n_past_revs = 8;;
 
 (* We compute the reputation scaling dynamically taking care of the
    size of the recent_revision list and the union of the recent

@@ -228,7 +228,6 @@ class page
       (* gets text etc of last version *) 
       let rev2_t = rev2#get_words in 
       let rev2_l = Array.length (rev2_t) in 
-      let rev2_i = Chdiff.make_index_diff rev2_t in 
 
       (* loop over some preceding revisions *)
       for rev1_idx = rev2_idx - 1 downto max 0 (rev2_idx - n_edit_judging) do begin
@@ -240,7 +239,7 @@ class page
            computing the precise distance.  
            If rev1 is the revision before rev2, there is no choice *)
         if be_precise || rev1_idx + 1 = rev2_idx then begin 
-          let edits  = Chdiff.edit_diff rev1_t rev2_t rev2_i in 
+          let edits  = Chdiff.edit_diff rev1_t rev2_t in 
           let d      = Editlist.edit_distance edits (max rev1_l rev2_l) in 
           rev1#set_distance (Vec.setappend 0.0 d i rev1#get_distance);
           rev1#set_editlist (Vec.setappend [] edits i rev1#get_editlist);
@@ -287,7 +286,7 @@ class page
 
             (* Evaluates the error if so asked *)
             if eval_zip_error then begin 
-              let edits' = Chdiff.edit_diff rev1_t rev2_t rev2_i in 
+              let edits' = Chdiff.edit_diff rev1_t rev2_t in 
               let d'     = Editlist.edit_distance edits' (max rev1_l rev2_l) in 
               let err    = ((d +. 1.) /. (d' +. 1.)) in 
               Printf.printf "\nPrecision: %7.5f d_real: %6.1f d_zip: %6.1f" err d' d;
@@ -307,7 +306,7 @@ class page
           end else begin 
             (* Nothing suitable found, uses the brute-force approach of computing 
 	       the edit distance from direct text comparison. ¯*)
-            let edits   = Chdiff.edit_diff rev1_t rev2_t rev2_i in 
+            let edits   = Chdiff.edit_diff rev1_t rev2_t in 
             let d = Editlist.edit_distance edits (max rev1_l rev2_l) in 
             rev1#set_distance (Vec.setappend 0.0 d i rev1#get_distance);
             rev1#set_editlist (Vec.setappend [] edits i rev1#get_editlist);

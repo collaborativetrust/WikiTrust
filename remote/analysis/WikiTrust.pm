@@ -273,15 +273,16 @@ sub handle_showqueue {
   my $found_header = 0;
   while ((my $ref = $sth->fetchrow_hashref())){
     if (!$found_header) {
-      foreach (sort keys %$ref) { $txt .= sprintf("%15s ", $_); }
+      foreach (sort keys %$ref) { $txt .= sprintf("%20s ", $_); }
       $txt .= "\n";
-      foreach (sort keys %$ref) { $txt .= '='x16; }
+      foreach (sort keys %$ref) { $txt .= '='x21; }
       $txt .= "\n";
       $found_header = 1;
     }
-    foreach (sort keys %$ref) { $txt .= sprintf("%15s ", $ref->{$_}); }
+    foreach (sort keys %$ref) { $txt .= sprintf("%20s ", $ref->{$_}); }
     $txt .= "\n";
   }
+  return $txt;
 }
 
 1;

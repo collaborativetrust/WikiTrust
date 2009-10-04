@@ -40,7 +40,7 @@ rm -rf /home/luca/wiki-data/enwork/sql/*
     -d ~/wiki-data/enwork/sql \
     /home/luca/wiki-data/enwiki/wiki-00100000.xml.gz
 
- ./evalwiki -trust_for_online \
+./evalwiki -trust_for_online \
     -historyfile ~/wiki-data/enwork/reps/rep_history.txt \
     -blob_base_path ~/wiki-data/enwork/blobtree \
     -n_sigs 8 \
@@ -67,7 +67,8 @@ cat ~/wiki-data/enwork/reps/rep_history.txt | \
   ./load_reputations -db_user wikiuser -db_pass localwiki -db_name wikidb
 
 # Set the permissions correctly: 
-sudo chmod -R a+rwX ~/wiki-data
+sudo chmod a+rwX ~/wiki-data
+sudo chmod -R a+rwX ~/wiki-data/enwork
 sudo chmod -R a+rX ~/WikiTrust
 
 # Check that things are indeed there:

@@ -42,19 +42,20 @@ open Editlist;;
 
 type word = string (* so that we know what is going on *)
 type heap_el = int * int * int    (* (len, pos1, pos2) *)
-type index_t = ((word * word * word), int) Hashtbl_bounded.t
+type index_t = ((word * word), int) Hashtbl_bounded.t
 
 (** This is the maximum number of matches for a word pair that we
     track. If a word pair has more than this number of matches, we
     disregard them all, as we classify the word pair as not sufficiently
     distinctive. *)
-let max_matches = 40 
+let max_matches = 50 
 (** This is the minimum length of any dead chunk we keep around.  Dead chunks shorter
     than this are not kept, with the idea that short amounts of text are not 
     rescued, but simply, freshly rewritten. *)
 let min_dead_chunk_len = 3
 (** This is the minimum length of a match between existing and old text for considering 
-    copying to have happened.  It must be 3 <= min_copy_amount <= min_dead_chunk_len *)
+    copying to have happened.  It must be 2 or 3 <= min_copy_amount <= min_dead_chunk_len .
+    The lower bound is 2 or 3 depending on whether we put word pairs or triples in the index. *)
 (** TODO: here it would be better to rely on word frequencies.  A project for a student? *)
 let min_copy_amount = 3
 (** Minimum amount that can be considered copied from dead chunks.  It must satisfy 
@@ -95,8 +96,8 @@ let make_index_diff (words: word array) : index_t =
   let len = Array.length words in 
   let idx = Hashtbl_bounded.create (1 + len) (10 * max_matches) in 
   (* fills up the index *)
-  for i = 0 to len - 3 do 
-    let word_tuple = (words.(i), words.(i + 1), words.(i + 2)) in 
+  for i = 0 to len - 2 do 
+    let word_tuple = (words.(i), words.(i + 1)) in 
     Hashtbl_bounded.add idx word_tuple i
   done; 
   idx;;
@@ -127,9 +128,9 @@ let find_two_words (w1: word) (w2: word) (a: word array) : int option =
 
 let rec rev_elist = function
     [] -> []
-  | Ins (i, n) :: l -> Del (i, n) :: (rev_elist l)
-  | Del (i, n) :: l -> Ins (i, n) :: (rev_elist l)
-  | Mov (i, j, n) :: l -> Mov (j, i, n) :: (rev_elist l)
+  | Ins (i, n) :: l -> Del (i, n) :: rev_elist l
+  | Del (i, n) :: l -> Ins (i, n) :: rev_elist l
+  | Mov (i, j, n) :: l -> Mov (j, i, n) :: rev_elist l
 
 let rec dezero = function
     [] -> []
@@ -138,31 +139,36 @@ let rec dezero = function
   | Mov (_, _, 0) :: l -> dezero l
   | el :: l -> el :: dezero l
 
+let rec inc_indices n = function
+    [] -> []
+  | Ins (i, k) :: l -> Ins (i + n, k) :: inc_indices n l
+  | Del (i, k) :: l -> Del (i + n, k) :: inc_indices n l
+  | Mov (i, j, k) :: l -> Mov (i + n, j + n, k) :: inc_indices n l
+
 let single_word_edit_diff (w: word) (words2: word array) : edit list =
   let l2 = Array.length words2 in
   match find_word w words2 with
-    None -> dezero [ Del (0, 1); Ins (0, l2) ]
-  | Some k -> dezero [ Ins (0, k); Mov (0, k, 1); Ins (k + 1, l2 - k - 1) ]
+    None -> [ Del (0, 1); Ins (0, l2) ]
+  | Some k -> [ Ins (0, k); Mov (0, k, 1); Ins (k + 1, l2 - k - 1) ]
 
+(* Produces the edit diff for the arrays [| w1 w2 |] and words2
+   to single-world granularity. *)
 let two_words_edit_diff (w1: word) (w2: word) (words2: word array) : edit list =
   let l2 = Array.length words2 in
   (* Looks for the words in a row *)
   match find_two_words w1 w2 words2 with 
-    Some k -> dezero [ Ins (0, k); Mov (0, k, 2); Ins (k + 2, l2 - k - 2) ]
+    Some k -> [ Ins (0, k); Mov (0, k, 2); Ins (k + 2, l2 - k - 2) ]
   | None -> begin
       (* We must look for the words individually *)
       match (find_word w1 words2, find_word w2 words2) with
-	(None, None) -> dezero [ Ins (0, l2) ]
-      | (None, Some k) -> 
-	  dezero [ Del (0, 1); Ins (0, k); Mov (1, k, 1); Ins (k + 1, l2 - k - 1) ]
-      | (Some k, None) ->
-	  dezero [ Del (1, 1); Ins (0, k); Mov (0, k, 1); Ins (k + 1, l2 - k - 1) ]
+	(None, None)   -> [ Ins (0, l2) ]
+      | (None, Some k) -> [ Del (0, 1); Ins (0, k); Mov (1, k, 1); Ins (k + 1, l2 - k - 1) ]
+      | (Some k, None) -> [ Del (1, 1); Ins (0, k); Mov (0, k, 1); Ins (k + 1, l2 - k - 1) ]
       | (Some k, Some n) -> begin
 	  let moves = [ Mov (0, k, 1); Mov (1, n, 1) ] in
-	  if k < n then dezero
-	    ( Ins (0, k) :: Ins (k + 1, n - k - 1) :: Ins (n + 1, l2 - n - 1) :: moves)
-	  else dezero
-	    ( Ins (0, n) :: Ins (n + 1, k - n - 1) :: Ins (k + 1, l2 - k - 1) :: moves)
+	  if k < n 
+	  then Ins (0, k) :: Ins (k + 1, n - k - 1) :: Ins (n + 1, l2 - n - 1) :: moves
+	  else Ins (0, n) :: Ins (n + 1, k - n - 1) :: Ins (k + 1, l2 - k - 1) :: moves
 	end
     end
 
@@ -180,8 +186,8 @@ let edit_diff_internal (words1: word array) (words2: word array) (index2: index_
      one in the same location has already been found *)
   let prev_matches = ref [] in 
   (* the - 2 is because we use word pairs to index the hash table *)
-  for i1 = 0 to len1 - 3 do 
-    let word_tuple = (words1.(i1), words1.(i1 + 1), words1.(i1 + 2)) in 
+  for i1 = 0 to len1 - 2 do 
+    let word_tuple = (words1.(i1), words1.(i1 + 1)) in 
     if Hashtbl_bounded.mem index2 word_tuple then
       begin
 	let matches = Hashtbl_bounded.find_all index2 word_tuple in 
@@ -197,9 +203,9 @@ let edit_diff_internal (words1: word array) (words2: word array) (index2: index_
 		 since (i1 - 1, i2 - 1) has already been counted as a match, and is longer *)
 	      if not (List.mem (i2 - 1) !prev_matches) then
 		begin
-		  (* Now we check how long the match is; the min len is 3 of course,
-		     since the index contains word triples *)
-		  let l = ref 3 in 
+		  (* Now we check how long the match is; the min len is 2 of course,
+		     since the index contains word pairs *)
+		  let l = ref 2 in 
 		  while (i1 + !l < len1) && (i2 + !l < len2) && 
 		    (words1.(i1 + !l) = words2.(i2 + !l)) do l := !l + 1 done; 
 		  (* Ok, the match starts in i1, i2, and has length !l *)
@@ -350,24 +356,65 @@ let edit_diff_internal (words1: word array) (words2: word array) (index2: index_
   !diff;;
 
 
-let edit_diff (words1: word array) (words2: word array) (index2: index_t) : edit list =
+let edit_diff_core (words1: word array) (words2: word array) : edit list =
   let l1 = Array.length words1 in
   let l2 = Array.length words2 in
   (* Special cases first *)
-  if      l1 = 0 then dezero [ Ins (0, l2) ]
-  else if l2 = 0 then dezero [ Del (0, l1) ]
+  if      l1 = 0 then [ Ins (0, l2) ]
+  else if l2 = 0 then [ Del (0, l1) ]
   else if l1 = 1 then let w = words1.(0) in single_word_edit_diff w words2
   else if l2 = 1 then let w = words2.(0) in rev_elist (single_word_edit_diff w words1)
   else if l1 = 2 then 
-    let w1 = words1.(0) in let w2 = words2.(0) in
+    let w1 = words1.(0) in let w2 = words1.(1) in
     two_words_edit_diff w1 w2 words2
   else if l2 = 2 then
-    let w1 = words2.(0) in let w2 = words2.(0) in
+    let w1 = words2.(0) in let w2 = words2.(1) in
     rev_elist (two_words_edit_diff w1 w2 words1)
   else 
     (* We know that both strings have length at least 3. *)
-    dezero (edit_diff_internal words1 words2 index2)
-    
+    let index2 = make_index_diff words2 in
+    edit_diff_internal words1 words2 index2
+
+
+let edit_diff (words1: word array) (words2: word array) : edit list =
+  (* First, as a special case, takes care of initial and final prefixes. *)
+  let l1 = Array.length words1 in
+  let l2 = Array.length words2 in
+  (* Computes initial prefix. *)
+  let k = ref 0 in
+  while !k < l1 && !k < l2 && words1.(!k) = words2.(!k) do 
+    k := !k + 1 done;
+  let front_prefix_idx = !k in
+  (* Takes care of some special cases right away. *)
+  if front_prefix_idx = l1
+  then dezero [Mov (0, 0, l1); Ins (l1, l2 - l1)]
+  else if front_prefix_idx = l2
+  then dezero [Mov (0, 0, l2); Del (l2, l2 - l1)]
+  else 
+  (* Computes final prefix. *)
+    let k = ref 0 in
+    while !k < l1 && !k < l2 && words1.(l1 - !k - 1) = words2.(l2 - !k - 1) do 
+      k := !k + 1 done;
+    let end_prefix_idx = !k in
+    (* If the two strings are different length, then it is possible that 
+       front_prefix_idx + end_prefix_idx is longer than some of l1, l2. 
+       Hence, we adjust the rear prefix length. *)
+    let min_l = min l1 l2 in
+    let end_pos = 
+      if front_prefix_idx + end_prefix_idx <= min_l
+      then end_prefix_idx
+      else min_l - front_prefix_idx
+    in
+    (* Computes the portion of word arrays that still need analysis. *)
+    let wa1 = Array.sub words1 front_prefix_idx (l1 - front_prefix_idx - end_pos) in
+    let wa2 = Array.sub words2 front_prefix_idx (l2 - front_prefix_idx - end_pos) in
+    let mid_diff = edit_diff_core wa1 wa2 in
+    let mid_diff_adjusted = inc_indices front_prefix_idx mid_diff in
+    dezero (
+      Mov (0, 0, front_prefix_idx) 
+      :: Mov (l1 - end_pos, l2 - end_pos, end_pos)
+      :: mid_diff_adjusted)
+
 
 (* **************************************************************** *)
 (* Text survival and tracking *)
@@ -386,256 +433,13 @@ let make_survival_index (chunks: word array array) : ((word * word * word), (int
       let c = chunks.(c_idx) in 
       let chunk_len = Array.length (c) in 
       for i = 0 to chunk_len - 3 do 
-	let word_triple = (c.(i), c.(i+1), c.(i+2)) in 
-	Hashtbl_bounded.add idx word_triple (c_idx, i)
+	let words = (c.(i), c.(i+1), c.(i+2)) in 
+	Hashtbl_bounded.add idx words (c_idx, i)
       done
     end
   done;
   idx;;
 	
-
-(** [text_survival words1 words1_attr dead_chunks dead_chunks_attr words2] 
-    takes a piece of text [words1], where each word has its own attribute,
-    specified in [words1_attr], and a list of dead chunks [dead_chunks] with 
-    their attributes, in [dead_chunks_attr], and a list of new words [words2],
-    representing the successive version of the text.  
-    The function matches [words2] with [words1] and [dead_chunks], producing 
-    [dead_chunks_2].  It also creates attributes for [words2] and 
-    [dead_chunks_2], as follows: 
-    - the function [f_inherit live1 live2] specifies how to compute an attribute of 
-      version 2 ([words2] or [dead_chunks_2]) from one of version 1
-      ([words1] or [dead_chunks]), given two flags [live1] and [live2] that 
-      specify whether the text is live or dead in versions 1 and 2. 
-    - the constant [c_new] specifies an attribute of new text
-      for [words2]. 
-
-    It also takes a function attr_inherit, which specifies how attributes 
-    are modified when inherited from one revision to the next
- *)
-let text_survival 
-    (words1: word array)
-    (words1_attr: 'a array) 
-    (dead_chunks: word array list)
-    (dead_chunks_attr: 'a array list)
-    (words2: word array)
-    (f_inherit: bool -> bool -> 'a -> 'a)
-    (c_new: 'a)
-    : ('a array) * (word array list) * ('a array list) 
-    =
-  let chunks1_list = words1 :: dead_chunks in 
-  let attr1_list = words1_attr :: dead_chunks_attr in 
-  let chunks1 = Array.of_list chunks1_list in 
-  let attr1 = Array.of_list attr1_list in 
-
-  (* Make an index of chunks1 *)
-  let idx1 = make_survival_index chunks1 in 
-  
-  (* creates the heap for the matches *)
-  let heap = Heap.create () in 
-  
-  let len2 = Array.length (words2) in 
-  let len1 = Array.map Array.length chunks1 in 
-
-  (* This function tells us whether a match is big enough to be worth 
-     putting in the heap, depending whether it's a match with live or dead 
-     text (given by c1_idx = 0). *)
-  let big_enough l c1_idx = 
-    if c1_idx = 0 then l >= min_copy_amount 
-    else l >= min_dead_copy_amount
-  in
-
-    (* prev_matches is used to avoid putting smaller matches in the heap when a bigger 
-     one in the same location has already been found *)
-  let prev_matches = ref [] in 
-  (* the - 2 is because we use word pairs to index the hash table *)
-  for i2 = 0 to len2 - 3 do 
-    let word_tuple = (words2.(i2), words2.(i2 + 1), words2.(i2 + 2)) in 
-    if Hashtbl_bounded.mem idx1 word_tuple then
-      begin
-	let matches = Hashtbl_bounded.find_all idx1 word_tuple in 
-	(* We care only if there are at most max_matches matches *)
-	if List.length (matches) > max_matches 
-	then Hashtbl_bounded.remove_all idx1 word_tuple
-	else 
-	  begin
-	    (* This function processes a match at position i2 of words2 *)
-	    let process_match (m: int * int) = 
-	      let (c1_idx, i1) = m in 
-	      (* if (c1_idx, i1 - 1) is in prev_matches, then we don't need to do anything, 
-		 since a superset match has already been added *)
-	      if not (List.mem (c1_idx, i1 - 1) !prev_matches) then
-		begin
-		  (* Now we check how long the match is; the min len is 2 of course,
-		     since the index contains word pairs *)
-		  let l = ref 2 in 
-		  while (i1 + !l < len1.(c1_idx)) && (i2 + !l < len2) && 
-		    (chunks1.(c1_idx).(i1 + !l) = words2.(i2 + !l)) do l := !l + 1 done; 
-		  (* Ok, the match starts in i1, i2, and has length !l *)
-		  if big_enough !l c1_idx then 
-		    (* we add it only if it is long enough *)
-		    begin
-		      let q = quality !l i1 len1.(c1_idx) i2 len2 c1_idx in 
-		      (* Adds it to the heap *)
-		      ignore (Heap.add heap (!l, c1_idx, i1, i2) q)
-		    end
-		end
-		  (* Applies it to all matches *)
-	    in List.iter process_match matches; 
-	    (* keeps track of the previous matches *)
-	    prev_matches := matches
-	  end
-      end
-    else prev_matches := []
-  done;
-
-  (* At this point, all the matches between chunks1 and words2 are in heap *)
-  (* Creates an array which keep track of what has been matched in words2 *)
-  let matched2 = Array.make len2 0 in
-  (* This is used to quickly find out if both ends of a supposed match are 
-     matched by the same match *)
-  let match_id = ref 0 in 
-  (* matched1 keeps track instead of how many times a piece of text has been matched. *)
-  let f a = Array.make (Array.length a) 0 in 
-  let matched1 = Array.map f chunks1 in 
-  (* words2_attr are the new attributes of words in words2 *)
-  let words2_attr = Array.make len2 c_new in 
-
-  (* Removes the matches one by one *)
-  while not (Heap.is_empty heap) do 
-    begin
-      let m = Heap.take heap in
-      match_id := !match_id + 1; 
-      let (l, c1_idx, i1, i2) = m.Heap.contents in 
-      (* Checks whether it has been matched.  As we pull out 
-	 longest matches first (in each chunk), we can just
-	 check the endpoints. *)
-      if matched2.(i2) = 0 then 
-	(* lower end is not matched *)
-	if matched2.(i2 + l - 1) = 0 then 
-	  (* upper end is not matched *)
-	  for l' = 0 to l - 1 do 
-	    begin
-	      (* computes the new attribute of the text *)
-	      words2_attr.(i2 + l') <- f_inherit (c1_idx = 0) true attr1.(c1_idx).(i1 + l'); 
-	      (* ... and marks the text matched *)
-	      matched2.(i2 + l') <- !match_id;
-	      matched1.(c1_idx).(i1 + l') <- 1 + matched1.(c1_idx).(i1 + l')
-	    end
-	  done
-	else 
-	  (* lower end is unmatched, upper end is matched *)
-	  begin
-	    (* Figures out the longest residual match, and puts it back into the heap *)
-	    let k = ref (l - 2) in (* we know l - 1 is matched already *)
-	    while matched2.(i2 + !k) <> 0 do k := !k - 1 done; 
-	    let res_l = !k + 1 in (* res_l is the len of the residual match *)
-	    if big_enough res_l c1_idx then begin
-	      let q = quality res_l i1 len1.(c1_idx) i2 len2 c1_idx in 
-	      ignore (Heap.add heap (res_l, c1_idx, i1, i2) q)
-	    end
-	  end
-      else
-	(* lower end is matched *)
-	if matched2.(i2 + l - 1) = 0 then 
-	  (* upper end is not matched *)
-	  begin
-	    (* Figures out the longest residual match, and puts it back into the heap *)
-	    let j = ref 1 in (* we know 0 is matched already *)
-	    while matched2.(i2 + !j) <> 0 do j := !j + 1 done; 
-	    let res_l = l - !j in (* res_l is the len of the residual match *)
-	    if big_enough res_l c1_idx then begin
-	      let q = quality 
-		res_l (i1 + !j) len1.(c1_idx) (i2 + !j) len2 c1_idx in 
-	      ignore (Heap.add heap (res_l, c1_idx, i1 + !j, i2 + !j) q)
-	    end
-	  end
-	else 
-	  (* both ends are matched *)
-	  (* we need to look at whether there is an umatched portion in the middle, 
-	     if the match ends have different ids *)
-	  if matched2.(i2) <> matched2.(i2 + l - 1) then 
-	    (* there can be only one such portion, as we pull out matches from the heap
-	       longest first *)
-	    begin 
-	      let j = ref 1 in 
-	      while !j < l - 1 && matched2.(i2 + !j) <> 0 do 
-		j := !j + 1 done;
-	      let k = ref (!j + 1) in 
-	      while !k < l - 1 && matched2.(i2 + !k) <> 0 do 
-		k := !k + 1 done;
-	      let res_l = !k - !j in 
-	      if big_enough res_l c1_idx then begin
-		let q = quality 
-		  res_l (i1 + !j) len1.(c1_idx) (i2 + !j) len2 c1_idx in 
-		ignore (Heap.add heap (res_l, c1_idx, i1 + !j, i2 + !j) q)
-	      end
-	    end
-    end
-  done; (* while heap is not empty *)
-
-  (* I removed the surround effect; it is now replaced by min_copy_amount *)
-
-  (* Great; at this point, we have to cope with the unmatched stuff on the 
-     first side, to generate the dead chunks for the second version. *)
-  let dead_chunks2_l = ref [] in 
-  let dead_chunks2_attr_l = ref [] in 
-
-  for c1_idx = 0 to Array.length (matched1) - 1 do 
-    begin 
-      let in_matched = ref true in 
-      let unmatched_start = ref 0 in 
-      for i1 = 0 to len1.(c1_idx) - 1 do 
-	if (!in_matched) && (matched1.(c1_idx).(i1) = 0) then 
-	  begin 
-	    (* this is the start of an unmatched chunk *)
-	    in_matched := false;
-	    unmatched_start := i1; 
-	  end;
-	if (not !in_matched) && (matched1.(c1_idx).(i1) > 0) then 
-	  begin
-	    (* this is the end of an unmatched chunk *)
-	    in_matched := true;
-	    if i1 - !unmatched_start >= min_dead_chunk_len then
-	      begin
-		(* Creates the word array for the dead chunk *)
-		let l = i1 - !unmatched_start in 
-		dead_chunks2_l := (Array.sub chunks1.(c1_idx) !unmatched_start l) 
-		                  :: !dead_chunks2_l;
-		(* Creates the attribute array for the dead chunk *)
-		let dead_chunk2_attr = Array.sub attr1.(c1_idx) !unmatched_start l in 
-		(* Now recomputes the attributes *)
-		for k = 0 to l - 1 do 
-		  dead_chunk2_attr.(k) <- f_inherit (c1_idx = 0) false dead_chunk2_attr.(k)
-		done;
-		(* and adds it to the list of results *)
-		dead_chunks2_attr_l := dead_chunk2_attr :: !dead_chunks2_attr_l
-	      end
-	  end
-      done; 
-      (* takes care of the last portion *)
-      if (not !in_matched) && len1.(c1_idx) >= (!unmatched_start + min_dead_chunk_len) then 
-	begin
-	  (* Creates the word array for the dead chunk *)
-	  let l = len1.(c1_idx) - !unmatched_start in 
-	  dead_chunks2_l := (Array.sub chunks1.(c1_idx) !unmatched_start l) 
-	                    :: !dead_chunks2_l;
-	  (* Creates the attribute array for the dead chunk *)
-	  let dead_chunk2_attr = Array.sub attr1.(c1_idx) !unmatched_start l in 
-	  (* Now recomputes the attributes *)
-	  for k = 0 to l - 1 do 
-	    dead_chunk2_attr.(k) <- f_inherit (c1_idx = 0) false dead_chunk2_attr.(k)
-	  done;
-	  (* and adds it to the list of results *)
-	  dead_chunks2_attr_l := dead_chunk2_attr :: !dead_chunks2_attr_l
-	end
-    end
-  done; (* for each c1_idx *)
-
-  (* We can finally assemble the result *)
-  (words2_attr, !dead_chunks2_l, !dead_chunks2_attr_l);;
-
-(* **************************************************************** *)
-(* New version of code *)
 
 (** [text_tracking chunks1 words2] takes an array of text [chunks1], 
     and a new word [words2], and produces a new list of chunks [chunks2], 
@@ -687,7 +491,7 @@ let text_tracking
 	      if not (List.mem (c1_idx, i1 - 1) !prev_matches) then
 		begin
 		  (* Now we check how long the match is; the min len is 2 of course,
-		     since the index contains word pairs *)
+		     since the index contains at least word pairs *)
 		  let l = ref 2 in 
 		  while (i1 + !l < len1.(c1_idx)) && (i2 + !l < len2) && 
 		    (chunks1.(c1_idx).(i1 + !l) = words2.(i2 + !l)) do l := !l + 1 done; 
@@ -888,157 +692,6 @@ let text_tracking
 (* **************************************************************** *)
 (* Unit testing of text diff functions *)
 
-
-(** Unit test for text survival *)
-if false then begin
-  let c_new = 1 in 
-  let f_inherit live1 live2 val1 = 
-    if live2 then 
-      if live1 
-      then val1 + 3
-      else val1 + 4
-    else
-      if live1
-      then val1 + 1
-      else val1 + 2
-  in
-  let ts1 = "Il bene comune coincide col bene individuale." in 
-  let ts2 = "Il bene comune non coincide col bene individuale." in 
-  let ts3 = "Nella maggior parte dei casi, il bene comune non coincide con il bene individuale." in 
-  let ts4 = "In molti casi, il bene comune non coincide completamente con quello individuale, a causa dell'egoismo delle persone." in 
-  let ts5 = "In molti casi, il bene comune non coincide con quello individuale.  Questo e' causato dall'egoismo delle persone, che cercano di massimizzare il loro bene individuale, invece di quello comune." in 
-  let ts6 = "In generale, il bene comune non coincide con quello individuale.  La causa e' l'egoismo delle persone, che cercano di massimizzare il loro bene individuale, invece di quello comune." in 
-  let ts7 = "In generale, il bene comune non coincide con quello individuale, dato che le persone non badano a quello comune." in 
-  let ts8 = "Volete comperare Viagra? Molto buono basso prezzo dato che le persone non badano a quello comune." in 
-  let ts9 = ts7 in 
-
-  let print_vals (wa: word array) (ia: int array) = 
-    print_string "\n";
-    if not ((Array.length wa) = (Array.length ia))
-    then print_string "Arrays have different lengths!\n"
-    else begin
-      for i = 0 to (Array.length wa) - 1 do 
-	print_string ((string_of_int ia.(i)) ^ ":" ^ wa.(i) ^ " ")
-      done
-    end 
-  in 
-
-  let print_chunks (wal: word array list) (ial: int array list) = 
-    print_string "\nDead chunks:";
-    List.iter2 print_vals wal ial
-  in 
-
-  let make_init_attr (wl: word array) = 
-    let l = Array.length wl in 
-    Array.make l 0
-  in 
-
-  let ta1 = Text.split_into_words false (Vec.singleton ts1) in 
-  let ta2 = Text.split_into_words false (Vec.singleton ts2) in 
-  let ta3 = Text.split_into_words false (Vec.singleton ts3) in 
-  let ta4 = Text.split_into_words false (Vec.singleton ts4) in 
-  let ta5 = Text.split_into_words false (Vec.singleton ts5) in 
-  let ta6 = Text.split_into_words false (Vec.singleton ts6) in 
-  let ta7 = Text.split_into_words false (Vec.singleton ts7) in 
-  let ta8 = Text.split_into_words false (Vec.singleton ts8) in 
-  let ta9 = Text.split_into_words false (Vec.singleton ts9) in 
-
-  let ia1 = make_init_attr ta1 in 
-
-  print_vals ta1 ia1; 
-
-  let (ia2, tc2, ic2) = text_survival ta1 ia1 [] [] ta2 f_inherit c_new in 
-  print_string "\n\n";
-  print_vals ta2 ia2;
-  print_chunks tc2 ic2; 
-
-  let (ia3, tc3, ic3) = text_survival ta2 ia2 tc2 ic2 ta3 f_inherit c_new in 
-  print_string "\n\n";
-  print_vals ta3 ia3;
-  print_chunks tc3 ic3; 
-
-  let (ia4, tc4, ic4) = text_survival ta3 ia3 tc3 ic3 ta4 f_inherit c_new in 
-  print_string "\n\n";
-  print_vals ta4 ia4;
-  print_chunks tc4 ic4; 
-
-  let (ia5, tc5, ic5) = text_survival ta4 ia4 tc4 ic4 ta5 f_inherit c_new in 
-  print_string "\n\n";
-  print_vals ta5 ia5;
-  print_chunks tc5 ic5;
-
-  let (ia6, tc6, ic6) = text_survival ta5 ia5 tc5 ic5 ta6 f_inherit c_new in 
-  print_string "\n\n";
-  print_vals ta6 ia6;
-  print_chunks tc6 ic6;
-
-  let (ia7, tc7, ic7) = text_survival ta6 ia6 tc6 ic6 ta7 f_inherit c_new in 
-  print_string "\n\n";
-  print_vals ta7 ia7;
-  print_chunks tc7 ic7;
-
-  print_string "\n\n";
-
-  let c_new = 0 in 
-  let f_inherit live1 live2 val1 = 
-    if live2 then 
-      if live1 
-      then val1 + 1
-      else val1 + 1
-    else
-      if live1
-      then val1
-      else val1
-  in
-    
-  let ia1 = make_init_attr ta1 in 
-
-  print_vals ta1 ia1; 
-
-  let (ia2, tc2, ic2) = text_survival ta1 ia1 [] [] ta2 f_inherit c_new in 
-  print_string "\n\n";
-  print_vals ta2 ia2;
-  print_chunks tc2 ic2; 
-
-  let (ia3, tc3, ic3) = text_survival ta2 ia2 tc2 ic2 ta3 f_inherit c_new in 
-  print_string "\n\n";
-  print_vals ta3 ia3;
-  print_chunks tc3 ic3; 
-
-  let (ia4, tc4, ic4) = text_survival ta3 ia3 tc3 ic3 ta4 f_inherit c_new in 
-  print_string "\n\n";
-  print_vals ta4 ia4;
-  print_chunks tc4 ic4; 
-
-  let (ia5, tc5, ic5) = text_survival ta4 ia4 tc4 ic4 ta5 f_inherit c_new in 
-  print_string "\n\n";
-  print_vals ta5 ia5;
-  print_chunks tc5 ic5;
-
-  let (ia6, tc6, ic6) = text_survival ta5 ia5 tc5 ic5 ta6 f_inherit c_new in 
-  print_string "\n\n";
-  print_vals ta6 ia6;
-  print_chunks tc6 ic6;
-
-  let (ia7, tc7, ic7) = text_survival ta6 ia6 tc6 ic6 ta7 f_inherit c_new in 
-  print_string "\n\n";
-  print_vals ta7 ia7;
-  print_chunks tc7 ic7;
-
-  let (ia8, tc8, ic8) = text_survival ta7 ia7 tc7 ic7 ta8 f_inherit c_new in 
-  print_string "\n\n";
-  print_vals ta8 ia8;
-  print_chunks tc8 ic8;
-
-  let (ia9, tc9, ic9) = text_survival ta8 ia8 tc8 ic8 ta9 f_inherit c_new in 
-  print_string "\n\n";
-  print_vals ta9 ia9;
-  print_chunks tc9 ic9;
-
-  print_string "\n\n"
-
-end;;
-
 (** Unit test for text tracking *)
 
 if false then begin
@@ -1156,14 +809,13 @@ if false then
     let text2a = "nel bel mezzo del cammin di nostra vita mi trovai in una selva oscura che la diritta via era smarrita" in
     let text2b = "nel frammezzo del cammin di nostra esistenza mi trovai nel bel mezzo di una selva oscura dove la via era smarrita e non mi trovai nel cammin di casa nostra" in
     
-    let text3a = "a me piace bere il caffe' dopo che mi sono svegliato" in
-    let text3b = "dopo che mi sono svegliato, a me piace bere il mio caffe'" in
+    let text3a = "a b c d e f g m n o p q r" in
+    let text3b = "a b c d e f g e f g m n o p q r" in
     
     let test_edit_diff t1 t2 = 
       let w1 = Text.split_into_words false (Vec.singleton t1) in 
       let w2 = Text.split_into_words false (Vec.singleton t2) in 
-      let i2 = make_index_diff w2 in 
-      let e = edit_diff w1 w2 i2 in 
+      let e = edit_diff w1 w2 in 
       Text.print_words w1; 
       Text.print_words w2;  
       print_diff e
@@ -1182,8 +834,7 @@ if false then
     let test_edit_diff t1 t2 = 
       let w1 = Text.split_into_words false (Vec.singleton t1) in 
       let w2 = Text.split_into_words false (Vec.singleton t2) in 
-      let i2 = make_index_diff w2 in 
-      let e = edit_diff w1 w2 i2 in 
+      let e = edit_diff w1 w2 in 
       Text.print_words w1; 
       print_string "\n";
       Text.print_words w2;  
@@ -1223,13 +874,12 @@ if false then begin
     begin
       print_newline (); 
       print_string ((string_of_int (i + 1)) ^ ": ");
-      let idx = make_index_diff t.(i) in 
       for j = 0 to i - 1 do 
 	begin
 	  let l1 = Array.length (t.(i)) in 
 	  let l2 = Array.length (t.(j)) in 
 	  let l = min l1 l2 in 
-	  print_string (string_of_float (edit_distance (edit_diff t.(j) t.(i) idx) l));
+	  print_string (string_of_float (edit_distance (edit_diff t.(j) t.(i)) l));
 	  print_string " "
 	end
       done

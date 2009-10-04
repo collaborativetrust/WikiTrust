@@ -49,9 +49,7 @@ open Online_types
 
 (** type of analysis that is requested *)
 type analysis_t = 
-    Linear_analysis
-  | Circular_analysis
-  | Reputation_analysis
+    Reputation_analysis
   | Contribution_analysis
   | Trust_color
   | Trust_syntactregion_color
@@ -190,8 +188,6 @@ class page_factory
 
     method print_mode = 
       match mode with 
-        Linear_analysis -> Printf.fprintf stderr "linear\n"; flush stderr
-      | Circular_analysis -> Printf.fprintf stderr "circular\n"; flush stderr
       | Reputation_analysis -> Printf.fprintf stderr "reputation\n"; flush stderr
       | Contribution_analysis -> Printf.fprintf stderr "contrib\n"; flush stderr
       | Trust_color -> Printf.fprintf stderr "color\n"; flush stderr
@@ -207,8 +203,6 @@ class page_factory
       | WordFequency -> ()
 
     (* These methods are used to set the appropriate evaluation *)
-    method set_linear () = mode <- Linear_analysis
-    method set_circular () = mode <- Circular_analysis
     method set_reputation () = mode <- Reputation_analysis
     method set_contribution () = mode <- Contribution_analysis
     method set_trust_color () = mode <- Trust_color
@@ -253,12 +247,9 @@ class page_factory
 
     (* This method gets the argument list part to be used to parse the command line *)      
     method get_arg_parser = 
-      [("-linear", Arg.Unit self#set_linear, "Uses the old algorithm that keeps all versions in memory.");
-
+      [
        ("-author-text", Arg.Unit self#set_author_text, "Counts the text each author contributes.");
        ("-word-freq", Arg.Unit self#set_word_freq, "Counts the frequency of each word");
-
-       ("-circular", Arg.Unit self#set_circular, "Uses the on-the-fly algo based on the circular buffer.");
        ("-compute_stats", Arg.Unit self#set_reputation, "Produces the reduced stats files used to compute author reputation."); 
        ("-do_text", Arg.Set do_text, "Uses also text longevity to compute reputation increments.");
        ("-eval_contrib", Arg.Unit self#set_contribution, "Evaluates the contribution given by users of different reputation."); 
@@ -300,17 +291,11 @@ class page_factory
     (** Makes a page for the primary name space, where analysis must occur. *)
     method make_page (id: int) (title: string) : page = 
       match mode with 
-        Linear_analysis -> new Linear_analysis.page id title out_file
-	  n_text_judging n_edit_judging !equate_anons
-      | Circular_analysis -> new Circbuf_analysis.page id title out_file
- 	  n_text_judging n_edit_judging !equate_anons
-  
       | AuthorText -> new Author_text_analysis.page id title out_file
  	  !equate_anons
       | WordFequency -> new Word_frequency.page id title out_file
  	  !equate_anons
 	
-
       | Reputation_analysis -> new Reputation_analysis.page id title out_file 
 	  eval_zip_error be_precise
 	  n_text_judging n_edit_judging !equate_anons !do_text
@@ -381,8 +366,7 @@ class page_factory
       words_file <- stderr;
       begin 
 	match mode with 
-	  Linear_analysis | Circular_analysis | Reputation_analysis 
-	    -> out_file <- open_out stats_name
+	  Reputation_analysis -> out_file <- open_out stats_name
 	| Contribution_analysis | Revcount_analysis | Intertime_analysis 
 	    -> out_file <- open_out default_name
 	| Trust_color | Trust_syntactregion_color | Trust_and_origin

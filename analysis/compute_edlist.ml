@@ -353,8 +353,7 @@ let edit_diff_using_zipped_edits
   let (info_l, local_wl) = make_arrays_for_local_diff cl wl left_separator in 
   let (info_r, local_wr) = make_arrays_for_local_diff cr wr right_separator in 
   (* Now computes the local difference between local_wl and local_wr *)
-  let index_r = Chdiff.make_index_diff local_wr in 
-  let local_diff = Chdiff.edit_diff local_wl local_wr index_r in 
+  let local_diff = Chdiff.edit_diff local_wl local_wr in 
   (* And from the local difference, computes a global one *)
   (global_from_local_diff info_l info_r cl cr local_diff) @ zipped_diffs;;
 
@@ -406,13 +405,11 @@ if false then begin
       let w0 = t.(i) in 
       for j = i + 1 to len - 2 do begin
 	let w1 = t.(j) in 
-	let i1 = Chdiff.make_index_diff w1 in 
-	let e1 = Chdiff.edit_diff w0 w1 i1 in 
+	let e1 = Chdiff.edit_diff w0 w1 in 
 	for k = j + 1 to len - 1 do begin 
 	  let w2 = t.(k) in 
-	  let i2 = Chdiff.make_index_diff w2 in 
-	  let e2 = Chdiff.edit_diff w1 w2 i2 in 
-	  let e02 = Chdiff.edit_diff w0 w2 i2 in 
+	  let e2 = Chdiff.edit_diff w1 w2 in 
+	  let e02 = Chdiff.edit_diff w0 w2 in 
 	  (* Difference from i to k directly *)
 	  Printf.printf "\n================================================================\n";
 	  Printf.printf "Difference between %d %d %d:\n" i j k; 
@@ -430,10 +427,8 @@ if false then begin
   end;
   if false then begin
     Printf.printf "\n================================================================\n";
-    let i11 = Chdiff.make_index_diff ta11 in
-    let i12 = Chdiff.make_index_diff ta12 in
-    let e_11_12 = Chdiff.edit_diff ta11 ta12 i12 in 
-    let e_12_11 = Chdiff.edit_diff ta12 ta11 i11 in
+    let e_11_12 = Chdiff.edit_diff ta11 ta12 in 
+    let e_12_11 = Chdiff.edit_diff ta12 ta11 in
     let e_11_11 = edit_diff_using_zipped_edits ta11 ta11 e_11_12 e_12_11 in
     let e_12_12 = edit_diff_using_zipped_edits ta12 ta12 e_12_11 e_11_12 in
     Printf.printf "\n 11 to 12: "; print_diff e_11_12;
@@ -443,12 +438,9 @@ if false then begin
   end;
   if true then begin
     Printf.printf "\n================================================================\n";
-    let i13 = Chdiff.make_index_diff ta13 in
-    let i14 = Chdiff.make_index_diff ta14 in
-    let i15 = Chdiff.make_index_diff ta15 in
-    Printf.printf "\n 13 to 13: ";  print_diff (Chdiff.edit_diff ta13 ta13 i13);
-    Printf.printf "\n 13 to 14: ";  print_diff (Chdiff.edit_diff ta13 ta14 i14);
-    Printf.printf "\n 14 to 15: ";  print_diff (Chdiff.edit_diff ta14 ta15 i15);
-    Printf.printf "\n 13 to 15: ";  print_diff (Chdiff.edit_diff ta13 ta15 i15);
+    Printf.printf "\n 13 to 13: ";  print_diff (Chdiff.edit_diff ta13 ta13);
+    Printf.printf "\n 13 to 14: ";  print_diff (Chdiff.edit_diff ta13 ta14);
+    Printf.printf "\n 14 to 15: ";  print_diff (Chdiff.edit_diff ta14 ta15);
+    Printf.printf "\n 13 to 15: ";  print_diff (Chdiff.edit_diff ta13 ta15);
   end
 end;;
