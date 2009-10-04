@@ -701,17 +701,17 @@ object(self)
       text id [text_id] for revision [rev_id] *)
   method read_rev_text (page_id: int) (rev_id: int) (text_id: int) : string =
     match rev_base_path with 
-      None -> begin
+    | None -> begin
 	let s = Printf.sprintf "SELECT old_text FROM %stext WHERE old_id = %s" db_prefix (ml2int text_id) in
 	let result = self#db_exec mediawiki_dbh s in 
 	match Mysql.fetch result with 
-          None -> raise DB_Not_Found
+        |  None -> raise DB_Not_Found
 	| Some y -> not_null str2ml y.(0)
       end
     | Some b -> begin
 	let result = Filesystem_store.read_revision b page_id rev_id in
 	match result with 
-	  None -> raise DB_Not_Found
+	| None -> raise DB_Not_Found
 	| Some r -> r
       end
 
@@ -810,7 +810,7 @@ object(self)
     let results = ref [] in
     while !n_attempts < n_retries do 
       begin 
-	try begin 
+	try Printexc.print (fun () -> begin 
 	  self#start_transaction;
 	  let s = Printf.sprintf "SELECT page_id, page_title FROM %swikitrust_queue WHERE processed = 'unprocessed' ORDER BY requested_on ASC LIMIT %s" 
 	    db_prefix (ml2int max_to_get) in
@@ -826,11 +826,12 @@ object(self)
           (* We need to end this loop. *)
           self#commit;
           n_attempts := n_retries   
-	end with _ -> begin 
-	  (* Roll back *)
-	  self#rollback_transaction;
-	  n_attempts := !n_attempts + 1
-	end
+	end ) () with 
+	| _ -> begin 
+	    (* Roll back *)
+	    self#rollback_transaction;
+	    n_attempts := !n_attempts + 1
+	  end
       end done; (* End of the multiple attempts at the transaction *)
     !results
       
@@ -868,12 +869,12 @@ object(self)
   method private write_revision_text (rev : wiki_revision_t) =
     begin
       match rev_base_path with
-	        None ->
-	          let s = Printf.sprintf "INSERT INTO %stext (old_id, old_text, old_flags) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE old_flags = %s" db_prefix (ml2int rev.revision_id) (ml2str rev.revision_content) (ml2str "utf8") (ml2str "utf8") in
-	            ignore (self#db_exec mediawiki_dbh s)
-        | Some b ->
-	          Filesystem_store.write_revision b 
-	            rev.revision_page rev.revision_id rev.revision_content;
+      | None ->
+	  let s = Printf.sprintf "INSERT INTO %stext (old_id, old_text, old_flags) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE old_flags = %s" db_prefix (ml2int rev.revision_id) (ml2str rev.revision_content) (ml2str "utf8") (ml2str "utf8") in
+	  ignore (self#db_exec mediawiki_dbh s)
+      | Some b ->
+	  Filesystem_store.write_revision b 
+	    rev.revision_page rev.revision_id rev.revision_content;
     end
 
   (** [write_revision revision_to_add] adds the given data to the
@@ -965,44 +966,51 @@ object(self)
   (** Puts the text in the text cache, and the rest in the db using the 
       super method *)
   method private write_revision_text (rev : wiki_revision_t) =
-    let s = Printf.sprintf "INSERT INTO %swikitrust_text_cache (revision_id, page_id, time_string, revision_text) VALUES (%s, %s, %s, %s) ON DUPLICATE KEY UPDATE time_string = %s" db_prefix (ml2int rev.revision_id) (ml2int rev.revision_page) (ml2str rev.revision_timestamp) (ml2str rev.revision_content) (ml2str rev.revision_timestamp) in
-	    ignore (self#db_exec mediawiki_dbh s);
+    begin
+      match rev_base_path with
+      | None -> (
+ 	  let s = Printf.sprintf "INSERT INTO %swikitrust_text_cache (revision_id, page_id, time_string, revision_text) VALUES (%s, %s, %s, %s) ON DUPLICATE KEY UPDATE time_string = %s" db_prefix (ml2int rev.revision_id) (ml2int rev.revision_page) (ml2str rev.revision_timestamp) (ml2str rev.revision_content) (ml2str rev.revision_timestamp) in
+	  ignore (self#db_exec mediawiki_dbh s);
+	)
+      | Some b ->
+	  Filesystem_store.write_revision b 
+	    rev.revision_page rev.revision_id rev.revision_content;
+    end
 
   (** [get_rev_text page_id text_id] returns the text associated with
       text id [text_id].  This method first tries to read the revision
       text from the cache.  If it does not succeed, it reads it from
       the exec api.  *)
   method read_rev_text (page_id: int) (rev_id: int) (text_id: int) : string =
-    let s = Printf.sprintf "SELECT revision_text FROM %swikitrust_text_cache WHERE revision_id = %s"
-      db_prefix (ml2int rev_id) in 
-    let result = self#db_exec mediawiki_dbh s in
-      match Mysql.fetch result with 
-          None -> begin 
-          (* No -- actally, just do the getting via WmAPI -- issue of getting 
-             via page_title too annoying *)
-            
-	          (* Tries to read the revision using the exec API *)
-	          (* NO: this is a bad idea.  
-               Ian: why?
-               Just say that the text can't be found, and make sure
-	             the dispatcher knows that the page is not fully updated. 
-               Luca, fix this. 
-            *)
-            
-	          (*super#read_rev_text page_id rev_id text_id *)
-	          (* TODO(Bo): need to switch to true execAPI *)
-	          let cmdline = Printf.sprintf "%sread_rev_text -log_file /dev/null -rev_id %d" "" rev_id in
-	            get_cmd_output cmdline
+    match rev_base_path with 
+    | None -> begin
+	let s = Printf.sprintf "SELECT revision_text FROM %swikitrust_text_cache WHERE revision_id = %s"
+	  db_prefix (ml2int rev_id) in 
+	let result = self#db_exec mediawiki_dbh s in
+	match Mysql.fetch result with 
+        | None -> begin 
+	    let cmdline = Printf.sprintf "%sread_rev_text -log_file /dev/null -rev_id %d" "" rev_id in
+	    get_cmd_output cmdline
           end
-        | Some r -> not_null str2ml r.(0)
-            
+	| Some r -> not_null str2ml r.(0)
+      end
+    | Some b -> begin
+	let result = Filesystem_store.read_revision b page_id rev_id in
+	match result with 
+	| None -> raise DB_Not_Found
+	| Some r -> r
+      end
+   
   (** [erase_cached_rev_text page_id rev_id rev_time_string] erases
       the cached text of all revisions of [page_id] *)
   method erase_cached_rev_text (page_id: int) : unit =
-    let s = Printf.sprintf "DELETE FROM %swikitrust_text_cache WHERE page_id = %s" 
-      db_prefix (ml2int page_id) in
-      ignore (self#db_exec mediawiki_dbh s)
-
+    match rev_base_path with
+    | None -> begin
+	let s = Printf.sprintf "DELETE FROM %swikitrust_text_cache WHERE page_id = %s" 
+	  db_prefix (ml2int page_id) in
+	ignore (self#db_exec mediawiki_dbh s)
+      end
+    | Some b -> Filesystem_store.delete_revision b page_id None
 
   (**  [fetch_all_revs_after] is like the superclass method, except that it
        uses the exec api to read the revisions. *)
