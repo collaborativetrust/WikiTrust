@@ -156,8 +156,8 @@ class revision
 	   since otherwise Text chokes on it *)
 	let buf = Textbuf.add (db#read_rev_text page_id rev_id text_id) 
 	  Textbuf.empty in 
-	let (w, _, _, _, s_idx, s) = 
-	  Text.split_into_words_seps_and_info false (Textbuf.get buf) in 
+	let (w, s_idx, s) = 
+	  Text.split_into_words_and_seps false (Textbuf.get buf) in 
 	words <- w; 
 	seps <- s; 
 	sep_word_idx <- s_idx;
