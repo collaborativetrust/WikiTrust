@@ -13,8 +13,7 @@
 
 ENV="env -i LANG=C PATH=/usr/local/bin:/usr/bin:/bin"
 
-WIKITRUST_DISPATCHER="meta_dispatcher"
-WIKITRUST_USER="sudo su - ipye -c "
+WIKITRUST_DISPATCHER="/usr/bin/meta_dispatcher"
 
 . /lib/lsb/init-functions
 
@@ -26,7 +25,7 @@ start_dispatcherclean() {
 	log_daemon_msg "Already running"    
 	return 1
     else
-	$WIKITRUST_USER "$WIKITRUST_DISPATCHER &"
+	$WIKITRUST_DISPATCHER &
 	log_daemon_msg ""    
 	return 0
     fi
