@@ -14,6 +14,7 @@ use CGI::Carp;
 use IO::Zlib;
 use Compress::Zlib;
 use Cache::Memcached;
+use Data::Dumper;
 #use Time::HiRes qw(gettimeofday tv_interval);
 
 use constant SLEEP_TIME => 3;
@@ -61,9 +62,7 @@ sub handler {
     my $E = shift;
     print STDERR $E;
   };
-  $r->content_type('text/plain');
-  $r->print($result);
-  return Apache2::Const::OK;
+  return $result;
 }
 
 sub get_stdargs {
@@ -115,12 +114,15 @@ sub handle_vote {
   my ($dbh, $cgi, $r) = @_;
   my ($rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
 
+  $r->content_type('text/plain');
+
   # can't trust non-verified submitters
   $user = 0 if !secret_okay($cgi);
 
   my $sel_sql = "SELECT voter_name FROM wikitrust_vote WHERE voter_name = ? AND revision_id = ?";
   if (my $ref = $dbh->selectrow_hashref($sel_sql, {}, ($user, $rev))){
-    return "dup"
+    $r->print('dup');
+    return Apache2::Const::OK;
   }
 
   my $sth = $dbh->prepare("INSERT INTO wikitrust_vote (revision_id, page_id, "
@@ -138,7 +140,8 @@ sub handle_vote {
   # that the vote was recorded.
   # We could change this to be the re-colored wiki-text, reflecting the
   # effect of the vote, if you like.
-  return "good";
+  $r->print('good');
+  return Apache2::Const::OK;
 }
 
 sub get_median {
@@ -233,11 +236,13 @@ sub handle_edit {
   # since we still need to download actual text,
   # it's safe to not verify the submitter
   mark_for_coloring($page, $page_title, $dbh);
-  return "good"
+  $r->content_type('text/plain');
+  $r->print('good');
+  return Apache2::Const::OK;
 }
 
 sub util_ColorIfAvailable { 
-  my ($dbh, $page, $rev) = @_;
+  my ($dbh, $page, $rev, $page_title) = @_;
   my $result = fetch_colored_markup($page, $rev, $dbh);
   if ($result eq NOT_FOUND_TEXT_TOKEN){
     # If the revision is not found among the colored ones,
@@ -254,7 +259,7 @@ sub util_ColorIfAvailable {
 sub handle_gettext {
   my ($dbh, $cgi, $r) = @_;
   my ($rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
-  my $result = util_ColorIfAvailable($dbh, $page, $rev);
+  my $result = util_ColorIfAvailable($dbh, $page, $rev, $page_title);
   if ($result eq NOT_FOUND_TEXT_TOKEN) {
     $r->headers_out->{'Cache-Control'} = "max-age=" . 60;
   } else {
@@ -269,8 +274,8 @@ sub handle_wikiorhtml {
   my ($dbh, $cgi, $r) = @_;
   my ($rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
   my $cache = util_getCache();
-  my $data = $cache->get($revid);
-  if (defined $data) {
+  my $data = $cache->get($rev);
+  if (defined $data && ref $data eq 'HASH') {
     $r->headers_out->{'Cache-Control'} = "max-age=" . 30*24*60*60;
     $r->content_type('text/plain');
     $r->print('H');
@@ -278,11 +283,11 @@ sub handle_wikiorhtml {
     return Apache2::Const::OK;
   }
 
-  my $result = util_ColorIfAvailable($dbh, $page, $rev);
+  my $result = util_ColorIfAvailable($dbh, $page, $rev, $page_title);
   if ($result eq NOT_FOUND_TEXT_TOKEN) {
-    $r->headers_out->{'Cache-Control'} = "max-age=" . 60;
+    $r->headers_out->{'Cache-Control'} = "max-age=" . 30;
   } else {
-    $r->headers_out->{'Cache-Control'} = "max-age=" . 5*60;
+    $r->headers_out->{'Cache-Control'} = "max-age=" . 60;
   }
   $r->content_type('text/plain');
   $r->print('W');
@@ -292,6 +297,8 @@ sub handle_wikiorhtml {
 
 sub handle_stats {
   my ($dbh, $cgi, $r) = @_;
+
+  $r->content_type('text/plain');
 
   my $sth = $dbh->prepare ("SELECT * FROM wikitrust_queue") || die $dbh->errstr;
   $sth->execute() || die $dbh->errstr;
@@ -312,7 +319,7 @@ sub handle_stats {
   my $cache = util_getCache();
   my $stats = $cache->stats();
   foreach my $key (keys %$stats) {
-    $r->print("\t$key = ". $stats->{$key} . "\n");
+    $r->print("\t$key = ". Dumper($stats->{$key}) . "\n");
   }
   return Apache2::Const::OK;
 }
@@ -333,16 +340,22 @@ sub handle_sharehtml {
 
     my $myhtml = $cgi->param('myhtml') || '';
     my $revid = $cgi->param('revid') || 0;
-    return 'Thanks, but no thanks.' if ($myhtml eq '') || ($revid == 0);
+    if (($myhtml eq '') || ($revid == 0)) {
+      $r->content_type('text/plain');
+      $r->print('Thanks, but no thanks.');
+      return Apache2::Const::OK;
+    }
 
     my $c = $r->connection;
     my $remoteip = $c->remote_ip();
+
+warn "Received share from $remoteip";
 
     my $cache = util_getCache();
 
     my $changed = 0;
     my $data = $cache->get($revid);
-    if (!defined $data) {
+    if (!defined $data || (ref $data ne 'HASH')) {
 	$changed = 1;
 	$data = {
 	    'html' => $myhtml,
@@ -356,10 +369,11 @@ sub handle_sharehtml {
 	$data->{src}->{$remoteip} = 1;
     }
 
-    $cache->set($revid) if $changed;
+    $cache->set($revid, $data) if $changed;
 
-    return 'Thanks';
+    $r->content_type('text/plain');
+    $r->print('Thanks.');
+    return Apache2::Const::OK;
 }
-
 
 1;
