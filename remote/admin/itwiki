@@ -1,0 +1,7 @@
+# Config settings for the itwiki
+DISPATCHER="/home/ipye/gits/wikitrust/remote/analysis/dispatcher"
+DB_USER="wikiuser"
+DB_PASS="wikiword"
+DB_NAME="itwiki"
+DB_HOST="localhost"
+OTHER_OPTIONS="-use_wikimedia_api -blob_base_path /raid/itwiki/blobs -robots /tmp/bots.txt -use_exec_api -wiki_api http://it.wikipedia.org/w/api.php -concur_procs 5 -rev_base_path /raid/itwiki/rev_cache 2> /tmp/itwiki-errors.log"

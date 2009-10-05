@@ -1,0 +1,11 @@
+
+
+Scripts here for installing wikitrust as a deamon process.
+
+1) Copy wikitrust to /etc/init.d/wikitrust
+2) Set the /etc/rc.*d values you want
+3) Create the directories /etc/wikitrust,
+     /etc/wikitrust/wikis_available.d, and /etc/wikitrust/wikis_enabled.d
+4) Add wikis to the wikis_available.d and wikis_enabed.d
+     directories. A sample config file is itwiki
+5) Start the dispatcher running with /etc/init.d/wikitrust start
