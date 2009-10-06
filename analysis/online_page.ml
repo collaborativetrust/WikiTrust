@@ -786,7 +786,7 @@ class page
 	(* Fixes the coefficients of trust incease depending on whether
 	   the user is a bot... *)
 	let (read_all', read_part') = 
-	  if Hashtbl.mem robots rev0_uname
+	  if is_user_a_bot robots rev0_uname
 	  then (0., 0.)
 	  else (trust_coeff.read_all, trust_coeff.read_part)
 	in
