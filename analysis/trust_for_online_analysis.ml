@@ -174,7 +174,7 @@ object(self)
       (* Fixes the coefficients of trust incease depending on whether
 	 the user is a bot... *)
       let (read_all', read_part') = 
-	if Hashtbl.mem robots rev#get_user_name 
+	if is_user_a_bot robots rev#get_user_name
 	then (0., 0.)
 	else (trust_coeff_read_all, trust_coeff_read_part)
       in
@@ -230,6 +230,7 @@ object(self)
 	  closest_d := d
 	end
       end done;
+
       (* If the closest revision is not the last one, we check whether we
 	 get a better comparison using that one instead. *)
       if !closest_idx <> rev_idx - 1 then begin

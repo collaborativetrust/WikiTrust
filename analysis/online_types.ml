@@ -322,3 +322,13 @@ let compute_hi_median (a: float array) (m: float) =
 
 let compute_reputation_median a = 
   compute_hi_median a default_trust_coeff.hi_median_perc
+
+(* Decides whether a user is a robot, checking against a hashtable,
+   but also whether its name ends by "bot". *)
+let is_user_a_bot robots username =
+  (Hashtbl.mem robots username) ||
+    (let l = String.length username in
+    l >= 3 && (
+      let s = String.lowercase username in
+      let e = String.sub s (l - 3) 3 in
+      e = "bot"))
