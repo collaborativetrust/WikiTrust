@@ -24,7 +24,7 @@ CREATE TABLE ".$wgDBprefix."wikitrust_global (
 $create_scripts[$wgDBprefix.'wikitrust_page'] = array("
 CREATE TABLE ".$wgDBprefix."wikitrust_page (
        page_id             int PRIMARY KEY,
-       page_title          varbinary(255),
+       page_title          varbinary(255) UNIQUE,
        page_info           text NOT NULL,
        last_blob           int DEFAULT 8
 ) ENGINE=InnoDB","

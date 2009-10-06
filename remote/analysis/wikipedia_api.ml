@@ -440,30 +440,36 @@ let rec download_page_starting_with (db: Online_db.db) (title: string)
   end
 
 let rec download_page_starting_with_from_id (db: Online_db.db) (page_id: int)
-    (last_rev: int) (prev_last_rev: int) : unit =
+    (last_rev: int) (prev_last_rev: int) (n_revs_downloaded) : int =
   let (wiki_page, wiki_revs, next_rev) = get_revs_from_api (Page_Selector page_id) last_rev 50 in
     begin
-    store_wiki_revs db wiki_page wiki_revs;
-    let _ = Unix.sleep sleep_time_sec in
-    match next_rev with
-      Some next_id -> begin
-	if next_id = prev_last_rev then
-	  !logger#log (Printf.sprintf "Not making forward progress -- giving up")
-	else (
-	  !logger#log (Printf.sprintf "Loading next batch: %d -> %d\n" page_id next_id);
-	  download_page_starting_with_from_id db page_id next_id last_rev
-	)
-      end
-    | None -> ()
-  end
+      let n_new_revs_downloaded = List.length wiki_revs in
+	store_wiki_revs db wiki_page wiki_revs;
+	let _ = Unix.sleep sleep_time_sec in
+	  match next_rev with
+	    | Some next_id -> begin
+		if next_id = prev_last_rev then (
+		  !logger#log (Printf.sprintf 
+		      "Not making forward progress -- giving up");
+		  n_revs_downloaded
+		) else (
+		  !logger#log (Printf.sprintf 
+		      "Loading next batch: %d -> %d\n" 
+		      page_id next_id);
+		  download_page_starting_with_from_id db page_id next_id 
+		    last_rev (n_revs_downloaded + n_new_revs_downloaded)
+		)
+	      end
+	    | None -> (n_revs_downloaded + n_new_revs_downloaded)
+    end
 
 (** Downloads all revisions of a page, given the title, and sticks them into the db. *)
-let download_page_from_id (db: Online_db.db) (page_id : int) : unit =
+let download_page_from_id (db: Online_db.db) (page_id : int) : int =
   let lastid =
     try
       (db#get_latest_rev_id_from_id page_id) + 1
     with Online_db.DB_Not_Found -> 0
-  in download_page_starting_with_from_id db page_id lastid 0
+  in download_page_starting_with_from_id db page_id lastid 0 0
 
 (**
   Render the html using the wikimedia api

@@ -441,6 +441,28 @@ object(self)
     let s = Printf.sprintf "SELECT revision_id, page_id, text_id, time_string, user_id, username, is_minor FROM %swikitrust_revision WHERE page_id = %s AND (time_string, revision_id) < (%s, %s) ORDER BY time_string DESC, revision_id DESC LIMIT %s" db_prefix (ml2int page_id) (ml2timestamp timestamp) (ml2int rev_id) (ml2int fetch_limit) in 
     self#db_exec mediawiki_dbh s
 
+
+  (** [clear_old_info_if_pid_changed page_id page_title]
+      Deletes all of the page and revision info from the db if there exists 
+      such info for the given title under a different page_id *)
+  method clear_old_info_if_pid_changed (page_id : int) (page_title : string)
+    : unit =
+    let s = Printf.sprintf "SELECT page_id FROM %swikitrust_page WHERE page_title = %s AND page_id <> %s"
+      db_prefix (ml2str page_title) (ml2int page_id) in
+    let result = self#db_exec mediawiki_dbh s in 
+      match Mysql.fetch result with 
+	| None -> ()
+	| Some x -> (
+	    let rev_del = Printf.sprintf
+	      "DELETE FROM %swikitrust_revision WHERE page_id = %s"
+	      db_prefix (ml2int (not_null int2ml x.(0))) in
+	    let page_del = Printf.sprintf 
+	      "DELETE FROM %swikitrust_page WHERE page_id = %s"
+	      db_prefix (ml2int (not_null int2ml x.(0))) in
+	      ignore(self#db_exec mediawiki_dbh rev_del);
+	      ignore(self#db_exec mediawiki_dbh page_del)
+	  )
+
   (* Chunk methods *)
 
   (** [write_page_chunks page_id chunk_list] writes that the page
