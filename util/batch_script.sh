@@ -57,12 +57,21 @@ rm -rf /home/luca/wiki-data/enwork/sql/*
     -d ~/wiki-data/enwork/sql \
     /home/luca/wiki-data/itwiki/split-wiki/000/wiki-00000007.xml.gz
 
+# To just study Corciano:
+./evalwiki -trust_for_online \
+    -historyfile ~/wiki-data/itwiki/rep_history.txt \
+    -blob_base_path ~/wiki-data/test/blobtree \
+    -n_sigs 8 \
+    -robots ~/wiki-data/wp_bots.txt \
+    -d ~/wiki-data/test/sql \
+    /home/luca/wiki-data/itwiki/individual/000/wiki-00000037.xml.gz
+
 # Load the xml files in the wiki db:
 cd ../test-scripts 
 python load_data.py --clear_db /home/luca/wiki-data/enwiki/wiki-00100000.xml /home/luca/wiki-data/enwiki/wiki-00100220.xml
 # Or simply:
 python load_data.py --clear_db /home/luca/wiki-data/enwiki/wiki-00100000.xml
-python load_data.py --clear_db /home/luca/wiki-data/enwiki/wiki-00000007.xml
+python load_data.py --clear_db /home/luca/wiki-data/itwiki/split-wiki/000/wiki-00000007.xml
 
 # clears the old wikitrust information:
 python truncate_wikitrust_tables.py
