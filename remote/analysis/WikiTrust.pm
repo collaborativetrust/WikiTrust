@@ -285,9 +285,9 @@ sub handle_wikiorhtml {
 
   my $result = util_ColorIfAvailable($dbh, $page, $rev, $page_title);
   if ($result eq NOT_FOUND_TEXT_TOKEN) {
-    $r->headers_out->{'Cache-Control'} = "max-age=" . 30;
+    $r->headers_out->{'Cache-Control'} = "max-age=" . 15;
   } else {
-    $r->headers_out->{'Cache-Control'} = "max-age=" . 60;
+    $r->headers_out->{'Cache-Control'} = "max-age=" . 30;
   }
   $r->content_type('text/plain');
   $r->print('W');
