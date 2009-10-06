@@ -148,28 +148,48 @@ in
     with [page_id] as id. *)
 let process_page (page_id: int) (page_title: string) = 
   (* Every child has their own db. *)
-  let child_db = Online_db.create_db !use_exec_api !db_prefix mediawiki_dbh 
+  let child_dbh = Mysql.connect mediawiki_db in 
+  let child_db = Online_db.create_db !use_exec_api !db_prefix child_dbh 
     !mw_db_name !wt_db_rev_base_path !wt_db_blob_base_path 
     !max_uncompressed_blob_size !max_revs_per_blob !dump_db_calls 
   in
   (* If I am using the WikiMedia API, I need to first download any new
      revisions of the page. *)
-  if !use_wikimedia_api then Wikipedia_api.download_page_from_id child_db 
-    page_id;
-  (* Creates a new updater. *)
-  let processor = new Updater.updater child_db
-    trust_coeff !times_to_retry_trans each_event_delay every_n_events_delay 
-    !robots in
-  (* Brings the page up to date.  This will take care also of the page lock. *)
-  processor#update_page_fast page_id;
-  (* Renders the last revision of this page and stores it in memcached. *)
-  if !render_last_rev then render_rev (db#get_latest_rev_id_from_id page_id) 
-    page_id db;
+  (try Printexc.print (fun () ->
+    let pages_downloaded = if !use_wikimedia_api then 
+      Wikipedia_api.download_page_from_id child_db page_id 
+    else 0 in 
+      
+    (* If pages have been downloaded, AND if the new_page_id doesn't 
+       match the old_page_id, remove all of the old info from the db 
+       and re-process with the new info. *)
+    if pages_downloaded > 0 then child_db#clear_old_info_if_pid_changed 
+      page_id page_title;
+    
+    (* Creates a new updater. *)
+    let processor = new Updater.updater child_db
+      trust_coeff !times_to_retry_trans each_event_delay every_n_events_delay 
+      !robots in
+      (* Brings the page up to date.  This will take care also of the page 
+	 lock. *)
+      processor#update_page_fast page_id;
+      (* Renders the last revision of this page and stores it in memcached. *)
+      if !render_last_rev then render_rev (db#get_latest_rev_id_from_id 
+	page_id) page_id db;
+    ) () with
+     | Wikipedia_api.API_error e -> (
+	 Printf.eprintf "Wikipedia_api Error: %s\nOn %d %s\nExp%s\n" 
+	   e page_id page_title (Printexc.to_string (Wikipedia_api.API_error 
+           e));
+       )
+     | _ -> () (* All exceptions printed by the Printexc module above. *) 
+  );
   (* Marks the page as processed. *)
   child_db#mark_page_as_processed page_id page_title;
+  child_db#close; (* Release any locks still held. *)
   (* End of page processing. *)
-    Printf.printf "Done with %s.\n" page_title; flush_all ();
-    exit 0;
+  Printf.printf "Done with %s.\n" page_title; flush_all ();
+  exit 0;
 in
 
 

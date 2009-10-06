@@ -12,13 +12,15 @@ SetEnv WT_DBUSER wikiuser
 SetEnv WT_DBPASS wikipass
 SetEnv WT_BLOB_PATH "/home/thumper/research/tmp/colors"
 SetEnv WT_SECRET miS3kr3t
+SetEnv WT_MEMCACHED "127.0.0.1:11211"
+SetEnv WT_NAMESPACE enwiki
 
 
 <IfModule mod_perl.c>
     PerlModule ModPerl::Registry
     PerlModule Apache::DBI DBD::mysql
     PerlModule CGI CGI::Carp
-    PerlModule Apache2::Const Apache2::RequestRec
+    PerlModule Apache2::Const Apache2::RequestRec Apache2::Connection
     PerlModule IO::Zlib Compress::Zlib
     <Perl>
 	use lib '/var/lib/mediawiki/extensions/WikiTrust/remote/analysis';

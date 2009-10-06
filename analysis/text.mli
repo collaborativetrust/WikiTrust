@@ -89,6 +89,16 @@ val split_into_words_seps_and_info :
   bool -> string Vec.t -> ((word array) * (float array) * (int array) * (string array)
                            * (int array) * (sep_t array))
 
+(** [split_into_words_and_seps arm sv] splits a Vec of strings [sv] into:
+   - an array of words (excluding separators, such as white space, etc)
+   - an array giving, for each word, its place in the sep array (int)
+   - the array of seps, where words, etc, have their position in the word array 
+     annotated. 
+   [arm] denotes whether < and > have to be rearmed into &lt; and &gt; 
+*)
+val split_into_words_and_seps : 
+  bool -> string Vec.t -> ((word array) * (int array) * (sep_t array))
+
 (** [print_words wa] prints the words in the word array [wa]. *)
 val print_words : word array -> unit
 

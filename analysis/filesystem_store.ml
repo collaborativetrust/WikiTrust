@@ -78,9 +78,13 @@ let write_gzipped_file (file_name: string) (s: string) : unit =
     We divide the revision tree in at most 1000 directories, based on the digits
     345 of the revision id. 
  *)
-let get_filename (base_path: string) (page_id: int) (rev_id: int) : (string * string list) =   
+let get_filename (base_path: string) (page_id: int) (rev_id: int option) 
+    : (string * string list) =   
   let page_str = Printf.sprintf "%012d" page_id in 
-  let rev_str  = Printf.sprintf "%012d" rev_id  in 
+  let rev_str = match rev_id with 
+    | Some ri -> Printf.sprintf "%012d" ri 
+    | None -> "" 
+  in 
   let list_dirs = ref [base_path] in
   let file_name = ref base_path in 
   (* First, the page directories. *)
@@ -90,19 +94,26 @@ let get_filename (base_path: string) (page_id: int) (rev_id: int) : (string * st
     list_dirs := !list_dirs @ [!file_name]
   end done;
   (* Then, the revision directory *)
-  let s = String.sub rev_str 6 3 in 
-  file_name := !file_name ^ "/" ^ s;
-  list_dirs := !list_dirs @ [!file_name];
-  (* Now all together *)
-  file_name := !file_name ^ "/" ^ page_str ^ "_" ^ rev_str ^ ".gz";
-  (!file_name, !list_dirs)
+  match rev_id with 
+  | Some ri -> (
+      let s = String.sub rev_str 6 3 in 
+      file_name := !file_name ^ "/" ^ s;
+      list_dirs := !list_dirs @ [!file_name];
+      (* Now all together *)
+      file_name := !file_name ^ "/" ^ page_str ^ "_" ^ rev_str ^ ".gz";
+      (!file_name, !list_dirs)
+    )
+  | None -> (!file_name, !list_dirs)
+   
+ 
+ 
 
 (** [write_revision base_name page_id rev_id s] writes to disk the
     revision text [s], in compressed format, belonging to the revision
     [rev_id] of page [page_id], given the directory path [base_name].
     Directories are created if they do not already exist. *)
 let write_revision (base_name: string) (page_id: int) (rev_id: int) (s: string) : unit =
-  let (f_name, dir_l) = get_filename base_name page_id rev_id in 
+  let (f_name, dir_l) = get_filename base_name page_id (Some rev_id) in 
   (* Makes the directories *)
   let make_dir (d: string) = 
     begin try 
@@ -116,21 +127,29 @@ let write_revision (base_name: string) (page_id: int) (rev_id: int) (s: string) 
     [rev_id] of page [page_id]. *)
 let read_revision (base_name: string) (page_id: int) (rev_id: int) 
     : string option =
-  let (f_name, _) = get_filename base_name page_id rev_id in 
+  let (f_name, _) = get_filename base_name page_id (Some rev_id) in 
   read_gzipped_file f_name;;
-
-(** [delete_revision base_name page_id rev_id] deletes the text of revision
-    [rev_id] of page [page_id]. *)
-let delete_revision (base_name: string) (page_id: int) (rev_id: int) =
-  let (f_name, _) = get_filename base_name page_id rev_id in 
-  try
-    Unix.unlink f_name
-  with Unix.Unix_error (Unix.ENOENT, _, _) -> ()
 
 (** [delete_all base_name] deletes all the tree of revisions rooted
     at base_path. *)
 let delete_all (base_name: string) : Unix.process_status =
   Unix.system ("rm -rf " ^ base_name)
+
+(** [delete_revision base_name page_id rev_id] deletes the text of revision
+    [rev_id] of page [page_id]. 
+
+    If rev_id is none, all revision of page_id are deleted.
+*)
+let delete_revision (base_name: string) (page_id: int) (rev_id: int option) =
+  let (f_name, _) = get_filename base_name page_id rev_id in 
+  match rev_id with 
+  | Some ri -> (
+      try
+	Unix.unlink f_name
+      with Unix.Unix_error (Unix.ENOENT, _, _) -> ()
+    )
+  | None -> let _ = delete_all f_name in
+    ()
 
 (* **************************************************************** *)
 (* Unit tests. *)
@@ -144,7 +163,7 @@ if false then begin
   print_string (not_null (read_revision "/tmp/alpha" 43 54));
   print_string (not_null (read_revision "/tmp/alpha" 43 55));
   print_string (not_null (read_revision "/tmp/alpha" 43 54));
-  delete_revision "/tmp/alpha" 43 54;
+  delete_revision "/tmp/alpha" 43 (Some 54);
   print_string (not_null (read_revision "/tmp/alpha" 43 54));
   write_revision "/tmp/alpha" 43 54 "Ho voglia di sushi";
 end

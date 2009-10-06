@@ -263,9 +263,12 @@ class page
       end;
       
       (* Reads the revision text.  For the most recent revision, we
-         read the normal text; for the others, the colored text *)
-      for i = n_revs - 1 downto 0 do begin 
-	let r = Vec.get i revs in
+         read the normal text; for the others, the colored text. 
+	 If it does not find the information for old revisions, 
+         it just disregards it. *)
+      let revs_to_read = revs in
+      for i = 0 to n_revs - 1 do begin 
+	let r = Vec.get i revs_to_read in
 	if i = 0 then begin 
 	  (* This is the most recent revision, for which we read
 	     the uncolored text.  *)
@@ -274,7 +277,17 @@ class page
 	  (* These are the older revisions, for which we read the
 	     trust, origin, etc information (from the sigs, we hope. *)
 	  try r#read_words_trust_origin_sigs page_sigs
-          with Online_db.DB_Not_Found -> raise (Missing_trust r)
+          with Online_db.DB_Not_Found -> begin
+	    (* If the revision is recent, it complains. *)
+	    if i < 3 
+	    then raise (Missing_trust r)
+	    else begin
+	      (* Removes the revision from consideration. *)
+	      let f r' = (r'#get_id <> r#get_id) in
+	      revs <- Vec.filter f revs;
+	      recent_revs <- Vec.filter f recent_revs
+	    end
+	  end
 	end
       end done
 
@@ -493,7 +506,6 @@ class page
           let rev1_t = rev1#get_words in 
           let rev1_l = Array.length rev1_t in 
           let rev1_id = rev1#get_id in 
-          let rev1_i = Chdiff.make_index_diff rev1_t in 
           (* We now must read or compute the distance between rev1_idx
              and all previous revisions.  I iterate with rev_2_idx
              that goes from most recent, to oldest, as it is easier
@@ -511,7 +523,7 @@ class page
                  computing the precise distance.  
                  If rev2 is the revision before rev1, there is no choice *)
               if rev2_idx = rev1_idx + 1 then begin 
-                let edits  = Chdiff.edit_diff rev2_t rev1_t rev1_i in 
+                let edits  = Chdiff.edit_diff rev2_t rev1_t in 
                 let d      = Editlist.edit_distance edits (max rev1_l rev2_l) in 
                 (edits, d)
               end else begin 
@@ -563,8 +575,8 @@ class page
                 end else begin 
 		  (* Nothing suitable found, uses the brute-force
 		     approach of computing the edit distance from
-		     direct text comparison. ¯*)
-		  let edits   = Chdiff.edit_diff rev2_t rev1_t rev1_i in 
+		     direct text comparison. *)
+		  let edits   = Chdiff.edit_diff rev2_t rev1_t in 
 		  let d = Editlist.edit_distance edits (max rev1_l rev2_l) in 
 		  (edits, d)
                 end
@@ -713,7 +725,6 @@ class page
       let rev0_uname = rev0#get_user_name in 
       let rev0_t = rev0#get_words in 
       let rev0_time = rev0#get_time in 
-      let rev0_time_string = rev0#get_time_string in 
       let rev0_l = Array.length rev0_t in 
       let rev0_seps = rev0#get_seps in 
 
@@ -780,11 +791,13 @@ class page
 	  else (trust_coeff.read_all, trust_coeff.read_part)
 	in
 	(* ...and depending on the time interval wrt. the previous edit *)
-	let (read_all'', read_part'') = begin
+	let (read_all, read_part) = begin
 	  let delta_time = max 0. (rev0_time -. rev1_time) in
 	  let time_factor = 
 	    1. -. exp (0. -. delta_time /. trust_coeff.edit_time_constant) 
-	  in (read_all' *. time_factor, read_part' *. time_factor)
+	  in (
+	    1. -. (1. -. read_all')  ** time_factor,
+	    1. -. (1. -. read_part') ** time_factor)
 	end in
 
         (* Makes the arrays of deleted chunks of words, trust, and origin, 
@@ -796,17 +809,22 @@ class page
            (b) one of the revisions even before (indicating a reversion, 
                essentially). *)
         let d_prev = Hashtbl.find edit_dist (rev1_id, rev0_id) in 
+	!Online_log.online_logger#log (Printf.sprintf 
+	  "\nDistance to previous: %f" d_prev);
         let close_idx = ref 1 in 
         let closest_d = ref d_prev in 
         for i = 2 to n_revs - 1 do begin 
           let revi = Vec.get i revs in 
           let revi_id = revi#get_id in 
-          let d = Hashtbl.find edit_dist (revi_id, rev0_id) in  
+          let d = Hashtbl.find edit_dist (revi_id, rev0_id) in
+	  !Online_log.online_logger#log (Printf.sprintf 
+	    "\nDistance to %d back: %f" i d);
           (* We consider a revision to be a better candidate than the
              immediately preceding revision as the source of the most
-             recent revision if it is less than 3 times closer than
-             the current one. *)
-          if d < d_prev /. 3. && d < !closest_d then begin
+             recent revision if it is no farther away. *)
+          if d < d_prev && d < !closest_d then begin
+	    !Online_log.online_logger#log (Printf.sprintf 
+	      "\nChosen revision %d back as closest" i);
             close_idx := i; 
             closest_d := d
           end
@@ -830,17 +848,12 @@ class page
 	  Compute_robust_trust.compute_origin 
 	    origin_a author_a new_chunks_10_a medit_10_l rev0_id rev0_uname in 
 	(* Computes the trust *)
-        let (c_read_all, c_read_part) = 
-          if rev0#get_user_id = rev1#get_user_id 
-          then (0., 0.) 
-          else (read_all'', read_part'')
-        in 
         let (new_trust_10_a, new_sigs_10_a) = 
 	  Compute_robust_trust.compute_robust_trust 
             trust_a sig_a new_chunks_10_a rev0_seps medit_10_l
             weight_user rev0_uid trust_coeff.lends_rep 
 	    trust_coeff.kill_decrease 
-            trust_coeff.cut_rep_radius c_read_all c_read_part 
+            trust_coeff.cut_rep_radius read_all read_part 
 	    trust_coeff.local_decay
         in 
 	(* Now we have an estimate of trust, sigs, origin, author from
@@ -869,21 +882,21 @@ class page
 	  for i = 1 to n_chunks_dual - 2 do begin 
 	    chunks_dual_a.(i + 1) <- chunks_a.(i);
 	    trust_dual_a.(i + 1)  <- trust_a.(i);
-	    sig_dual_a.(i + 1)   <- sig_a.(i);
+	    sig_dual_a.(i + 1)    <- sig_a.(i);
 	    origin_dual_a.(i + 1) <- origin_a.(i);
 	    author_dual_a.(i + 1) <- author_a.(i);
 	  end done;
 	  (* rev1, the preceding one, is considered deleted, ... *)
 	  chunks_dual_a.(1) <- rev1#get_words;
 	  trust_dual_a.(1)  <- rev1#get_trust;
-	  sig_dual_a.(1)   <- rev1#get_sigs;
+	  sig_dual_a.(1)    <- rev1#get_sigs;
 	  origin_dual_a.(1) <- rev1#get_origin;
 	  author_dual_a.(1) <- rev1#get_author;
 	  (* ... while rev2, the most similar one, is considered to be
 	     the live one *)
 	  chunks_dual_a.(0) <- rev2#get_words;
 	  trust_dual_a.(0)  <- rev2#get_trust;
-	  sig_dual_a.(0)   <- rev2#get_sigs;
+	  sig_dual_a.(0)    <- rev2#get_sigs;
 	  origin_dual_a.(0) <- rev2#get_origin;
 	  author_dual_a.(0) <- rev2#get_author;
 
@@ -897,17 +910,12 @@ class page
 	  new_author_10_a.(0) <- new_author_20_a.(0);
 
           (* Computes the trust *)
-          let (c_read_all, c_read_part) = 
-            if rev0#get_user_id = rev2#get_user_id 
-            then (0., 0.) 
-            else (read_all'', read_part'')
-          in 
           let (new_trust_20_a, new_sigs_20_a) = 
 	    Compute_robust_trust.compute_robust_trust
               trust_dual_a sig_dual_a new_chunks_20_a rev0_seps medit_20_l
               weight_user rev0_uid trust_coeff.lends_rep 
 	      trust_coeff.kill_decrease 
-              trust_coeff.cut_rep_radius c_read_all c_read_part 
+              trust_coeff.cut_rep_radius read_all read_part 
 	      trust_coeff.local_decay
           in
           (* The trust of each word is the max of the trust under both edits;
@@ -917,7 +925,7 @@ class page
 	      new_trust_10_a.(0).(i) <- new_trust_20_a.(0).(i); 
 	      new_sigs_10_a.(0).(i) <- new_sigs_20_a.(0).(i)
 	    end
-	  done;
+	  done
 
         end; (* The closest version was not the immediately preceding one. *)
 	(* After the case split of which version was the closest one, it is the
@@ -1385,15 +1393,15 @@ class page
 		self#read_page_revisions_edit; 
 		
 		(* Computes the edit distances *)
-		!Online_log.online_logger#log "   Computing edit lists...\n";
+		!Online_log.online_logger#log "\n   Computing edit lists...";
 		self#compute_edit_lists; 
 		(* Computes, and writes to disk, the trust of the
 		   newest revision *)
-		!Online_log.online_logger#log "   Computing trust...\n";
+		!Online_log.online_logger#log "\n   Computing trust...";
 		self#compute_trust;
 		
 		(* We now process the reputation update. *)
-		!Online_log.online_logger#log "   Computing edit incs...\n";
+		!Online_log.online_logger#log "\n   Computing edit incs...";
 		self#compute_edit_inc;
 		
 		(* Inserts the revision in the list of high rep or high

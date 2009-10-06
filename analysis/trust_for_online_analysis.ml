@@ -171,11 +171,6 @@ object(self)
       (* Gets the reputation of the author of the current revision *)
       let weight = rep_histories#get_precise_weight uid in 
       let new_wl = rev#get_words in 
-      (* Calls the function that analyzes the difference 
-         between revisions. Data relative to the previous revision
-         is stored in the instance fields chunks_a and chunks_attr_a *)
-      let (new_chunks_a, medit_l) = Chdiff.text_tracking chunks_a new_wl in 
-
       (* Fixes the coefficients of trust incease depending on whether
 	 the user is a bot... *)
       let (read_all', read_part') = 
@@ -191,38 +186,128 @@ object(self)
 	  let prev_rev = Vec.get (rev_idx - 1) revs in
 	  let prev_time = prev_rev#get_time in
 	  let delta_time = max 0. (rev_time -. prev_time) in
-	  let time_factor = 1. -. exp (0. -. delta_time /. edit_time_constant) 
-	  in
-	  (read_all' *. time_factor, read_part' *. time_factor)
+	  let time_factor = 1. -. exp (0. -. delta_time /. edit_time_constant)
+	  in (
+	    1. -. (1. -. read_all')  ** time_factor,
+	    1. -. (1. -. read_part') ** time_factor)
 	end
       in
+
+      (* Calls the function that analyzes the difference 
+         between revisions. Data relative to the previous revision
+         is stored in the instance fields chunks_a and chunks_attr_a *)
+      let (new_chunks_10_a, medit_10_l) = Chdiff.text_tracking chunks_a new_wl in 
+      (* Computes the origin of the words in the new revision. *)
+      let (new_origin_10_a, new_author_10_a) = 
+	Compute_robust_trust.compute_origin 
+	  chunks_origin_a chunks_author_a new_chunks_10_a medit_10_l 
+	  rev#get_id rev#get_user_name 
+      in 
       (* Computes the trust, and the sigs *)
-      let (new_chunks_trust_a, new_chunks_sig_a) = 
+      let (new_trust_10_a, new_sigs_10_a) = 
 	Compute_robust_trust.compute_robust_trust
-	  chunks_trust_a chunks_sig_a new_chunks_a 
-	  rev#get_seps medit_l weight uid 
+	  chunks_trust_a chunks_sig_a new_chunks_10_a 
+	  rev#get_seps medit_10_l weight uid 
 	  trust_coeff_lends_rep trust_coeff_kill_decrease 
 	  trust_coeff_cut_rep_radius read_all read_part 
 	  trust_coeff_local_decay 
       in
-      (* Computes the origin of the words in the new revision. *)
-      let (new_chunks_origin_a, new_chunks_author_a) = 
-	Compute_robust_trust.compute_origin 
-	  chunks_origin_a chunks_author_a new_chunks_a medit_l 
-	  rev#get_id rev#get_user_name 
-      in 
+      (* We check if there is some recent revision closer than the 
+	 immediately preceding one. *)
+      let closest_idx = ref (rev_idx - 1) in
+      let closest_d = ref 0. in
+      let last_len = Array.length new_wl in
+      for past_rev_idx = rev_idx - 1 downto 0 do begin
+	(* Computes the distance d between the current revision
+	   and the one at past_rev_idx *)
+	let past_rev = Vec.get past_rev_idx revs in
+	let past_wl = past_rev#get_words in
+	let past_len = Array.length past_wl in
+	let edit_list = Chdiff.edit_diff past_wl new_wl in
+	let d = Editlist.edit_distance edit_list (min last_len past_len) in
+	if past_rev_idx = rev_idx - 1 || d < !closest_d then begin
+	  closest_idx := past_rev_idx;
+	  closest_d := d
+	end
+      end done;
+      (* If the closest revision is not the last one, we check whether we
+	 get a better comparison using that one instead. *)
+      if !closest_idx <> rev_idx - 1 then begin
+	(* rev1 is the previous revision, and rev2 is the closest *)
+	let rev1 = Vec.get (rev_idx - 1) revs in
+	let rev2 = Vec.get !closest_idx revs in
+	(* Prepares the chunks for comparing with this older revision. *)
+	let n_chunks_dual = (Array.length chunks_a) + 1 in 
+	let chunks_dual_a = Array.make n_chunks_dual [| |] in 
+	let trust_dual_a  = Array.make n_chunks_dual [| |] in 
+	let sig_dual_a   = Array.make n_chunks_dual  [| |] in 
+	let origin_dual_a = Array.make n_chunks_dual [| |] in 
+	let author_dual_a = Array.make n_chunks_dual [| |] in 
+	for i = 1 to n_chunks_dual - 2 do begin 
+	  chunks_dual_a.(i + 1) <- chunks_a.(i);
+	  trust_dual_a.(i + 1)  <- chunks_trust_a.(i);
+	  sig_dual_a.(i + 1)    <- chunks_sig_a.(i);
+	  origin_dual_a.(i + 1) <- chunks_origin_a.(i);
+	  author_dual_a.(i + 1) <- chunks_author_a.(i);
+	end done;
+	(* rev1, the preceding one, is considered deleted, ... *)
+	chunks_dual_a.(1) <- rev1#get_words;
+	trust_dual_a.(1)  <- rev1#get_word_trust;
+	sig_dual_a.(1)    <- rev1#get_word_sig;
+	origin_dual_a.(1) <- rev1#get_word_origin;
+	author_dual_a.(1) <- rev1#get_word_author;
+	(* ... while rev2, the most similar one, is considered to be
+	   the live one *)
+	chunks_dual_a.(0) <- rev2#get_words;
+	trust_dual_a.(0)  <- rev2#get_word_trust;
+	sig_dual_a.(0)    <- rev2#get_word_sig;
+	origin_dual_a.(0) <- rev2#get_word_origin;
+	author_dual_a.(0) <- rev2#get_word_author;
+	
+        (* Analyzes this different chunk setup *)
+        let (new_chunks_20_a, medit_20_l) = Chdiff.text_tracking chunks_dual_a new_wl in 
+	(* Computes origin *)
+	let (new_origin_20_a, new_author_20_a) = Compute_robust_trust.compute_origin 
+	  origin_dual_a author_dual_a new_chunks_20_a medit_20_l rev#get_id rev#get_user_name in 
+	(* Keeps this origin information as the most reliable one. *)
+	new_origin_10_a.(0) <- new_origin_20_a.(0);
+	new_author_10_a.(0) <- new_author_20_a.(0);
+	
+        (* Computes the trust *)
+        let (new_trust_20_a, new_sigs_20_a) = 
+	  Compute_robust_trust.compute_robust_trust
+            trust_dual_a sig_dual_a new_chunks_20_a rev#get_seps medit_20_l
+            weight uid trust_coeff_lends_rep 
+	    trust_coeff_kill_decrease 
+            trust_coeff_cut_rep_radius read_all read_part 
+	    trust_coeff_local_decay
+        in
+        (* The trust of each word is the max of the trust under both edits;
+	   the signature is the signature of the max. *)
+        for i = 0 to Array.length (new_trust_10_a.(0)) - 1 do
+	  if new_trust_20_a.(0).(i) > new_trust_10_a.(0).(i) then begin 
+	    new_trust_10_a.(0).(i) <- new_trust_20_a.(0).(i); 
+	    new_sigs_10_a.(0).(i)  <- new_sigs_20_a.(0).(i)
+	  end
+	done
+
+      end; (* The closest revision is not the preceding one. *)
+	(* After the case split of which version was the closest one, it is the
+	   _10 variables that contain the correct values of trust and author 
+	   signatures. *)
+
       (* Replaces the chunks for the next iteration *)
-      chunks_trust_a <- new_chunks_trust_a;
-      chunks_origin_a <- new_chunks_origin_a; 
-      chunks_author_a <- new_chunks_author_a;
-      chunks_sig_a <- new_chunks_sig_a;
-      chunks_a <- new_chunks_a;
+      chunks_trust_a  <- new_trust_10_a;
+      chunks_origin_a <- new_origin_10_a; 
+      chunks_author_a <- new_author_10_a;
+      chunks_sig_a    <- new_sigs_10_a;
+      chunks_a        <- new_chunks_10_a;
       (* Also notes in the revision the reputations and the origins,
 	 as well as the author_sigs. *)
-      rev#set_word_trust new_chunks_trust_a.(0);
-      rev#set_word_origin new_chunks_origin_a.(0);
-      rev#set_word_author new_chunks_author_a.(0);
-      rev#set_word_sig new_chunks_sig_a.(0);
+      rev#set_word_trust  chunks_trust_a.(0);
+      rev#set_word_origin chunks_origin_a.(0);
+      rev#set_word_author chunks_author_a.(0);
+      rev#set_word_sig    chunks_sig_a.(0);
 
       (* Outputs the colored text to the blob. *)
       blob_id <- blob_writer#write_revision rev#get_id rev#get_colored_text;
