@@ -210,6 +210,11 @@ class db :
         [timestamp], and [rev_id]. *)
     method fetch_col_revs : int -> timestamp_t -> int -> int -> Mysql.result
 
+    (** [clear_old_info_if_pid_changed page_id page_title]
+    Deletes all of the page and revision info from the db if there exists 
+    such info for the given title under a different page_id *)
+    method clear_old_info_if_pid_changed : int -> string -> unit
+
     (* Chunk methods *)
 
     (** [write_page_chunks page_id chunk_list] writes that the page
