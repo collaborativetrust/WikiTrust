@@ -356,21 +356,25 @@ let produce_annotated_markup
       || (include_author && not (new_author <> !curr_author)) then begin 
 	begin 
 	  (* writes trust *)
+	  Buffer.add_string out_buf "{{#t:";
 	  if trust_is_float
-	  then Printf.bprintf out_buf "{{#t:%.2f" new_color_float
-	  else Printf.bprintf out_buf "{{#t:%d"   new_color_int
+	  then Printf.bprintf out_buf "%.2f" new_color_float
+	  else Buffer.add_string out_buf (string_of_int new_color_int)
 	end;
 	begin
 	  (* writes origin *)
+	  Buffer.add_char out_buf ',';
 	  if include_origin
-	  then Printf.bprintf out_buf ",%d" new_origin
-	  else Printf.bprintf out_buf ","
+	  then Buffer.add_string out_buf (string_of_int new_origin)
 	end;
 	begin 
 	  (* writes author *)
-	  if include_author
-	  then Printf.bprintf out_buf ",%s}}" new_author
-	  else Printf.bprintf out_buf ",}}"
+	  Buffer.add_char out_buf ',';
+	  begin
+	    if include_author
+	    then Buffer.add_string out_buf new_author
+	  end;
+	  Buffer.add_string out_buf "}}"
 	end;
 	curr_color := new_color_int;
 	curr_origin := new_origin;
