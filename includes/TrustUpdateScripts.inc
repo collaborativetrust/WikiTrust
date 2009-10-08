@@ -89,7 +89,8 @@ CREATE TABLE ".$wgDBprefix."wikitrust_queue (
        page_id         int NOT NULL,
        page_title      varchar(255) PRIMARY KEY, 
        requested_on    timestamp DEFAULT now(),
-       processed       ENUM('unprocessed', 'processing', 'processed') NOT NULL DEFAULT 'unprocessed'
+       processed       ENUM('unprocessed', 'processing', 'processed') NOT NULL DEFAULT 'unprocessed',
+       priority        int unsigned DEFAULT 0
 ) ENGINE=InnoDB","
 GRANT ALL ON ".$wgDBprefix."wikitrust_queue TO '$wgDBuser'", "
 CREATE INDEX " . $wgDBprefix . "wikitrust_queue_idx ON "

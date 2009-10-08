@@ -834,7 +834,7 @@ object(self)
       begin 
 	try Printexc.print (fun () -> begin 
 	  self#start_transaction;
-	  let s = Printf.sprintf "SELECT page_id, page_title FROM %swikitrust_queue WHERE processed = 'unprocessed' ORDER BY requested_on ASC LIMIT %s" 
+	  let s = Printf.sprintf "SELECT page_id, page_title FROM %swikitrust_queue WHERE processed = 'unprocessed' ORDER BY priority DESC, requested_on ASC LIMIT %s" 
 	    db_prefix (ml2int max_to_get) in
 	  let get_id row : int = (not_null int2ml row.(0)) in
 	  let get_title row : string = (not_null str2ml row.(1)) in
