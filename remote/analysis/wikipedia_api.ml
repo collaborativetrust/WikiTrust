@@ -93,6 +93,18 @@ let api_tz_re = Str.regexp "\\([0-9][0-9][0-9][0-9]\\)-\\([0-9][0-9]\\)-\\([0-9]
 
 let ip_re = Str.regexp "^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$"
 
+(* return the \u encoding of a utf8 char if its valid, "" otherwise.  *)
+let handle_invalid_utf8 substrs = 
+  let u = (Pcre.get_substrings ?full_match:(Some true) substrs).(0) in 
+  let m = Printf.sprintf "0x%s" (String.sub u 2 4) in
+  let p = int_of_string m in
+  if p <= 0xffff then 
+    if (p >= 0xd800 && p < 0xe000) || (p >= 0xfffe) then "" else u  
+  else u
+
+(* match all of the \uffff style of utf8 chars *)
+let utf_regex = Pcre.regexp ~flags:[] ((Pcre.quote "\\") ^ "u(.?){4}")
+
 (** [api_ts2mw_ts timestamp] maps the Wikipedias api timestamp to our internal one.
 *)
 let api_ts2mw_ts s =
@@ -287,16 +299,14 @@ let fetch_page_and_revs_after_json (selector : string) : result_tree =
   try (
     (* Make sure res is properly encoded *)
     try 
-      let res_arr = Netconversion.uarray_of_ustring `Enc_utf8 res in
-      let new_res = Netconversion.ustring_of_uarray ?subst:(Some (fun i -> ""))
-	`Enc_utf8 res_arr in
-      let _ = Netconversion.verify `Enc_utf8 new_res in
-      let api = Json_io.json_of_string new_res in
+      let api = Json_io.json_of_string res in
       (* logger#log (Printf.sprintf "result: %s\n" res); *)
       JSON api
     with
-    | Netconversion.Malformed_code_at pos -> (
-	raise (Failure (Printf.sprintf "API error: malformed code at %d\n" pos))
+    | Failure e -> (
+        let utf8 = Pcre.substitute_substrings ?rex:(Some utf_regex) ~subst:handle_invalid_utf8 res in
+        let api = Json_io.json_of_string utf8 in
+        JSON api
       )
   ) with
   | Failure e -> (
