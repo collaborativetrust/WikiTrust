@@ -66,6 +66,26 @@ rm -rf /home/luca/wiki-data/enwork/sql/*
     -d ~/wiki-data/test/sql \
     /home/luca/wiki-data/itwiki/individual/000/wiki-00000037.xml.gz
 
+# For profiling:
+./evalwiki -trust_for_online \
+    -historyfile ~/wiki-data/itwiki/rep_history.txt \
+    -blob_base_path ~/wiki-data/enwork/blobtree \
+    -n_sigs 8 \
+    -robots ~/wiki-data/wp_bots.txt \
+    -d ~/wiki-data/temp \
+    /home/luca/wiki-data/segments/wiki-00000030.xml.gz 
+
+# and also for profiling:
+./evalwiki -trust_for_online \
+    -historyfile ~/wiki-data/itwiki/rep_history.txt \
+    -blob_base_path ~/wiki-data/enwork/blobtree \
+    -n_sigs 8 \
+    -robots ~/wiki-data/wp_bots.txt \
+    -d ~/wiki-data/temp \
+    /home/luca/wiki-data/segments/wiki-00000220.xml.gz 
+
+
+
 # Load the xml files in the wiki db:
 cd ../test-scripts 
 python load_data.py --clear_db /home/luca/wiki-data/enwiki/wiki-00100000.xml /home/luca/wiki-data/enwiki/wiki-00100220.xml
