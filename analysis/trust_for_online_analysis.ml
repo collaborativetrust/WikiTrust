@@ -157,6 +157,84 @@ object(self)
 	db_prefix rev_id page_id text_id time_string user_id username is_minor db_qual_info (ml2int blob_id) aq2 db_overall_trust db_overall_quality
 	
 
+    (** Computes the distances between the newest revision and all previous ones. *)
+    method private compute_distances : unit =
+      (* gets last version *)
+      let rev2_idx = (Vec.length revs) - 1 in
+      let rev2 = Vec.get rev2_idx revs in 
+      (* gets text etc of last version *) 
+      let rev2_t = rev2#get_words in 
+      let rev2_l = Array.length (rev2_t) in 
+
+      (* Loop over some preceding revisions *)
+      for rev1_idx = rev2_idx - 1 downto 0 do begin
+        let i = rev2_idx - rev1_idx in 
+        let rev1 = Vec.get rev1_idx revs in 
+        let rev1_t = rev1#get_words in 
+        let rev1_l = Array.length (rev1_t) in 
+
+        if rev1_idx + 1 = rev2_idx 
+	  (* Computes the precise distance and edit list between
+	     the two last revisions. *)
+	then begin 
+          let edits  = Chdiff.edit_diff rev1_t rev2_t in 
+          let d      = Editlist.edit_distance edits (max rev1_l rev2_l) in 
+          rev1#set_distance (Vec.setappend 0.0 d i rev1#get_distance);
+          rev1#set_editlist (Vec.setappend [] edits i rev1#get_editlist);
+	end
+	else begin 
+	  (* Computes the distance between rev2 and rev1.  The 
+	     computation uses edit list zipping, if possible. *)
+	  (* First, we need to pick the best interpolant between 
+	     rev1 and rev2. *)
+	  let best_middle_idx = ref (-1) in 
+          let best_coverage   = ref (rev1_l + rev2_l + 1) in 
+          for revm_idx = rev2_idx - 1 downto rev1_idx + 1 do begin 
+            let revm = Vec.get revm_idx revs in 
+            let revm_e = Vec.get (rev2_idx - revm_idx) revm#get_editlist in 
+            let forw_e = Vec.get (revm_idx - rev1_idx) rev1#get_editlist in 
+            let zip_e = Compute_edlist.zip_edit_lists revm_e forw_e in 
+            let (c1, c2) = Compute_edlist.diff_cover zip_e in 
+            (* Computes the amount of uncovered text *)
+            let unc1 = rev1_l - c1 in 
+            let unc2 = rev2_l - c2 in 
+            let unc = min unc1 unc2 in 
+            (* Computes the percentages of uncovered *)
+            let perc1 = (float_of_int (unc1 + 1)) /. (float_of_int (rev1_l + 1)) in 
+            let perc2 = (float_of_int (unc2 + 1)) /. (float_of_int (rev2_l + 1)) in 
+            let perc  = min perc1 perc2 in 
+            (* If it qualifies, and if it is better than the best, use it *)
+            if perc <= max_perc_to_zip && unc <= max_uncovered_to_zip && unc < !best_coverage then begin 
+              best_coverage := unc; 
+              best_middle_idx := revm_idx
+            end
+          end done; 
+
+          (* If it found anything suitable, uses it *)
+          if !best_middle_idx > -1 then begin 
+            (* Then uses the best middle index to zip *)
+            let revm = Vec.get !best_middle_idx revs in 
+            let revm_e = Vec.get (rev2_idx - !best_middle_idx) revm#get_editlist in 
+            let forw_e = Vec.get (!best_middle_idx - rev1_idx) rev1#get_editlist in 
+            (* ... and computes the distance via zipping. *)
+            let edits = Compute_edlist.edit_diff_using_zipped_edits rev1_t rev2_t forw_e revm_e in 
+            let d = Editlist.edit_distance edits (max rev1_l rev2_l) in 
+            rev1#set_distance (Vec.setappend 0.0 d i rev1#get_distance);
+            rev1#set_editlist (Vec.setappend [] edits i rev1#get_editlist);
+
+          end else begin 
+            (* Nothing suitable found, uses the brute-force approach of computing 
+	       the edit distance from direct text comparison. ¯*)
+            let edits   = Chdiff.edit_diff rev1_t rev2_t in 
+            let d = Editlist.edit_distance edits (max rev1_l rev2_l) in 
+            rev1#set_distance (Vec.setappend 0.0 d i rev1#get_distance);
+            rev1#set_editlist (Vec.setappend [] edits i rev1#get_editlist);
+          end
+
+	end (* if the distance is not being computed wrt the previous revision *)
+      end done (* loop over preceding revisions *)
+
+
     (** Processes a new revision, computing trust, author, and origin, 
 	and outputting:
 	- The colored revision text, compressed, in the filesystem, if 
@@ -216,15 +294,11 @@ object(self)
 	 immediately preceding one. *)
       let closest_idx = ref (rev_idx - 1) in
       let closest_d = ref 0. in
-      let last_len = Array.length new_wl in
       for past_rev_idx = rev_idx - 1 downto 0 do begin
-	(* Computes the distance d between the current revision
+	(* Gets the distance d between the current revision
 	   and the one at past_rev_idx *)
 	let past_rev = Vec.get past_rev_idx revs in
-	let past_wl = past_rev#get_words in
-	let past_len = Array.length past_wl in
-	let edit_list = Chdiff.edit_diff past_wl new_wl in
-	let d = Editlist.edit_distance edit_list (min last_len past_len) in
+	let d = Vec.get (rev_idx - past_rev_idx) past_rev#get_distance in
 	if past_rev_idx = rev_idx - 1 || d < !closest_d then begin
 	  closest_idx := past_rev_idx;
 	  closest_d := d
@@ -343,6 +417,8 @@ object(self)
 	disarmed_text false in 
       (* Adds the revision to the Vec of revisions. *)
       revs <- Vec.append r revs; 
+      (* Computes all the distances from this new revision to the previous ones. *)
+      self#compute_distances;
       (* Evaluates the newest version *)
       self#eval_newest; 
       (* If the buffer is full, evaluates the oldest version and kicks
