@@ -341,7 +341,7 @@ let produce_annotated_markup
   (* Prints the tag.  [always_print] indicates that the tag
      must be printed even if the info has not changed. 
      [i] is the order of the word. *)
-  let print_tag (always_print: bool) (i: int) : unit = begin 
+  let print_trust (always_print: bool) (i: int) : unit = begin 
     let new_color_float = next_word_color i in
     let new_color_int = approx new_color_float in 
     let new_origin = next_word_origin i in 
@@ -392,12 +392,12 @@ let produce_annotated_markup
     | Text.Table_cell (t, i) | Text.Table_caption (t, i) -> begin 
 	Buffer.add_string out_buf t; 
 	word_idx := i + 1;
-	print_tag true !word_idx
+	print_trust true !word_idx
       end
 	(* Things that must be followed by the color *)
     | Text.Newline t -> begin 
 	Buffer.add_string out_buf t; 
-	print_tag true !word_idx
+	print_trust true !word_idx
       end
         (* Things that are not followed by the color and do not increase the word index *)
     | Text.Space t | Text.Par_break t -> 
@@ -410,14 +410,14 @@ let produce_annotated_markup
       end
         (* Things that are preceded and followed by the color, and increase the word index *)
     | Text.Tag (t, i) -> begin 
-        print_tag true i;
+        print_trust true i;
         Buffer.add_string out_buf t; 
         word_idx := i + 1;
-	print_tag true !word_idx
+	print_trust true !word_idx
       end
         (* Things that may be preceded by the color, if the color has changed. *)
     | Text.Word (t, i) -> begin 
-	print_tag false i;
+	print_trust false i;
         Buffer.add_string out_buf t; 
         word_idx := i + 1
       end
