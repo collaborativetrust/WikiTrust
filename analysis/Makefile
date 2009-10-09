@@ -37,7 +37,7 @@ OUR_LIBS_OPT = wikitrust_lib.cmxa
 INCLUDES = 
 
 OCAMLC=ocamlfind ocamlc -dtypes -package $(PACKAGES) -syntax $(SYNTAX)
-OCAMLOPT=ocamlfind ocamlopt -package $(PACKAGES) -syntax $(SYNTAX)
+OCAMLOPT=ocamlfind ocamlopt -p -package $(PACKAGES) -syntax $(SYNTAX)
 
 OCAMLDEP=ocamlfind ocamldep -package $(PACKAGES) -syntax $(SYNTAX)
 OCAMLDOC=ocamldoc

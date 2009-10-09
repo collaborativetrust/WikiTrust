@@ -1,6 +1,6 @@
 (*
 
-Copyright (c) 2007-2008 The Regents of the University of California
+Copyright (c) 2007-2009 The Regents of the University of California
 All rights reserved.
 
 Authors: Luca de Alfaro, B. Thomas Adler, Ian Pye
@@ -56,9 +56,31 @@ class revision
   (is_minor: bool) 
   (comment: string)
   (text_init: string Vec.t) (* Text of the revision, still to be split into words *)
+  (text_disarm: bool) 
   =
   object 
     val is_anon : bool = is_anonymous user_id
+    val mutable words : word array = [| |]
+      (* This is the new version of distance.  In revision k, 
+         distance[j] refers to the distance between version k and k + j. *)
+    val mutable distance: float Vec.t = Vec.empty 
+      (* This Vec stores, in fashion similar to distance above, 
+         the edit list to go from one version to the other *)
+    val mutable editlist: Editlist.edit list Vec.t = Vec.empty 
+
+    initializer begin
+      words <- Text.split_into_words text_disarm text_init
+    end
+
+    method get_words : word array = words
+    method get_n_words : int = Array.length words
+    method print_words : unit = begin Text.print_words words ; print_newline () end
+
+    method get_distance: float Vec.t = distance
+    method set_distance (v: float Vec.t) : unit = distance <- v
+    method get_editlist: Editlist.edit list Vec.t = editlist
+    method set_editlist (l: Editlist.edit list Vec.t) = editlist <- l 
+
     method get_time : float = time
     method get_timestamp : string = timestamp
     method get_id : int = id
@@ -89,84 +111,6 @@ let different_author
   let uid = r#get_user_id in 
   uid <> r'#get_user_id || ((not equate_anons) && r#get_is_anon && r#get_ip <> r'#get_ip)
 
-(** This class is used for all analysis methods that do not require keeping track 
-    of separators among words.  It is generally extended. *)
-class plain_revision 
-  (id: int) (* revision id *)
-  (page_id: int) (* page id *)
-  (timestamp: string) (* timestamp string *)
-  (time: float) (* time, as a floating point *)
-
-  (contributor: string) (* name of the contributor *)
-  (user_id: int) (* user id *)
-  (ip_addr: string) (* IP address *)
-  (username: string) (* name of the user *)
-  (is_minor: bool) 
-  (comment: string)
-  (text_init: string Vec.t) (* Text of the revision, still to be split into words *)
-  (text_disarm: bool) (* Whether to take care of the &gt; etc. conversion; generally, yes. *)
-  =
-  object (self)
-    inherit revision id page_id timestamp time contributor user_id ip_addr username is_minor comment text_init 
-
-    val words : word array = Text.split_into_words text_disarm text_init
-
-    method get_words : word array = words
-    method get_n_words : int = Array.length words
-    method print_words : unit = begin Text.print_words words ; print_newline () end
-
-  end (* plain_revision *)
-
-(** This is a specialized version of the revision object used for the circular and linear analysis *)
-class cirlin_revision 
-  (id: int) (* revision id *)
-  (page_id: int) (* page id *)
-  (timestamp: string) (* timestamp string *)
-  (time: float) (* time, as a floating point *)
-  (contributor: string) (* name of the contributor *)
-  (user_id: int) (* user id *)
-  (ip_addr: string) (* IP address *)
-  (username: string) (* name of the user *)
-  (is_minor: bool) 
-  (comment: string)
-  (text_init: string Vec.t) (* Text of the revision, still to be split into words *)
-  (text_disarm: bool) (* Whether to take care of the &gt; etc. conversion; generally, yes. *)
-  (n_edit_judging: int) 
-  =
-  object (self)
-    inherit plain_revision id page_id timestamp time contributor user_id ip_addr username is_minor comment text_init text_disarm
-
-    val mutable n_text_judge_revisions: int = 0 
-    val mutable created_text: int = 0 
-    val mutable total_life_text: int = 0 
-    val dist: float array = Array.make (n_edit_judging + 1) 0.0
-
-    method inc_n_text_judge_revisions : unit = 
-      n_text_judge_revisions <- n_text_judge_revisions + 1
-    method private get_n_text_judge_revisions : int = n_text_judge_revisions
-    method inc_total_life_text (n: int) : unit = 
-      total_life_text <- total_life_text + n 
-    method get_total_life_text : int = total_life_text      
-    method set_created_text (n: int) : unit = created_text <- n 
-    method inc_created_text (n: int) : unit = created_text <- created_text + n 
-    method get_created_text : int = created_text
-    method get_dist : float array = dist 
-
-    (* Output method *)
-    method print_text_life out_file =
-      let n_judges = self#get_n_text_judge_revisions in 
-      if n_judges > 0 then 
-        Printf.fprintf out_file "\nTextLife %10.0f PageId: %d JudgedRev: %d JudgedUid: %d JudgedUname: %S NJudges: %d NewText: %d Life: %d"
-          self#get_time
-          self#get_page_id
-          self#get_id
-          self#get_user_id
-          self#get_user_name
-          n_judges
-          self#get_created_text
-          self#get_total_life_text
-
-  end (* revision object *)
 
 (** This is a version of a revision object used just to write the revision out to a file*)
 class write_only_revision 
@@ -186,7 +130,7 @@ class write_only_revision
   
   object (self)
   
-    inherit plain_revision id page_id timestamp time contributor user_id ip_addr username is_minor comment text_init text_disarm
+    inherit revision id page_id timestamp time contributor user_id ip_addr username is_minor comment text_init text_disarm
     
     (* returns the size of the revision in bytes. 
         Assume that each char = 1 byte. *)
@@ -246,7 +190,7 @@ class reputation_revision
   (n_edit_judging: int) 
   =
   object (self)
-    inherit plain_revision id page_id timestamp time contributor user_id ip_addr username is_minor comment text_init text_disarm
+    inherit revision id page_id timestamp time contributor user_id ip_addr username is_minor comment text_init text_disarm
 
     val mutable n_text_judge_revisions: int = 0 
     val mutable created_text: int = 0 
@@ -262,19 +206,9 @@ class reputation_revision
     method set_created_text (n: int) : unit = created_text <- n 
     method inc_created_text (n: int) : unit = created_text <- created_text + n 
     method get_created_text : int = created_text
-      (* This is the new version of distance.  In revision k, 
-         distance[j] refers to the distance between version k and k + j. *)
-    val mutable distance: float Vec.t = Vec.empty 
-      (* This Vec stores, in fashion similar to distance above, 
-         the edit list to go from one version to the other *)
-    val mutable editlist: Editlist.edit list Vec.t = Vec.empty 
       (* Delta from the previous revision *)
     val mutable delta = None 
 
-    method get_distance: float Vec.t = distance
-    method set_distance (v: float Vec.t) : unit = distance <- v
-    method get_editlist: Editlist.edit list Vec.t = editlist
-    method set_editlist (l: Editlist.edit list Vec.t) = editlist <- l 
     method set_delta (d: float) = delta <- Some d
     method get_delta : float option = delta
     (* Output method *)
@@ -442,14 +376,19 @@ class trust_revision
   (text_init: string Vec.t) (* Text of the revision, still to be split into words *)
   (text_disarm: bool) (* Whether to take care of the &gt; etc. conversion; generally, yes. *)
   =
-  let (t, swi, s) = Text.split_into_words_and_seps text_disarm text_init in 
 
   object (self)
-    inherit revision id page_id timestamp time contributor user_id ip_addr username is_minor comment text_init 
+    inherit revision id page_id timestamp time contributor user_id ip_addr username is_minor comment text_init text_disarm
 
-    val words : word array = t 
-    val seps  : Text.sep_t array = s
-    val sep_word_idx : int array = swi 
+    val mutable seps  : Text.sep_t array = [| |]
+    val mutable sep_word_idx : int array =  [| |]
+
+    initializer begin
+      let (t, swi, s) = Text.split_into_words_and_seps text_disarm text_init in 
+      words <- t;
+      seps <- s;
+      sep_word_idx <- swi
+    end
 
     method get_words : word array = words
     method get_n_words : int = Array.length words

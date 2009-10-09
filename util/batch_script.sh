@@ -72,7 +72,7 @@ rm -rf /home/luca/wiki-data/enwork/sql/*
     -blob_base_path ~/wiki-data/enwork/blobtree \
     -n_sigs 8 \
     -robots ~/wiki-data/wp_bots.txt \
-    -d ~/wiki-data/temp \
+    -d ~/wiki-data/enwork/sql \
     /home/luca/wiki-data/segments/wiki-00000030.xml.gz 
 
 # and also for profiling:
@@ -81,8 +81,8 @@ rm -rf /home/luca/wiki-data/enwork/sql/*
     -blob_base_path ~/wiki-data/enwork/blobtree \
     -n_sigs 8 \
     -robots ~/wiki-data/wp_bots.txt \
-    -d ~/wiki-data/temp \
-    /home/luca/wiki-data/segments/wiki-00000220.xml.gz 
+    -d ~/wiki-data/enwork/sql \
+    /home/luca/wiki-data/segments/wiki-00000200.xml.gz 
 
 
 
@@ -92,6 +92,8 @@ python load_data.py --clear_db /home/luca/wiki-data/enwiki/wiki-00100000.xml /ho
 # Or simply:
 python load_data.py --clear_db /home/luca/wiki-data/enwiki/wiki-00100000.xml
 python load_data.py --clear_db /home/luca/wiki-data/itwiki/split-wiki/000/wiki-00000007.xml
+python load_data.py --clear_db /home/luca/wiki-data/segments/wiki-00000030.xml
+python load_data.py --clear_db /home/luca/wiki-data/segments/wiki-00000200.xml
 
 # clears the old wikitrust information:
 python truncate_wikitrust_tables.py
@@ -100,6 +102,8 @@ python truncate_wikitrust_tables.py
 mysql wikidb -u wikiuser -p < ~/wiki-data/enwork/sql/wiki-00100000.sql
 mysql wikidb -u wikiuser -p < ~/wiki-data/enwork/sql/wiki-00100220.sql
 mysql wikidb -u wikiuser -p < ~/wiki-data/enwork/sql/wiki-00000007.sql
+mysql wikidb -u wikiuser -p < ~/wiki-data/enwork/sql/wiki-00000030.sql
+mysql wikidb -u wikiuser -p < ~/wiki-data/enwork/sql/wiki-00000200.sql
 
 # Loads the reputations in the wiki db:
 cd ../analysis

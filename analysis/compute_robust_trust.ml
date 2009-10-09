@@ -507,8 +507,9 @@ let compute_overall_trust (trust_a: float array) : float =
     specifies how many words have trust t with i <= t < i+1. *)
 let compute_trust_histogram (trust_a: float array) : int array =
   let histogram = Array.make 10 0 in
-  let inc_histogram (f: float) = 
-    let idx = max 0 (min 9 (int_of_float (f +. 0.5))) in
-    histogram.(idx) <- histogram.(idx) + 1
-  in Array.iter inc_histogram trust_a;
+  let l = Array.length trust_a in
+  for i = 0 to l - 1 do begin 
+    let idx = max 0 (min 9 (int_of_float (trust_a.(i) +. 0.5))) in
+    histogram.(idx) <- histogram.(idx) + 1    
+  end done;
   histogram
