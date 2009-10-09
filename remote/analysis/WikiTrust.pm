@@ -57,6 +57,7 @@ sub handler {
     }
 
     throw Error::Simple("Bad method: $method") if !exists $methods{$method};
+warn "method $method";
     my $func = $methods{$method};
     $result = $func->($dbh, $cgi, $r);
   } otherwise {
@@ -299,7 +300,7 @@ sub handle_wikiorhtml {
 sub handle_stats {
   my ($dbh, $cgi, $r) = @_;
 
-  $r->content_type('text/plain');
+  $r->content_type('text/plain; charset=utf-8');
 
   my $sth = $dbh->prepare ("SELECT * FROM wikitrust_queue") || die $dbh->errstr;
   $sth->execute() || die $dbh->errstr;
