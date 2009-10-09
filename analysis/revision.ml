@@ -41,6 +41,9 @@ type word = string
 (** This is the class used to represent revisions.  It is then extended 
     for various types of analysis *)
 
+(* Trick to convert efficiently trust into strings *)
+let char_zero = int_of_char '0'
+
 let approx_size_overhead = 200
 
 class revision 
@@ -293,7 +296,7 @@ let produce_annotated_markup
 	  Buffer.add_string out_buf "{{#t:";
 	  if trust_is_float
 	  then Printf.bprintf out_buf "%.2f" new_color_float
-	  else Buffer.add_string out_buf (string_of_int new_color_int)
+	  else Buffer.add_char out_buf (char_of_int (char_zero + new_color_int))
 	end;
 	begin
 	  (* writes origin *)
