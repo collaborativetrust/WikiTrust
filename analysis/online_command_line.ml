@@ -141,7 +141,7 @@ let command_line_format =
    ("-max_revs_per_blob", Arg.Set_int max_revs_per_blob, "<int>: Maximum number of revisions in the same blob (default: 20)");
    ("-rev_id",  Arg.Int set_requested_rev_id, "<int>: (optional) revision ID that we want to ensure it is colored");
    ("-sync_log", Arg.Set synch_log, ": Flush writes to the log immediately. This is very slow; use only for debugging.  This option must be used BEFORE the log_file option is used.");
-   ("-log_file", Arg.String set_log_name, "<filename>: Logger output file (default: /dev/null)");
+   ("-log_file", Arg.String set_log_name, "<filename>: Logger output file (default: stdout)");
    ("-eval_vote", Arg.Unit set_vote, ": Just evaluate the given vote");
    ("-voter_name",  Arg.String set_requested_voter_name, "<string>: (optional) voter ID that we want to evaluate the vote of");
    ("-page_id",  Arg.Int set_requested_page_id, "<int>: (optional) page ID that we want to evaluate the vote on");
