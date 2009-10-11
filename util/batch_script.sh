@@ -146,3 +146,24 @@ ocamldebug -I `ocamlfind query unix` -I `ocamlfind query str` \
   -db_user wikiuser -db_pass localwiki -db_name wikidb \
   -blob_base_path /home/luca/wiki-data/enwork/blobtree \
   -log_file /tmp/test.log
+
+################################################################
+# To use the dispatcher:
+
+# Clean the situation:
+sudo rm -rf /home/luca/wiki-data/enwork/blobtree
+sudo rm -rf /home/luca/wiki-data/enwork/sql/*
+sudo rm -rf /home/luca/wiki-data/enwork/rev_cache/*
+
+# Truncate wikitrust tables preserving reputation.
+python truncate_wikitrust_keep_user.py
+
+# Launch the dispatcher
+./dispatcher -db_user wikiuser -db_name wikidb -db_pass localwiki \
+  -use_wikimedia_api -blob_base_path ~/wiki-data/enwork/blobtree \
+  ~/wiki-data/wp_bots.txt \
+  -use_exec_api -wiki_api http://it.wikipedia.org/w/api.php \
+  -concur_procs 2  -rev_base_path ~/wiki-data/enwork/rev_cache
+
+# Put some data in it. 
+INSERT INTO wikitrust_queue (page_id, page_title) VALUES (556792, "Moncalieri");

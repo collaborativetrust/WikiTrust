@@ -38,7 +38,7 @@ Process the dumps:
 ------------------
 
 cd util
-./batch_process.py --cmd_dir <path>/WikiTrust/analysis --dir <process_dir> --do_compute_trust <dump_file_name.xml.7z>
+./batch_process.py --cmd_dir <path>/WikiTrust/analysis --dir <process_dir> <dump_file_name.xml.7z>
 
 Where:
 
