@@ -414,7 +414,7 @@ let rec get_revs_from_api
     end
 
 let store_wiki_revs  (db: Online_db.db) (wiki_page: wiki_page_t) (wiki_revs: wiki_revision_t list) : unit =
-    let the_page_title = wiki_page.page_title in
+    let the_page_title = ExtString.String.map (fun c -> if c = '_' then ' ' else c) wiki_page.page_title in
     let update_and_write_rev rev =
       rev.revision_page <- wiki_page.page_id;
       rev.revision_user <- (get_user_id rev.revision_user_text db);

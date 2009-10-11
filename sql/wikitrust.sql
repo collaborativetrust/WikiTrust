@@ -687,9 +687,7 @@ CREATE TABLE `searchindex` (
   `si_page` int(10) unsigned NOT NULL,
   `si_title` varchar(255) NOT NULL default '',
   `si_text` mediumtext NOT NULL,
-  UNIQUE KEY `si_page` (`si_page`),
-  FULLTEXT KEY `si_title` (`si_title`),
-  FULLTEXT KEY `si_text` (`si_text`)
+  UNIQUE KEY `si_page` (`si_page`)
 ) ENGINE=MyISAM DEFAULT CHARSET=binary;
 SET character_set_client = @saved_cs_client;
 
