@@ -54,14 +54,14 @@ class page
        buffer.  revs[0] is the oldest, and is the revision
        number offset (see later, offset is a field of page) for
        the page. *)
-    val mutable revs : Revision.plain_revision Vec.t = Vec.empty 
+    val mutable revs : Revision.revision Vec.t = Vec.empty 
       (* In the Vec implementation, offset is the offset of the oldest
          (position 0 in revs) revision. *)
     val mutable offset : int = 0
       (* This is the last revision; I don't know yet that I can add it to 
          the array of revisions, as there may be a subsequent one 
          by the same author *)
-    val mutable last_rev : Revision.plain_revision option = None 
+    val mutable last_rev : Revision.revision option = None 
 
       (* Arrays of chunks and chunk attributes for the last version of the page. *)
       (* chunks_a is a word array array, and is used to represent both the live text
@@ -176,7 +176,7 @@ class page
       (comment: string)
       (text_init: string Vec.t) (* Text of the revision, still to be split into words *)
       : unit =
-      let r = new Revision.plain_revision id page_id timestamp time contributor user_id ip_addr username is_minor comment text_init true in 
+      let r = new Revision.revision id page_id timestamp time contributor user_id ip_addr username is_minor comment text_init true in 
       Printf.fprintf stderr "."; flush stderr; 
       match last_rev with
         (* This is the first we see for this page *)

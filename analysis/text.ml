@@ -794,14 +794,18 @@ let normalize_ws (s: string) : string =
   end
 
 (* This function normalizes a word of the wiki, turning it into lowercase,
-   and eliminating any whitespace and punctuation that it might contain. *)
+   and eliminating any following punctuation. *)
 (* Things I do NOT renormalize so far: ?, !, (), other parentheses, and more. 
    These all seem too important to renormalize. *)
-let word_renormalize_chars_r = Str.regexp "[.:;,-]+"
 let renormalize_word (s: string) : string =
-  let s' = Str.global_replace word_renormalize_chars_r "" s in
+  let l = String.length s in
+  let last_c = s.[l-1] in
+  let s' = 
+    if last_c = '.' || last_c = ':' || last_c = ';' || last_c = ','
+    then String.sub s 0 (l-1)
+    else s
+  in 
   String.lowercase s'
-
 
 (* This function splits a Vec.t of strings respecting the wiki markup language.
    It returns: 
@@ -857,7 +861,7 @@ let split_into_words_seps_and_info (arm: bool) (text_v: string Vec.t)
        other authors (it could allow them to gain reputation unjustifiably)
      - cannot vandalize a page without getting some effect to their reputation. 
    *)
-  let f (s: piece_t) = 
+  let h (s: piece_t) = 
     match s with 
       WS_title_start s -> begin 
 	DynArray.add sep_v (Title_start (s, !word_idx));
@@ -1004,7 +1008,7 @@ let split_into_words_seps_and_info (arm: bool) (text_v: string Vec.t)
       end
     | TXT_splittable _ -> ()
   in 
-  DynArray.iter f piece_v; 
+  DynArray.iter h piece_v; 
   (* Creates the output *)
   let word_a = DynArray.to_array word_v in 
   let trust_a = DynArray.to_array word_trust_v in 

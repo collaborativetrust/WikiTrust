@@ -89,6 +89,7 @@ eval_online_wiki from source.
 $wgUseTidy = true;       // Enable Tidy
 $wgUseAjax = true;       // Enable Ajax (needed for voting)
 require_once( $IP . "/extensions/WikiTrust/WikiTrust.php" );
+ini_set( 'memory_limit', '40M' );
 
    You can look in WikiTrust.php (located at WikiTrust/WikiTrust.php) 
    for a list of all the configurable variables.  The defaults should

@@ -447,7 +447,7 @@ object(self)
       such info for the given title under a different page_id *)
   method clear_old_info_if_pid_changed (page_id : int) (page_title : string)
     : unit =
-    let s = Printf.sprintf "SELECT page_id FROM %swikitrust_page WHERE page_title = %s AND page_id <> %s"
+    let s = Printf.sprintf "SELECT page_id FROM %swikitrust_page WHERE page_title LIKE %s AND page_id <> %s"
       db_prefix (ml2str page_title) (ml2int page_id) in
     let result = self#db_exec mediawiki_dbh s in 
       match Mysql.fetch result with 
@@ -513,7 +513,8 @@ object(self)
   (** [get_latest_rev_id_from_id page_id] returns the revision id of the most 
       recent revision of page [page_id], according. *)
   method get_latest_rev_id_from_id(page_id: int) : int = 
-    let s = Printf.sprintf "SELECT revision_id FROM %swikitrust_revision WHERE page_id = %s ORDER BY time_string DESC, revision_id DESC LIMIT 1" db_prefix (ml2int page_id) in 
+    let s = Printf.sprintf "SELECT max(A) FROM (SELECT max(revision_id) AS A FROM %swikitrust_revision WHERE page_id = %s UNION SELECT max(rev_id) AS A FROM %srevision WHERE rev_page = %s) AS  t1;"
+        db_prefix (ml2int page_id) db_prefix (ml2int page_id) in 
     match fetch (self#db_exec mediawiki_dbh s) with 
       None -> raise DB_Not_Found
     | Some x -> not_null int2ml x.(0)
@@ -832,12 +833,13 @@ object(self)
     let results = ref [] in
     while !n_attempts < n_retries do 
       begin 
-	try Printexc.print (fun () -> begin 
+	try 
 	  self#start_transaction;
-	  let s = Printf.sprintf "SELECT page_id, page_title FROM %swikitrust_queue WHERE processed = 'unprocessed' ORDER BY requested_on ASC LIMIT %s" 
+	  let s = Printf.sprintf "SELECT page_id, page_title FROM %swikitrust_queue WHERE processed = 'unprocessed' ORDER BY priority DESC, requested_on ASC LIMIT %s" 
 	    db_prefix (ml2int max_to_get) in
 	  let get_id row : int = (not_null int2ml row.(0)) in
-	  let get_title row : string = (not_null str2ml row.(1)) in
+	  let get_title row : string = ExtString.String.map (fun c -> if c = '_' then ' ' else c)
+              (not_null str2ml row.(1)) in
 	  let get_pair row = (get_id row, get_title row) in 
 	  results := Mysql.map (self#db_exec mediawiki_dbh s) get_pair;
 	  let mark_as_processing (page_id, _) = 
@@ -848,7 +850,7 @@ object(self)
           (* We need to end this loop. *)
           self#commit;
           n_attempts := n_retries   
-	end ) () with 
+	with 
 	| _ -> begin 
 	    (* Roll back *)
 	    self#rollback_transaction;
