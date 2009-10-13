@@ -154,6 +154,12 @@ ocamldebug -I `ocamlfind query unix` -I `ocamlfind query str` \
 sudo rm -rf /home/luca/wiki-data/enwork/blobtree
 sudo rm -rf /home/luca/wiki-data/enwork/sql/*
 sudo rm -rf /home/luca/wiki-data/enwork/rev_cache/*
+# Or
+rm -rf /home/luca/wiki-data/enwork/blobtree
+rm -rf /home/luca/wiki-data/enwork/sql/*
+rm -rf /home/luca/wiki-data/enwork/rev_cache/*
+# Then
+python load_data.py --clear_db /dev/null
 
 # Truncate wikitrust tables preserving reputation.
 python truncate_wikitrust_keep_user.py
@@ -161,9 +167,11 @@ python truncate_wikitrust_keep_user.py
 # Launch the dispatcher
 ./dispatcher -db_user wikiuser -db_name wikidb -db_pass localwiki \
   -use_wikimedia_api -blob_base_path ~/wiki-data/enwork/blobtree \
-  ~/wiki-data/wp_bots.txt \
+  -robots ~/wiki-data/wp_bots.txt \
+  -log_file /tmp/dispatcher.log \
   -use_exec_api -wiki_api http://it.wikipedia.org/w/api.php \
   -concur_procs 2  -rev_base_path ~/wiki-data/enwork/rev_cache
 
 # Put some data in it. 
 INSERT INTO wikitrust_queue (page_id, page_title) VALUES (556792, "Moncalieri");
+INSERT INTO wikitrust_queue (page_id, page_title) VALUES (38166, "Chieri");
