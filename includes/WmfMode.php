@@ -55,7 +55,7 @@ class WikiTrust extends WikiTrustBase {
     . "&time=".urlencode(wfTimestampNow()));
 
     // TODO: we need a shared key!
-    $colored_text = @file_get_contents($wgWikiTrustContentServerURL 
+    $vote_str = @file_get_contents($wgWikiTrustContentServerURL 
 		. "vote=1&rev=".urlencode($rev_id)
 		. "&page=".urlencode($page_id)
 		. "&user=".urlencode($userName)
@@ -100,22 +100,9 @@ class WikiTrust extends WikiTrustBase {
       . "&time=" . urlencode(wfTimestampNow())
       . "&user=" . urlencode($user_id);
 
-    // There's some strange caching going on on the python end.
-    // TODO -- fixme
-    // Doing this twice though works for now.
-    do{
-      $times_though++;
-      wfWikiTrustDebug(__FILE__.":".__LINE__.": $url");
+    wfWikiTrustDebug(__FILE__.":".__LINE__.": $url");
 
-      $colored_raw = (file_get_contents($url, 0, $ctx));
-      if ($colored_raw
-        && $colored_raw != self::NOT_FOUND_TEXT_TOKEN
-        && $colored_raw != "bad")
-      {
-        break;
-      }
-    } while ($times_though < $MAX_TIMES_THROUGH);
-
+    $colored_raw = (file_get_contents($url, 0, $ctx));
     if (!$colored_raw
         || $colored_raw == self::NOT_FOUND_TEXT_TOKEN
         || $colored_raw == "bad")
@@ -123,22 +110,14 @@ class WikiTrust extends WikiTrustBase {
         return '';
       }    
 
-    // Inflate. Pick off the first 10 bytes for python-php conversion.
-    // Not used here for now. 
-    // ToDo: Use curl to handle the gzip behind the scenes.
-    // $colored_raw = gzinflate(substr($colored_raw, 10));
     $colored_data = $colored_raw;
 
     // Pick off the median value first.
     $colored_data = explode(",", $colored_raw, 2);
     $colored_text = $colored_data[1];
-    if (preg_match("/^[+-]?(([0-9]+)|([0-9]*\.[0-9]+|[0-9]+\.[0-9]*)|
-			  (([0-9]+|([0-9]*\.[0-9]+|[0-9]+\.[0-9]*))[eE][+-]?[0-9]+))$/", $colored_data[0]))
-    {
-      self::$median = $colored_data[0];
-      if ($colored_data[0] == 0)
+    self::$median = $colored_data[0] + 0;
+    if (self::$median == 0)
 	self::$median = self::TRUST_DEFAULT_MEDIAN;
-    }
     return $colored_text;
   }
 
@@ -153,7 +132,6 @@ class WikiTrust extends WikiTrustBase {
     $rev_id = $revision->getID();
     $page_title = $article->getTitle()->getDBkey();
     $user_id = $user->getID();
-    $parentId = $revision->getParentId();
 
     wfWikiTrustDebug(__FILE__.": ".__LINE__.": New article id $rev_id");
 		
@@ -164,16 +142,14 @@ class WikiTrust extends WikiTrustBase {
 			 ."edit=1&rev=".urlencode($rev_id)
 			 ."&page=".urlencode($page_id)
 			 ."&user=".urlencode($user_id)
-			 ."&parentId".urlencode($parentId)
 			 ."&text=".urlencode($text)
 			 ."&page_title=".urlencode($page_title)
-       ."&time=".urlencode(wfTimestampNow()));
+			 ."&time=".urlencode(wfTimestampNow()));
 
     $colored_text = self::file_post_contents($wgWikiTrustContentServerURL 
 			 ."edit=1&rev=".urlencode($rev_id)
 			 ."&page=".urlencode($page_id)
 			 ."&user=".urlencode($user_id)
-			 ."&parentId".urlencode($parentId)
 			 ."&text=".urlencode($text)
 			 ."&page_title=".urlencode($page_title)
 			 ."&time=".urlencode(wfTimestampNow()));
