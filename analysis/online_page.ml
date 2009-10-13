@@ -817,12 +817,12 @@ class page
           let revi = Vec.get i revs in 
           let revi_id = revi#get_id in 
           let d = Hashtbl.find edit_dist (revi_id, rev0_id) in
-	  !Online_log.online_logger#log (Printf.sprintf " %.1f" i d);
+	  !Online_log.online_logger#log (Printf.sprintf " ; %d %.1f" i d);
           (* We consider a revision to be a better candidate than the
              immediately preceding revision as the source of the most
              recent revision if it is no farther away. *)
           if d < d_prev && d < !closest_d then begin
-	    !Online_log.online_logger#log (Printf.sprintf " *" i);
+	    !Online_log.online_logger#log (Printf.sprintf " * %d " i);
             close_idx := i; 
             closest_d := d
           end
