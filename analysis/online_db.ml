@@ -517,7 +517,9 @@ object(self)
         db_prefix (ml2int page_id) db_prefix (ml2int page_id) in 
     match fetch (self#db_exec mediawiki_dbh s) with 
       None -> raise DB_Not_Found
-    | Some x -> not_null int2ml x.(0)
+    | Some x -> (match x.(0) with 
+      | None -> raise DB_Not_Found
+      | Some maxr -> int2ml maxr)
 
 
   (* ================================================================ *)
