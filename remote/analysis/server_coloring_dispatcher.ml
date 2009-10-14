@@ -182,7 +182,7 @@ let process_page (page_id: int) (page_title: string) =
 	   e page_id page_title (Printexc.to_string (Wikipedia_api.API_error 
            e));
        )
-     | _ -> () (* All exceptions printed by the Printexc module above. *) 
+    (* | _ -> () (* All exceptions printed by the Printexc module above. *) *)
   );
   (* Marks the page as processed. *)
   child_db#mark_page_as_processed page_id page_title;
