@@ -249,6 +249,22 @@ let page_info_default = {
 (* Timestamp in the DB *)
 type timestamp_t = int * int * int * int * int * int;;
 
+(* Parameters for blob storage. *)
+type blob_params_t = {
+  (* Minimum uncompressed blob size *)
+  min_blob_size: int;
+  (* Maximum uncompressed blob size *)
+  max_blob_size: int;
+  (* Max n. of revisions per blob once the blob is over the min size. *)
+  max_revs_per_blob: int;
+}
+
+let blob_params = {
+  min_blob_size =  1000000;
+  max_blob_size = 10000000;
+  max_revs_per_blob = 20;
+}
+
 (* Sigs and deleted chunks are stored in a very specific position. *)
 type blob_locations_t = {
   invalid_location: int;

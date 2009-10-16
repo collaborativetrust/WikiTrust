@@ -91,7 +91,6 @@ let mediawiki_db = {
 } in
 let mediawiki_dbh = Mysql.connect mediawiki_db in 
 let db = Online_db.create_db !use_exec_api !db_prefix mediawiki_dbh !mw_db_name
-  !wt_db_rev_base_path !wt_db_blob_base_path 
-  !max_uncompressed_blob_size !max_revs_per_blob !dump_db_calls in  
+  !wt_db_rev_base_path !wt_db_blob_base_path !dump_db_calls in  
 main db
 

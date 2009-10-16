@@ -138,11 +138,11 @@ class db
   (db_name: string)
   (rev_base_path: string option)
   (colored_base_path: string option)
-  (max_size_per_blob: int)
-  (max_revs_per_blob: int)
   (debug_mode : bool) =
   
 object(self)
+
+  val min_size_per_blob = 1000000
 
   method private db_exec dbh s = 
     if debug_mode then begin 
@@ -640,8 +640,9 @@ object(self)
       | None -> begin
 	  (* We had to add to the open blob *)
 	  let blob_size = String.length new_blob_content in
-	  if blob_size > max_size_per_blob ||
-	    new_n_revs_in_blob >= max_revs_per_blob then begin 
+	  if blob_size >= blob_params.max_blob_size ||
+	    (blob_size >= blob_params.min_blob_size &&
+	      new_n_revs_in_blob >= blob_params.max_revs_per_blob) then begin 
 	      (* We start a new blob. *)
 	      self#write_open_blob_id page_id (page_open_blob + 1);
 	      page_open_blob + 1
@@ -980,14 +981,11 @@ class db_exec_api
   (db_name: string)
   (rev_base_path: string option)
   (colored_base_path: string option)
-  (max_size_per_blob: int)
-  (max_revs_per_blob: int)
   (debug_mode : bool) =
   
 object(self)
   inherit db db_prefix mediawiki_dbh db_name rev_base_path colored_base_path
-    max_size_per_blob max_revs_per_blob debug_mode
-    as super 
+    debug_mode as super 
 
   (** Puts the text in the text cache, and the rest in the db using the 
       super method *)
@@ -1065,12 +1063,10 @@ let create_db
     (db_name: string)
     (rev_base_path: string option)
     (colored_base_path: string option)
-    (max_size_per_blob: int)
-    (max_revs_per_blob: int)
     (debug_mode : bool) =
   if use_exec_api
   then (new db_exec_api db_prefix mediawiki_dbh db_name rev_base_path 
-    colored_base_path max_size_per_blob max_revs_per_blob debug_mode)
+    colored_base_path debug_mode)
   else (new db db_prefix mediawiki_dbh db_name rev_base_path 
-    colored_base_path max_size_per_blob max_revs_per_blob debug_mode)
+    colored_base_path debug_mode)
 

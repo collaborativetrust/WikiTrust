@@ -99,8 +99,6 @@ class writer
     val mutable blob_id : int = blob_locations.invalid_location
     val mutable blob_revisions : (int * string) list = []
     val mutable blob_size = 0
-    val max_size_blob = 10000000
-    val max_n_revisions = 20
       
     initializer begin
       (* First, we have to establish whether we are writing to the 
@@ -181,7 +179,9 @@ class writer
 	  (* The revision id is different from the previous one. *)
 	  (* First, checks whether the older revisions need writing to disk. *)
 	  let n_revisions = List.length blob_revisions in 
-	  if blob_size >= max_size_blob || n_revisions >= max_n_revisions
+	  if blob_size >= blob_params.max_blob_size || 
+	    (blob_size >= blob_params.min_blob_size && 
+	      n_revisions >= blob_params.max_revs_per_blob)
 	  then begin
 	    (* Writes to disk. *)
 	    write_general_blob write_method page_id blob_id blob_revisions;
@@ -223,7 +223,9 @@ class writer
 	  write_general_blob write_method page_id blob_id blob_revisions;
 	  (* Checks whether we need to move to a new blob. *)
 	  let n_revisions = List.length blob_revisions in
-	  if blob_size >= max_size_blob || n_revisions >= max_n_revisions
+	  if blob_size >= blob_params.max_blob_size || 
+	    (blob_size >= blob_params.min_blob_size && 
+	      n_revisions >= blob_params.max_revs_per_blob)
 	  then blob_id + 1
 	  else blob_id
 	end
