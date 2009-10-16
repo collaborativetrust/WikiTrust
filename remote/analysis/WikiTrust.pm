@@ -57,7 +57,6 @@ sub handler {
     }
 
     throw Error::Simple("Bad method: $method") if !exists $methods{$method};
-warn "method $method";
     my $func = $methods{$method};
     $result = $func->($dbh, $cgi, $r);
   } otherwise {
@@ -267,7 +266,7 @@ sub handle_gettext {
   } else {
     $r->headers_out->{'Cache-Control'} = "max-age=" . 5*24*60*60;
   }
-  $r->content_type('text/plain');
+  $r->content_type('text/plain; charset=utf-8');
   $r->print($result);
   return Apache2::Const::OK;
 }
@@ -279,7 +278,7 @@ sub handle_wikiorhtml {
   my $data = $cache->get($rev);
   if (defined $data && ref $data eq 'HASH') {
     $r->headers_out->{'Cache-Control'} = "max-age=" . 30*24*60*60;
-    $r->content_type('text/plain');
+    $r->content_type('text/plain; charset=utf-8');
     $r->print('H');
     $r->print($data->{html});
     return Apache2::Const::OK;
@@ -291,7 +290,7 @@ sub handle_wikiorhtml {
   } else {
     $r->headers_out->{'Cache-Control'} = "max-age=" . 30;
   }
-  $r->content_type('text/plain');
+  $r->content_type('text/plain; charset=utf-8');
   $r->print('W');
   $r->print($result);
   return Apache2::Const::OK;
