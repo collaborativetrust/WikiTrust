@@ -26,8 +26,9 @@ our %methods = (
 	'vote' => \&handle_vote,
 	'gettext' => \&handle_gettext,
 	'wikiorhtml' => \&handle_wikiorhtml,
-	'stats' => \&handle_stats,
 	'sharehtml' => \&handle_sharehtml,
+	'stats' => \&handle_stats,
+	'miccheck' => \&handle_miccheck,
     );
 
 our $cache = undef;	# will get initialized when needed
@@ -266,7 +267,7 @@ sub handle_gettext {
   } else {
     $r->headers_out->{'Cache-Control'} = "max-age=" . 5*24*60*60;
   }
-  $r->content_type('text/plain');
+  $r->content_type('text/plain; charset=utf-8');
   $r->print($result);
   return Apache2::Const::OK;
 }
@@ -278,7 +279,7 @@ sub handle_wikiorhtml {
   my $data = $cache->get($rev);
   if (defined $data && ref $data eq 'HASH') {
     $r->headers_out->{'Cache-Control'} = "max-age=" . 30*24*60*60;
-    $r->content_type('text/plain');
+    $r->content_type('text/plain; charset=utf-8');
     $r->print('H');
     $r->print($data->{html});
     return Apache2::Const::OK;
@@ -290,7 +291,7 @@ sub handle_wikiorhtml {
   } else {
     $r->headers_out->{'Cache-Control'} = "max-age=" . 30;
   }
-  $r->content_type('text/plain');
+  $r->content_type('text/plain; charset=utf-8');
   $r->print('W');
   $r->print($result);
   return Apache2::Const::OK;
@@ -299,7 +300,7 @@ sub handle_wikiorhtml {
 sub handle_stats {
   my ($dbh, $cgi, $r) = @_;
 
-  $r->content_type('text/plain');
+  $r->content_type('text/plain; charset=utf-8');
 
   my $sth = $dbh->prepare ("SELECT * FROM wikitrust_queue") || die $dbh->errstr;
   $sth->execute() || die $dbh->errstr;
@@ -322,6 +323,18 @@ sub handle_stats {
   foreach my $key (keys %$stats) {
     $r->print("\t$key = ". Dumper($stats->{$key}) . "\n");
   }
+  return Apache2::Const::OK;
+}
+
+# miccheck: Called by the plugin to see if this language is
+# actually implemented.  Basically, it tests that the DNS
+# is configured and working correctly from user to us.
+sub handle_miccheck {
+  my ($dbh, $cgi, $r) = @_;
+
+  $r->headers_out->{'Cache-Control'} = "max-age=" . 30*24*60*60;
+  $r->content_type('text/plain; charset=utf-8');
+  $r->print("OK");
   return Apache2::Const::OK;
 }
 
