@@ -153,7 +153,7 @@ object(self)
       let db_overall_trust = ml2float quality_info.overall_trust in
       let db_overall_quality = ml2float 0.0 in
       (* Db write access *)
-      Printf.fprintf sql_file "REPLACE INTO %swikitrust_revision (revision_id, page_id, text_id, time_string, user_id, username, is_minor, quality_info, blob_id, reputation_delta, overall_trust, overall_quality) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);\n"
+      Printf.fprintf sql_file "INSERT INTO %swikitrust_revision (revision_id, page_id, text_id, time_string, user_id, username, is_minor, quality_info, blob_id, reputation_delta, overall_trust, overall_quality) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);\n"
 	db_prefix rev_id page_id text_id time_string user_id username is_minor db_qual_info (ml2int blob_id) aq2 db_overall_trust db_overall_quality
 	
 
@@ -442,7 +442,7 @@ object(self)
       } in 
       let info_string_db = ml2str 
 	(string_of__of__sexp_of sexp_of_page_info_t page_info) in 
-      Printf.fprintf sql_file "REPLACE INTO %swikitrust_page (page_id, page_title, page_info, last_blob) VALUES (%s, %s, %s, %s);\n"
+      Printf.fprintf sql_file "INSERT INTO %swikitrust_page (page_id, page_title, page_info, last_blob) VALUES (%s, %s, %s, %s);\n"
 	db_prefix (ml2int page_id) (ml2str page_title) 
 	info_string_db (ml2int open_blob_id)
 
