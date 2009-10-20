@@ -550,8 +550,8 @@ let separate_titles (v: piece_t DynArray.t) : piece_t DynArray.t =
   DynArray.iter f v;
   w
 
-(* Bullets and colons *)
-let bullet_tag = "\\(\n\\(\\*\\|#\\|:\\)+ *\\)"
+(* Bullets and colons and semicolons *)
+let bullet_tag = "\\(\n\\(\\*\\|#\\|:\\|;\\)+ *\\)"
 let bullet_tag_r = Str.regexp bullet_tag
 (* Indent *)
 let indent_tag = "\\(\n +\\)"

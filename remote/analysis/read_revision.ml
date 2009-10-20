@@ -3,7 +3,7 @@
 Copyright (c) 2009 The Regents of the University of California
 All rights reserved.
 
-Authors: Luca de Alfaro, Ian Pye, B. Thomas Adler
+Authors: Ian Pye
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -33,19 +33,23 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
-open Online_command_line
-open Online_types
+(*
+  read_revision -- given a revision id and database params, outputs the 
+  colored markup for this revision to stdout.
+*)
 
-exception Bad_Line of string
+open Online_command_line;;
 
-(* Every batch corresponds to 50 revisions, so this will do 1000 at most. *)
-let max_batches_to_do = 20
-let max_concurrent_procs = 10
-let sleep_time_sec = 1
+(* Figure out what to do and how we are going to do it. *)
 let custom_line_format = [] @ command_line_format
 
-let _ = Arg.parse custom_line_format noop "Usage: downloadwp [options]";;
+let _ = Arg.parse custom_line_format noop "Usage: read_revision -rev_id -db_user ...\n";;
 
+let main (rev_id : int) (db : Online_db.db) : unit =
+  let (rev_info, _, blob_id) = db#read_wikitrust_revision rev_id in
+  Printf.printf "%s\n"
+    (db#read_colored_markup rev_info.Online_db.rev_id rev_id blob_id)
+in
 
 (* Prepares the database connection information *)
 let mediawiki_db = {
@@ -54,36 +58,11 @@ let mediawiki_db = {
   Mysql.dbport = Some !mw_db_port;
   Mysql.dbpwd  = Some !mw_db_pass;
   Mysql.dbuser = Some !mw_db_user;
-}
-
-(* Sets up the db *)
-(* Note that here it does not make sense to use the wikipedia API *)
-let mediawiki_dbh = Mysql.connect mediawiki_db in
+} in
+let mediawiki_dbh = Mysql.connect mediawiki_db in 
 let db = Online_db.create_db !use_exec_api !db_prefix mediawiki_dbh !mw_db_name
-  !wt_db_rev_base_path !wt_db_blob_base_path !dump_db_calls in
- 
-let tabsplit = Str.split_delim (Str.regexp "\t") in
-
-let splitLine2TitleRev line =
-    let vals = tabsplit line in
-    match vals with
-	| [title; rev] -> (title, (int_of_string rev))
-	| [title] -> (title, 0)
-	| _ -> raise (Bad_Line line)
-    in
-
-let main_loop () =
-  try
-    while true do begin
-      let line = input_line stdin in
-      let (title, start_rev) = splitLine2TitleRev line in
-      try
-	Wikipedia_api.download_page_starting_with db title start_rev 0
-      with
-	Wikipedia_api.API_error msg ->
-	  (!Online_log.online_logger)#log (Printf.sprintf "ERROR: %s\nmsg=%s\n" title msg);
-    end done
-  with End_of_file -> ()
-in
-
-main_loop ()
+  !wt_db_rev_base_path !wt_db_blob_base_path !dump_db_calls 
+in 
+match !requested_rev_id with
+| None -> raise (Invalid_argument "-rev_id paramiter required")
+| Some r -> main r db

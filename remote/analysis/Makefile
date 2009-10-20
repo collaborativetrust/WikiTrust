@@ -118,8 +118,14 @@ bot_reader: $(OUR_ONLINE_OBJS)
 bot_readeropt: $(OUR_OPT_ONLINE_OBJS)
 	$(OCAMLOPT) -linkpkg -o bot_reader $(OCAMLOPT_FLAGS) $(OUR_LIBS_OPT) $(OUR_OPT_ONLINE_OBJS) bot_reader.ml
 
+read_revision: $(OUR_ONLINE_OBJS) 
+	$(OCAMLC) -linkpkg -o read_revision $(OCAML_CFLAGS) $(OUR_LIBS) $(OUR_ONLINE_OBJS) read_revision.ml 
+
+read_revisionopt: $(OUR_OPT_ONLINE_OBJS)
+	$(OCAMLOPT) -linkpkg -o read_revision $(OCAMLOPT_FLAGS) $(OUR_LIBS_OPT) $(OUR_OPT_ONLINE_OBJS) read_revision.ml
+
 clean:
-	rm -f *.o *.cmo *.cmx *.cmi .depends dispatcher bot_reader
+	rm -f *.o *.cmo *.cmx *.cmi .depends dispatcher bot_reader read_revision
 
 # Boilerplate code for building ocaml dependencies.
 

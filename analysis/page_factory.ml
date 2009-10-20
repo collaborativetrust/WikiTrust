@@ -391,7 +391,7 @@ class page_factory
       if xml_file <> stderr then 
 	begin close_out xml_file; xml_file <- stderr end;
       if sql_file <> stderr then 
-	begin close_out xml_file; xml_file <- stderr end;
+	begin close_out sql_file; sql_file <- stderr end;
       if words_file <> stderr then 
 	begin close_out words_file; words_file <- stderr end 
 

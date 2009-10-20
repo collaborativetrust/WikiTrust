@@ -287,7 +287,7 @@ let produce_annotated_markup
     if trust_is_float || always_print 
       || (new_color_int <> !curr_color) 
       || (include_origin && (new_origin <> !curr_origin))
-      || (include_author && not (new_author <> !curr_author)) then begin 
+      || (include_author && (new_author <> !curr_author)) then begin 
 	begin 
 	  (* writes trust *)
 	  Buffer.add_string out_buf "{{#t:";
@@ -316,7 +316,7 @@ let produce_annotated_markup
       end (* Needs to print the tag. *)
   end
   in
-  (* We write the text of the revision *)
+  (* We remember for which word we last output the color. *)
   let word_idx = ref 0 in 
   (* This function f is iterated on the array *)
   let f (s: Text.sep_t) : unit = 
