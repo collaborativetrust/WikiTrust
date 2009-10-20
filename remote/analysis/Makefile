@@ -76,10 +76,11 @@ OCAMLOPT_FLAGS=$(INCLUDES)
 
 universe: all allopt
 
-all: downloadwp dispatcher read_rev_text fetch_all_revs_after bot_reader
+all: downloadwp dispatcher read_rev_text fetch_all_revs_after bot_reader \
+	read_revision
 
 allopt: downloadwpopt dispatcheropt read_rev_textopt fetch_all_revs_afteropt \
-	bot_readeropt
+	bot_readeropt read_revision
 
 # Here are the objects that we want to build. 
 # We need two lines of these, one for the debugging compilation,
