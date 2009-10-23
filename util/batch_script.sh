@@ -180,6 +180,26 @@ python truncate_wikitrust_keep_user.py
   -use_exec_api -wiki_api http://it.wikipedia.org/w/api.php \
   -concur_procs 2  -rev_base_path ~/wiki-data/enwork/rev_cache
 
+# Or, with debugger on:
+ocamldebug -I `ocamlfind query unix` -I `ocamlfind query str` \
+    -I `ocamlfind query vec` -I `ocamlfind query mapmin` \
+    -I `ocamlfind query hashtbl_bounded` -I `ocamlfind query fileinfo` \
+    -I `ocamlfind query intvmap` -I `ocamlfind query extlib` \
+    -I `ocamlfind query mysql` -I `ocamlfind query sexplib` \
+    -I ../../analysis \
+    ./dispatcher -db_user wikiuser -db_name wikidb -db_pass localwiki \
+    -use_wikimedia_api -blob_base_path ~/wiki-data/enwork/blobtree \
+    -robots ~/wiki-data/wp_bots.txt \
+    -log_file /tmp/dispatcher.log \
+    -use_exec_api -wiki_api http://it.wikipedia.org/w/api.php \
+    -concur_procs 2  -rev_base_path ~/wiki-data/enwork/rev_cache
+
+
 # Put some data in it. 
 INSERT INTO wikitrust_queue (page_id, page_title) VALUES (556792, "Moncalieri");
 INSERT INTO wikitrust_queue (page_id, page_title) VALUES (38166, "Chieri");
+
+# Look at some revisions via:
+./read_revision  -db_user wikiuser -db_name wikidb -db_pass localwiki \
+    -blob_base_path ~/wiki-data/enwork/blobtree \
+    -rev_id 2754456
