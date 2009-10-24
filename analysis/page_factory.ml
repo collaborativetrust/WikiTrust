@@ -50,7 +50,6 @@ open Online_types
 (** type of analysis that is requested *)
 type analysis_t = 
     Reputation_analysis
-  | Contribution_analysis
   | Trust_color
   | Trust_syntactregion_color
   | Trust_and_origin
@@ -189,7 +188,6 @@ class page_factory
     method print_mode = 
       match mode with 
       | Reputation_analysis -> Printf.fprintf stderr "reputation\n"; flush stderr
-      | Contribution_analysis -> Printf.fprintf stderr "contrib\n"; flush stderr
       | Trust_color -> Printf.fprintf stderr "color\n"; flush stderr
       | Trust_syntactregion_color -> Printf.fprintf stderr "trustsyncolor\n"; flush stderr
       | Trust_and_origin -> Printf.fprintf stderr "trust_and_origin\n"; flush stderr
@@ -204,7 +202,6 @@ class page_factory
 
     (* These methods are used to set the appropriate evaluation *)
     method set_reputation () = mode <- Reputation_analysis
-    method set_contribution () = mode <- Contribution_analysis
     method set_trust_color () = mode <- Trust_color
     method set_trust_local_color () = mode <- Trust_syntactregion_color
     method set_revcount () = mode <- Revcount_analysis
@@ -252,7 +249,6 @@ class page_factory
        ("-word-freq", Arg.Unit self#set_word_freq, "Counts the frequency of each word");
        ("-compute_stats", Arg.Unit self#set_reputation, "Produces the reduced stats files used to compute author reputation."); 
        ("-do_text", Arg.Set do_text, "Uses also text longevity to compute reputation increments.");
-       ("-eval_contrib", Arg.Unit self#set_contribution, "Evaluates the contribution given by users of different reputation."); 
        ("-color_trust", Arg.Unit self#set_trust_color, "Outputs text colored by trust."); 
        ("-color_local_trust", Arg.Unit self#set_trust_local_color, "Colors according to the local trust."); 
        ("-trust_and_origin", Arg.Unit self#set_trust_and_origin, "Colors the text according to trust and adds text origin information."); 
@@ -299,8 +295,6 @@ class page_factory
       | Reputation_analysis -> new Reputation_analysis.page id title out_file 
 	  eval_zip_error be_precise
 	  n_text_judging n_edit_judging !equate_anons !do_text
-      | Contribution_analysis -> new Contribution_analysis.page id title 
-	  out_file rep_histories !equate_anons
       (* Trust_color does not also do the origin *)
       | Trust_color -> new Trust_analysis.page id title xml_file rep_histories
 	  trust_coeff_lends_rep trust_coeff_read_all 
@@ -367,7 +361,7 @@ class page_factory
       begin 
 	match mode with 
 	  Reputation_analysis -> out_file <- open_out stats_name
-	| Contribution_analysis | Revcount_analysis | Intertime_analysis 
+	| Revcount_analysis | Intertime_analysis 
 	    -> out_file <- open_out default_name
 	| Trust_color | Trust_syntactregion_color | Trust_and_origin
 	| AuthorText | WordFequency | Prune_revisions | Revisions_to_text 
