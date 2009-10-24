@@ -99,6 +99,8 @@ class page_factory :
     method set_prune : unit -> unit 
     method set_revs_to_text : unit -> unit 
     method set_trust_for_online : unit -> unit
+    method set_contribution_analysis : unit -> unit
+    method set_dump_end_date : string -> unit
 
     method print_mode : unit 
 

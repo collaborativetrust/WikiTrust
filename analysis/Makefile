@@ -79,6 +79,7 @@ OUR_LIB_OBJS = textbuf.cmo text.cmo prioq.cmo filesystem_store.cmo \
 	revcount_analysis.cmo intertime_analysis.cmo \
 	trust_origin_analysis.cmo revs_to_files_analysis.cmo \
 	trust_for_online_analysis.cmo word_frequency.cmo \
+	contribution_analysis.cmo \
 	page_factory.cmo do_eval.cmo \
 	online_revision.cmo db_page.cmo online_page.cmo event_feed.cmo  \
 	online_command_line.cmo updater.cmo
@@ -93,6 +94,7 @@ OUR_OPT_LIB_OBJS = textbuf.cmx text.cmx prioq.cmx filesystem_store.cmx \
 	revcount_analysis.cmx intertime_analysis.cmx \
 	trust_origin_analysis.cmx revs_to_files_analysis.cmx \
 	trust_for_online_analysis.cmx word_frequency.cmx \
+	contribution_analysis.cmx \
 	page_factory.cmx do_eval.cmx \
 	online_revision.cmx db_page.cmx online_page.cmx event_feed.cmx \
 	online_command_line.cmx updater.cmx
