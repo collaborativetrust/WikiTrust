@@ -851,19 +851,22 @@ object(self)
 	  let get_id row : int = (not_null int2ml row.(0)) in
 	  let get_title row : string = ExtString.String.map (fun c -> if c = '_' then ' ' else c)
               (not_null str2ml row.(1)) in
-	  let get_pair row = (get_id row, get_title row) in 
+	  let get_pair row = (get_id row, get_title row) in  
 	  results := Mysql.map (self#db_exec mediawiki_dbh s) get_pair;
 	  let mark_as_processing (page_id, _) = 
 	    let s = Printf.sprintf "UPDATE %swikitrust_queue SET processed = 'processing' WHERE page_id = %s" db_prefix (ml2int page_id) in
 	    ignore (self#db_exec mediawiki_dbh s)
 	  in
-	  
-	  let num_availible = self#aquire_reservations db_name 
-	  (List.length !results) max_procs in
-	  results_arr := Array.sub (Array.of_list !results) 0 num_availible;
-
-	  Array.iter mark_as_processing !results_arr;
-          (* We need to end this loop. *)
+	  if (List.length !results) > 0 then (
+	    let num_availible = self#aquire_reservations db_name 
+	      (List.length !results) max_procs in	  
+	    assert (num_availible <= (List.length !results));
+	    results_arr := Array.sub (Array.of_list !results) 0 num_availible;
+	    Array.iter mark_as_processing !results_arr
+	  ) else (
+	    results_arr := Array.of_list !results
+	  );
+	  (* We need to end this loop. *)
           self#commit;
           n_attempts := n_retries   
 	with 
@@ -1009,8 +1012,9 @@ object(self)
 	(* Add a line *)
 	let add_line (line_type : string) =
 	  let s = Printf.sprintf 
-	    "INSERT OR REPLACE INTO %s%s (wiki) VALUES (%s)" db_prefix 
-	    (ml2str line_type)
+	    "INSERT INTO %s%s (wiki) VALUES (%s) ON DUPLICATE KEY UPDATE wiki = %s" 
+	    db_prefix line_type
+	    (ml2str wikiname)
 	    (ml2str wikiname)
 	  in
 	  ignore (self#db_exec dbh s)
@@ -1037,7 +1041,7 @@ object(self)
 	  ignore (self#db_exec dbh "COMMIT");
 	  0
 	end else begin
-	  let allowance = desired_allowance - availible in
+	  let allowance = min desired_allowance availible in
 	  (* Do we have work left over? *)
 	  if allowance < desired_allowance then begin
 	    (* Mark that we are waiting *)
@@ -1052,6 +1056,7 @@ object(self)
 	  done;
 	  (* And return the number we can do *)
 	  ignore (self#db_exec dbh "COMMIT");
+	  assert (allowance >= 0);
 	  allowance
 	end
       )
