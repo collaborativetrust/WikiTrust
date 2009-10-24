@@ -1065,14 +1065,12 @@ CREATE TABLE `wikitrust_vote` (
   KEY `wikitrust_voted_processed_idx` (`voted_on`,`processed`)
 ) ENGINE=InnoDB DEFAULT CHARSET=binary;
 SET character_set_client = @saved_cs_client;
-/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
-/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
-/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
-/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
-/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
-/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
-/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
-/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
+CREATE TABLE `wikitrust_running_wikis` (
+  `wiki` varchar(32) NOT NULL	
+) ENGINE=InnoDB DEFAULT CHARSET=binary;
 
--- Dump completed on 2009-10-08 23:30:26
+CREATE TABLE `wikitrust_waiting_wikis` (
+  `wiki` varchar(32) PRIMARY KEY	
+) ENGINE=InnoDB DEFAULT CHARSET=binary;
+

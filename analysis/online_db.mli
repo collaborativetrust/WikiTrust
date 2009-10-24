@@ -76,12 +76,13 @@ val empty_page_sigs : page_sig_t
    At position 0: the sigs of the page.
    At position 1: the deleted chunks of the page. *)
 class db : 
-  string ->        (* db prefix *)
-  Mysql.dbd ->     (* mediawiki db handle *)
-  string ->        (* database name *)
-  string option -> (* revision base path *)
-  string option -> (* colored revisions base path *)
-  bool ->          (* debug_mode *)
+  string ->           (* db prefix *)
+  Mysql.dbd ->        (* mediawiki db handle *)
+  Mysql.dbd option -> (* global (interwiki) db handle *)
+  string ->           (* database name *)
+  string option ->    (* revision base path *)
+  string option ->    (* colored revisions base path *)
+  bool ->             (* debug_mode *)
   object
 
     (* ================================================================ *)
@@ -374,10 +375,10 @@ class db :
       contains a transaction start / commit pair.  [max_to_get] is the
       maximum number of results to get; [n_retries] is the number of
       times the start / commit pair is used. *)
-    method fetch_work_from_queue : int -> int -> (int * string) list
+    method fetch_work_from_queue : int -> int -> int -> (int * string) list
 
     (** [erase_cached_rev_text page_id] erases
-	      the cached text of all revisions of [page_id]. *)
+	the cached text of all revisions of [page_id]. *)
     method erase_cached_rev_text : int -> unit
 
     (* ================================================================ *)
@@ -394,10 +395,25 @@ class db :
 
     (* ================================================================ *)
     (* Debugging. *)
-
+      
     (** Totally clear out the db structure -- THIS IS INTENDED ONLY FOR UNIT
-    TESTING *)
+	TESTING *)
     method delete_all : bool -> unit
+
+  (* ================================================================ *)
+  (* Inter-Wiki Coordination. *)
+      
+    (** [aquire_reservations wikiname desired_allowance max_proc]
+	Returns the number of availible processors for the given wiki,
+	which is between 0 and desired_allowance.
+	Also reserves this for wikiname.
+     *)
+    method aquire_reservations : string -> int -> int -> int
+      
+    (** [release_reservation wikiname]
+	Marks that wikiname is done with one processing unit.
+     *)
+    method release_reservation : string -> unit
 
   end
 
@@ -411,11 +427,12 @@ class db :
     the location of filesystem storage of revision information, and
     [debug_mode] is a flag to facilitate debugging. *)
 val create_db :
-  bool ->          (* use_exec_api *)
-  string ->        (* db prefix *)
-  Mysql.dbd ->     (* mediawiki db handle *)
-  string ->        (* database name *)
-  string option -> (* revision base path *)
-  string option -> (* colored revisions base path *)
-  bool ->          (* debug_mode *)
+  bool ->             (* use_exec_api *)
+  string ->           (* db prefix *)
+  Mysql.dbd ->        (* mediawiki db handle *)
+  Mysql.dbd option -> (* global db handle *)
+  string ->           (* database name *)
+  string option ->    (* revision base path *)
+  string option ->    (* colored revisions base path *)
+  bool ->             (* debug_mode *)
   db

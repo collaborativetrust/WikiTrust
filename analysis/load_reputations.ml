@@ -90,7 +90,7 @@ let mediawiki_db = {
   Mysql.dbuser = Some !mw_db_user;
 } in
 let mediawiki_dbh = Mysql.connect mediawiki_db in 
-let db = Online_db.create_db !use_exec_api !db_prefix mediawiki_dbh !mw_db_name
-  !wt_db_rev_base_path !wt_db_blob_base_path !dump_db_calls in  
+let db = Online_db.create_db !use_exec_api !db_prefix mediawiki_dbh None 
+  !mw_db_name !wt_db_rev_base_path !wt_db_blob_base_path !dump_db_calls in  
 main db
 
