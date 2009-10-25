@@ -157,10 +157,10 @@ let write_blob (base_path: string) (page_id: int) (blob_id: int)
       in List.iter make_dir dir_l;
       (* Tries again to write the blob *)
       write_gzipped_file temp_name s
-    end;
-    (* Now renames the blob to the final place, which is an atomic operation. *)
-    Unix.rename temp_name f_name
-  end
+    end
+  end;
+  (* Now renames the blob to the final place, which is an atomic operation. *)
+  Unix.rename temp_name f_name
 
 (** [read_blob base_path page_id blob_id] returns the blob
     [blob_id] of page [page_id]. *)
@@ -325,6 +325,5 @@ if false then begin
 
   print_string "\nCompress and uncompress:\n";
   print_string (uncompress (compress "Mi piace la pizza\n"));
-
 
 end
