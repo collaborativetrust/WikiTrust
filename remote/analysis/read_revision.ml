@@ -48,7 +48,7 @@ let _ = Arg.parse custom_line_format noop "Usage: read_revision -rev_id -db_user
 let main (rev_id : int) (db : Online_db.db) : unit =
   let (rev_info, _, blob_id) = db#read_wikitrust_revision rev_id in
   Printf.printf "%s\n"
-    (db#read_colored_markup rev_info.Online_db.rev_id rev_id blob_id)
+    (db#read_colored_markup rev_info.Online_db.rev_page rev_id blob_id)
 in
 
 (* Prepares the database connection information *)
