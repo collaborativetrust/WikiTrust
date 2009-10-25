@@ -114,23 +114,24 @@ let get_filename (base_path: string) (page_id: int) (blob_id: int)
   let page_str = Printf.sprintf "%012d" page_id in 
   let blob_str  = Printf.sprintf "%09d" blob_id  in 
   let list_dirs = ref [base_path] in
-  let file_name = ref base_path in 
+  let path_name = ref base_path in 
   (* First, the page directories. *)
   for i = 0 to 3 do begin
     let s = String.sub page_str (i * 3) 3 in 
-    file_name := !file_name ^ "/" ^ s;
-    list_dirs := !list_dirs @ [!file_name]
+    path_name := !path_name ^ "/" ^ s;
+    list_dirs := !list_dirs @ [!path_name]
   end done;
   (* Then, the blob directory *)
   if blob_id > 999 then begin
     let s = String.sub blob_str 0 6 in 
-    file_name := !file_name ^ "/" ^ s;
-    list_dirs := !list_dirs @ [!file_name]
+    path_name := !path_name ^ "/" ^ s;
+    list_dirs := !list_dirs @ [!path_name]
   end;
   (* Now all together *)
-  file_name := !file_name ^ "/" ^ page_str ^ "_" ^ blob_str ^ ".gz";
-  let temp_name = !file_name ^ "/" ^ page_str ^ "_" ^ blob_str ^ ".tmp.gz" in
-  (!file_name, temp_name, !list_dirs)
+  path_name := !path_name ^ "/" ^ page_str ^ "_" ^ blob_str;
+  let file_name = !path_name ^ ".gz"; in
+  let temp_name = !path_name ^ ".tmp.gz" in
+  (file_name, temp_name, !list_dirs)
 
 
 (* **************************************************************** *)
