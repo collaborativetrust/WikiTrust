@@ -50,7 +50,6 @@ open Online_types
 (** type of analysis that is requested *)
 type analysis_t = 
     Reputation_analysis
-  | Contribution_analysis
   | Trust_color
   | Trust_syntactregion_color
   | Trust_and_origin
@@ -62,6 +61,7 @@ type analysis_t =
   | Revisions_to_text
   | AuthorText
   | WordFequency
+  | Contribution_analysis
 
 (** This is the class that stores a page, i.e., an article, and
     contains the methods to work on it.  This is the simplest implementation,
@@ -179,6 +179,9 @@ class page_factory
     val mutable n_sigs = Online_types.n_past_revs
     (* Set of robots *)
     val mutable robots = Read_robots.empty_robot_set
+    (* End date for dump, when measuring user contributions. 
+       The default is the current time *)
+    val mutable dump_end_date = Unix.time()
 
     (* Files for output *)
     val mutable out_file : out_channel = stderr (* also used for eval_file *)
@@ -189,7 +192,6 @@ class page_factory
     method print_mode = 
       match mode with 
       | Reputation_analysis -> Printf.fprintf stderr "reputation\n"; flush stderr
-      | Contribution_analysis -> Printf.fprintf stderr "contrib\n"; flush stderr
       | Trust_color -> Printf.fprintf stderr "color\n"; flush stderr
       | Trust_syntactregion_color -> Printf.fprintf stderr "trustsyncolor\n"; flush stderr
       | Trust_and_origin -> Printf.fprintf stderr "trust_and_origin\n"; flush stderr
@@ -201,10 +203,10 @@ class page_factory
       | Do_nothing -> Printf.fprintf stderr "noop\n"; flush stderr
       | AuthorText -> ()
       | WordFequency -> ()
+      | Contribution_analysis -> Printf.fprintf stderr "contrib\n"; flush stderr
 
     (* These methods are used to set the appropriate evaluation *)
     method set_reputation () = mode <- Reputation_analysis
-    method set_contribution () = mode <- Contribution_analysis
     method set_trust_color () = mode <- Trust_color
     method set_trust_local_color () = mode <- Trust_syntactregion_color
     method set_revcount () = mode <- Revcount_analysis
@@ -213,9 +215,11 @@ class page_factory
     method set_trust_for_online () = mode <- Trust_for_online
     method set_prune () = mode <- Prune_revisions
     method set_revs_to_text () = mode <- Revisions_to_text
-
     method set_author_text () = mode <- AuthorText
     method set_word_freq () = mode <- WordFequency
+    method set_contribution_analysis () = mode <- Contribution_analysis
+    method set_dump_end_date (n: string) = 
+      dump_end_date <- Timeconv.convert_time n  
 
     (* This sets various attributes *)
     method set_eval_zip_error () = eval_zip_error <- true
@@ -252,7 +256,8 @@ class page_factory
        ("-word-freq", Arg.Unit self#set_word_freq, "Counts the frequency of each word");
        ("-compute_stats", Arg.Unit self#set_reputation, "Produces the reduced stats files used to compute author reputation."); 
        ("-do_text", Arg.Set do_text, "Uses also text longevity to compute reputation increments.");
-       ("-eval_contrib", Arg.Unit self#set_contribution, "Evaluates the contribution given by users of different reputation."); 
+       ("-eval_contrib", Arg.Unit self#set_contribution_analysis, "Evaluates the text display contribution given by each user."); 
+       ("-dump_end_date", Arg.String self#set_dump_end_date, "Date at which the dump ends (date is in Wiki format, e.g., 2006-11-22T14:25:19Z )");
        ("-color_trust", Arg.Unit self#set_trust_color, "Outputs text colored by trust."); 
        ("-color_local_trust", Arg.Unit self#set_trust_local_color, "Colors according to the local trust."); 
        ("-trust_and_origin", Arg.Unit self#set_trust_and_origin, "Colors the text according to trust and adds text origin information."); 
@@ -300,7 +305,7 @@ class page_factory
 	  eval_zip_error be_precise
 	  n_text_judging n_edit_judging !equate_anons !do_text
       | Contribution_analysis -> new Contribution_analysis.page id title 
-	  out_file rep_histories !equate_anons
+	  out_file dump_end_date
       (* Trust_color does not also do the origin *)
       | Trust_color -> new Trust_analysis.page id title xml_file rep_histories
 	  trust_coeff_lends_rep trust_coeff_read_all 
@@ -367,7 +372,7 @@ class page_factory
       begin 
 	match mode with 
 	  Reputation_analysis -> out_file <- open_out stats_name
-	| Contribution_analysis | Revcount_analysis | Intertime_analysis 
+	| Revcount_analysis | Intertime_analysis | Contribution_analysis 
 	    -> out_file <- open_out default_name
 	| Trust_color | Trust_syntactregion_color | Trust_and_origin
 	| AuthorText | WordFequency | Prune_revisions | Revisions_to_text 

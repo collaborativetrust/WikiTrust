@@ -36,11 +36,11 @@ POSSIBILITY OF SUCH DAMAGE.
 (** This is the type of a page, or a Wikipedia article. *)
 class page :
   object
-    (** [add_revision revision_id page_id timestamp time contributor user_id username is_minor comment text
-] 
-        creates a revision with the above indicated fields, and adds it as the last revision of the page. 
-        Output may be produced by this function, as some methods evaluate revisions before they have
-        all been read. *)
+    (** [add_revision revision_id page_id timestamp time contributor
+	user_id username is_minor comment text ] creates a revision with the
+	above indicated fields, and adds it as the last revision of the page.
+	Output may be produced by this function, as some methods evaluate
+	revisions before they have all been read. *)
     method add_revision :
       int -> (* revision_id *)
       int -> (* page_id *)
@@ -54,10 +54,10 @@ class page :
       string -> (* comment *)
       string Vec.t -> (* text *)
       unit
-    (** [eval] evaluates the page.  It must be called once and once only, once all revisions
-        have been read. *)
+	(** [eval] evaluates the page.  It must be called once and once
+            only, once all revisions have been read. *)
     method eval : unit
-    (** [print_id_title] prints the page id and title. *)
+      (** [print_id_title] prints the page id and title. *)
     method print_id_title : unit
   end
 
@@ -82,15 +82,13 @@ class page_factory :
     method set_word_freq : unit -> unit
     method set_author_text : unit -> unit
 
-      (** Reputation analysis of a page.  The two parameters indicate whether we have to be precise
-	  (not use edit list zipping), and whether we have to evaluate the error incurred while 
-	  zipping. *)
+    (** Reputation analysis of a page.  The two parameters indicate
+	whether we have to be precise (not use edit list zipping),
+	and whether we have to evaluate the error incurred while
+	zipping. *)
     method set_reputation : unit -> unit
       (** Counts how many revisions each page has. *)
     method set_revcount : unit -> unit
-      (** Analysis of how much text was contributed by authors in each reputation range. 
-	  The parameter contains the histories of author reputations. *)
-    method set_contribution : unit -> unit
       (** Makes a histogram of the inter-arrival time of edits on a page *)
     method set_intertime : unit -> unit
       (** Coloring of text according to trust. 
@@ -101,6 +99,8 @@ class page_factory :
     method set_prune : unit -> unit 
     method set_revs_to_text : unit -> unit 
     method set_trust_for_online : unit -> unit
+    method set_contribution_analysis : unit -> unit
+    method set_dump_end_date : string -> unit
 
     method print_mode : unit 
 

@@ -37,11 +37,11 @@ POSSIBILITY OF SUCH DAMAGE.
 (* Textbuf: text buffers that keep long strings as Vecs of Buffer *)
 
 (* if this bound is reached, a different method is used to split into words *)
-let block_len = 50000
+let block_len = 100000
 (* How much to look ahead for space *)
-let space_skip = 100
+let space_skip = 1000
 (* Default length; how long is a page on average? *)
-let default_length = 10000
+let default_length = 20000
 
 
 type t = Buffer.t Vec.t
@@ -77,19 +77,19 @@ let split_if_needed (x: string) : string Vec.t =
 	if end_pos_ideal >= x_len 
 	  (* go to the end of the text, if within the block *)
 	then x_len 
-	  (* otherwise, if it falls within a block, looks for a space where to 
-	     break the string *) 
+	  (* otherwise, if it falls within a block, looks for a space
+	     where to break the string *)
 	else 
 	  let end_pos_space = 
-	    try String.index_from x end_pos_ideal ' '
+	    try 1 + (String.index_from x end_pos_ideal ' ')
 	    with Not_found -> end_pos_ideal 
 	  in 
 	  if end_pos_space - end_pos_ideal < space_skip
 	  then end_pos_space
 	  else end_pos_ideal 
       in 
-      (* Grabs the string from start_pos to end_pos, splits it, and adds it to the 
-	 accumulator *)
+      (* Grabs the string from start_pos to end_pos, splits it, and
+	 adds it to the accumulator *)
       let w = String.sub x !start_pos (end_pos - !start_pos) in 
       accu := Vec.append w !accu; 
       (* Advances the starting position for the split *)

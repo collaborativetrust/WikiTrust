@@ -98,38 +98,40 @@ let write_gzipped_file (file_name: string) (s: string) : unit =
 (** [get_filename base_path page_id blob_id] computes the filename where
     the compressed blob [blob_id] of page [page_id] is stored.
     It returns a triple, consisting of:
-    - The string key to store the blob in the db.
     - The full filename of the revision.
+    - The full filename of a temp file that can be used to ensure atomic write.
     - the list of directories that may need to be made.
 
     We divide the tree so that the page tree has branching factor of
     at most 1000.  
-    If the blob id is 1000 or less, that is all there is: there are no
+    If the blob id less than 1000, that is all there is: there are no
     blob-level directories, to optimize for the common case.
     If there are more than 1000 blobs, we then add xyz directories, 
     based on digits 345 of the blob id, for the pages that have very
     many revisions. *)
 let get_filename (base_path: string) (page_id: int) (blob_id: int) 
-    : (string * string list) =   
+    : (string * string * string list) =   
   let page_str = Printf.sprintf "%012d" page_id in 
   let blob_str  = Printf.sprintf "%09d" blob_id  in 
   let list_dirs = ref [base_path] in
-  let file_name = ref base_path in 
+  let path_name = ref base_path in 
   (* First, the page directories. *)
   for i = 0 to 3 do begin
     let s = String.sub page_str (i * 3) 3 in 
-    file_name := !file_name ^ "/" ^ s;
-    list_dirs := !list_dirs @ [!file_name]
+    path_name := !path_name ^ "/" ^ s;
+    list_dirs := !list_dirs @ [!path_name]
   end done;
   (* Then, the blob directory *)
   if blob_id > 999 then begin
     let s = String.sub blob_str 0 6 in 
-    file_name := !file_name ^ "/" ^ s;
-    list_dirs := !list_dirs @ [!file_name]
+    path_name := !path_name ^ "/" ^ s;
+    list_dirs := !list_dirs @ [!path_name]
   end;
   (* Now all together *)
-  file_name := !file_name ^ "/" ^ page_str ^ "_" ^ blob_str ^ ".gz";
-  (!file_name, !list_dirs)
+  path_name := !path_name ^ "/" ^ page_str ^ "_" ^ blob_str;
+  let file_name = !path_name ^ ".gz"; in
+  let temp_name = !path_name ^ ".tmp.gz" in
+  (file_name, temp_name, !list_dirs)
 
 
 (* **************************************************************** *)
@@ -141,10 +143,10 @@ let get_filename (base_path: string) (page_id: int) (blob_id: int)
     Directories are created if they do not already exist. *)
 let write_blob (base_path: string) (page_id: int) (blob_id: int) 
     (s: string) : unit =
-  let (f_name, dir_l) = get_filename base_path page_id blob_id in 
+  let (f_name, temp_name, dir_l) = get_filename base_path page_id blob_id in 
   (* Writes the file directly, hoping that the directories exist. *)
   begin 
-    try write_gzipped_file f_name s
+    try write_gzipped_file temp_name s
     with Sys_error _ -> begin
       (* Makes the directories *)
       let make_dir (d: string) = 
@@ -154,21 +156,23 @@ let write_blob (base_path: string) (page_id: int) (blob_id: int)
 	end
       in List.iter make_dir dir_l;
       (* Tries again to write the blob *)
-      write_gzipped_file f_name s
+      write_gzipped_file temp_name s
     end
-  end
+  end;
+  (* Now renames the blob to the final place, which is an atomic operation. *)
+  Unix.rename temp_name f_name
 
 (** [read_blob base_path page_id blob_id] returns the blob
     [blob_id] of page [page_id]. *)
 let read_blob (base_path: string) (page_id: int) (blob_id: int) 
     : string option =
-  let (f_name, _) = get_filename base_path page_id blob_id in 
+  let (f_name, _, _) = get_filename base_path page_id blob_id in 
   read_gzipped_file f_name;;
 
 (** [delete_blob base_path page_id blob_id] deletes the blob
     [blob_id] of page [page_id]. *)
 let delete_blob (base_path: string) (page_id: int) (blob_id: int) =
-  let (f_name, _) = get_filename base_path page_id blob_id in 
+  let (f_name, _, _) = get_filename base_path page_id blob_id in 
   try
     Unix.unlink f_name
   with Unix.Unix_error (Unix.ENOENT, _, _) -> ()
@@ -321,6 +325,5 @@ if false then begin
 
   print_string "\nCompress and uncompress:\n";
   print_string (uncompress (compress "Mi piace la pizza\n"));
-
 
 end
