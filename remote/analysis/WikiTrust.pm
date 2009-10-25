@@ -214,7 +214,7 @@ sub fetch_colored_markup {
   my $file = util_getRevFilename($page_id, $blob_id);
   if ($file) {
     warn "fetch_colored_markup: file=[$file]\n" if DEBUG;
-    throw Error::Simple("Unable to read file($file)") if !-r $file;
+    return NOT_FOUND_TEXT_TOKEN if !-r $file;
 
     my $fh = IO::Zlib->new();
     $fh->open($file, "rb") || die "open($file): $!";
@@ -310,7 +310,9 @@ sub handle_stats {
   $sth->execute() || die $dbh->errstr;
   $r->print("Processing queue for WikiTrust dispatcher:\n\n");
   my $found_header = 0;
-  while (my $ref = $sth->fetchrow_hashref()) {
+  my $rows = $sth->rows;
+  $r->print("($rows rows)\n");
+  while ((my $ref = $sth->fetchrow_hashref())){
     if (!$found_header) {
       foreach (sort keys %$ref) { $r->print(sprintf("%20s ", $_)); }
       $r->print("\n");
@@ -428,8 +430,9 @@ sub handle_sharehtml {
 
     my $c = $r->connection;
     my $remoteip = $c->remote_ip();
+    my $proxyip = $r->headers_in->{'X-Forwarded-For'} || '';
 
-warn "Received share from $remoteip";
+warn "Received share from $remoteip (proxy = $proxyip)";
 
     my $cache = util_getCache();
 
