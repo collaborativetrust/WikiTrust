@@ -123,6 +123,14 @@ class WikiTrustBase {
   }
   
   static function ucscOutputBeforeHTML(&$out, &$text){
+    # We are done if the trust tab isn't selected
+    global $wgRequest;
+    $use_trust = $wgRequest->getVal('trust'); 
+    if (!isset($use_trust) || 
+        (($wgRequest->getVal('action') && 
+          ($wgRequest->getVal('action') != 'purge'))))
+	return true;
+
     wfLoadExtensionMessages('WikiTrust');
 
     self::color_addFileRefs($out);
@@ -471,6 +479,13 @@ if (0) {
   // output cached.
   public static function ucscOutputModified(&$modified_times)
   {
+    # We are done if the trust tab isn't selected
+    global $wgRequest;
+    $use_trust = $wgRequest->getVal('trust'); 
+    if (!isset($use_trust) || 
+        (($wgRequest->getVal('action') && 
+          ($wgRequest->getVal('action') != 'purge'))))
+	return true;
     wfWikiTrustDebug(__FILE__.":".__LINE__
                      .": ".print_r($modified_times, true));
     
