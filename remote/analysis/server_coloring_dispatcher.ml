@@ -196,7 +196,7 @@ let process_page (page_id: int) (page_title: string) =
     let pages_downloaded = if !use_wikimedia_api then 
       Wikipedia_api.download_page_from_id child_db page_id 
     else 0 in 
-      
+    
     (* If pages have been downloaded, AND if the new_page_id doesn't 
        match the old_page_id, remove all of the old info from the db 
        and re-process with the new info. *)
@@ -219,7 +219,8 @@ let process_page (page_id: int) (page_title: string) =
 	e page_id page_title (Printexc.to_string (Wikipedia_api.API_error 
           e));
     )
-      (* | _ -> () (* All exceptions printed by the Printexc module above. *) *)
+  | _ ->  (* Handle everything else generically here. *)
+      Printf.eprintf "Other Error: On %d %s\n" page_id page_title
   );
   (* Marks the page as processed. *)
   child_db#mark_page_as_processed page_id page_title;

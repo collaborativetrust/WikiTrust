@@ -14,9 +14,9 @@ function readconf() {
   done < "$1"
 }
 
-for wiki in `ls /etc/wikitrust/wikis_available.d`; do
+for wiki in `ls /etc/wikitrust/wikis_enabled.d`; do
   echo "Launching $wiki"
-  CONFIG="/etc/wikitrust/wikis_enabled.d/$wiki"
-  readconf $CONFIG
-  `$USER $DISPATCHER -db_user $DB_USER -db_name $DB_NAME -db_pass $DB_PASS -db_host $DB_HOST $OTHER_OPTIONS`
+  config="/etc/wikitrust/wikis_enabled.d/$wiki"
+  readconf $config
+  $USER "$DISPATCHER -db_user $DB_USER -db_name $DB_NAME -db_pass $DB_PASS -db_host $DB_HOST $OTHER_OPTIONS" 2> $ERROR_FILE &
 done

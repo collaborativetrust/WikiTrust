@@ -13,7 +13,7 @@
 
 ENV="env -i LANG=C PATH=/usr/local/bin:/usr/bin:/bin"
 
-WIKITRUST_META_DISPATCHER="meta_dispatcher"
+WIKITRUST_META_DISPATCHER="wikitrustd"
 WIKITRUST_DISPATCHER="dispatcher"
 
 . /lib/lsb/init-functions
