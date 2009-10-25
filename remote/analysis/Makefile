@@ -32,14 +32,8 @@
 # Vars we use in our rules to build ocaml programs
 PACKAGES = unix,str,vec,mapmin,hashtbl_bounded,fileinfo,xml-light,intvmap,extlib,mysql,netsys,netclient,netstring,camlzip,json-wheel,json-static,sexplib.syntax 
 SYNTAX = camlp4o
-OUR_LIBS = wikitrust_lib.cma online_types.cmo online_log.cmo online_db.cmo \
-	online_revision.cmo db_page.cmo online_page.cmo event_feed.cmo  \
-	online_command_line.cmo updater.cmo
-
-OUR_LIBS_OPT = wikitrust_lib.cmxa online_log.cmx online_db.cmx \
-	online_revision.cmx \
-	db_page.cmx online_page.cmx event_feed.cmx \
-	online_command_line.cmx updater.cmx
+OUR_LIBS = wikitrust_lib.cma
+OUR_LIBS_OPT = wikitrust_lib.cmxa
 
 INCLUDES = -I ../../analysis
 
@@ -80,7 +74,7 @@ all: downloadwp dispatcher read_rev_text fetch_all_revs_after bot_reader \
 	read_revision
 
 allopt: downloadwpopt dispatcheropt read_rev_textopt fetch_all_revs_afteropt \
-	bot_readeropt read_revision
+	bot_readeropt read_revisionopt
 
 # Here are the objects that we want to build. 
 # We need two lines of these, one for the debugging compilation,
