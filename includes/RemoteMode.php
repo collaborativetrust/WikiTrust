@@ -2,6 +2,14 @@
 
 class WikiTrust extends WikiTrustBase {
   public static function ucscOutputBeforeHTML(&$out, &$text){
+    # We are done if the trust tab isn't selected
+    global $wgRequest;
+    $use_trust = $wgRequest->getVal('trust'); 
+    if (!isset($use_trust) || 
+        (($wgRequest->getVal('action') && 
+          ($wgRequest->getVal('action') != 'purge'))))
+	return true;
+
     wfLoadExtensionMessages('WikiTrust');
 
     self::color_addFileRefs($out);

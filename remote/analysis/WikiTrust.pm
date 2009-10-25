@@ -63,6 +63,9 @@ sub handler {
   } otherwise {
     my $E = shift;
     print STDERR $E;
+    $r->no_cache(1);
+    $r->content_type('text/plain; charset=utf-8');
+    $r->print('ERROR detected.');
   };
   return $result;
 }

@@ -51,13 +51,13 @@ $wgWikiTrustApiURL = "http://en.wikipedia.org/w/api.php?";
 $wgWikiTrustRobots = NULL;
 
 global $wgExtensionFunctions, $wgExtensionCredits;
-$wgExtensionFunctions[] = 'wfWikiTrustSetup';
 $wgExtensionCredits['other'][] = array(
        'name' => 'WikiTrust',
        'author' => 'Ian Pye, Luca de Alfaro, Bo Adler',
-       'url' => 'http://trust.cse.ucsc.edu',
-       'description' => 'Adds trust tab to visualize article trust and provide text attribution.'
+       'url' => 'http://wikitrust.soe.ucsc.edu',
+       'description' => 'Adds wikitrust tab to visualize article trust and provide origin rev on click.'
    );
+wfWikiTrustSetup();
 
 
 // Quick debugging functions -- 
@@ -125,15 +125,6 @@ function wfWikiTrustSetup() {
     # Edit hook to notify
     # TODO: In 'remote' mode, we want to disable editing!
     $wgHooks['ArticleSaveComplete'][] = 'WikiTrust::ucscArticleSaveComplete';
-
-
-    # We are done if the trust tab isn't selected
-    global $wgRequest;
-    $use_trust = $wgRequest->getVal('trust'); 
-    if (!isset($use_trust) || 
-        (($wgRequest->getVal('action') && 
-          ($wgRequest->getVal('action') != 'purge'))))
-	return;
 
     $wgHooks['OutputPageBeforeHTML'][] = 'WikiTrust::ucscOutputBeforeHTML';
     $wgHooks['OutputPageCheckLastModified'][] = 'WikiTrust::ucscOutputModified';
