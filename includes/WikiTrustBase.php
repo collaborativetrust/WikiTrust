@@ -340,7 +340,7 @@ if (1) {
     
     // Fix edit section links    
     $text = preg_replace_callback(
-        "/title=\"Edit section: (.*?)\">/",
+        "/<span class=\"editsection\"([^>]*?)>(.*?) title=\"(.*?)\">/",
 	"WikiTrust::regex_fixSectionEdit",
         $text,
         -1,
@@ -375,10 +375,11 @@ if (1) {
   static function regex_fixSectionEdit($matches){
     $result = preg_replace("/\{\{#t:\d+,\d+,[^}]+\}\}/",
 				"",
-				$matches[1],
+				$matches[2],
 				-1,
 				$count);
-    return "title=\"Edit section: $result\">";
+    return '<span class="editsection"'+ $matches[0] + '>'
+	+ $matches[1] +' title="$result">';
   }
 
   static function regex_fixTextTrust($matches){
