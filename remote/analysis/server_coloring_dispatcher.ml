@@ -220,8 +220,9 @@ let process_page (page_id: int) (page_title: string) =
 	e page_id page_title (Printexc.to_string (Wikipedia_api.API_error 
           e));
     )
-  | _ ->  (* Handle everything else generically here. *)
+  | _ -> begin  (* Handle everything else generically here. *)
       Printf.eprintf "Other Error: On %d %s\n" page_id page_title
+    end
   );
   (* Marks the page as processed. *)
   child_db#mark_page_as_processed page_id page_title !pages_downloaded;
@@ -238,8 +239,8 @@ in
 let dispatch_page (pages : (int * string) list) =
   (* Remove any finished processes from the list of active child processes. *)
   Hashtbl.iter check_subprocess_termination working_children;
-    (* [launch_processing page]
-       Given a page_id, forks a child which brings the page up to date. *)
+  (* [launch_processing page]
+     Given a page_id, forks a child which brings the page up to date. *)
   let launch_processing (page_id, page_title) = begin
     (* If the page is currently being processed, does nothing. *)
     if not (Hashtbl.mem working_children page_id) then begin
