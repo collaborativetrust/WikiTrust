@@ -190,17 +190,18 @@ let process_page (page_id: int) (page_title: string) =
     child_global_dbh !mw_db_name !wt_db_rev_base_path 
     !wt_db_blob_base_path !dump_db_calls 
   in
+  let pages_downloaded = ref 0 in
   (* If I am using the WikiMedia API, I need to first download any new
      revisions of the page. *)
   (try Printexc.print (fun () ->
-    let pages_downloaded = if !use_wikimedia_api then 
-      Wikipedia_api.download_page_from_id child_db page_id 
-    else 0 in 
+    pages_downloaded := if !use_wikimedia_api then 
+      Wikipedia_api.download_page_from_id child_db page_id else 0
+    ;
     
     (* If pages have been downloaded, AND if the new_page_id doesn't 
        match the old_page_id, remove all of the old info from the db 
        and re-process with the new info. *)
-    if pages_downloaded > 0 then child_db#clear_old_info_if_pid_changed 
+    if !pages_downloaded > 0 then child_db#clear_old_info_if_pid_changed 
       page_id page_title;
     
     (* Creates a new updater. *)
@@ -223,7 +224,7 @@ let process_page (page_id: int) (page_title: string) =
       Printf.eprintf "Other Error: On %d %s\n" page_id page_title
   );
   (* Marks the page as processed. *)
-  child_db#mark_page_as_processed page_id page_title;
+  child_db#mark_page_as_processed page_id page_title !pages_downloaded;
   child_db#close; (* Release any locks still held. *)
   (* End of page processing. *)
   Printf.printf "Done with %s.\n" page_title; flush_all ();

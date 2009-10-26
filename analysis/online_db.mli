@@ -361,8 +361,9 @@ class db :
 	must be brought up to date, due to a vote or a new revision. *)
     method mark_page_to_process : int -> string -> unit
       
-    (** [mark_page_as_processed page_id page_title] marks that a page has ben processed. *)
-    method mark_page_as_processed : int -> string -> unit
+    (** [mark_page_as_processed page_id page_title number downloaded] 
+	marks that a page has been processed. *)
+    method mark_page_as_processed : int -> string -> int -> unit
 
     (** [mark_page_as_unprocessed page_id] marks that a page has not
 	been fully processed. *)
