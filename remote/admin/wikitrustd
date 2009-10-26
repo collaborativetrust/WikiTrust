@@ -20,6 +20,6 @@ for wiki in `ls /etc/wikitrust/wikis_enabled.d`; do
   #log_daemon_msg "--> Launching $wiki"
   config="/etc/wikitrust/wikis_enabled.d/$wiki"
   readconf $config
-  $USER "$DISPATCHER -db_user $DB_USER -db_name $DB_NAME -db_pass $DB_PASS -db_host $DB_HOST $OTHER_OPTIONS" 2> $ERROR_FILE &
+  $USER "$DISPATCHER -db_user $DB_USER -db_name $DB_NAME -db_pass $DB_PASS -db_host $DB_HOST -log_file $LOG_FILE $OTHER_OPTIONS" > $LOG_FILE 2> $ERROR_FILE &
 done
 
