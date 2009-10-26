@@ -1121,7 +1121,12 @@ object(self)
 	let result = self#db_exec mediawiki_dbh s in
 	match Mysql.fetch result with 
         | None -> begin 
-	    let cmdline = Printf.sprintf "%sread_rev_text -log_file /dev/null -rev_id %d" "" rev_id in
+	    let cmdline = Printf.sprintf 
+	      "%sread_rev_text -log_file /dev/null -rev_id %d -wiki_api %s"
+	      !Online_command_line.wt_base
+	      rev_id 
+	      !Online_command_line.target_wikimedia
+	    in
 	    get_cmd_output cmdline
           end
 	| Some r -> not_null str2ml r.(0)
