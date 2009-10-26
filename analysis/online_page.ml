@@ -1216,120 +1216,123 @@ class page
 		  !min_dist_to_1
 		  )
 		end 
-	      in 
-	      (* Computes the quality due to r_c2, rev1, rev2 *)
-	      let q = qual d_c2_1 d12 d_c2_2 in 
-
-	      (* computes the nixing bit *)
-	      let oldest_of_recent_revs = Vec.get (n_recent_revs - 1) revs in 
-	      let oldest_of_recent_revs_time = oldest_of_recent_revs#get_time in 
-	      if (not !rev1_nix) && (rev2_time -. rev1_time < trust_coeff.nix_interval) then begin 
-		(* You can be nixed in two ways. *)
-		if 
-		  (* First reason: if the quality is below the threshold *)
-		  (q <= trust_coeff.nix_threshold) ||
-		    (* Second reason: too many revisions in too short a time *)
-		    ((not include_initial_empty_rev) && 
-		    (rev1_time -. oldest_of_recent_revs_time < trust_coeff.nix_interval))
-		then begin 
-		  (* Nix it *)
-		  rev1_nix := true;
-		  rev1#set_nix_bit;
-		  let s = 
-		    if (q <= trust_coeff.nix_threshold)
-		    then Printf.sprintf "\n\nRevision %d has been nixed due to quality" rev1_id
-		    else Printf.sprintf "\n\nRevision %d has been nixed due to too frequent edits" rev1_id
-		  in !Online_log.online_logger#log s
-		end
-	      end;
-
-	      (* We compute the reputation increment by the local
-		 feedback for rev1, where rev1_prev is the immediate
-		 previous revision of rev1. In this case, we always apply
-		 the repuation cap, where the cap is the minimum of the
-		 repuation of the judging revision rev2 and the rev1_prev
-		 (this is because the previous version rev1_prev can be
-		 under control of the author of rev1).  The reputation
-		 after local feedback is obtained as rev1_local, and we
-		 take the maximum of the local feedback and the
-		 reputation computation by improve-the-past
-		 algorithm. Since both are robust, the robust of the
-		 algorithm is ensured *)
-	      (* Computes reputation after local feedback*) 
-	      let rev1_local = 
-		if rev1_is_first_page_revision then begin
-		  (* This is basically a no-op *)
-		  rev1_rep 
-		end else begin  
-		  let rev1_prev        = Vec.get (rev1_idx + 1) revs in 
-		  let rev1_prev_id     = rev1_prev#get_id in 
-		  let rev1_prev_uid    = rev1_prev#get_user_id in 
-		  let rev1_prev_uname  = rev1_prev#get_user_name in
-		  let rev1_prev_rep    = self#get_rep rev1_prev_uid rev1_prev_uname in
-		  let dist_prev1       = Hashtbl.find edit_dist (rev1_prev_id, rev1_id) in 
-		  let dist_prev2       = Hashtbl.find edit_dist (rev1_prev_id, rev2_id) in 
-		  let q_local          = qual dist_prev1 d12 dist_prev2 in 
-		  let delta_local      = dist_prev1 in
-		  let rep_inc_local    = dynamic_rep_scaling_factor *. delta_local *. q_local *. renorm_w in
-		  let cap_rep_local    = min rev2_rep rev1_prev_rep in
-		  let capped_rep_local = min cap_rep_local (rev1_rep +. rep_inc_local) in 
-		  max rev1_rep capped_rep_local
-		end
 	      in
-	      (* Computes the uncapped reputation increment *)
-	      let rep_inc = dynamic_rep_scaling_factor *. delta *. q *. renorm_w in
+	      (* If the delta is 0, then there is nothing to do. *)
+	      if delta > 0. then begin
+		(* Computes the quality due to r_c2, rev1, rev2 *)
+		let q = qual d_c2_1 d12 d_c2_2 in 
 
-	      (* Applies the reputation increment according to reputation cap *)
-	      let new_rep = 
-		if rep_inc < 0. then begin
-		  (* Negative increment.  Reputation cannot become negative *)
-		  max 0. (rev1_rep +. rep_inc)
-		end else begin
-		  (* Positive increment. *)
-		  if (!rev1_nix || rev2_time -. rev1_time < trust_coeff.nix_interval) 
-		    && rep_inc > 0. then begin 
-		      (* Short term or nixed: caps the reputation increment. 
-			 The reputation of rev2 is always used as a cap. 
-			 The reputation of r_c2 is used as a cap only if it is 
-			 more recent than the nixing interval. *)
-		      let r_c2_cap_rep = 
-			if rev2_time -. oldest_of_recent_revs_time < trust_coeff.nix_interval
-			then r_c2_rep
-			else rev2_rep
-		      in
-		      let cap_rep = min rev2_rep r_c2_cap_rep in
-		      let capped_rep = min cap_rep (rev1_rep +. rep_inc) in 
-		      max (max rev1_rep rev1_local) capped_rep    
-		    end else begin 
-		      (* uncapped reputation increment *)
-		      max rev1_local (rev1_rep +. rep_inc)      
-		    end
-		end
-	      in 
-	      self#set_rep rev1_uid new_rep rev1_uname;
+		(* computes the nixing bit *)
+		let oldest_of_recent_revs = Vec.get (n_recent_revs - 1) revs in 
+		let oldest_of_recent_revs_time = oldest_of_recent_revs#get_time in 
+		if (not !rev1_nix) && (rev2_time -. rev1_time < trust_coeff.nix_interval) then begin 
+		  (* You can be nixed in two ways. *)
+		  if 
+		    (* First reason: if the quality is below the threshold *)
+		    (q <= trust_coeff.nix_threshold) ||
+		      (* Second reason: too many revisions in too short a time *)
+		      ((not include_initial_empty_rev) && 
+		      (rev1_time -. oldest_of_recent_revs_time < trust_coeff.nix_interval))
+		  then begin 
+		    (* Nix it *)
+		    rev1_nix := true;
+		    rev1#set_nix_bit;
+		    let s = 
+		      if (q <= trust_coeff.nix_threshold)
+		      then Printf.sprintf "\n\nRevision %d has been nixed due to quality" rev1_id
+		      else Printf.sprintf "\n\nRevision %d has been nixed due to too frequent edits" rev1_id
+		    in !Online_log.online_logger#log s
+		  end
+		end;
 
-	      (* Adds quality information for the revision *)
-	      rev1#add_edit_quality_info delta q (new_rep -. rev1_rep) ; 
+		(* We compute the reputation increment by the local
+		   feedback for rev1, where rev1_prev is the immediate
+		   previous revision of rev1. In this case, we always apply
+		   the repuation cap, where the cap is the minimum of the
+		   repuation of the judging revision rev2 and the rev1_prev
+		   (this is because the previous version rev1_prev can be
+		   under control of the author of rev1).  The reputation
+		   after local feedback is obtained as rev1_local, and we
+		   take the maximum of the local feedback and the
+		   reputation computation by improve-the-past
+		   algorithm. Since both are robust, the robust of the
+		   algorithm is ensured *)
+		(* Computes reputation after local feedback*) 
+		let rev1_local = 
+		  if rev1_is_first_page_revision then begin
+		    (* This is basically a no-op *)
+		    rev1_rep 
+		  end else begin  
+		    let rev1_prev        = Vec.get (rev1_idx + 1) revs in 
+		    let rev1_prev_id     = rev1_prev#get_id in 
+		    let rev1_prev_uid    = rev1_prev#get_user_id in 
+		    let rev1_prev_uname  = rev1_prev#get_user_name in
+		    let rev1_prev_rep    = self#get_rep rev1_prev_uid rev1_prev_uname in
+		    let dist_prev1       = Hashtbl.find edit_dist (rev1_prev_id, rev1_id) in 
+		    let dist_prev2       = Hashtbl.find edit_dist (rev1_prev_id, rev2_id) in 
+		    let q_local          = qual dist_prev1 d12 dist_prev2 in 
+		    let delta_local      = dist_prev1 in
+		    let rep_inc_local    = dynamic_rep_scaling_factor *. delta_local *. q_local *. renorm_w in
+		    let cap_rep_local    = min rev2_rep rev1_prev_rep in
+		    let capped_rep_local = min cap_rep_local (rev1_rep +. rep_inc_local) in 
+		    max rev1_rep capped_rep_local
+		  end
+		in
+		(* Computes the uncapped reputation increment *)
+		let rep_inc = dynamic_rep_scaling_factor *. delta *. q *. renorm_w in
 
-	      (* For logging purposes, produces the Edit_inc line *)
-	      !Online_log.online_logger#log (Printf.sprintf 
-		"\n\nEditInc %10.0f PageId: %d Inc: %.4f Capd_inc: %.4f q: %.4f Delta: %.2f" 
-		(* time and page id *)
-		rev2_time page_id rep_inc (new_rep -. rev1_rep) q delta);
-	      (* revision and user ids *)
-	      !Online_log.online_logger#log (Printf.sprintf 
-		"\n  rev_c2: %d uid_c2: %d uname_c2: %S rev_c2_rep: %.3f" 
-		r_c2_id r_c2_uid r_c2_username r_c2_rep); 
-	      !Online_log.online_logger#log (Printf.sprintf 
-		"\n  rev1: %d uid1: %d uname1: %S r1_rep: %.3f Nixed: %B" 
-		rev1_id rev1_uid rev1_uname rev1_rep rev1#get_nix); 
-	      !Online_log.online_logger#log (Printf.sprintf 
-		"\n  rev2: %d uid2: %d uname2: %S r2_rep: %.3f w2_renorm: %.3f" 
-		rev2_id rev2_uid rev2_uname rev2_rep renorm_w); 
-	      !Online_log.online_logger#log (Printf.sprintf 
-		"\n  d_c1_1: %.2f d_c2_1: %.2f d_c2_2: %.2f d12: %.2f rev_1_to_2_time: %.3f\n"
-		delta d_c2_1 d_c2_2 d12 
-		((rev2_time -. rev1_time) /. (3600. *. 24.))); 
+		(* Applies the reputation increment according to reputation cap *)
+		let new_rep = 
+		  if rep_inc < 0. then begin
+		    (* Negative increment.  Reputation cannot become negative *)
+		    max 0. (rev1_rep +. rep_inc)
+		  end else begin
+		    (* Positive increment. *)
+		    if (!rev1_nix || rev2_time -. rev1_time < trust_coeff.nix_interval) 
+		      && rep_inc > 0. then begin 
+			(* Short term or nixed: caps the reputation increment. 
+			   The reputation of rev2 is always used as a cap. 
+			   The reputation of r_c2 is used as a cap only if it is 
+			   more recent than the nixing interval. *)
+			let r_c2_cap_rep = 
+			  if rev2_time -. oldest_of_recent_revs_time < trust_coeff.nix_interval
+			  then r_c2_rep
+			  else rev2_rep
+			in
+			let cap_rep = min rev2_rep r_c2_cap_rep in
+			let capped_rep = min cap_rep (rev1_rep +. rep_inc) in 
+			max (max rev1_rep rev1_local) capped_rep    
+		      end else begin 
+			(* uncapped reputation increment *)
+			max rev1_local (rev1_rep +. rep_inc)      
+		      end
+		  end
+		in 
+		self#set_rep rev1_uid new_rep rev1_uname;
+
+		(* Adds quality information for the revision *)
+		rev1#add_edit_quality_info delta q (new_rep -. rev1_rep) ; 
+
+		(* For logging purposes, produces the Edit_inc line *)
+		!Online_log.online_logger#log (Printf.sprintf 
+		  "\n\nEditInc %10.0f PageId: %d Inc: %.4f Capd_inc: %.4f q: %.4f Delta: %.2f" 
+		  (* time and page id *)
+		  rev2_time page_id rep_inc (new_rep -. rev1_rep) q delta);
+		(* revision and user ids *)
+		!Online_log.online_logger#log (Printf.sprintf 
+		  "\n  rev_c2: %d uid_c2: %d uname_c2: %S rev_c2_rep: %.3f" 
+		  r_c2_id r_c2_uid r_c2_username r_c2_rep); 
+		!Online_log.online_logger#log (Printf.sprintf 
+		  "\n  rev1: %d uid1: %d uname1: %S r1_rep: %.3f Nixed: %B" 
+		  rev1_id rev1_uid rev1_uname rev1_rep rev1#get_nix); 
+		!Online_log.online_logger#log (Printf.sprintf 
+		  "\n  rev2: %d uid2: %d uname2: %S r2_rep: %.3f w2_renorm: %.3f" 
+		  rev2_id rev2_uid rev2_uname rev2_rep renorm_w); 
+		!Online_log.online_logger#log (Printf.sprintf 
+		  "\n  d_c1_1: %.2f d_c2_1: %.2f d_c2_2: %.2f d12: %.2f rev_1_to_2_time: %.3f\n"
+		  delta d_c2_1 d_c2_2 d12 
+		  ((rev2_time -. rev1_time) /. (3600. *. 24.))) 
+	      end (* if delta > 0. *)
 	    end (* rev1 is by non_anonymous *)
 	  end done (* for rev1_idx *)
 	end (* If the voter is not a bot *)
