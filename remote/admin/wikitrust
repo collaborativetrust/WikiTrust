@@ -35,7 +35,8 @@ start_dispatcherclean() {
 stop_dispatcherclean() {
     PID=$(pidof_dispatcher)
     if [ "${PID}" ]; then
-	killall $WIKITRUST_META_DISPATCHER  2> /dev/null || echo ...error    
+	killall $WIKITRUST_META_DISPATCHER  2> /dev/null ||
+	  killall $WIKITRUST_DISPATCHER 2> /dev/null || echo ...error    
 	return 0
     else
 	log_daemon_msg "Not running"
@@ -66,31 +67,31 @@ pidof_dispatcher() {
 # Stupid hack to keep lintian happy. (Warrk! Stupidhack!).
 case $1 in
 	start)
-		log_daemon_msg "Starting coloring dispatcher"
+		log_daemon_msg "Starting coloring dispatchers"
 		start_dispatcherclean || log_end_msg 1
                 log_end_msg 0
 	;;
 	stop)
-		log_daemon_msg "Stopping coloring dispatcher"
+		log_daemon_msg "Stopping coloring dispatchers"
 		stop_dispatcherclean || log_end_msg 1
                 log_end_msg 0
 	;;
 	reload | force-reload)
 		
-                log_daemon_msg "Reloading dispatcher -- nothing to do"
+                log_daemon_msg "Reloading dispatchers -- nothing to do"
 		log_end_msg 0
 	;;
 	restart)
-		log_daemon_msg "Stopping wikitrust dispatcher"
+		log_daemon_msg "Stopping wikitrust dispatchers"
 	    
 		if ! stop_dispatcherclean; then
-		    log_daemon_msg "Dispatcher not running"
+		    log_daemon_msg "Dispatchers not running"
 		    log_end_msg 1 || true
 		else
 		  log_end_msg 0
 		fi    
 		sleep 3
-		log_daemon_msg "Starting coloring dispatcher"
+		log_daemon_msg "Starting coloring dispatchers"
 		start_dispatcherclean || log_end_msg 1
 		log_end_msg 0
 	;;
