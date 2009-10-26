@@ -112,6 +112,8 @@ let set_robots s = robots := Read_robots.read_robot_file s
 (* API params *)
 let target_wikimedia = ref "http://en.wikipedia.org/w/api.php"
 let set_target_wikimedia t = target_wikimedia := t 
+let wt_base = ref ""
+let set_wt_base t = wt_base := t 
 (* let user_id_server = ref "http://toolserver.org/~Ipye/UserName2UserId.php"
 let set_user_id_server t = user_id_server := t  *)
 
@@ -143,6 +145,7 @@ let command_line_format =
    ("-times_to_retry_trans", Arg.Int set_times_to_retry_trans, "<int>: Max number of times to retry a transation if it fails (default: 3)."); 
    ("-robots", Arg.String set_robots, "<filename>: reads the robots from the specified file.");
    ("-use_exec_api", Arg.Set use_exec_api, "Use the exec API to access the WMF DB.");
+   ("-wikitrust_base", Arg.String set_wt_base, "Base directory for WikiTrust");
    ("-use_wikimedia_api", Arg.Set use_wikimedia_api, "Use the WikiMedia API to access the WMF DB.");
    ("-delete_all", Arg.Set delete_all, ": Recomputes all reputations and trust from scratch.  BE CAREFUL!! This may take a LONG time for large wikis.");
   ]

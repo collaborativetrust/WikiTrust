@@ -320,6 +320,13 @@ if (1) {
 				$colored_text,
 				-1,
 				$count);
+    // fix trust tags around semicolon lines
+    $colored_text = preg_replace_callback("/^;\s*\{\{#t:(\d+),(\d+),([^}]+)\}\}(\s*[^\{<]*?)(?=\{|<|$)/m",
+                                "WikiTrust::regex_fixTextTrust",
+                                $colored_text,
+                                -1,
+                                $count);
+
 
     $options = ParserOptions::newFromUser($wgUser);
     $text = WikiTrust::color_parseWiki($colored_text, $options);

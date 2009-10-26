@@ -13,7 +13,8 @@
 
 ENV="env -i LANG=C PATH=/usr/local/bin:/usr/bin:/bin"
 
-WIKITRUST_DISPATCHER="/usr/bin/meta_dispatcher"
+WIKITRUST_META_DISPATCHER="wikitrustd"
+WIKITRUST_DISPATCHER="dispatcher"
 
 . /lib/lsb/init-functions
 
@@ -25,7 +26,7 @@ start_dispatcherclean() {
 	log_daemon_msg "Already running"    
 	return 1
     else
-	$WIKITRUST_DISPATCHER &
+	$WIKITRUST_META_DISPATCHER &
 	log_daemon_msg ""    
 	return 0
     fi
@@ -34,7 +35,8 @@ start_dispatcherclean() {
 stop_dispatcherclean() {
     PID=$(pidof_dispatcher)
     if [ "${PID}" ]; then
-	killall dispatcher 2> /dev/null || echo ...error    
+	killall $WIKITRUST_META_DISPATCHER  2> /dev/null ||
+	  killall $WIKITRUST_DISPATCHER 2> /dev/null || echo ...error    
 	return 0
     else
 	log_daemon_msg "Not running"
@@ -45,43 +47,51 @@ stop_dispatcherclean() {
 pidof_dispatcher() {
     # if pidof is null for some reasons the script exits automagically
     # classified as good/unknown feature
-    PIDS=`pidof -x dispatcher` || true
+    PIDS=`pidof -x $WIKITRUST_META_DISPATCHER` || true
 
     for i in $PIDS; do
       echo $i
       return 0
     done
+
+    PIDS=`pidof -x $WIKITRUST_DISPATCHER` || true
+
+    for i in $PIDS; do
+      echo $i
+      return 0
+    done
+
     return 1
 }
 
 # Stupid hack to keep lintian happy. (Warrk! Stupidhack!).
 case $1 in
 	start)
-		log_daemon_msg "Starting coloring dispatcher"
+		log_daemon_msg "Starting coloring dispatchers"
 		start_dispatcherclean || log_end_msg 1
                 log_end_msg 0
 	;;
 	stop)
-		log_daemon_msg "Stopping coloring dispatcher"
+		log_daemon_msg "Stopping coloring dispatchers"
 		stop_dispatcherclean || log_end_msg 1
                 log_end_msg 0
 	;;
 	reload | force-reload)
 		
-                log_daemon_msg "Reloading dispatcher -- nothing to do"
+                log_daemon_msg "Reloading dispatchers -- nothing to do"
 		log_end_msg 0
 	;;
 	restart)
-		log_daemon_msg "Stopping wikitrust dispatcher"
+		log_daemon_msg "Stopping wikitrust dispatchers"
 	    
 		if ! stop_dispatcherclean; then
-		    log_daemon_msg "Dispatcher not running"
+		    log_daemon_msg "Dispatchers not running"
 		    log_end_msg 1 || true
 		else
 		  log_end_msg 0
 		fi    
 		sleep 3
-		log_daemon_msg "Starting coloring dispatcher"
+		log_daemon_msg "Starting coloring dispatchers"
 		start_dispatcherclean || log_end_msg 1
 		log_end_msg 0
 	;;

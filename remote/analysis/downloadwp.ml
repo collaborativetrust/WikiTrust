@@ -59,8 +59,8 @@ let mediawiki_db = {
 (* Sets up the db *)
 (* Note that here it does not make sense to use the wikipedia API *)
 let mediawiki_dbh = Mysql.connect mediawiki_db in
-let db = Online_db.create_db !use_exec_api !db_prefix mediawiki_dbh !mw_db_name
-  !wt_db_rev_base_path !wt_db_blob_base_path !dump_db_calls in
+let db = Online_db.create_db !use_exec_api !db_prefix mediawiki_dbh None 
+  !mw_db_name !wt_db_rev_base_path !wt_db_blob_base_path !dump_db_calls in
  
 let tabsplit = Str.split_delim (Str.regexp "\t") in
 

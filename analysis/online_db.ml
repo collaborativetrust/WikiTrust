@@ -135,6 +135,7 @@ let get_cmd_output (cmdline: string) : string =
 class db  
   (db_prefix : string)
   (mediawiki_dbh : Mysql.dbd)
+  (global_dbh : Mysql.dbd option)
   (db_name: string)
   (rev_base_path: string option)
   (colored_base_path: string option)
@@ -162,8 +163,10 @@ object(self)
   (* ================================================================ *)
   (* Disconnect *)
   method close : unit = 
-    Mysql.disconnect mediawiki_dbh
-
+    Mysql.disconnect mediawiki_dbh;
+    match global_dbh with
+    | Some dbh -> Mysql.disconnect dbh
+    | None -> ()
 
   (* ================================================================ *)
   (* Locks and commits. *)
@@ -812,10 +815,15 @@ object(self)
     let s = Printf.sprintf "INSERT INTO %swikitrust_queue (revision_id, page_id) VALUES (%s, %s) ON DUPLICATE KEY UPDATE requested_on = now(), processed = false" db_prefix (ml2int page_id) (ml2str page_title) in
     ignore (self#db_exec mediawiki_dbh s)
 
-  (** [mark_page_as_processed page_id] marks that a page has ben processed. *)
-  method mark_page_as_processed (page_id : int) (page_title : string) : unit =
+  (** [mark_page_as_processed page_id] marks that a page has been processed. *)
+  method mark_page_as_processed (page_id : int) (page_title : string) 
+    (num_downloaded : int) : unit =
     let s = Printf.sprintf "DELETE FROM %swikitrust_queue WHERE page_id = %s" db_prefix (ml2int page_id) in
     ignore (self#db_exec mediawiki_dbh s);
+    (* Mark that we are done with this processing unit. *)
+    self#release_reservation db_name;
+    (* Update the title name for the page, if we need to. *)
+    if num_downloaded > 0 then 
       self#write_wikitrust_page_title page_id page_title
 
   (** [mark_page_as_unprocessed page_id] marks that a page has not
@@ -832,9 +840,11 @@ object(self)
       maximum number of results to get; [n_retries] is the number of
       times the start / commit pair is used. *)
   method fetch_work_from_queue (max_to_get : int) (n_retries: int) 
+    (max_procs : int)
     : (int * string) list =
     let n_attempts = ref 0 in 
     let results = ref [] in
+    let results_arr = ref [|(0,"")|] in
     while !n_attempts < n_retries do 
       begin 
 	try 
@@ -844,14 +854,22 @@ object(self)
 	  let get_id row : int = (not_null int2ml row.(0)) in
 	  let get_title row : string = ExtString.String.map (fun c -> if c = '_' then ' ' else c)
               (not_null str2ml row.(1)) in
-	  let get_pair row = (get_id row, get_title row) in 
+	  let get_pair row = (get_id row, get_title row) in  
 	  results := Mysql.map (self#db_exec mediawiki_dbh s) get_pair;
 	  let mark_as_processing (page_id, _) = 
 	    let s = Printf.sprintf "UPDATE %swikitrust_queue SET processed = 'processing' WHERE page_id = %s" db_prefix (ml2int page_id) in
 	    ignore (self#db_exec mediawiki_dbh s)
 	  in
-	  List.iter mark_as_processing !results;
-          (* We need to end this loop. *)
+	  if (List.length !results) > 0 then (
+	    let num_availible = self#aquire_reservations db_name 
+	      (List.length !results) max_procs in	  
+	    assert (num_availible <= (List.length !results));
+	    results_arr := Array.sub (Array.of_list !results) 0 num_availible;
+	    Array.iter mark_as_processing !results_arr
+	  ) else (
+	    results_arr := Array.of_list !results
+	  );
+	  (* We need to end this loop. *)
           self#commit;
           n_attempts := n_retries   
 	with 
@@ -861,7 +879,7 @@ object(self)
 	    n_attempts := !n_attempts + 1
 	  end
       end done; (* End of the multiple attempts at the transaction *)
-    !results
+    Array.to_list !results_arr
       
   (** [erase_cached_rev_text page_id rev_id rev_time_string] does nothing; 
       it does something only in the subclass that uses the exec api. *)
@@ -971,7 +989,95 @@ object(self)
 	end
       end
     | false -> ignore (self#db_exec mediawiki_dbh "COMMIT")
+
+
+  (* ================================================================ *)
+  (* Inter-Wiki Coordination. *)
+      
+  (** [get_avalible_procs wikiname desired_allowance max_proc]
+      Returns the number of availible processors for the given wiki,
+      which is between 0 and min(desired_allowance,max_proc)
+   *)
+  method aquire_reservations (wikiname : string) (desired_allowance : int)
+    (max_proc : int)
+    : int =
+    match global_dbh with
+    | Some dbh -> (
+	(* mark that we are no longer waiting *)
+	let end_wait () =
+	  let s = Printf.sprintf 
+	    "DELETE FROM %swikitrust_waiting_wikis WHERE wiki = %s" 
+	    db_prefix (ml2str wikiname) 
+	  in
+	  ignore (self#db_exec dbh s)
+	in
 	
+	(* Add a line *)
+	let add_line (line_type : string) =
+	  let s = Printf.sprintf 
+	    "INSERT INTO %s%s (wiki) VALUES (%s) ON DUPLICATE KEY UPDATE wiki = %s" 
+	    db_prefix line_type
+	    (ml2str wikiname)
+	    (ml2str wikiname)
+	  in
+	  ignore (self#db_exec dbh s)
+	in
+	
+	ignore (self#db_exec dbh "START TRANSACTION");
+	(* Find out how many slots are availible. *)
+	let s_run = Printf.sprintf 
+	  "SELECT count(wiki) FROM %swikitrust_running_wikis" db_prefix in
+	let s_wait = Printf.sprintf 
+	  "SELECT count(wiki) FROM %swikitrust_waiting_wikis WHERE wiki <> %s" 
+	  db_prefix (ml2str wikiname) in
+	let get_num_wikis row : int = (not_null int2ml row.(0)) in 
+	let num_running = List.hd (Mysql.map (self#db_exec mediawiki_dbh 
+	  s_run) get_num_wikis)
+	in
+	let num_waiting = List.hd (Mysql.map (self#db_exec mediawiki_dbh 
+	  s_wait) get_num_wikis)
+	in
+	let availible = max_proc - (num_running + num_waiting) in
+	if availible <= 0 then begin
+	  (* Mark that we are waiting and bail *)
+	  add_line "wikitrust_waiting_wikis";
+	  ignore (self#db_exec dbh "COMMIT");
+	  0
+	end else begin
+	  let allowance = min desired_allowance availible in
+	  (* Do we have work left over? *)
+	  if allowance < desired_allowance then begin
+	    (* Mark that we are waiting *)
+	    add_line "wikitrust_waiting_wikis"
+	  end else begin
+	    (* Remove the waiting line *)
+	    end_wait ()
+	  end;
+	  (* Mark the number we are doing *)  
+	  for i = 1 to allowance do
+	    add_line "wikitrust_running_wikis";
+	  done;
+	  (* And return the number we can do *)
+	  ignore (self#db_exec dbh "COMMIT");
+	  assert (allowance >= 0);
+	  allowance
+	end
+      )
+    | None -> desired_allowance
+  
+  (** [release_reservation wikiname]
+      Marks that wikiname is done with one processing unit.
+   *)
+  method release_reservation (wikiname : string) : unit =
+    match global_dbh with
+    | Some dbh -> (
+	let s = Printf.sprintf 
+	  "DELETE FROM %swikitrust_running_wikis WHERE wiki = %s" 
+	  db_prefix (ml2str wikiname) 
+	in
+	ignore (self#db_exec dbh s))
+    | None -> ()
+      
 end;; (* online_db *)
 
 (** This class extends the classical db class by using the executable api to 
@@ -979,14 +1085,15 @@ end;; (* online_db *)
 class db_exec_api
   (db_prefix : string)
   (mediawiki_dbh : Mysql.dbd)
+  (global_dbh : Mysql.dbd option)
   (db_name: string)
   (rev_base_path: string option)
   (colored_base_path: string option)
   (debug_mode : bool) =
   
 object(self)
-  inherit db db_prefix mediawiki_dbh db_name rev_base_path colored_base_path
-    debug_mode as super 
+  inherit db db_prefix mediawiki_dbh global_dbh db_name rev_base_path 
+    colored_base_path debug_mode as super 
 
   (** Puts the text in the text cache, and the rest in the db using the 
       super method *)
@@ -1014,7 +1121,12 @@ object(self)
 	let result = self#db_exec mediawiki_dbh s in
 	match Mysql.fetch result with 
         | None -> begin 
-	    let cmdline = Printf.sprintf "%sread_rev_text -log_file /dev/null -rev_id %d" "" rev_id in
+	    let cmdline = Printf.sprintf 
+	      "%sread_rev_text -log_file /dev/null -rev_id %d -wiki_api %s"
+	      !Online_command_line.wt_base
+	      rev_id 
+	      !Online_command_line.target_wikimedia
+	    in
 	    get_cmd_output cmdline
           end
 	| Some r -> not_null str2ml r.(0)
@@ -1061,13 +1173,14 @@ let create_db
     (use_exec_api: bool)
     (db_prefix : string)
     (mediawiki_dbh : Mysql.dbd)
+    (global_dbh : Mysql.dbd option)
     (db_name: string)
     (rev_base_path: string option)
     (colored_base_path: string option)
     (debug_mode : bool) =
   if use_exec_api
-  then (new db_exec_api db_prefix mediawiki_dbh db_name rev_base_path 
-    colored_base_path debug_mode)
-  else (new db db_prefix mediawiki_dbh db_name rev_base_path 
+  then (new db_exec_api db_prefix mediawiki_dbh global_dbh db_name 
+    rev_base_path colored_base_path debug_mode)
+  else (new db db_prefix mediawiki_dbh global_dbh db_name rev_base_path 
     colored_base_path debug_mode)
 
