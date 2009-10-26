@@ -1109,6 +1109,15 @@ object(self)
 	    rev.revision_page rev.revision_id rev.revision_content;
     end
 
+  method private exec_read_rev_text (rev_id : int) : string =
+    let cmdline = Printf.sprintf 
+      "%s/remote/analysis/read_rev_text -log_file /dev/null -rev_id %d -wiki_api %s"
+      !Online_command_line.wt_base
+      rev_id 
+      !Online_command_line.target_wikimedia
+    in
+    get_cmd_output cmdline
+
   (** [get_rev_text page_id text_id] returns the text associated with
       text id [text_id].  This method first tries to read the revision
       text from the cache.  If it does not succeed, it reads it from
@@ -1116,25 +1125,18 @@ object(self)
   method read_rev_text (page_id: int) (rev_id: int) (text_id: int) : string =
     match rev_base_path with 
     | None -> begin
-	let s = Printf.sprintf "SELECT revision_text FROM %swikitrust_text_cache WHERE revision_id = %s"
+	let s = Printf.sprintf 
+	  "SELECT revision_text FROM %swikitrust_text_cache WHERE revision_id = %s"
 	  db_prefix (ml2int rev_id) in 
 	let result = self#db_exec mediawiki_dbh s in
 	match Mysql.fetch result with 
-        | None -> begin 
-	    let cmdline = Printf.sprintf 
-	      "%sread_rev_text -log_file /dev/null -rev_id %d -wiki_api %s"
-	      !Online_command_line.wt_base
-	      rev_id 
-	      !Online_command_line.target_wikimedia
-	    in
-	    get_cmd_output cmdline
-          end
+        | None -> self#exec_read_rev_text rev_id
 	| Some r -> not_null str2ml r.(0)
       end
     | Some b -> begin
 	let result = Filesystem_store.read_revision b page_id rev_id in
 	match result with 
-	| None -> raise DB_Not_Found
+	| None -> self#exec_read_rev_text rev_id
 	| Some r -> r
       end
    
