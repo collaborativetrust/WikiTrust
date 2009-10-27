@@ -193,7 +193,7 @@ let process_page (page_id: int) (page_title: string) =
   let pages_downloaded = ref 0 in
   (* If I am using the WikiMedia API, I need to first download any new
      revisions of the page. *)
-  (try Printexc.print (fun () ->
+  (try Printexc.print (fun () -> 
     pages_downloaded := if !use_wikimedia_api then 
       Wikipedia_api.download_page_from_id child_db page_id else 0
     ;
@@ -222,7 +222,7 @@ let process_page (page_id: int) (page_title: string) =
     )
   | _ ->  (* Handle everything else generically here. *)
       Printf.eprintf "Other Error: On %d %s\n" page_id page_title
-  );
+  ); 
   (* Marks the page as processed. *)
   child_db#mark_page_as_processed page_id page_title !pages_downloaded;
   child_db#close; (* Release any locks still held. *)
