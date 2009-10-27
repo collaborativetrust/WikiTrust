@@ -151,7 +151,7 @@ let n_past_revs = 8;;
    size of the recent_revision list and the union of the recent
    revision list, hig reputation list and high trust list *)
 let default_dynamic_rep_scaling n_recent_revs max_n_recent_revs = 
-  let n_revs_judged = min (n_recent_revs - 2) (max_n_recent_revs / 2) in 
+  let n_revs_judged = max 1 (min (n_recent_revs - 2) (max_n_recent_revs / 2)) in 
   1. /. (float_of_int n_revs_judged)
 
 let default_trust_coeff = {

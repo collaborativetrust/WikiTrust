@@ -178,6 +178,7 @@ python truncate_wikitrust_keep_user.py
   -robots ~/wiki-data/wp_bots.txt \
   -log_file /tmp/dispatcher.log \
   -use_exec_api -wiki_api http://it.wikipedia.org/w/api.php \
+  -wikitrust_base ~/WikiTrust/remote/analysis/ \
   -concur_procs 2  -rev_base_path ~/wiki-data/enwork/rev_cache
 
 # Or, with debugger on:
