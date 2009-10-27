@@ -1075,8 +1075,9 @@ if false then begin
   let s18 = "* Bullet \n*: cont \n::: ecco \n \n \n**:: non so \n##: fatto" in
   let s19 = "{{#t:3,2,milappo}} Gatto {{#t:0.12,4,canicola}} posso {{#t:5,94854,\"ganzoide\"}} {{#t:0.12,34,\"pappafico\"}} cane {{#t:3,43,hellicola}} gatto {{#t:3,,hoi}} uccello {{#t:3,4,}} zecca" in 
   let s20 = "Quando vado, a\n[[storia]]\ndi amore\nnon so cosa fare.\n" in 
+  let s21 = "'''Amen''' è una parola [[lingua ebraica|ebraica]]: in [[ebraico tiberiense]] si scrive ''&#1488;&#1502;&#1503;'' (''&rsquo;&#256;m&#275;n''), in [[ebraico standard]] ''&#1488;&#1502;&#1503;'' (''Amen''), in [[lingua araba|arabo]] ''&#1570;&#1605;&#1610;&#1606;'' (''&rsquo;&#256;m&#299;n''): è una dichiarazione o affermazione che si trova nell'[[ebraico biblico]] e nel [[Corano]]." in
 
-  let l = [s0; s1; s2; s3; s4; s5; s6; s7; s8; s9; s10; s11; s12; s13; s14; s15; s16; s17; s18; s19; s20] in
+  let l = [s0; s1; s2; s3; s4; s5; s6; s7; s8; s9; s10; s11; s12; s13; s14; s15; s16; s17; s18; s19; s20; s21] in
 
   let f x = 
     Printf.printf "Original:\n%S\n" x;
