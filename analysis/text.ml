@@ -417,7 +417,8 @@ let separate_string_tags (pv: piece_t DynArray.t) : piece_t DynArray.t =
 			  (* Checks if matched *)
 			  if !n_open = 0 then begin 
 			    (* Yes, we have found the match *)
-			    (* Appends the splittable portion before the token to p *)
+			    (* Appends the splittable portion before
+			       the token to p *)
 			    if match_start_pos > !start_pos then begin 
 			      let piece_before = (String.sub text !start_pos (match_start_pos - !start_pos)) in 
 			      DynArray.add p (TXT_splittable piece_before)
@@ -608,14 +609,13 @@ let separate_line_tags (v: piece_t DynArray.t) : piece_t DynArray.t =
   DynArray.iter f v;
   w
 
-(* This processes table elements. The flow is as follows. 
-   First, it locates the starts of the rows, via start_row.  Note that caption lines 
-   logically should be handled here, but in practice, we have included them in the 
-   above code instead. 
-   After the row starts are located, there are one or more cells on the row. 
-   These are divided by || or !!,  and the only problem is to take care of the format 
-   modifier " || modifier | content || ". 
- *)
+(* This processes table elements. The flow is as follows.  First, it
+   locates the starts of the rows, via start_row.  Note that caption
+   lines logically should be handled here, but in practice, we have
+   included them in the above code instead.  After the row starts are
+   located, there are one or more cells on the row.  These are divided
+   by || or !!, and the only problem is to take care of the format
+   modifier " || modifier | content || ".  *)
 
 let new_cell_line = "\\(\n[|!]\\)"
 let new_cell_cont = "\\(\\(||\\)\\|\\(!!\\)\\)"
@@ -654,13 +654,15 @@ let separate_table_tags (v: piece_t DynArray.t) : piece_t DynArray.t =
 		DynArray.add w (TXT_splittable (String.sub s !start_pos (j - !start_pos)));
 		start_pos := j
 	      end; 
-	      (* A cell can either begin via a simple || or \n| or \n!.  The cell start portion 
-		 goes on till a single | , if any: such a single | marks the end of the cell 
-		 format field. After the single |, if any, or after the ||, \n|, \n!, begins the 
-		 cell proper. *)
+	      (* A cell can either begin via a simple || or \n| or
+		 \n!.  The cell start portion goes on till a single |
+		 , if any: such a single | marks the end of the cell
+		 format field. After the single |, if any, or after
+		 the ||, \n|, \n!, begins the cell proper. *)
 	      if Str.string_match format_mod_r s j' then begin 
 		(* Yes, found a modifier *)
-		(* Finds the end of the match.  The -1 is to compensate for the regexp. *)
+		(* Finds the end of the match.  The -1 is to
+		   compensate for the regexp. *)
 		let k = (Str.match_end ()) - 1 in 
 		(* Adds the cell tag, and moves on *)
 		DynArray.add w (WS_table_cell (String.sub s j (k - j))); 
@@ -824,7 +826,8 @@ let split_into_words_seps_and_info (arm: bool) (text_v: string Vec.t)
     * (string array) (* author *)
     * (int array)    (* sep index *)
     * (sep_t array)  (* seps *) = 
-  (* First, constructs a piece_t Dynarray.t containing the split text, called piece_v *)
+  (* First, constructs a piece_t Dynarray.t containing the split text,
+     called piece_v *)
   let piece_v = DynArray.make default_text_size in
   (* f is iterated on text_v *)
   let f t = 
@@ -839,8 +842,9 @@ let split_into_words_seps_and_info (arm: bool) (text_v: string Vec.t)
      word_author_v : vector of word authors
      word_index_v : vector of word indices in the sep array 
      sep_v : vector of sep_t 
-     These vectors will subsequently be converted to arrays, and returned, but it is easier
-     to create them as vectors, as we don't have a bound for their size. *)
+     These vectors will subsequently be converted to arrays, and
+     returned, but it is easier to create them as vectors, as we don't
+     have a bound for their size. *)
   let origin = ref 0 in 
   let author = ref "" in
   let trust = ref 0.0 in 
@@ -853,14 +857,15 @@ let split_into_words_seps_and_info (arm: bool) (text_v: string Vec.t)
   let word_index_v = DynArray.make default_text_size in
   let sep_v = DynArray.make default_text_size in
   (* This function is iterated on the vector of piece_t *)
-  (* For each relevant string s, puts in word_v a "viword": a visible piece of text. 
-     The intent is to ensure that any change to a viword corresponds to a change
-     in the visible layout, and vice versa, any change in the visible layout must 
-     be caused by a viword change.  In this way, authors:
-     - cannot change things that are visible to the reputation system but not to 
-       other authors (it could allow them to gain reputation unjustifiably)
-     - cannot vandalize a page without getting some effect to their reputation. 
-   *)
+  (* For each relevant string s, puts in word_v a "viword": a visible
+     piece of text.  The intent is to ensure that any change to a
+     viword corresponds to a change in the visible layout, and vice
+     versa, any change in the visible layout must be caused by a
+     viword change.  In this way, authors: 
+     - cannot change things that are visible to the reputation system but not 
+       to other authors (it could allow them to gain reputation unjustifiably) 
+     - cannot vandalize a page without getting some effect to their
+       reputation.  *)
   let h (s: piece_t) = 
     match s with 
       WS_title_start s -> begin 
@@ -876,8 +881,8 @@ let split_into_words_seps_and_info (arm: bool) (text_v: string Vec.t)
       end
     | WS_title_end s -> begin 
 	DynArray.add sep_v (Title_end (s, !word_idx));
-	(* for a title end, the viword is obtained by removing whitespace and adding
-	   a '\n' for uniqueness *)
+	(* for a title end, the viword is obtained by removing
+	   whitespace and adding a '\n' for uniqueness *)
 	DynArray.add word_v ((strip_ws_end s) ^ "\n");
 	DynArray.add word_trust_v !trust;
 	DynArray.add word_origin_v !origin;
@@ -958,7 +963,8 @@ let split_into_words_seps_and_info (arm: bool) (text_v: string Vec.t)
       end
     | TXT_tag s -> begin 
 	DynArray.add sep_v (Tag (s, !word_idx));
-	(* the viword is just the original string s, with whitespace normalized *)
+	(* the viword is just the original string s, with whitespace
+	   normalized *)
 	DynArray.add word_v (normalize_ws s);
 	DynArray.add word_trust_v !trust;
 	DynArray.add word_origin_v !origin;
@@ -969,7 +975,8 @@ let split_into_words_seps_and_info (arm: bool) (text_v: string Vec.t)
       end
     | TXT_redirect s -> begin 
 	DynArray.add sep_v (Redirect (s, !word_idx));
-	(* the viword is just the original string s, with whitespace normalized *)
+	(* the viword is just the original string s, with whitespace
+	   normalized *)
 	DynArray.add word_v (normalize_ws s);
 	DynArray.add word_trust_v !trust;
 	DynArray.add word_origin_v !origin;
@@ -1032,7 +1039,8 @@ let split_into_words_seps_and_info (arm: bool) (text_v: string Vec.t)
 
 let split_into_words_and_seps (arm: bool) (text_v: string Vec.t) : 
     (word array) * (int array) * (sep_t array) = 
-  (* First, constructs a piece_t Dynarray.t containing the split text, called piece_v *)
+  (* First, constructs a piece_t Dynarray.t containing the split text,
+     called piece_v *)
   let piece_v = DynArray.make default_text_size in
   (* f is iterated on text_v *)
   let f t = 
@@ -1044,22 +1052,25 @@ let split_into_words_and_seps (arm: bool) (text_v: string Vec.t) :
      word_v : vector of words
      word_index_v : vector of word indices in the sep array 
      sep_v : vector of sep_t 
-     These vectors will subsequently be converted to arrays, and returned, but it is easier
-     to create them as vectors, as we don't have a bound for their size. *)
+     These vectors will subsequently be converted to arrays, and returned, 
+     but it is easier to create them as vectors, as we don't have a bound 
+     for their size. *)
   let word_idx = ref 0 in 
   let sep_idx = ref 0 in 
   let word_v = DynArray.make default_text_size in
   let word_index_v = DynArray.make default_text_size in
   let sep_v = DynArray.make default_text_size in
   (* This function is iterated on the vector of piece_t *)
-  (* For each relevant string s, puts in word_v a "viword": a visible piece of text. 
-     The intent is to ensure that any change to a viword corresponds to a change
-     in the visible layout, and vice versa, any change in the visible layout must 
-     be caused by a viword change.  In this way, authors:
-     - cannot change things that are visible to the reputation system but not to 
-       other authors (it could allow them to gain reputation unjustifiably)
-     - cannot vandalize a page without getting some effect to their reputation. 
-   *)
+  (* For each relevant string s, puts in word_v a "viword": a visible
+     piece of text.  The intent is to ensure that any change to a
+     viword corresponds to a change in the visible layout, and vice
+     versa, any change in the visible layout must be caused by a
+     viword change.  In this way, authors: 
+     - cannot change things that are visible to the reputation system 
+       but not to other authors (it could allow them to gain reputation 
+       unjustifiably) 
+     - cannot vandalize a page without getting some effect to their
+       reputation.  *)
   let f (s: piece_t) = 
     match s with 
       WS_title_start s -> begin 
@@ -1072,8 +1083,8 @@ let split_into_words_and_seps (arm: bool) (text_v: string Vec.t) :
       end
     | WS_title_end s -> begin 
 	DynArray.add sep_v (Title_end (s, !word_idx));
-	(* for a title end, the viword is obtained by removing whitespace and adding
-	   a '\n' for uniqueness *)
+	(* for a title end, the viword is obtained by removing
+	   whitespace and adding a '\n' for uniqueness *)
 	DynArray.add word_v ((strip_ws_end s) ^ "\n");
 	DynArray.add word_index_v !sep_idx;
 	word_idx := !word_idx + 1;
@@ -1136,7 +1147,8 @@ let split_into_words_and_seps (arm: bool) (text_v: string Vec.t) :
       end
     | TXT_tag s -> begin 
 	DynArray.add sep_v (Tag (s, !word_idx));
-	(* the viword is just the original string s, with whitespace normalized *)
+	(* the viword is just the original string s, with whitespace
+	   normalized *)
 	DynArray.add word_v (normalize_ws s);
 	DynArray.add word_index_v !sep_idx;
 	word_idx := !word_idx + 1;
@@ -1144,7 +1156,8 @@ let split_into_words_and_seps (arm: bool) (text_v: string Vec.t) :
       end
     | TXT_redirect s -> begin 
 	DynArray.add sep_v (Redirect (s, !word_idx));
-	(* the viword is just the original string s, with whitespace normalized *)
+	(* the viword is just the original string s, with whitespace
+	   normalized *)
 	DynArray.add word_v (normalize_ws s);
 	DynArray.add word_index_v !sep_idx;
 	word_idx := !word_idx + 1;
@@ -1243,8 +1256,8 @@ if false then begin
 end;;
 
 (* **************************************************************** *)
-(* This code can be used to test the text splitting on very large pieces of text,
-   to figure out where it breaks. *)
+(* This code can be used to test the text splitting on very large
+   pieces of text, to figure out where it breaks. *)
 if false then begin 
   let f = open_in "../../debug/big-revision.txt" in 
   let buf = ref (Textbuf.empty) in 
