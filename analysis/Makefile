@@ -134,15 +134,6 @@ FILESYSTEMSTORE_OBJS = filesystem_store.cmo
 REVISION_STORE_OBJS = eval_defs.cmo author_sig.cmo editlist.cmo \
 	online_types.cmo revision_store.cmo
 
-# Online objects.
-OUR_ONLINE_OBJS = online_log.cmo online_db.cmo \
-	online_revision.cmo db_page.cmo online_page.cmo event_feed.cmo  \
-	online_command_line.cmo updater.cmo
-
-OUR_OPT_ONLINE_OBJS = online_log.cmx online_db.cmx \
-	online_revision.cmx db_page.cmx online_page.cmx event_feed.cmx \
-	online_command_line.cmx updater.cmx
-
 wikitrust_lib.cma: $(OUR_LIB_OBJS)
 	$(OCAMLC) -a -o wikitrust_lib.cma $(OCAML_CFLAGS) $(OUR_LIB_OBJS)
 
@@ -156,16 +147,16 @@ evalwikiopt: evalwiki.ml wikitrust_lib.cmxa
 	$(OCAMLOPT) -linkpkg -o evalwiki $(OCAMLOPT_FLAGS) $(OUR_OPT_LIB_OBJS) evalwiki.ml
 
 eval_online_wiki: eval_online_wiki.ml wikitrust_lib.cma
-	$(OCAMLC) -linkpkg -o eval_online_wiki $(OCAML_CFLAGS) $(OUR_LIBS) $(OUR_ONLINE_OBJS) eval_online_wiki.ml 
+	$(OCAMLC) -linkpkg -o eval_online_wiki $(OCAML_CFLAGS) $(OUR_LIBS) eval_online_wiki.ml 
 
 eval_online_wikiopt: eval_online_wiki.ml wikitrust_lib.cmxa
-	$(OCAMLOPT) -linkpkg -o eval_online_wiki $(OCAMLOPT_FLAGS) $(OUR_LIBS_OPT) $(OUR_OPT_ONLINE_OBJS) eval_online_wiki.ml
+	$(OCAMLOPT) -linkpkg -o eval_online_wiki $(OCAMLOPT_FLAGS) $(OUR_LIBS_OPT) eval_online_wiki.ml
 
 vote_revision: vote_revision.ml wikitrust_lib.cma
-	$(OCAMLC) -linkpkg -o vote_revision $(OCAML_CFLAGS) $(OUR_LIBS) $(OUR_ONLINE_OBJS) vote_revision.ml 
+	$(OCAMLC) -linkpkg -o vote_revision $(OCAML_CFLAGS) $(OUR_LIBS) vote_revision.ml 
 
 vote_revisionopt: vote_revision.ml wikitrust_lib.cmxa
-	$(OCAMLOPT) -linkpkg -o vote_revision $(OCAMLOPT_FLAGS) $(OUR_LIBS_OPT) $(OUR_OPT_ONLINE_OBJS) vote_revision.ml
+	$(OCAMLOPT) -linkpkg -o vote_revision $(OCAMLOPT_FLAGS) $(OUR_LIBS_OPT) vote_revision.ml
 
 generate_reputation:  $(OUR_GENERATE_REPUTATION_OBJS)
 	$(OCAMLC) -linkpkg -o generate_reputation $(OCAML_CFLAGS) $(OUR_GENERATE_REPUTATION_OBJS)
