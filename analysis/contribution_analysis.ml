@@ -76,6 +76,7 @@ object (self)
   (* This is a hashtable associating to each user_id the user name. *)
   val names : (int, string) Hashtbl.t = Hashtbl.create 100
 
+
   (** This is one of the class methods that we inherit.  Normally, it does
       nothing.  We over-ride it, so that it prints the page title and id: 
       this is useful e.g. if we wanted to then multiply the contributions
@@ -84,12 +85,14 @@ object (self)
     Printf.fprintf out_file "Page: %i Title: %S\n" id title; 
     flush out_file
 
+
   (** This method increments the contribution of an author. *)
   method private inc_contribution (user_id: int) (amount: float) : unit = 
     try
       let old_amount = Hashtbl.find contributions user_id in
       Hashtbl.replace contributions user_id (old_amount +. amount)
     with Not_found -> Hashtbl.add contributions user_id amount
+
 
   (** This method analyzes the newest revision.  It first determines
       which text has been inserted new, and which has been copied,
