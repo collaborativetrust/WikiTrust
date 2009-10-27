@@ -102,7 +102,7 @@ rm -rf ~/wiki-data/test/sql/*
     -n_sigs 8 \
     -robots ~/wiki-data/wp_bots.txt \
     -d ~/wiki-data/test/sql \
-    ../test-data/wiki4.xml
+    ../test-data/amen.xml.gz
 
 # Load the xml files in the wiki db:
 cd ../test-scripts 
