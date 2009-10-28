@@ -157,7 +157,7 @@ class revision
 	let buf = Textbuf.add (db#read_rev_text page_id rev_id text_id) 
 	  Textbuf.empty in 
 	let (w, s_idx, s) = 
-	  Text.split_into_words_and_seps false (Textbuf.get buf) in 
+	  Text.split_into_words_and_seps false false (Textbuf.get buf) in 
 	words <- w; 
 	seps <- s; 
 	sep_word_idx <- s_idx;
@@ -177,7 +177,7 @@ class revision
 	 from breaking on too long strings. *)
       let buf = Textbuf.add raw_text Textbuf.empty in 
       let (w, t, o, a, s_idx, s) = Text.split_into_words_seps_and_info 
-	false (Textbuf.get buf) in 
+	false false (Textbuf.get buf) in 
       words <- w; 
       trust <- t; 
       origin <- o; 
@@ -260,7 +260,7 @@ class revision
 	  let buf = Textbuf.add 
 	    (db#read_colored_markup page_id rev_id blob_id_opt) Textbuf.empty in 
           let (w, t, o, a, s_idx, s) = Text.split_into_words_seps_and_info 
-	    false (Textbuf.get buf) in 
+	    false false (Textbuf.get buf) in 
 	  words <- w; 
 	  trust <- t; 
 	  origin <- o; 

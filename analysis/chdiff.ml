@@ -707,7 +707,7 @@ if false then begin
   let ts10 = "In generale, il bene comune non coincide con quello individuale, dato che le persone non badano a quello comune se non quando gli fa comodo." in 
 
   let tsa = [| ts1; ts2; ts3; ts4; ts5; ts6; ts7; ts8; ts9; ts10 |] in 
-  let taa = Array.map (function x -> Text.split_into_words false (Vec.singleton x)) tsa in 
+  let taa = Array.map (function x -> Text.split_into_words false false (Vec.singleton x)) tsa in 
   let (c, l) = text_tracking [| taa.(0) |] taa.(1) in 
   Text.print_words taa.(0);
   Printf.printf "\n";
@@ -736,7 +736,7 @@ if false then begin
   let ts2 = "a b c d e q q a b c d e q q q q a b c d e" in 
   let ts3 = "o o a b c d o o b c d e o o b c d e" in 
   let tsa = [| ts1; ts2; ts3 |] in
-  let taa = Array.map (function x -> Text.split_into_words false (Vec.singleton x)) tsa in 
+  let taa = Array.map (function x -> Text.split_into_words false false (Vec.singleton x)) tsa in 
   let (c, l) = text_tracking [| taa.(0) |] taa.(1) in 
   Text.print_words taa.(0);
   Printf.printf "\n";
@@ -765,10 +765,10 @@ if false then begin
   let ch1 = "a b c d e q q q q q q a b c d e q q q q q q a b c d e" in 
   let ts3 = "a b c d o o a b c d e z q q q q q q z a b c d e" in 
   let chunks = [| 
-    (Text.split_into_words false (Vec.singleton ch0));
-    (Text.split_into_words false (Vec.singleton ch1)) 
+    (Text.split_into_words false false (Vec.singleton ch0));
+    (Text.split_into_words false false (Vec.singleton ch1)) 
   |] in
-  let tsa3 = Text.split_into_words false (Vec.singleton ts3) in
+  let tsa3 = Text.split_into_words false false (Vec.singleton ts3) in
   let (c, l) = text_tracking chunks tsa3 in
   print_chunks chunks;
   print_string "Words:\n";
@@ -786,10 +786,10 @@ if false then begin
   let ch1 = "a b c d e o o o o o a b c d e" in 
   let ts3 = "a b c d o o a b c d e z q q q q q q z a b c d e" in 
   let chunks = [| 
-    (Text.split_into_words false (Vec.singleton ch0));
-    (Text.split_into_words false (Vec.singleton ch1)) 
+    (Text.split_into_words false false (Vec.singleton ch0));
+    (Text.split_into_words false false (Vec.singleton ch1)) 
   |] in
-  let tsa3 = Text.split_into_words false (Vec.singleton ts3) in
+  let tsa3 = Text.split_into_words false false (Vec.singleton ts3) in
   let (c, l) = text_tracking chunks tsa3 in
   print_chunks chunks;
   print_string "Words:\n";
@@ -813,8 +813,8 @@ if false then
     let text3b = "a b c d e f g e f g m n o p q r" in
     
     let test_edit_diff t1 t2 = 
-      let w1 = Text.split_into_words false (Vec.singleton t1) in 
-      let w2 = Text.split_into_words false (Vec.singleton t2) in 
+      let w1 = Text.split_into_words false false (Vec.singleton t1) in 
+      let w2 = Text.split_into_words false false (Vec.singleton t2) in 
       let e = edit_diff w1 w2 in 
       Text.print_words w1; 
       Text.print_words w2;  
@@ -832,8 +832,8 @@ if false then
     let ts1 = "a b c d e o o o o o a b c d e" in 
     let ts2 = "a b c d e q q a b c d e q q q q a b c d e" in 
     let test_edit_diff t1 t2 = 
-      let w1 = Text.split_into_words false (Vec.singleton t1) in 
-      let w2 = Text.split_into_words false (Vec.singleton t2) in 
+      let w1 = Text.split_into_words false false (Vec.singleton t1) in 
+      let w2 = Text.split_into_words false false (Vec.singleton t2) in 
       let e = edit_diff w1 w2 in 
       Text.print_words w1; 
       print_string "\n";
@@ -857,16 +857,16 @@ if false then begin
   let ts9 = ts7 in 
   let ts10 = "In generale, il bene comune non coincide con quello individuale. Questo e' causato dal fatto che le persone badano al loro bene privato, piuttosto che al bene comune." in
 
-  let ta1  = Text.split_into_words false (Vec.singleton ts1) in 
-  let ta2  = Text.split_into_words false (Vec.singleton ts2) in 
-  let ta3  = Text.split_into_words false (Vec.singleton ts3) in 
-  let ta4  = Text.split_into_words false (Vec.singleton ts4) in 
-  let ta5  = Text.split_into_words false (Vec.singleton ts5) in 
-  let ta6  = Text.split_into_words false (Vec.singleton ts6) in 
-  let ta7  = Text.split_into_words false (Vec.singleton ts7) in 
-  let ta8  = Text.split_into_words false (Vec.singleton ts8) in 
-  let ta9  = Text.split_into_words false (Vec.singleton ts9) in 
-  let ta10 = Text.split_into_words false (Vec.singleton ts10) in 
+  let ta1  = Text.split_into_words false false (Vec.singleton ts1) in 
+  let ta2  = Text.split_into_words false false (Vec.singleton ts2) in 
+  let ta3  = Text.split_into_words false false (Vec.singleton ts3) in 
+  let ta4  = Text.split_into_words false false (Vec.singleton ts4) in 
+  let ta5  = Text.split_into_words false false (Vec.singleton ts5) in 
+  let ta6  = Text.split_into_words false false (Vec.singleton ts6) in 
+  let ta7  = Text.split_into_words false false (Vec.singleton ts7) in 
+  let ta8  = Text.split_into_words false false (Vec.singleton ts8) in 
+  let ta9  = Text.split_into_words false false (Vec.singleton ts9) in 
+  let ta10 = Text.split_into_words false false (Vec.singleton ts10) in 
 
   let t = [|ta1; ta2; ta3; ta4; ta5; ta6; ta7; ta8; ta9; ta10|] in 
   let len = Array.length (t) in 

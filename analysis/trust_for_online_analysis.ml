@@ -154,7 +154,8 @@ object(self)
       let db_overall_quality = ml2float 0.0 in
       (* Db write access *)
       Printf.fprintf sql_file "INSERT INTO %swikitrust_revision (revision_id, page_id, text_id, time_string, user_id, username, is_minor, quality_info, blob_id, reputation_delta, overall_trust, overall_quality) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);\n"
-	db_prefix rev_id page_id text_id time_string user_id username is_minor db_qual_info (ml2int blob_id) aq2 db_overall_trust db_overall_quality
+	db_prefix rev_id page_id text_id time_string user_id username is_minor 
+	db_qual_info (ml2int blob_id) aq2 db_overall_trust db_overall_quality
 	
 
     (** Computes the distances between the newest revision and all previous ones. *)
@@ -204,10 +205,11 @@ object(self)
             let perc2 = (float_of_int (unc2 + 1)) /. (float_of_int (rev2_l + 1)) in 
             let perc  = min perc1 perc2 in 
             (* If it qualifies, and if it is better than the best, use it *)
-            if perc <= max_perc_to_zip && unc <= max_uncovered_to_zip && unc < !best_coverage then begin 
-              best_coverage := unc; 
-              best_middle_idx := revm_idx
-            end
+            if perc <= max_perc_to_zip && unc <= max_uncovered_to_zip 
+	      && unc < !best_coverage then begin 
+		best_coverage := unc; 
+		best_middle_idx := revm_idx
+              end
           end done; 
 
           (* If it found anything suitable, uses it *)
@@ -217,7 +219,8 @@ object(self)
             let revm_e = Vec.get (rev2_idx - !best_middle_idx) revm#get_editlist in 
             let forw_e = Vec.get (!best_middle_idx - rev1_idx) rev1#get_editlist in 
             (* ... and computes the distance via zipping. *)
-            let edits = Compute_edlist.edit_diff_using_zipped_edits rev1_t rev2_t forw_e revm_e in 
+            let edits = Compute_edlist.edit_diff_using_zipped_edits 
+	      rev1_t rev2_t forw_e revm_e in 
             let d = Editlist.edit_distance edits (max rev1_l rev2_l) in 
             rev1#set_distance (Vec.setappend 0.0 d i rev1#get_distance);
             rev1#set_editlist (Vec.setappend [] edits i rev1#get_editlist);
@@ -343,7 +346,8 @@ object(self)
         let (new_chunks_20_a, medit_20_l) = Chdiff.text_tracking chunks_dual_a new_wl in 
 	(* Computes origin *)
 	let (new_origin_20_a, new_author_20_a) = Compute_robust_trust.compute_origin 
-	  origin_dual_a author_dual_a new_chunks_20_a medit_20_l rev#get_id rev#get_user_name in 
+	  origin_dual_a author_dual_a new_chunks_20_a medit_20_l 
+	  rev#get_id rev#get_user_name in 
 	(* Keeps this origin information as the most reliable one. *)
 	new_origin_10_a.(0) <- new_origin_20_a.(0);
 	new_author_10_a.(0) <- new_author_20_a.(0);
@@ -414,7 +418,7 @@ object(self)
       let disarmed_text = Vec.map Text.xml_disarm text_init in
       let r = new Revision.trust_revision rev_id page_id timestamp time 
 	contributor user_id ip_addr username is_minor comment 
-	disarmed_text false in 
+	disarmed_text true false in 
       (* Adds the revision to the Vec of revisions. *)
       revs <- Vec.append r revs; 
       (* Computes all the distances from this new revision to the previous ones. *)

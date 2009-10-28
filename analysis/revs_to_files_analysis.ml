@@ -85,8 +85,8 @@ class page
 	is_first <- false
       end; 
       (* Creates a revision without text, and prints it out to the empty .xml file *)
-      let r = new Revision.write_only_revision rev_id page_id timestamp time contributor user_id 
-	ip_addr username is_minor comment Vec.empty true in
+      let r = new Revision.write_only_revision rev_id page_id timestamp time 
+	contributor user_id ip_addr username is_minor comment Vec.empty true false in
       r#output_revision out_file;
       (* Now we need to write the text of the revision in its own file. *)
       (* First, generates the text, converting the XML escapes &gt; etc into normal
