@@ -351,7 +351,7 @@ sub handle_deletepage {
 
   my ($rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
   $r->content_type('text/plain; charset=utf-8');
-  my $page_title = "";
+  $page_title = "";
  
   # Get the page_title.
   # We need to make sure we get the actual page title, as this is currently the only
