@@ -29,7 +29,7 @@ our %methods = (
 	'sharehtml' => \&handle_sharehtml,
 	'stats' => \&handle_stats,
 	'miccheck' => \&handle_miccheck,
-	'delete' => \&handle_delete_page,
+	'delete' => \&handle_deletepage,
     );
 
 our $cache = undef;	# will get initialized when needed
@@ -205,7 +205,7 @@ sub fetch_colored_markup {
       . "revision_id = ?") || die $dbh->errstr;
   my $blob_id = -1;
   $sth->execute($rev_id) || die $dbh->errstr;
-  if ((my $ref = $sth->fetchrow_hashref())){
+  if (my $ref = $sth->fetchrow_hashref()) {
     $blob_id = $$ref{'blob_id'};
   } else {
     return NOT_FOUND_TEXT_TOKEN;
@@ -229,7 +229,7 @@ sub fetch_colored_markup {
       . "blob_id = ?") || die $dbh->errstr;
   my $result = NOT_FOUND_TEXT_TOKEN;
   $sth->execute($new_blob_id) || die $dbh->errstr;
-  if ((my $ref = $sth->fetchrow_hashref())){
+  if (my $ref = $sth->fetchrow_hashref()) {
     my $blob_c = Compress::Zlib::memGunzip($$ref{'blob_content'});
     $result = $median.",".util_extractFromBlob($rev_id, $blob_c);
   }
@@ -310,7 +310,7 @@ sub handle_stats {
   $sth->execute() || die $dbh->errstr;
   $r->print("Processing queue for WikiTrust dispatcher:\n\n");
   my $found_header = 0;
-  while ((my $ref = $sth->fetchrow_hashref())){
+  while (my $ref = $sth->fetchrow_hashref()) {
     if (!$found_header) {
       foreach (sort keys %$ref) { $r->print(sprintf("%20s ", $_)); }
       $r->print("\n");
@@ -342,21 +342,21 @@ sub handle_miccheck {
   return Apache2::Const::OK;
 }
 
-# delete_page: A debugging method, this allows the all of the colored revisions of a page
+# deletepage: A debugging method, this allows the all of the colored revisions of a page
 # to be deleted and re-colored.
 # It takes a secret paramiter, which is a shared seceret password
 # Also a pid paramiter, which is the page_id of the page to be deleted
-sub handle_delete_page {
+sub handle_deletepage {
   my ($dbh, $cgi, $r) = @_;
 
+  my ($rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
   $r->content_type('text/plain; charset=utf-8');
-  my $page_id = $cgi->param('pid') || -1;
   my $page_title = "";
  
   # Get the page_title.
   my $sth = $dbh->prepare ("SELECT page_id,page_title FROM wikitrust_page WHERE page_id = ?") 
     || die $dbh->errstr;
-  $sth->execute(($page_id)) || die $dbh->errstr;
+  $sth->execute($page) || die $dbh->errstr;
   if (my $title = $sth->fetchrow_hashref()){
     $page_title = $title->{page_title};
   }
@@ -365,7 +365,7 @@ sub handle_delete_page {
   if (!$page_title){
     $sth = $dbh->prepare ("SELECT page_title FROM wikitrust_queue WHERE page_id = ?") 
       || die $dbh->errstr;
-    $sth->execute(($page_id)) || die $dbh->errstr;  
+    $sth->execute($page) || die $dbh->errstr;
     if (my $title = $sth->fetchrow_hashref()){
       $page_title = $title->{page_title};
     }
@@ -377,15 +377,15 @@ sub handle_delete_page {
     # Delete the revisions.
     $sth = $dbh->prepare ("DELETE FROM wikitrust_revision WHERE page_id = ?") 
       || die $dbh->errstr;
-    $sth->execute($page_id) || die $dbh->errstr;
+    $sth->execute($page) || die $dbh->errstr;
  
     # Delete the revisions.
     $sth = $dbh->prepare ("DELETE FROM wikitrust_queue WHERE page_id = ?")
       || die $dbh->errstr;
-    $sth->execute($page_id) || die $dbh->errstr;
+    $sth->execute($page) || die $dbh->errstr;
     
     # And mark this to be colored.
-    mark_for_coloring($page_id, $page_title, $dbh);
+    mark_for_coloring($page, $page_title, $dbh);
     $r->print("$page_title is being re-colored.");
   } else {
     $r->print("Incorrect password or missing page_id.");
