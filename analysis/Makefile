@@ -134,15 +134,6 @@ FILESYSTEMSTORE_OBJS = filesystem_store.cmo
 REVISION_STORE_OBJS = eval_defs.cmo author_sig.cmo editlist.cmo \
 	online_types.cmo revision_store.cmo
 
-# Online objects.
-OUR_ONLINE_OBJS = online_log.cmo online_db.cmo \
-	online_revision.cmo db_page.cmo online_page.cmo event_feed.cmo  \
-	online_command_line.cmo updater.cmo
-
-OUR_OPT_ONLINE_OBJS = online_log.cmx online_db.cmx \
-	online_revision.cmx db_page.cmx online_page.cmx event_feed.cmx \
-	online_command_line.cmx updater.cmx
-
 wikitrust_lib.cma: $(OUR_LIB_OBJS)
 	$(OCAMLC) -a -o wikitrust_lib.cma $(OCAML_CFLAGS) $(OUR_LIB_OBJS)
 

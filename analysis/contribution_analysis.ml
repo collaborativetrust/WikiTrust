@@ -211,7 +211,7 @@ object (self)
     (* Creates a new revision object.  This also takes care of parsing the
        text, etc. *)
     let r = new Revision.revision id page_id timestamp time contributor 
-      user_id ip_addr username is_minor comment text_init true in 
+      user_id ip_addr username is_minor comment text_init true false in 
     new_rev_opt <- Some r;
     (* Analyzes the text of the new revision and increments the
        contributions. *)

@@ -37,13 +37,17 @@ POSSIBILITY OF SUCH DAMAGE.
 
 open Online_types;;
 
-(** This is a timeout for how long we wait for database locks. 
-    If we wait longer than this, then the db is too busy, and we quit all work. 
-    Notice that this provides an auto-throttling mechanism: if there are too many
-    instances of coloring active at once, we won't get the lock quickly, and the 
-    process will terminate. *)
+(* Sets the parameters for the garbage collection *)
+Gc.set { (Gc.get()) with Gc.major_heap_increment = 16777216 };;
+Gc.set { (Gc.get()) with Gc.minor_heap_size = 4194304 };;
+
+(** This is a timeout for how long we wait for database locks.  If we
+    wait longer than this, then the db is too busy, and we quit all
+    work.  Notice that this provides an auto-throttling mechanism: if
+    there are too many instances of coloring active at once, we won't
+    get the lock quickly, and the process will terminate. *)
 let lock_timeout = 20
-(** This is the max number of revisions to color in a single db connection. *)
+  (** This is the max number of revisions to color in a single db connection. *)
 let n_revs_color_in_one_connection = 200
 
 (** Type on analysis to perform *)

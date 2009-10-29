@@ -154,7 +154,8 @@ object(self)
       let db_overall_quality = ml2float 0.0 in
       (* Db write access *)
       Printf.fprintf sql_file "INSERT INTO %swikitrust_revision (revision_id, page_id, text_id, time_string, user_id, username, is_minor, quality_info, blob_id, reputation_delta, overall_trust, overall_quality) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);\n"
-	db_prefix rev_id page_id text_id time_string user_id username is_minor db_qual_info (ml2int blob_id) aq2 db_overall_trust db_overall_quality
+	db_prefix rev_id page_id text_id time_string user_id username is_minor 
+	db_qual_info (ml2int blob_id) aq2 db_overall_trust db_overall_quality
 	
 
     (** Computes the distances between the newest revision and all previous ones. *)
@@ -200,38 +201,46 @@ object(self)
             let unc2 = rev2_l - c2 in 
             let unc = min unc1 unc2 in 
             (* Computes the percentages of uncovered *)
-            let perc1 = (float_of_int (unc1 + 1)) /. (float_of_int (rev1_l + 1)) in 
-            let perc2 = (float_of_int (unc2 + 1)) /. (float_of_int (rev2_l + 1)) in 
+            let perc1 = (float_of_int (unc1 + 1)) /. 
+	      (float_of_int (rev1_l + 1)) in 
+            let perc2 = (float_of_int (unc2 + 1)) /. 
+	      (float_of_int (rev2_l + 1)) in 
             let perc  = min perc1 perc2 in 
             (* If it qualifies, and if it is better than the best, use it *)
-            if perc <= max_perc_to_zip && unc <= max_uncovered_to_zip && unc < !best_coverage then begin 
-              best_coverage := unc; 
-              best_middle_idx := revm_idx
-            end
+            if perc <= max_perc_to_zip && unc <= max_uncovered_to_zip 
+	      && unc < !best_coverage then begin 
+		best_coverage := unc; 
+		best_middle_idx := revm_idx
+              end
           end done; 
 
           (* If it found anything suitable, uses it *)
           if !best_middle_idx > -1 then begin 
             (* Then uses the best middle index to zip *)
             let revm = Vec.get !best_middle_idx revs in 
-            let revm_e = Vec.get (rev2_idx - !best_middle_idx) revm#get_editlist in 
-            let forw_e = Vec.get (!best_middle_idx - rev1_idx) rev1#get_editlist in 
+            let revm_e = 
+	      Vec.get (rev2_idx - !best_middle_idx) revm#get_editlist in 
+            let forw_e = 
+	      Vec.get (!best_middle_idx - rev1_idx) rev1#get_editlist in 
             (* ... and computes the distance via zipping. *)
-            let edits = Compute_edlist.edit_diff_using_zipped_edits rev1_t rev2_t forw_e revm_e in 
+            let edits = Compute_edlist.edit_diff_using_zipped_edits 
+	      rev1_t rev2_t forw_e revm_e in 
             let d = Editlist.edit_distance edits (max rev1_l rev2_l) in 
             rev1#set_distance (Vec.setappend 0.0 d i rev1#get_distance);
             rev1#set_editlist (Vec.setappend [] edits i rev1#get_editlist);
 
           end else begin 
-            (* Nothing suitable found, uses the brute-force approach of computing 
-	       the edit distance from direct text comparison. ¯*)
+            (* Nothing suitable found, uses the brute-force approach
+	       of computing the edit distance from direct text
+	       comparison. ¯*)
             let edits   = Chdiff.edit_diff rev1_t rev2_t in 
             let d = Editlist.edit_distance edits (max rev1_l rev2_l) in 
             rev1#set_distance (Vec.setappend 0.0 d i rev1#get_distance);
             rev1#set_editlist (Vec.setappend [] edits i rev1#get_editlist);
           end
 
-	end (* if the distance is not being computed wrt the previous revision *)
+	end (* if the distance is not being computed wrt the previous 
+	       revision *)
       end done (* loop over preceding revisions *)
 
 
@@ -274,7 +283,8 @@ object(self)
       (* Calls the function that analyzes the difference 
          between revisions. Data relative to the previous revision
          is stored in the instance fields chunks_a and chunks_attr_a *)
-      let (new_chunks_10_a, medit_10_l) = Chdiff.text_tracking chunks_a new_wl in 
+      let (new_chunks_10_a, medit_10_l) = 
+	Chdiff.text_tracking chunks_a new_wl in 
       (* Computes the origin of the words in the new revision. *)
       let (new_origin_10_a, new_author_10_a) = 
 	Compute_robust_trust.compute_origin 
@@ -340,10 +350,13 @@ object(self)
 	author_dual_a.(0) <- rev2#get_word_author;
 	
         (* Analyzes this different chunk setup *)
-        let (new_chunks_20_a, medit_20_l) = Chdiff.text_tracking chunks_dual_a new_wl in 
+        let (new_chunks_20_a, medit_20_l) = 
+	  Chdiff.text_tracking chunks_dual_a new_wl in 
 	(* Computes origin *)
-	let (new_origin_20_a, new_author_20_a) = Compute_robust_trust.compute_origin 
-	  origin_dual_a author_dual_a new_chunks_20_a medit_20_l rev#get_id rev#get_user_name in 
+	let (new_origin_20_a, new_author_20_a) = 
+	  Compute_robust_trust.compute_origin 
+	    origin_dual_a author_dual_a new_chunks_20_a medit_20_l 
+	    rev#get_id rev#get_user_name in 
 	(* Keeps this origin information as the most reliable one. *)
 	new_origin_10_a.(0) <- new_origin_20_a.(0);
 	new_author_10_a.(0) <- new_author_20_a.(0);
@@ -414,10 +427,11 @@ object(self)
       let disarmed_text = Vec.map Text.xml_disarm text_init in
       let r = new Revision.trust_revision rev_id page_id timestamp time 
 	contributor user_id ip_addr username is_minor comment 
-	disarmed_text false in 
+	disarmed_text true false in 
       (* Adds the revision to the Vec of revisions. *)
       revs <- Vec.append r revs; 
-      (* Computes all the distances from this new revision to the previous ones. *)
+      (* Computes all the distances from this new revision to the
+	 previous ones. *)
       self#compute_distances;
       (* Evaluates the newest version *)
       self#eval_newest; 
@@ -429,9 +443,8 @@ object(self)
            be a larger number *)
 	revs <- Vec.remove 0 revs;
 	(* increments the offset of the oldest version *)
-	offset <- offset + 1 
-      end (* if *)
-	  
+	offset <- offset + 1;
+      end; (* if *)
 
     (** This method produces the sql code that adds the wikitrust_page
 	information to the db. *)
@@ -497,5 +510,5 @@ object(self)
       (* Outputs chunks and sigs *)
       self#write_chunks;
       self#write_sigs
-    
+
   end

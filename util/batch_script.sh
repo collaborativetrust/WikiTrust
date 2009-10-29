@@ -93,6 +93,16 @@ rm -rf /home/luca/wiki-data/enwork/sql/*
     -d ~/wiki-data/test/sql \
     /home/luca/wiki-data/itwiki/individual/000/wiki-00000050.xml.gz
 
+# and also for debugging:
+rm -rf ~/wiki-data/test/blobtree/*
+rm -rf ~/wiki-data/test/sql/*
+./evalwiki -trust_for_online \
+    -historyfile ~/wiki-data/itwiki/rep_history.txt \
+    -blob_base_path ~/wiki-data/test/blobtree \
+    -n_sigs 8 \
+    -robots ~/wiki-data/wp_bots.txt \
+    -d ~/wiki-data/test/sql \
+    ../test-data/amen.xml.gz
 
 # Load the xml files in the wiki db:
 cd ../test-scripts 
@@ -178,6 +188,7 @@ python truncate_wikitrust_keep_user.py
   -robots ~/wiki-data/wp_bots.txt \
   -log_file /tmp/dispatcher.log \
   -use_exec_api -wiki_api http://it.wikipedia.org/w/api.php \
+  -wikitrust_base ~/WikiTrust/remote/analysis/ \
   -concur_procs 2  -rev_base_path ~/wiki-data/enwork/rev_cache
 
 # Or, with debugger on:

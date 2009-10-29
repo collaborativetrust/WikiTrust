@@ -70,12 +70,19 @@ type sep_t =
   | Redirect of string * int
       (** redirection tag, along with the position in the word array *)
 
-(** [split_into_words arm sv] splits a Vec of strings [sv] into an array of words.
-    [arm] denotes whether < and > have to be rearmed into &lt; and &gt; 
-    Used for reputation analysis. *)
-val split_into_words : bool -> string Vec.t -> word array
+(** [split_into_words disarm rearm sv] 
+    splits a Vec of strings [sv] into an array of words.
+    The [disarm] flag controls whether the &amp; &gt; and similar tags from the
+    input are translated into & > and so forth.  The rearm flag controls whether
+    the opposite transformation occurs once the parsing has occurred.
+    Typically:
+    To convert from dumps to blobs, use: true  false
+    To convert from jason to blobs, use: false false
+    To convert from dumps to xml for mwdumper use: true true
+*)
+val split_into_words : bool -> bool -> string Vec.t -> word array
 
-(** [split_into_words_seps_and_info arm sv] splits a Vec of strings [sv] into:
+(** [split_into_words_seps_and_info disarm rearm sv] splits a Vec of strings [sv] into:
    - an array of words (excluding separators, such as white space, etc)
    - an array of trust values of words (float) 
    - an array of origins of words (int) 
@@ -83,21 +90,20 @@ val split_into_words : bool -> string Vec.t -> word array
    - an array giving, for each word, its place in the sep array (int)
    - the array of seps, where words, etc, have their position in the word array 
      annotated. 
-   [arm] denotes whether < and > have to be rearmed into &lt; and &gt; 
 *)
 val split_into_words_seps_and_info : 
-  bool -> string Vec.t -> ((word array) * (float array) * (int array) * (string array)
-                           * (int array) * (sep_t array))
+  bool -> bool -> string Vec.t -> 
+  ((word array) * (float array) * (int array) * (string array)
+  * (int array) * (sep_t array))
 
-(** [split_into_words_and_seps arm sv] splits a Vec of strings [sv] into:
+(** [split_into_words_and_seps disarm rearm sv] splits a Vec of strings [sv] into:
    - an array of words (excluding separators, such as white space, etc)
    - an array giving, for each word, its place in the sep array (int)
    - the array of seps, where words, etc, have their position in the word array 
      annotated. 
-   [arm] denotes whether < and > have to be rearmed into &lt; and &gt; 
 *)
 val split_into_words_and_seps : 
-  bool -> string Vec.t -> ((word array) * (int array) * (sep_t array))
+  bool -> bool -> string Vec.t -> ((word array) * (int array) * (sep_t array))
 
 (** [print_words wa] prints the words in the word array [wa]. *)
 val print_words : word array -> unit

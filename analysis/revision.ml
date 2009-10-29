@@ -57,6 +57,7 @@ class revision
   (comment: string)
   (text_init: string Vec.t) (* Text of the revision, still to be split into words *)
   (text_disarm: bool) 
+  (text_rearm: bool)
   =
   object 
     val is_anon : bool = is_anonymous user_id
@@ -69,7 +70,7 @@ class revision
     val mutable editlist: Editlist.edit list Vec.t = Vec.empty 
 
     initializer begin
-      words <- Text.split_into_words text_disarm text_init
+      words <- Text.split_into_words text_disarm text_rearm text_init
     end
 
     method get_words : word array = words
@@ -125,12 +126,13 @@ class write_only_revision
   (is_minor: bool) 
   (comment: string)
   (text_init: string Vec.t) (* Text of the revision, still to be split into words *)
-  (text_disarm: bool) (* Whether to take care of the &gt; etc. conversion; generally, yes. *)
+  (text_disarm: bool)
+  (text_rearm: bool)
   =
   
   object (self)
   
-    inherit revision id page_id timestamp time contributor user_id ip_addr username is_minor comment text_init text_disarm
+    inherit revision id page_id timestamp time contributor user_id ip_addr username is_minor comment text_init text_disarm text_rearm
     
     (* returns the size of the revision in bytes. 
         Assume that each char = 1 byte. *)
@@ -186,11 +188,12 @@ class reputation_revision
   (is_minor: bool) 
   (comment: string)
   (text_init: string Vec.t) (* Text of the revision, still to be split into words *)
-  (text_disarm: bool) (* Whether to take care of the &gt; etc. conversion; generally, yes. *)
+  (text_disarm: bool)
+  (text_rearm: bool)
   (n_edit_judging: int) 
   =
   object (self)
-    inherit revision id page_id timestamp time contributor user_id ip_addr username is_minor comment text_init text_disarm
+    inherit revision id page_id timestamp time contributor user_id ip_addr username is_minor comment text_init text_disarm text_rearm
 
     val mutable n_text_judge_revisions: int = 0 
     val mutable created_text: int = 0 
@@ -374,17 +377,19 @@ class trust_revision
   (is_minor: bool) 
   (comment: string)
   (text_init: string Vec.t) (* Text of the revision, still to be split into words *)
-  (text_disarm: bool) (* Whether to take care of the &gt; etc. conversion; generally, yes. *)
+  (text_disarm: bool) (* Whether to disarm xml tags *)
+  (text_rearm: bool) (* Whether to rearm xml tags *)
   =
 
   object (self)
-    inherit revision id page_id timestamp time contributor user_id ip_addr username is_minor comment text_init text_disarm
+    inherit revision id page_id timestamp time contributor user_id ip_addr username is_minor comment text_init text_disarm text_rearm
 
     val mutable seps  : Text.sep_t array = [| |]
     val mutable sep_word_idx : int array =  [| |]
 
     initializer begin
-      let (t, swi, s) = Text.split_into_words_and_seps text_disarm text_init in 
+      let (t, swi, s) = Text.split_into_words_and_seps text_disarm text_rearm text_init
+      in 
       words <- t;
       seps <- s;
       sep_word_idx <- swi

@@ -1278,8 +1278,11 @@ class page
 		    max rev1_rep capped_rep_local
 		  end
 		in
-		(* Computes the uncapped reputation increment *)
-		let rep_inc = dynamic_rep_scaling_factor *. delta *. q *. renorm_w in
+		(* Computes the uncapped reputation increment.
+		   The reputation increment is capped, to avoid nan's. *)
+		let rep_inc = min (dynamic_rep_scaling_factor *. delta *. q *. renorm_w)
+		  trust_coeff.max_rep
+		in
 
 		(* Applies the reputation increment according to reputation cap *)
 		let new_rep = 

@@ -140,4 +140,3 @@ type stats_t = {
   stat_total_weight: float; (* Total of editing taking place (total n. of words) *)
   stat_bad_perc: float; (* Total of bad weight *)
 }
-
