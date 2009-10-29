@@ -401,6 +401,10 @@ class db :
 	TESTING *)
     method delete_all : bool -> unit
 
+    (** Delete only the articles for 1 page -- THIS IS INTENDED ONLY FOR UNIT
+	TESTING *)
+    method delete_revs_for_page : int -> unit
+
   (* ================================================================ *)
   (* Inter-Wiki Coordination. *)
       

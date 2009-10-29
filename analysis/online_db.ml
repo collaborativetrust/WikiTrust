@@ -405,13 +405,17 @@ object(self)
     let info_string = ml2str 
       (string_of__of__sexp_of sexp_of_page_info_t 
 	Online_types.page_info_default) in 
-    let s = Printf.sprintf "INSERT INTO %swikitrust_page (page_id, page_info, page_title, last_blob) VALUES (%s, %s, %s, %s) ON DUPLICATE KEY UPDATE last_blob = last_blob" 
+    let s = Printf.sprintf "INSERT INTO %swikitrust_page (page_id, page_info, page_title, last_blob) VALUES (%s, %s, %s, %s) ON DUPLICATE KEY UPDATE last_blob = last_blob, page_title = %s, page_info = %s" 
       db_prefix (ml2int page_id) info_string (match page_title with 
                                                 | Some pt -> ml2str pt 
                                                 | None -> "null")
-      (ml2int blob_locations.initial_location) in
-    ignore (self#db_exec mediawiki_dbh s)    
-    
+      (ml2int blob_locations.initial_location) 
+      (match page_title with 
+      | Some pt -> ml2str pt 
+      | None -> "null")
+      info_string
+    in
+    ignore (self#db_exec mediawiki_dbh s)
 	
   (** [write_page_info page_id p_info] writes that the page [page_id]
       has associated information [p_info].  The list of deleted chunks
@@ -584,8 +588,8 @@ object(self)
     let aq2 = if (q2 = "inf") then (ml2float infinity) else q2 in
     let q3 = ml2float quality_info.overall_trust in
     (* Db write access *)
-    let s2 =  Printf.sprintf "INSERT INTO %swikitrust_revision (revision_id, page_id, text_id, time_string, user_id, username, is_minor, quality_info, reputation_delta, overall_trust, blob_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE quality_info = %s, reputation_delta = %s, overall_trust = %s, blob_id = %s"
-      db_prefix rev_id page_id text_id time_string user_id username is_minor q1 aq2 q3 blob_id_db q1 aq2 q3 blob_id_db in
+    let s2 =  Printf.sprintf "INSERT INTO %swikitrust_revision (revision_id, page_id, text_id, time_string, user_id, username, is_minor, quality_info, reputation_delta, overall_trust, blob_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE quality_info = %s, reputation_delta = %s, overall_trust = %s, blob_id = %s, page_id = %s"
+      db_prefix rev_id page_id text_id time_string user_id username is_minor q1 aq2 q3 blob_id_db q1 aq2 q3 blob_id_db page_id in
     ignore (self#db_exec mediawiki_dbh s2)
 
 
@@ -990,6 +994,15 @@ object(self)
       end
     | false -> ignore (self#db_exec mediawiki_dbh "COMMIT")
 
+  (** Delete only the articles for 1 page -- THIS IS INTENDED ONLY FOR UNIT
+      TESTING *)
+  method delete_revs_for_page (page_id : int) : unit =
+    let s = Printf.sprintf 
+      "DELETE FROM %swikitrust_revision WHERE page_id = %s" 
+      db_prefix 
+      (ml2int page_id) 
+    in
+    ignore (self#db_exec mediawiki_dbh s)
 
   (* ================================================================ *)
   (* Inter-Wiki Coordination. *)
@@ -1116,7 +1129,15 @@ object(self)
       rev_id 
       !Online_command_line.target_wikimedia
     in
-    get_cmd_output cmdline
+    let s = try
+      get_cmd_output cmdline
+    with 
+    | DB_Exec_Error -> begin
+	Printf.eprintf "Error getting: %s\n" cmdline; 
+	""
+      end
+    in
+    s
 
   (** [get_rev_text page_id text_id] returns the text associated with
       text id [text_id].  This method first tries to read the revision

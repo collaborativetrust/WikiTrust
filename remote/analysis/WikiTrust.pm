@@ -15,11 +15,13 @@ use IO::Zlib;
 use Compress::Zlib;
 use Cache::Memcached;
 use Data::Dumper;
+use Digest::SHA qw(sha1_base64);
 #use Time::HiRes qw(gettimeofday tv_interval);
 
 use constant QUEUE_PRIORITY => 10; # wikitrust_queue is now a priority queue.
 use constant SLEEP_TIME => 3;
 use constant NOT_FOUND_TEXT_TOKEN => "TEXT_NOT_FOUND";
+use constant DELETE_PAGE_PASS => "7da24130430d376ba2224e4d5d2233ca6c7ca2c8";
 
 our %methods = (
 	'edit' => \&handle_edit,
@@ -29,6 +31,7 @@ our %methods = (
 	'sharehtml' => \&handle_sharehtml,
 	'stats' => \&handle_stats,
 	'miccheck' => \&handle_miccheck,
+	'delete' => &handle_delete_page,
     );
 
 our $cache = undef;	# will get initialized when needed
@@ -338,6 +341,43 @@ sub handle_miccheck {
   $r->headers_out->{'Cache-Control'} = "max-age=" . 30*24*60*60;
   $r->content_type('text/plain; charset=utf-8');
   $r->print("OK");
+  return Apache2::Const::OK;
+}
+
+# delete_page: A debugging method, this allows the all of the colored revisions of a page
+# to be deleted and re-colored.
+# It takes a s paramiter, which is a shared seceret password
+# Also a pid paramiter, which is the page_id of the page to be deleted
+sub handle_delete_page {
+  my ($dbh, $cgi, $r) = @_;
+
+  $r->content_type('text/plain; charset=utf-8');
+  my $pass = $cgi->param('s') || '';
+  my $page_id = $cgi->param('pid') || -1;
+  my $page_title = "";
+  
+  # Get the page_title.
+  my $sth = $dbh->prepare ("SELECT page_title FROM wikitrust_page WHERE page_id = ?") 
+    || die $dbh->errstr;
+  $sth->execute($page_id) || die $dbh->errstr;
+  if (my $title = $sth->fetchrow_hashref()){
+    $page_title = $title->{page_title}
+  }
+  
+  # If the right password and page_id are set.
+  if($page_title && (sha1_base64($pass) eq DELETE_PAGE_PASS)){
+    
+    # Delete the revisions.
+    $sth = $dbh->prepare ("DELETE FROM wikitrust_revision WHERE page_id = ?") 
+      || die $dbh->errstr;
+    $sth->execute(page_id) || die $dbh->errstr;
+    
+    # And mark this to be colored.
+    mark_for_coloring($page_id, $page_title, $dbh);
+    $r->print("$page_title is being re-colored.");
+  } else {
+    $r->print("Incorrect password or missing page_id.");
+  }
   return Apache2::Const::OK;
 }
 
