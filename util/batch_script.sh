@@ -57,6 +57,14 @@ rm -rf /home/luca/wiki-data/enwork/sql/*
     -d ~/wiki-data/enwork/sql \
     /home/luca/wiki-data/itwiki/split-wiki/000/wiki-00000007.xml.gz
 
+./evalwiki -trust_for_online \
+    -historyfile ~/wiki-data/itwiki/rep_history.txt \
+    -blob_base_path ~/wiki-data/enwork/blobtree \
+    -n_sigs 8 \
+    -robots ~/wiki-data/wp_bots.txt \
+    -d ~/wiki-data/enwork/sql \
+    /home/luca/wiki-data/itwiki/split-wiki/000/wiki-00000012.xml.gz
+
 # To just study Corciano:
 ./evalwiki -trust_for_online \
     -historyfile ~/wiki-data/itwiki/rep_history.txt \

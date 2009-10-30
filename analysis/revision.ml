@@ -246,7 +246,8 @@ let produce_annotated_markup
   let out_buf = Buffer.create 10000 in 
   let curr_color = ref 0 in 
   let curr_origin = ref (-1) in 
-  let curr_author = ref "" in 
+  let curr_author = ref "" in
+  let written_trust = ref false in
   (* approximates a float to an int *)
   let approx x = int_of_float (x +. 0.5) in 
   (* Gives me the reputation of the next word, if there is one *)
@@ -283,14 +284,15 @@ let produce_annotated_markup
     let new_color_int = approx new_color_float in 
     let new_origin = next_word_origin i in 
     let new_author = next_word_author i in
-    (* Prints the tag if one of these holds: 
+    (* Prints the tag if it has not just written it, and if one of these holds: 
        - trust_is_float holds
        - always_print holds
        - the info has changed. *)
-    if trust_is_float || always_print 
+    if (not !written_trust) &&
+      (trust_is_float || always_print 
       || (new_color_int <> !curr_color) 
       || (include_origin && (new_origin <> !curr_origin))
-      || (include_author && (new_author <> !curr_author)) then begin 
+      || (include_author && (new_author <> !curr_author))) then begin 
 	begin 
 	  (* writes trust *)
 	  Buffer.add_string out_buf "{{#t:";
@@ -316,6 +318,7 @@ let produce_annotated_markup
 	curr_color := new_color_int;
 	curr_origin := new_origin;
 	curr_author := new_author;
+	written_trust := true;
       end (* Needs to print the tag. *)
   end
   in
@@ -324,39 +327,49 @@ let produce_annotated_markup
   (* This function f is iterated on the array *)
   let f (s: Text.sep_t) : unit = 
     match s with 
-      (* Things that must be followed by the color, and increase the word index *)
+      (* Things that must be followed by the color, and increase the
+	 word index *)
       Text.Title_start (t, i) | Text.Bullet (t, i) | Text.Indent (t, i) 
     | Text.Table_cell (t, i) | Text.Table_caption (t, i) -> begin 
 	Buffer.add_string out_buf t; 
 	word_idx := i + 1;
+	written_trust := false;
 	print_trust true !word_idx
       end
 	(* Things that must be followed by the color *)
     | Text.Newline t -> begin 
-	Buffer.add_string out_buf t; 
+	Buffer.add_string out_buf t;
+	written_trust := false;
 	print_trust true !word_idx
       end
-        (* Things that are not followed by the color and do not increase the word index *)
+        (* Things that are not followed by the color and do not
+           increase the word index *)
     | Text.Space t | Text.Par_break t -> 
         Buffer.add_string out_buf t
-	  (* Things that are not followed by the color, and increase the word index *)
+	  (* Things that are not followed by the color, and increase
+	     the word index *)
     | Text.Title_end (t, i) | Text.Table_line (t, i) 
     | Text.Redirect (t, i) | Text.Armored_char (t, i) -> begin 
 	Buffer.add_string out_buf t; 
-	word_idx := i + 1
+	word_idx := i + 1;
+	written_trust := false
       end
-        (* Things that are preceded and followed by the color, and increase the word index *)
+        (* Things that are preceded and followed by the color, and
+           increase the word index *)
     | Text.Tag (t, i) -> begin 
         print_trust true i;
         Buffer.add_string out_buf t; 
         word_idx := i + 1;
+	written_trust := false;
 	print_trust true !word_idx
       end
-        (* Things that may be preceded by the color, if the color has changed. *)
+        (* Things that may be preceded by the color, if the color has
+           changed. *)
     | Text.Word (t, i) -> begin 
 	print_trust false i;
         Buffer.add_string out_buf t; 
-        word_idx := i + 1
+        word_idx := i + 1;
+	written_trust := false
       end
   in
   Array.iter f seps;
