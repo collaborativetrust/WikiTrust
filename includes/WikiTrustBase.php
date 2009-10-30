@@ -375,11 +375,11 @@ if (1) {
   static function regex_fixSectionEdit($matches){
     $result = preg_replace("/\{\{#t:\d+,\d+,[^}]+\}\}/",
 				"",
-				$matches[2],
+				$matches[3],
 				-1,
 				$count);
-    return '<span class="editsection"'+ $matches[0] + '>'
-	+ $matches[1] +' title="$result">';
+    return '<span class="editsection"'. $matches[1] . '>'
+	. $matches[2] .' title="$result">';
   }
 
   static function regex_fixTextTrust($matches){
