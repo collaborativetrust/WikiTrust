@@ -350,6 +350,7 @@ sub handle_deletepage {
   my ($dbh, $cgi, $r) = @_;
 
   my ($rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
+  $r->no_cache(1);
   $r->content_type('text/plain; charset=utf-8');
   $page_title = "";
  
@@ -375,25 +376,28 @@ sub handle_deletepage {
 
   # If the right password and page_title are set.
   if($page_title && secret_okay($cgi)){
-    # Start a transaction.
-    $dbh->{'AutoCommit'} = 0;
-
-    # Delete the revisions.
-    $sth = $dbh->prepare ("DELETE FROM wikitrust_revision WHERE page_id = ?") 
-      || die $dbh->errstr;
-    $sth->execute($page) || die $dbh->errstr;
+    $dbh->begin_work() || die $dbh->errstr;
+    try {
+      # Delete the revisions.
+      $sth = $dbh->prepare ("DELETE FROM wikitrust_revision WHERE page_id = ?") 
+	|| die $dbh->errstr;
+      $sth->execute($page) || die $dbh->errstr;
  
-    # Delete the revisions.
-    $sth = $dbh->prepare ("DELETE FROM wikitrust_queue WHERE page_id = ?")
-      || die $dbh->errstr;
-    $sth->execute($page) || die $dbh->errstr;
-    
-    # And mark this to be colored.
-    mark_for_coloring($page, $page_title, $dbh);
-    $r->print("$page_title is being re-colored.");
+      # Delete the revisions.
+      $sth = $dbh->prepare ("DELETE FROM wikitrust_queue WHERE page_id = ?")
+	|| die $dbh->errstr;
+      $sth->execute($page) || die $dbh->errstr;
 
-    # End the transaction
-    $dbh->commit();
+      mark_for_coloring($page, $page_title, $dbh);
+
+      $dbh->commit() || die $dbh->errstr;
+      $r->print("$page_title is being re-colored.");
+    } otherwise {
+      $dbh->rollback();
+      my $E = shift;
+      print STDERR $E;
+      $r->print("DB error: $E");
+    };
   } else {
     $r->print("Incorrect password or missing page_id.");
   }
