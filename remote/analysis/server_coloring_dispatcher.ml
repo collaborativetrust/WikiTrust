@@ -191,6 +191,7 @@ let process_page (page_id: int) (page_title: string) =
     !wt_db_blob_base_path !dump_db_calls 
   in
   let pages_downloaded = ref 0 in
+  let processed_well = ref true in
   (* If I am using the WikiMedia API, I need to first download any new
      revisions of the page. *)
   (try Printexc.print (fun () -> 
@@ -221,11 +222,17 @@ let process_page (page_id: int) (page_title: string) =
           e));
     )
   | _ -> begin  (* Handle everything else generically here. *)
-      Printf.eprintf "Other Error: On %d %s\n" page_id page_title
+      Printf.eprintf "Other Error: On %d %s\n" page_id page_title;
+      child_db#delete_revs_for_page page_id;
+      processed_well := false
     end
   );
   (* Marks the page as processed. *)
-  child_db#mark_page_as_processed page_id page_title !pages_downloaded;
+  (if !processed_well then
+    child_db#mark_page_as_processed page_id page_title !pages_downloaded
+  else (* Or to try doing this guy again. *)
+    child_db#mark_page_as_unprocessed page_id 
+  );
   child_db#close; (* Release any locks still held. *)
   (* End of page processing. *)
   Printf.printf "Done with %s.\n" page_title; flush_all ();

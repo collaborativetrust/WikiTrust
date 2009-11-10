@@ -994,15 +994,27 @@ object(self)
       end
     | false -> ignore (self#db_exec mediawiki_dbh "COMMIT")
 
-  (** Delete only the articles for 1 page -- THIS IS INTENDED ONLY FOR UNIT
-      TESTING *)
+  (** Delete only the articles for 1 page, along with any cached content *)
   method delete_revs_for_page (page_id : int) : unit =
-    let s = Printf.sprintf 
+    let s1 = Printf.sprintf 
       "DELETE FROM %swikitrust_revision WHERE page_id = %s" 
       db_prefix 
       (ml2int page_id) 
     in
-    ignore (self#db_exec mediawiki_dbh s)
+    let s2 = Printf.sprintf 
+      "DELETE FROM %spage WHERE page_id = %s" 
+      db_prefix 
+      (ml2int page_id) 
+    in
+    let s3 = Printf.sprintf 
+      "DELETE FROM %srevision WHERE rev_page = %s" 
+      db_prefix 
+      (ml2int page_id) 
+    in
+    ignore (self#db_exec mediawiki_dbh s1);
+    ignore (self#db_exec mediawiki_dbh s2);
+    ignore (self#db_exec mediawiki_dbh s3)
+
 
   (* ================================================================ *)
   (* Inter-Wiki Coordination. *)
