@@ -1,13 +1,13 @@
 #!/bin/bash
 
-sql_dir=$1
+base_dir=$1
 logfile=$2
 #db_user=$2
 #db_name=$3
 #db_pass=$4
 
 if [ -z $logfile ]; then
-  echo "usage: ./load_db.sh (sql_dir or sql_file) logfile | mysql -u dbuser dbname -p"
+  echo "usage: ./load_db.sh (base_dir or sql_file) logfile | mysql -u dbuser dbname -p"
   exit 0
 fi
 
@@ -26,10 +26,10 @@ echo $drop_rev_idx
 cma=0
 files_seen=0
 
-if [ -f "$sql_dir" ]; then
-  cat $sql_dir
+if [ -f "$base_dir" ]; then
+  cat $base_dir
 else
-  for file in `find $sql_dir -name *.sql | sort -id`; do
+  for file in `find $base_dir/sql -name *.sql | sort -id`; do
     stime=`date +%s`
     echo $start_tx
     size=$(stat -c%s "$file")
@@ -47,6 +47,9 @@ else
     let cma=$cma/$files_seen
     echo "bytes/sec: $bytes_sec (spot) $cma (cma) $file" >> $logfile
   done
+  if [ -f "$base_dir/user_reputations.txt" ]; then
+    echo "REMEMBER: cat $base_dir/user_reputations.txt | ../analysis/load_reputations -db_user " >> $logfile
+  fi
 fi
 
 # and re-create them
