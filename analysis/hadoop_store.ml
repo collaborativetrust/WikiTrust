@@ -68,6 +68,9 @@ exception Compression_error
 (* **************************************************************** *)
 (* Basic filesystem access functions. *)
 
+let connect () : Hadoop.hdfs_fs =
+  Hadoop.connect "default" 0
+
 (** [read_gzipped_file file_name] returns as a string the uncompressed 
     contents of file [file_name]. *)
 let read_gzipped_file (file_name: string) : string option = 
@@ -301,7 +304,7 @@ let uncompress (s: string) : string =
 (* **************************************************************** *)
 (* Unit tests. *)
 
-if false then begin
+if true then begin
   let not_null = function
       None -> "Error: revision not found."
     | Some x -> x

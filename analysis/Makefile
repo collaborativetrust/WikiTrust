@@ -32,9 +32,9 @@
 # Vars we use in our rules to build ocaml programs
 PACKAGES = unix,str,vec,mapmin,hashtbl_bounded,fileinfo,intvmap,extlib,mysql,sexplib.syntax,camlzip
 SYNTAX = camlp4o
-OUR_LIBS = wikitrust_lib.cma
-OUR_LIBS_OPT = wikitrust_lib.cmxa
-INCLUDES = 
+OUR_LIBS = wikitrust_lib.cma hadoop.o
+OUR_LIBS_OPT = wikitrust_lib.cmxa hadoop.o
+INCLUDES = -I /opt/hadoop/src/c++/libhdfs
 
 OCAMLC=ocamlfind ocamlc -dtypes -package $(PACKAGES) -syntax $(SYNTAX)
 OCAMLOPT=ocamlfind ocamlopt -package $(PACKAGES) -syntax $(SYNTAX)
@@ -131,8 +131,16 @@ TIMECONV_OBJS = timeconv.cmo
 
 FILESYSTEMSTORE_OBJS = filesystem_store.cmo
 
+HADOOP_OBJS = hadoop_store.cmo
+
 REVISION_STORE_OBJS = eval_defs.cmo author_sig.cmo editlist.cmo \
 	online_types.cmo revision_store.cmo
+
+hadoop: 
+	$(OCAMLC) $(OCAML_CFLAGS) -c hadoop.mli
+	$(OCAMLC) $(OCAML_CFLAGS) -c hadoop.c
+	$(OCAMLC) $(OCAML_CFLAGS) -c hadoop_store.ml
+	$(OCAMLC) -linkpkg -o hadoop_store -custom $(OCAML_CFLAGS) $(HADOOP_OBJS)
 
 wikitrust_lib.cma: $(OUR_LIB_OBJS)
 	$(OCAMLC) -a -o wikitrust_lib.cma $(OCAML_CFLAGS) $(OUR_LIB_OBJS)

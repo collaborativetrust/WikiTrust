@@ -47,18 +47,19 @@ POSSIBILITY OF SUCH DAMAGE.
 #include "hdfs.h" 
 
 /* Handle to the HDFS filesystem. */
-typedef struct sb_hdfs_fs hdfs_fs_t;
+typedef hdfsFS hdfs_fs_t;
 
 /* HDFS file handle types. */
-typedef struct sb_hdfs_in hdfs_in_t;
-typedef struct sb_hdfs_out hdfs_out_t;
+typedef hdfsFile hdfs_in_t;
+typedef hdfsFile hdfs_out_t;
 
 // Access functions
 #define Hdfs_fs_val(v) (*((hdfs_fs_t **) Data_custom_val(v)))
-#define Hdfs_in_val(v) (*((hdfs_in_t **) Data_custom_val(v)))
-#define Hdfs_out_val(v) (*((hdfs_out_t **) Data_custom_val(v)))
+#define Hdfs_in_val(v) (*((hdfs_in_t *) Data_custom_val(v)))
+#define Hdfs_out_val(v) (*((hdfs_out_t *) Data_custom_val(v)))
 
 // Memory management
+/**
 void finalize_fs(value fs){
   sb_hdfs_fs_delete(Hdfs_fs_val(fs));
 }
@@ -70,11 +71,11 @@ void finalize_in(value file){
 void finalize_out(value file){
   sb_hdfs_out_delete(Hdfs_out_val(file));
 }
-
+*/
 // Value operations
 static struct custom_operations hdfs_fs_ops = {
   "edu.ucsc.trust.hdfs.fs",
-  &finalize_fs,
+  custom_finalize_default,
   custom_compare_default,
   custom_hash_default,
   custom_serialize_default,
@@ -83,7 +84,7 @@ static struct custom_operations hdfs_fs_ops = {
 
 static struct custom_operations hdfs_in_ops = {
   "edu.ucsc.trust.hdfs.in",
-  &finalize_in,
+  custom_finalize_default,
   custom_compare_default,
   custom_hash_default,
   custom_serialize_default,
@@ -92,7 +93,7 @@ static struct custom_operations hdfs_in_ops = {
 
 static struct custom_operations hdfs_out_ops = {
   "edu.ucsc.trust.hdfs.out",
-  &finalize_out,
+  custom_finalize_default,
   custom_compare_default,
   custom_hash_default,
   custom_serialize_default,
@@ -106,13 +107,13 @@ static value alloc_hdfs_fs(hdfs_fs_t *fs){
   return v;
 }
 
-static value alloc_hdfs_in(hdfs_in_t *file){
+static value alloc_hdfs_in(hdfs_in_t file){
   value v = alloc_custom(&hdfs_in_ops, sizeof(hdfs_in_t *), 0, 1);
   Hdfs_in_val(v) = file;
   return v;
 }
 
-static value alloc_hdfs_out(hdfs_out_t *file){
+static value alloc_hdfs_out(hdfs_out_t file){
   value v = alloc_custom(&hdfs_out_ops, sizeof(hdfs_out_t *), 0, 1);
   Hdfs_out_val(v) = file;
   return v;
@@ -146,7 +147,7 @@ CAMLprim value stub_hdfs_connect(value host, value port){
 CAMLprim value stub_hdfs_disconnect(value fs){
   CAMLparam1(fs);
   CAMLlocal1 (result);
-  result = caml_copy_int(hdfsDisconnect(Hdfs_fs_val(fs)));
+  result = caml_copy_int32(hdfsDisconnect(Hdfs_fs_val(fs)));
   CAMLreturn (result);
 }
 
@@ -156,7 +157,16 @@ CAMLprim value stub_hdfs_disconnect(value fs){
   * @param path The full path to the file.
   * @return Returns the handle to the open file or NULL on error.
   */
-//external open_in : hdfs_fs -> string -> hdfs_in = "stub_hdfs_open_in"
+CAMLprim value stub_hdfs_open_in(value fs, value path){
+  CAMLparam2(fs, path);
+  hdfsFile in_file = hdfsOpenFile(Hdfs_fs_val(fs), String_val(path), O_RDONLY|O_CREAT, 0, 0, 0);
+  if(!in_file) {
+    char *err_str;
+    sprintf(err_str, "Failed to open %s for reading!\n", String_val(path));
+    caml_failwith(err_str);
+  }
+  CAMLreturn (alloc_hdfs_in(in_file));
+}
 
 /** 
   * open_out - Open a hdfs file for writing.
@@ -164,7 +174,16 @@ CAMLprim value stub_hdfs_disconnect(value fs){
   * @param path The full path to the file.
   * @return Returns the handle to the open file or NULL on error.
   */
-//external open_out : hdfs_fs -> string -> hdfs_out = "stub_hdfs_open_out"
+CAMLprim value stub_hdfs_open_out(value fs, value path){
+  CAMLparam2(fs, path);
+  hdfsFile out_file = hdfsOpenFile(Hdfs_fs_val(fs), String_val(path), O_WRONLY|O_CREAT, 0, 0, 0);
+  if(!out_file) {
+    char *err_str;
+    sprintf(err_str, "Failed to open %s for writting!\n", String_val(path));
+    caml_failwith(err_str);
+  }
+  CAMLreturn (alloc_hdfs_out(out_file));
+}
 
 /** 
   * close_in - Close an open file. 
@@ -172,7 +191,10 @@ CAMLprim value stub_hdfs_disconnect(value fs){
   * @param file The file handle.
   * @return Returns 0 on success, -1 on error.  
   */
-//external close_in : hdfs_fs -> hdfs_in -> int = "stub_hdfs_close_in"
+CAMLprim value stub_hdfs_close_in(value fs, value in_file){
+  CAMLparam2(fs, in_file);
+  CAMLreturn(caml_copy_int32(hdfsCloseFile(Hdfs_fs_val(fs), Hdfs_in_val(in_file))));
+}
 
 /** 
   * close_out - Close an open file. 
@@ -180,7 +202,10 @@ CAMLprim value stub_hdfs_disconnect(value fs){
   * @param file The file handle.
   * @return Returns 0 on success, -1 on error.  
   */
-//external close_out : hdfs_fs -> hdfs_out -> int = "stub_hdfs_close_out"
+CAMLprim value stub_hdfs_close_out(value fs, value out_file){
+  CAMLparam2(fs, out_file);
+  CAMLreturn(caml_copy_int32(hdfsCloseFile(Hdfs_fs_val(fs), Hdfs_out_val(out_file))));
+}
 
 /**
   * rename - Rename file. 
@@ -189,7 +214,10 @@ CAMLprim value stub_hdfs_disconnect(value fs){
   * @param newPath The path of the destination file. 
   * @return Returns 0 on success, -1 on error. 
   */
-//external rename : hdfs_fs -> string -> string -> int = "stub_hdfs_rename"
+CAMLprim value stub_hdfs_rename(value fs, value oldPath, value newPath){
+  CAMLparam3(fs, oldPath, newPath);
+  CAMLreturn(caml_copy_int32(hdfsRename(Hdfs_fs_val(fs), String_val(oldPath), String_val(newPath))));
+}
 
 /**
   * delete - Delete file. 
@@ -197,7 +225,10 @@ CAMLprim value stub_hdfs_disconnect(value fs){
   * @param path The path of the file. 
   * @return Returns 0 on success, -1 on error. 
   */
-//external delete : hdfs_fs -> string -> int = "stub_hdfs_rename"
+CAMLprim value stub_hdfs_delete(value fs, value path){
+  CAMLparam2(fs, path);
+  CAMLreturn(caml_copy_int32(hdfsDelete(Hdfs_fs_val(fs), String_val(path))));
+}
 
 /** 
   * mkdir - Make the given file and all non-existent
@@ -206,7 +237,10 @@ CAMLprim value stub_hdfs_disconnect(value fs){
   * @param path The path of the directory. 
   * @return Returns 0 on success, -1 on error. 
   */
-//external mkdir : hdfs_fs -> string -> int = "stub_hdfs_mkdir"
+CAMLprim value stub_hdfs_mkdir(value fs, value path){
+  CAMLparam2(fs, path);
+  CAMLreturn(caml_copy_int32(hdfsCreateDirectory(Hdfs_fs_val(fs), String_val(path))));
+}
 
 /** 
   * read - Read data from an open file.
@@ -217,6 +251,12 @@ CAMLprim value stub_hdfs_disconnect(value fs){
   * @return Returns the number of bytes actually read, possibly less
   * than than length;-1 on error.
   */
+CAMLprim value stub_hdfs_read(value fs, value file_in, value buf, value len){
+  CAMLparam4(fs, file_in, buf, len);
+  CAMLlocal1 (result);
+  int i = hdfsRead(Hdfs_fs_val(fs), Hdfs_in_val(file_in), String_val(buf), Int_val(len));
+  CAMLreturn(caml_copy_int32(i));
+}
 //external read : hdfs_fs -> hdfs_in -> string -> int -> int = "stub_hdfs_read"
 
 /** 
@@ -227,4 +267,9 @@ CAMLprim value stub_hdfs_disconnect(value fs){
   * @param length The no. of bytes to write. 
   * @return Returns the number of bytes written, -1 on error.
   */
-//external write : hdfs_fs -> hdfs_out -> string -> int -> int = "stub_hdfs_write" 
+CAMLprim value stub_hdfs_write(value fs, value file_out, value buf, value len){
+  CAMLparam4(fs, file_out, buf, len);
+  CAMLlocal1 (result);
+  int i = hdfsWrite(Hdfs_fs_val(fs), Hdfs_out_val(file_out), String_val(buf), Int_val(len));
+  CAMLreturn(caml_copy_int32(i));
+}
