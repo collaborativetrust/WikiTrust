@@ -71,23 +71,25 @@ exception Compression_error
 let connect () : Hadoop.hdfs_fs =
   Hadoop.connect "default" 0
 
+let hdfs = connect ()
+
 (** [read_gzipped_file file_name] returns as a string the uncompressed 
     contents of file [file_name]. *)
 let read_gzipped_file (file_name: string) : string option = 
   let str_len = 8192 in 
   let str = String.create str_len in
   let buf = Buffer.create 8192 in 
-  let fopt = try Some (Gzip.open_in file_name)
-  with Sys_error _ -> None in
+  let fopt = try Some (Hadoop.open_in hdfs file_name)
+  with Failure _ -> None in
   match fopt with
     Some f -> begin
       let read_more = ref true in 
       while !read_more do begin
-	let n_read = Gzip.input f str 0 str_len in 
+	let n_read = Hadoop.input hdfs f str str_len in 
 	if n_read = 0 then read_more := false
 	else Buffer.add_string buf (String.sub str 0 n_read)
       end done;
-      Gzip.close_in f;
+      Hadoop.close_in hdfs f;
       Some (Buffer.contents buf)
     end
   | None -> None
@@ -95,12 +97,10 @@ let read_gzipped_file (file_name: string) : string option =
 (** [write_gzipped_file file_name l s] writes to the file [file_name] 
     the gzipped contents of string [s]. *)
 let write_gzipped_file (file_name: string) (s: string) : unit =
-  (* TODO: does not work with empty strings! *)
-  let f = Gzip.open_out file_name in
+  let f = Hadoop.open_out hdfs file_name in
   let n = String.length s in 
-  if n > 0 then
-    Gzip.output f s 0 n;
-  Gzip.close_out f
+  let _ = Hadoop.output hdfs f s n in
+  Hadoop.close_out hdfs f
 
 (** [get_filename base_path page_id blob_id] computes the filename where
     the compressed blob [blob_id] of page [page_id] is stored.
@@ -136,8 +136,8 @@ let get_filename (base_path: string) (page_id: int) (blob_id: int)
   end;
   (* Now all together *)
   path_name := !path_name ^ "/" ^ page_str ^ "_" ^ blob_str;
-  let file_name = !path_name ^ ".gz"; in
-  let temp_name = !path_name ^ ".tmp.gz" in
+  let file_name = !path_name ^ ".txt"; in
+  let temp_name = !path_name ^ ".tmp.txt" in
   (file_name, temp_name, !list_dirs)
 
 
@@ -156,10 +156,10 @@ let write_blob (base_path: string) (page_id: int) (blob_id: int)
     try write_gzipped_file temp_name s
     with Sys_error _ -> begin
       (* Makes the directories *)
-      let make_dir (d: string) = 
+      let make_dir (d: string) =  
 	begin 
-	  try Unix.mkdir d 0o755
-	  with Unix.Unix_error (Unix.EEXIST, _, _) -> () 
+	  try Hadoop.mkdir hdfs d 
+	  with Failure _ -> () 
 	end
       in List.iter make_dir dir_l;
       (* Tries again to write the blob *)
@@ -167,7 +167,7 @@ let write_blob (base_path: string) (page_id: int) (blob_id: int)
     end
   end;
   (* Now renames the blob to the final place, which is an atomic operation. *)
-  Unix.rename temp_name f_name
+  Hadoop.rename hdfs temp_name f_name
 
 (** [read_blob base_path page_id blob_id] returns the blob
     [blob_id] of page [page_id]. *)
@@ -181,13 +181,13 @@ let read_blob (base_path: string) (page_id: int) (blob_id: int)
 let delete_blob (base_path: string) (page_id: int) (blob_id: int) =
   let (f_name, _, _) = get_filename base_path page_id blob_id in 
   try
-    Unix.unlink f_name
-  with Unix.Unix_error (Unix.ENOENT, _, _) -> ()
+    Hadoop.delete hdfs f_name
+  with Failure _ -> ()
 
 (** [delete_all base_path] deletes all the tree of blobs rooted
     at base_path. *)
 let delete_all (base_path: string) : Unix.process_status =
-  Unix.system ("rm -rf " ^ base_path)
+  Unix.system ("hadoop fs -rmr " ^ base_path)
 
 
 (* **************************************************************** *)

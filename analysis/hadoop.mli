@@ -63,7 +63,7 @@ external connect : string -> int -> hdfs_fs = "stub_hdfs_connect"
   * @param fs The configured filesystem handle.
   * @return Returns 0 on success, -1 on error.  
   *)
-external disconnect : hdfs_fs -> int = "stub_hdfs_disconnect"
+external disconnect : hdfs_fs -> unit = "stub_hdfs_disconnect"
 
 (** 
   * open_in - Open a hdfs file for reading.
@@ -87,7 +87,7 @@ external open_out : hdfs_fs -> string -> hdfs_out = "stub_hdfs_open_out"
   * @param file The file handle.
   * @return Returns 0 on success, -1 on error.  
   *)
-external close_in : hdfs_fs -> hdfs_in -> int = "stub_hdfs_close_in"
+external close_in : hdfs_fs -> hdfs_in -> unit = "stub_hdfs_close_in"
 
 (** 
   * close_out - Close an open file. 
@@ -95,7 +95,7 @@ external close_in : hdfs_fs -> hdfs_in -> int = "stub_hdfs_close_in"
   * @param file The file handle.
   * @return Returns 0 on success, -1 on error.  
   *)
-external close_out : hdfs_fs -> hdfs_out -> int = "stub_hdfs_close_out"
+external close_out : hdfs_fs -> hdfs_out -> unit = "stub_hdfs_close_out"
 
 (**
   * rename - Rename file. 
@@ -104,7 +104,7 @@ external close_out : hdfs_fs -> hdfs_out -> int = "stub_hdfs_close_out"
   * @param newPath The path of the destination file. 
   * @return Returns 0 on success, -1 on error. 
   *)
-external rename : hdfs_fs -> string -> string -> int = "stub_hdfs_rename"
+external rename : hdfs_fs -> string -> string -> unit = "stub_hdfs_rename"
 
 (**
   * delete - Delete file. 
@@ -112,7 +112,7 @@ external rename : hdfs_fs -> string -> string -> int = "stub_hdfs_rename"
   * @param path The path of the file. 
   * @return Returns 0 on success, -1 on error. 
   *)
-external delete : hdfs_fs -> string -> int = "stub_hdfs_rename"
+external delete : hdfs_fs -> string -> unit = "stub_hdfs_rename"
 
 (** 
   * mkdir - Make the given file and all non-existent
@@ -121,7 +121,7 @@ external delete : hdfs_fs -> string -> int = "stub_hdfs_rename"
   * @param path The path of the directory. 
   * @return Returns 0 on success, -1 on error. 
   *)
-external mkdir : hdfs_fs -> string -> int = "stub_hdfs_mkdir"
+external mkdir : hdfs_fs -> string -> unit = "stub_hdfs_mkdir"
 
 (** 
   * read - Read data from an open file.
@@ -132,7 +132,7 @@ external mkdir : hdfs_fs -> string -> int = "stub_hdfs_mkdir"
   * @return Returns the number of bytes actually read, possibly less
   * than than length;-1 on error.
   *)
-external read : hdfs_fs -> hdfs_in -> string -> int -> int = "stub_hdfs_read"
+external input : hdfs_fs -> hdfs_in -> string -> int -> int = "stub_hdfs_read"
 
 (** 
   * write - Write data into an open file.
@@ -142,4 +142,4 @@ external read : hdfs_fs -> hdfs_in -> string -> int -> int = "stub_hdfs_read"
   * @param length The no. of bytes to write. 
   * @return Returns the number of bytes written, -1 on error.
   *)
-external write : hdfs_fs -> hdfs_out -> string -> int -> int = "stub_hdfs_write" 
+external output : hdfs_fs -> hdfs_out -> string -> int -> int = "stub_hdfs_write" 

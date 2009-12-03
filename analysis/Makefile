@@ -50,7 +50,7 @@ OCAMLDEBUG = -g
 
 
 # Flags for commands, depending on optimization/debugging
-OCAML_CFLAGS=$(INCLUDES) $(OCAMLDEBUG)
+OCAML_CFLAGS=$(INCLUDES) $(OCAMLDEBUG) -ccopt "-m64"
 OCAMLOPT_FLAGS=$(INCLUDES)
 
 %.cmo: %.ml
@@ -131,16 +131,18 @@ TIMECONV_OBJS = timeconv.cmo
 
 FILESYSTEMSTORE_OBJS = filesystem_store.cmo
 
-HADOOP_OBJS = hadoop_store.cmo
+HADOOP_OBJS = hadoop.o hadoop_store.cmo
 
 REVISION_STORE_OBJS = eval_defs.cmo author_sig.cmo editlist.cmo \
 	online_types.cmo revision_store.cmo
+
+HADOOP_LIBS = -cclib "-L/opt/hadoop/libhdfs -lhdfs"
 
 hadoop: 
 	$(OCAMLC) $(OCAML_CFLAGS) -c hadoop.mli
 	$(OCAMLC) $(OCAML_CFLAGS) -c hadoop.c
 	$(OCAMLC) $(OCAML_CFLAGS) -c hadoop_store.ml
-	$(OCAMLC) -linkpkg -o hadoop_store -custom $(OCAML_CFLAGS) $(HADOOP_OBJS)
+	$(OCAMLC) -linkpkg -o hadoop_store -custom $(OCAML_CFLAGS) $(HADOOP_LIBS) $(HADOOP_OBJS)
 
 wikitrust_lib.cma: $(OUR_LIB_OBJS)
 	$(OCAMLC) -a -o wikitrust_lib.cma $(OCAML_CFLAGS) $(OUR_LIB_OBJS)
