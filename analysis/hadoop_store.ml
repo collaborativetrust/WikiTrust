@@ -73,9 +73,9 @@ let connect () : Hadoop.hdfs_fs =
 
 let hdfs = connect ()
 
-(** [read_gzipped_file file_name] returns as a string the uncompressed 
+(** [read_hdfs_file file_name] returns as a string the uncompressed 
     contents of file [file_name]. *)
-let read_gzipped_file (file_name: string) : string option = 
+let read_hdfs_file (file_name: string) : string option = 
   let str_len = 8192 in 
   let str = String.create str_len in
   let buf = Buffer.create 8192 in 
@@ -86,17 +86,17 @@ let read_gzipped_file (file_name: string) : string option =
       let read_more = ref true in 
       while !read_more do begin
 	let n_read = Hadoop.input hdfs f str str_len in 
-	if n_read = 0 then read_more := false
-	else Buffer.add_string buf (String.sub str 0 n_read)
+	if (n_read) = 0 then read_more := false
+	else Buffer.add_string buf (String.sub str 0 ( n_read))
       end done;
       Hadoop.close_in hdfs f;
       Some (Buffer.contents buf)
     end
   | None -> None
 
-(** [write_gzipped_file file_name l s] writes to the file [file_name] 
+(** [write_hdfs_file file_name l s] writes to the file [file_name] 
     the gzipped contents of string [s]. *)
-let write_gzipped_file (file_name: string) (s: string) : unit =
+let write_hdfs_file (file_name: string) (s: string) : unit =
   let f = Hadoop.open_out hdfs file_name in
   let n = String.length s in 
   let _ = Hadoop.output hdfs f s n in
@@ -117,7 +117,7 @@ let write_gzipped_file (file_name: string) (s: string) : unit =
     based on digits 345 of the blob id, for the pages that have very
     many revisions. *)
 let get_filename (base_path: string) (page_id: int) (blob_id: int) 
-    : (string * string * string list) =   
+    : (string * string list) =   
   let page_str = Printf.sprintf "%012d" page_id in 
   let blob_str  = Printf.sprintf "%09d" blob_id  in 
   let list_dirs = ref [base_path] in
@@ -137,8 +137,7 @@ let get_filename (base_path: string) (page_id: int) (blob_id: int)
   (* Now all together *)
   path_name := !path_name ^ "/" ^ page_str ^ "_" ^ blob_str;
   let file_name = !path_name ^ ".txt"; in
-  let temp_name = !path_name ^ ".tmp.txt" in
-  (file_name, temp_name, !list_dirs)
+  (file_name, !list_dirs)
 
 
 (* **************************************************************** *)
@@ -150,11 +149,11 @@ let get_filename (base_path: string) (page_id: int) (blob_id: int)
     Directories are created if they do not already exist. *)
 let write_blob (base_path: string) (page_id: int) (blob_id: int) 
     (s: string) : unit =
-  let (f_name, temp_name, dir_l) = get_filename base_path page_id blob_id in 
+  let (f_name, dir_l) = get_filename base_path page_id blob_id in 
   (* Writes the file directly, hoping that the directories exist. *)
   begin 
-    try write_gzipped_file temp_name s
-    with Sys_error _ -> begin
+    try write_hdfs_file f_name s
+    with Failure _ -> begin
       (* Makes the directories *)
       let make_dir (d: string) =  
 	begin 
@@ -163,23 +162,21 @@ let write_blob (base_path: string) (page_id: int) (blob_id: int)
 	end
       in List.iter make_dir dir_l;
       (* Tries again to write the blob *)
-      write_gzipped_file temp_name s
+      write_hdfs_file f_name s
     end
-  end;
-  (* Now renames the blob to the final place, which is an atomic operation. *)
-  Hadoop.rename hdfs temp_name f_name
+  end
 
 (** [read_blob base_path page_id blob_id] returns the blob
     [blob_id] of page [page_id]. *)
 let read_blob (base_path: string) (page_id: int) (blob_id: int) 
     : string option =
-  let (f_name, _, _) = get_filename base_path page_id blob_id in 
-  read_gzipped_file f_name;;
+  let (f_name, _) = get_filename base_path page_id blob_id in 
+  read_hdfs_file f_name;;
 
 (** [delete_blob base_path page_id blob_id] deletes the blob
     [blob_id] of page [page_id]. *)
 let delete_blob (base_path: string) (page_id: int) (blob_id: int) =
-  let (f_name, _, _) = get_filename base_path page_id blob_id in 
+  let (f_name, _) = get_filename base_path page_id blob_id in 
   try
     Hadoop.delete hdfs f_name
   with Failure _ -> ()
@@ -263,44 +260,6 @@ let read_revision_from_blob (rev_id: int) (blob_content: string) : string =
   let rev_l = disassemble_blob blob_content in
   List.assoc rev_id rev_l
 
-
-(* **************************************************************** *)
-(* Compression, decompression for db use *)
-
-(** [compress s] compresses the string [s]. *)
-let compress (s: string) : string = 
-  let file_name = Filename.temp_file compress_prefix "_temp" in
-  write_gzipped_file file_name s;
-  let f = open_in file_name in
-  (* Read the whole file. *)
-  let buf = Buffer.create 100000 in
-  let str_len = 8192 in 
-  let str = String.create str_len in
-  let read_more = ref true in
-  while !read_more do begin
-    let n_read = input f str 0 str_len in
-    if n_read = 0 then read_more := false;
-    Buffer.add_string buf (String.sub str 0 n_read)
-  end done;
-  close_in f;
-  Unix.unlink file_name;
-  Buffer.contents buf
-
-
-(** [uncompress s] uncompresses the string [s]. *)
-let uncompress (s: string) : string = 
-  let file_name = Filename.temp_file compress_prefix "_temp" in
-  let f = open_out file_name in
-  output_string f s;
-  close_out f;
-  let r = match read_gzipped_file file_name with 
-      None -> raise Compression_error
-    | Some str -> str
-  in 
-  Unix.unlink file_name;
-  r
-
-
 (* **************************************************************** *)
 (* Unit tests. *)
 
@@ -310,9 +269,10 @@ if true then begin
     | Some x -> x
   in 
 
-  write_blob "/tmp/alpha" 43 54 "Ecco il mio blob";
-  print_string (not_null (read_blob "/tmp/alpha" 43 54));
-
+  write_blob "/users/ipye/tmp/alpha" 43 54 "Ecco il mio blob"; 
+  
+  print_string (not_null (read_blob "/users/ipye/tmp/alpha" 43 54));
+  
   print_string "\nAssemble then disassemble:\n";
   let b = assemble_blob [(1, "Revision n. 1"); (2, "Revision 2")] in
   let print_rev_str (i, s) = Printf.printf "%d: %S\n" i s in
@@ -329,8 +289,5 @@ if true then begin
   Printf.printf "%S " (read_revision_from_blob 2 b);
   Printf.printf "%S " (read_revision_from_blob 3 d);
   Printf.printf "%S " (read_revision_from_blob 1 d);
-
-  print_string "\nCompress and uncompress:\n";
-  print_string (uncompress (compress "Mi piace la pizza\n"));
-
+  Printf.printf "\n";
 end

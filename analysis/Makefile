@@ -32,8 +32,8 @@
 # Vars we use in our rules to build ocaml programs
 PACKAGES = unix,str,vec,mapmin,hashtbl_bounded,fileinfo,intvmap,extlib,mysql,sexplib.syntax,camlzip
 SYNTAX = camlp4o
-OUR_LIBS = wikitrust_lib.cma hadoop.o
-OUR_LIBS_OPT = wikitrust_lib.cmxa hadoop.o
+OUR_LIBS = wikitrust_lib.cma 
+OUR_LIBS_OPT = wikitrust_lib.cmxa 
 INCLUDES = -I /opt/hadoop/src/c++/libhdfs
 
 OCAMLC=ocamlfind ocamlc -dtypes -package $(PACKAGES) -syntax $(SYNTAX)
@@ -50,7 +50,7 @@ OCAMLDEBUG = -g
 
 
 # Flags for commands, depending on optimization/debugging
-OCAML_CFLAGS=$(INCLUDES) $(OCAMLDEBUG) -ccopt "-m64"
+OCAML_CFLAGS=$(INCLUDES) $(OCAMLDEBUG) 
 OCAMLOPT_FLAGS=$(INCLUDES)
 
 %.cmo: %.ml
@@ -132,17 +132,24 @@ TIMECONV_OBJS = timeconv.cmo
 FILESYSTEMSTORE_OBJS = filesystem_store.cmo
 
 HADOOP_OBJS = hadoop.o hadoop_store.cmo
+HADOOP_OPT_OBJS = hadoop.o hadoop_store.cmx
 
 REVISION_STORE_OBJS = eval_defs.cmo author_sig.cmo editlist.cmo \
 	online_types.cmo revision_store.cmo
 
-HADOOP_LIBS = -cclib "-L/opt/hadoop/libhdfs -lhdfs"
+HADOOP_LIBS = -cclib "-L/home/ipye/lib64/libhdfs -L/usr/java/jdk1.6.0_14/jre/lib/amd64/server -ljvm -lhdfs"
+HADOOP_PATH = 
 
 hadoop: 
 	$(OCAMLC) $(OCAML_CFLAGS) -c hadoop.mli
 	$(OCAMLC) $(OCAML_CFLAGS) -c hadoop.c
 	$(OCAMLC) $(OCAML_CFLAGS) -c hadoop_store.ml
-	$(OCAMLC) -linkpkg -o hadoop_store -custom $(OCAML_CFLAGS) $(HADOOP_LIBS) $(HADOOP_OBJS)
+	$(OCAMLC) -linkpkg -o hadoop_store -custom $(HADOOP_PATH) $(OCAML_CFLAGS) $(HADOOP_LIBS) $(HADOOP_OBJS)
+hadoopopt: 
+	$(OCAMLOPT) $(OCAML_CFLAGS) -c hadoop.mli
+	$(OCAMLOPT) $(OCAML_CFLAGS) -c hadoop.c
+	$(OCAMLOPT) $(OCAML_CFLAGS) -c hadoop_store.ml
+	$(OCAMLOPT) -linkpkg -o hadoop_store $(OCAML_CFLAGS) $(HADOOP_LIBS) $(HADOOP_OPT_OBJS)
 
 wikitrust_lib.cma: $(OUR_LIB_OBJS)
 	$(OCAMLC) -a -o wikitrust_lib.cma $(OCAML_CFLAGS) $(OUR_LIB_OBJS)
@@ -246,7 +253,7 @@ clean_batch:
 clean:
 	make clean_batch
 	rm -f *.o *.cmo *.cmx *.cmi *.a *.cma *.cmxa .depends run_harness \
-	eval_online_wiki vote_revision
+	eval_online_wiki vote_revision hadoop_store
 
 # Boilerplate code for building ocaml dependencies.
 

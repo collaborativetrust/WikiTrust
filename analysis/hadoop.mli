@@ -41,8 +41,8 @@ POSSIBILITY OF SUCH DAMAGE.
 type hdfs_fs
 
 (* HDFS file handle types. *)
-type hdfs_in
 type hdfs_out
+type hdfs_in
 
 (** 
   * connect - Connect to a hdfs file system.

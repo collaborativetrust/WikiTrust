@@ -48,12 +48,17 @@ POSSIBILITY OF SUCH DAMAGE.
 
 #include "hdfs.h" 
 
+// File access vars
+const int buffer_size = 131072;
+const int block_size = 67108864;
+const int replication = 10;
+
 /* Handle to the HDFS filesystem. */
 typedef hdfsFS hdfs_fs_t;
 
 /* HDFS file handle types. */
-typedef hdfsFile hdfs_in_t;
 typedef hdfsFile hdfs_out_t;
+typedef hdfsFile hdfs_in_t;
 
 // Access functions
 #define Hdfs_fs_val(v) (*((hdfs_fs_t **) Data_custom_val(v)))
@@ -64,16 +69,6 @@ typedef hdfsFile hdfs_out_t;
 void finalize_fs(value fs){
   hdfsDisconnect(Hdfs_fs_val(fs));
 }
-
-/**
-void finalize_in(value file){
-  sb_hdfs_in_delete(Hdfs_in_val(file));
-}
-
-void finalize_out(value file){
-  sb_hdfs_out_delete(Hdfs_out_val(file));
-}
-*/
 
 // Value operations
 static struct custom_operations hdfs_fs_ops = {
@@ -126,11 +121,15 @@ static value alloc_hdfs_out(hdfs_out_t file){
 void handle_return_value(int res, const char *msg){
   if (res < 0){
     char *err_str;
-    sprintf(err_str, "HDFS Error: %s: %s\n", strerror(errno), msg);
+    sprintf(err_str, "HDFS Error: %s: %s", strerror(errno), msg);
     caml_failwith(err_str);
   } 
 }
 
+// Convert tSize to actual int
+int tSizeToInt(tSize size){
+  return size*2;
+}
 // END STRUC BOILERPLATE
 
 /** 
@@ -170,7 +169,8 @@ CAMLprim value stub_hdfs_disconnect(value fs){
   */
 CAMLprim value stub_hdfs_open_in(value fs, value path){
   CAMLparam2(fs, path);
-  hdfsFile in_file = hdfsOpenFile(Hdfs_fs_val(fs), String_val(path), O_RDONLY|O_CREAT, 0, 0, 0);
+  hdfsFile in_file = hdfsOpenFile(Hdfs_fs_val(fs), String_val(path), O_RDONLY, buffer_size, 
+      replication, block_size);
   if(!in_file) {
     char *err_str;
     sprintf(err_str, "Failed to open %s for reading!\n", String_val(path));
@@ -187,7 +187,8 @@ CAMLprim value stub_hdfs_open_in(value fs, value path){
   */
 CAMLprim value stub_hdfs_open_out(value fs, value path){
   CAMLparam2(fs, path);
-  hdfsFile out_file = hdfsOpenFile(Hdfs_fs_val(fs), String_val(path), O_WRONLY|O_CREAT, 0, 0, 0);
+  hdfsFile out_file = hdfsOpenFile(Hdfs_fs_val(fs), String_val(path), O_WRONLY|O_CREAT, buffer_size, 
+      replication, block_size);
   if(!out_file) {
     char *err_str;
     sprintf(err_str, "Failed to open %s for writting!\n", String_val(path));
@@ -216,6 +217,7 @@ CAMLprim value stub_hdfs_close_in(value fs, value in_file){
   */
 CAMLprim value stub_hdfs_close_out(value fs, value out_file){
   CAMLparam2(fs, out_file);
+  handle_return_value (hdfsFlush(Hdfs_fs_val(fs), Hdfs_out_val(out_file)), "");
   handle_return_value (hdfsCloseFile(Hdfs_fs_val(fs), Hdfs_out_val(out_file)), "");
   CAMLreturn (Val_unit);
 }
@@ -269,12 +271,12 @@ CAMLprim value stub_hdfs_mkdir(value fs, value path){
   */
 CAMLprim value stub_hdfs_read(value fs, value file_in, value buf, value len){
   CAMLparam4(fs, file_in, buf, len);
-  CAMLlocal1 (result);
-  int i = hdfsRead(Hdfs_fs_val(fs), Hdfs_in_val(file_in), String_val(buf), Int_val(len));
-  handle_return_value(i, "");
-  CAMLreturn(caml_copy_int32(i));
+  tSize i = hdfsRead(Hdfs_fs_val(fs), Hdfs_in_val(file_in), String_val(buf), Int_val(len));
+  if (i<0){
+    handle_return_value(i, "");
+  }
+  CAMLreturn(tSizeToInt(i));
 }
-//external read : hdfs_fs -> hdfs_in -> string -> int -> int = "stub_hdfs_read"
 
 /** 
   * write - Write data into an open file.
@@ -286,8 +288,9 @@ CAMLprim value stub_hdfs_read(value fs, value file_in, value buf, value len){
   */
 CAMLprim value stub_hdfs_write(value fs, value file_out, value buf, value len){
   CAMLparam4(fs, file_out, buf, len);
-  CAMLlocal1 (result);
-  int i = hdfsWrite(Hdfs_fs_val(fs), Hdfs_out_val(file_out), String_val(buf), Int_val(len));
-  handle_return_value(i, "");
-  CAMLreturn(caml_copy_int32(i));
+  tSize i = hdfsWrite(Hdfs_fs_val(fs), Hdfs_out_val(file_out), String_val(buf), Int_val(len));
+  if (i<0){
+    handle_return_value(i, "");
+  }
+  CAMLreturn(tSizeToInt(i));
 }
