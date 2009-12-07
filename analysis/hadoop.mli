@@ -143,3 +143,6 @@ external input : hdfs_fs -> hdfs_in -> string -> int -> int = "stub_hdfs_read"
   * @return Returns the number of bytes written, -1 on error.
   *)
 external output : hdfs_fs -> hdfs_out -> string -> int -> int = "stub_hdfs_write" 
+
+(** Does the path exist? *)
+external exists : hdfs_fs -> string -> bool = "stub_hdfs_exists"

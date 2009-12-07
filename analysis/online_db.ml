@@ -128,7 +128,6 @@ let get_cmd_output (cmdline: string) : string =
     end
   end
 
-
 (** This class provides a handle for accessing the database in the on-line 
     implementation. *)
 
@@ -372,7 +371,8 @@ object(self)
 	  None -> None
 	| Some x -> Some (Revision_store.uncompress (not_null blob2ml x.(0)))
       end
-    | Some b -> Revision_store.read_blob b page_id blob_id
+    | Some b -> if !Online_command_line.use_hdfs then Hadoop_store.read_blob b page_id blob_id
+                else Revision_store.read_blob b page_id blob_id
 
 
   (** [write_blob page_id blob_id blob_content] writes the blob [blob_content]
@@ -391,7 +391,9 @@ object(self)
 	let s = Printf.sprintf "INSERT INTO %swikitrust_blob (blob_id, blob_content) VALUES (%s, %s)" db_prefix (ml2decimal key_str) blob_db in
 	ignore (self#db_exec mediawiki_dbh s)
       end 
-    | Some b -> Revision_store.write_blob b page_id blob_id blob_content
+    | Some b -> if !Online_command_line.use_hdfs then 
+                  Hadoop_store.write_blob b page_id blob_id blob_content
+                else Revision_store.write_blob b page_id blob_id blob_content
 
 
   (* ================================================================ *)
@@ -679,7 +681,8 @@ object(self)
     match blob_content_opt with
       None -> raise DB_Not_Found
     | Some c -> begin
-	try Revision_store.read_revision_from_blob rev_id c
+	try if !Online_command_line.use_hdfs then Hadoop_store.read_revision_from_blob rev_id c
+          else Revision_store.read_revision_from_blob rev_id c
 	with Not_found -> raise DB_Not_Found
       end
 
@@ -743,7 +746,9 @@ object(self)
 	| Some y -> not_null str2ml y.(0)
       end
     | Some b -> begin
-	let result = Filesystem_store.read_revision b page_id rev_id in
+	let result = if !Online_command_line.use_hdfs then 
+            Hadoop_filesystem_store.read_revision b page_id rev_id
+          else Filesystem_store.read_revision b page_id rev_id in
 	match result with 
 	| None -> raise DB_Not_Found
 	| Some r -> r
@@ -923,8 +928,10 @@ object(self)
 	  let s = Printf.sprintf "INSERT INTO %stext (old_id, old_text, old_flags) VALUES (%s, %s, %s) ON DUPLICATE KEY UPDATE old_flags = %s" db_prefix (ml2int rev.revision_id) (ml2str rev.revision_content) (ml2str "utf8") (ml2str "utf8") in
 	  ignore (self#db_exec mediawiki_dbh s)
       | Some b ->
-	  Filesystem_store.write_revision b 
-	    rev.revision_page rev.revision_id rev.revision_content;
+	  if !Online_command_line.use_hdfs then Hadoop_filesystem_store.write_revision b
+              rev.revision_page rev.revision_id rev.revision_content
+            else Filesystem_store.write_revision b 
+	      rev.revision_page rev.revision_id rev.revision_content;
     end
 
   (** [write_revision revision_to_add] adds the given data to the
@@ -988,7 +995,8 @@ object(self)
 	   colored revisions. *)
 	begin
 	  match colored_base_path with
-	    Some b -> ignore (Revision_store.delete_all b)
+	    Some b -> if !Online_command_line.use_hdfs then ignore (Hadoop_store.delete_all b)
+              else ignore (Revision_store.delete_all b)
 	  | None -> ()
 	end
       end
@@ -1129,8 +1137,10 @@ object(self)
  	  let s = Printf.sprintf "INSERT INTO %swikitrust_text_cache (revision_id, page_id, time_string, revision_text) VALUES (%s, %s, %s, %s) ON DUPLICATE KEY UPDATE time_string = %s" db_prefix (ml2int rev.revision_id) (ml2int rev.revision_page) (ml2str rev.revision_timestamp) (ml2str rev.revision_content) (ml2str rev.revision_timestamp) in
 	  ignore (self#db_exec mediawiki_dbh s);
 	)
-      | Some b ->
-	  Filesystem_store.write_revision b 
+      | Some b -> 
+          if !Online_command_line.use_hdfs then Hadoop_filesystem_store.write_revision b 
+            rev.revision_page rev.revision_id rev.revision_content
+	  else Filesystem_store.write_revision b 
 	    rev.revision_page rev.revision_id rev.revision_content;
     end
 
@@ -1167,7 +1177,9 @@ object(self)
 	| Some r -> not_null str2ml r.(0)
       end
     | Some b -> begin
-	let result = Filesystem_store.read_revision b page_id rev_id in
+	let result = if !Online_command_line.use_hdfs then 
+          Hadoop_filesystem_store.read_revision b page_id rev_id 
+          else Filesystem_store.read_revision b page_id rev_id in
 	match result with 
 	| None -> self#exec_read_rev_text rev_id
 	| Some r -> r
@@ -1182,7 +1194,8 @@ object(self)
 	  db_prefix (ml2int page_id) in
 	ignore (self#db_exec mediawiki_dbh s)
       end
-    | Some b -> Filesystem_store.delete_revision b page_id None
+    | Some b -> if !Online_command_line.use_hdfs then Hadoop_filesystem_store.delete_revision b page_id None
+                else Filesystem_store.delete_revision b page_id None
 
   (**  [fetch_all_revs_after] is like the superclass method, except that it
        uses the exec api to read the revisions. *)

@@ -50,8 +50,9 @@ OCAMLDEBUG = -g
 
 
 # Flags for commands, depending on optimization/debugging
-OCAML_CFLAGS=$(INCLUDES) $(OCAMLDEBUG) 
-OCAMLOPT_FLAGS=$(INCLUDES)
+HADOOP_LIBS = -cclib "-L/home/ipye/lib64/libhdfs -L/usr/java/jdk1.6.0_14/jre/lib/amd64/server -ljvm -lhdfs"
+OCAML_CFLAGS=$(INCLUDES) $(OCAMLDEBUG) $(HADOOP_LIBS)
+OCAMLOPT_FLAGS=$(INCLUDES) $(HADOOP_LIBS)
 
 %.cmo: %.ml
 	@echo '$(OCAMLC) $(OCAML_CFLAGS) -c $<'; \
@@ -67,9 +68,12 @@ OCAMLOPT_FLAGS=$(INCLUDES)
 
 .PHONY: all allopt universe clean
 
+HADOOP_OBJS = hadoop.o hadoop_store.cmo hadoop_filesystem_store.cmo
+HADOOP_OPT_OBJS = hadoop.o hadoop_store.cmx hadoop_filesystem_store.cmx
+
 # Evalwiki does the batch evaluation
 
-OUR_LIB_OBJS = textbuf.cmo text.cmo prioq.cmo filesystem_store.cmo \
+OUR_LIB_OBJS = $(HADOOP_OBJS) textbuf.cmo text.cmo prioq.cmo filesystem_store.cmo \
 	coda.cmo editlist.cmo chdiff.cmo compute_edlist.cmo timeconv.cmo \
 	read_robots.cmo eval_defs.cmo author_sig.cmo online_types.cmo \
 	revision_store.cmo online_log.cmo online_command_line.cmo online_db.cmo \
@@ -85,7 +89,7 @@ OUR_LIB_OBJS = textbuf.cmo text.cmo prioq.cmo filesystem_store.cmo \
 	online_revision.cmo db_page.cmo online_page.cmo event_feed.cmo  \
 	updater.cmo
 
-OUR_OPT_LIB_OBJS = textbuf.cmx text.cmx prioq.cmx filesystem_store.cmx \
+OUR_OPT_LIB_OBJS = $(HADOOP_OPT_OBJS) textbuf.cmx text.cmx prioq.cmx filesystem_store.cmx \
 	coda.cmx editlist.cmx chdiff.cmx compute_edlist.cmx timeconv.cmx \
 	read_robots.cmx eval_defs.cmx author_sig.cmx online_types.cmx \
 	revision_store.cmx online_log.cmx online_command_line.cmx \
@@ -129,22 +133,20 @@ TEXT_OBJS = textbuf.cmo text.cmo
 
 TIMECONV_OBJS = timeconv.cmo
 
-FILESYSTEMSTORE_OBJS = filesystem_store.cmo
+#FILESYSTEMSTORE_OBJS = filesystem_store.cmo
 
-HADOOP_OBJS = hadoop.o hadoop_store.cmo
-HADOOP_OPT_OBJS = hadoop.o hadoop_store.cmx
+#HADOOP_OBJS = hadoop.o hadoop_store.cmo 
+#HADOOP_OPT_OBJS = hadoop.o hadoop_store.cmx 
 
 REVISION_STORE_OBJS = eval_defs.cmo author_sig.cmo editlist.cmo \
 	online_types.cmo revision_store.cmo
-
-HADOOP_LIBS = -cclib "-L/home/ipye/lib64/libhdfs -L/usr/java/jdk1.6.0_14/jre/lib/amd64/server -ljvm -lhdfs"
-HADOOP_PATH = 
 
 hadoop: 
 	$(OCAMLC) $(OCAML_CFLAGS) -c hadoop.mli
 	$(OCAMLC) $(OCAML_CFLAGS) -c hadoop.c
 	$(OCAMLC) $(OCAML_CFLAGS) -c hadoop_store.ml
-	$(OCAMLC) -linkpkg -o hadoop_store -custom $(HADOOP_PATH) $(OCAML_CFLAGS) $(HADOOP_LIBS) $(HADOOP_OBJS)
+	$(OCAMLC) -linkpkg -o hadoop_store -custom $(OCAML_CFLAGS) $(HADOOP_LIBS) $(HADOOP_OBJS)
+	$(OCAMLC) -linkpkg -o hadoop_filesystem_store -custom $(OCAML_CFLAGS) $(HADOOP_LIBS) $(HADOOP_OBJS) hadoop_filesystem_store.ml
 hadoopopt: 
 	$(OCAMLOPT) $(OCAML_CFLAGS) -c hadoop.mli
 	$(OCAMLOPT) $(OCAML_CFLAGS) -c hadoop.c
@@ -164,13 +166,13 @@ evalwikiopt: evalwiki.ml wikitrust_lib.cmxa
 	$(OCAMLOPT) -linkpkg -o evalwiki $(OCAMLOPT_FLAGS) $(OUR_OPT_LIB_OBJS) evalwiki.ml
 
 eval_online_wiki: eval_online_wiki.ml wikitrust_lib.cma
-	$(OCAMLC) -linkpkg -o eval_online_wiki $(OCAML_CFLAGS) $(OUR_LIBS) eval_online_wiki.ml 
+	$(OCAMLC) -custom -linkpkg -o eval_online_wiki -custom $(OCAML_CFLAGS) $(OUR_LIBS) eval_online_wiki.ml 
 
 eval_online_wikiopt: eval_online_wiki.ml wikitrust_lib.cmxa
 	$(OCAMLOPT) -linkpkg -o eval_online_wiki $(OCAMLOPT_FLAGS) $(OUR_LIBS_OPT) eval_online_wiki.ml
 
 vote_revision: vote_revision.ml wikitrust_lib.cma
-	$(OCAMLC) -linkpkg -o vote_revision $(OCAML_CFLAGS) $(OUR_LIBS) vote_revision.ml 
+	$(OCAMLC) -custom -linkpkg -o vote_revision $(OCAML_CFLAGS) $(OUR_LIBS) vote_revision.ml 
 
 vote_revisionopt: vote_revision.ml wikitrust_lib.cmxa
 	$(OCAMLOPT) -linkpkg -o vote_revision $(OCAMLOPT_FLAGS) $(OUR_LIBS_OPT) vote_revision.ml
@@ -182,7 +184,7 @@ generate_reputationopt:  $(OUR_OPT_GENERATE_REPUTATION_OBJS)
 	$(OCAMLOPT) -linkpkg -o generate_reputation $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) $(OUR_OPT_GENERATE_REPUTATION_OBJS)
 
 load_reputations:  load_reputations.ml wikitrust_lib.cma
-	$(OCAMLC) -linkpkg -o load_reputations $(OCAML_CFLAGS) $(OUR_LIB_OBJS) load_reputations.ml
+	$(OCAMLC) -custom -linkpkg -o load_reputations $(OCAML_CFLAGS) $(OUR_LIB_OBJS) load_reputations.ml
 
 load_reputationsopt:  load_reputations.ml wikitrust_lib.cmxa
 	$(OCAMLOPT) -linkpkg -o load_reputations $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) $(OUR_OPT_LIB_OBJS) load_reputations.ml
@@ -238,11 +240,11 @@ revision_store: $(REVISION_STORE_OBJS)
 	$(OCAMLC) -linkpkg -o revision_store $(OCAML_CFLAGS) $(REVISION_STORE_OBJS)
 
 
-all: evalwiki eval_online_wiki vote_revision \
+all:    hadoop evalwiki eval_online_wiki vote_revision \
 	generate_reputation splitwiki combinestats \
 	extract_wiki_subset load_reputations
 
-allopt: evalwikiopt eval_online_wikiopt vote_revisionopt \
+allopt: hadoopopt evalwikiopt eval_online_wikiopt vote_revisionopt \
 	generate_reputationopt splitwikiopt combinestatsopt \
 	extract_wiki_subsetopt load_reputationsopt
 

@@ -79,6 +79,8 @@ let read_hdfs_file (file_name: string) : string option =
   let str_len = 8192 in 
   let str = String.create str_len in
   let buf = Buffer.create 8192 in 
+  let fexists = Hadoop.exists hdfs file_name in
+  if (not fexists) then None else (
   let fopt = try Some (Hadoop.open_in hdfs file_name)
   with Failure _ -> None in
   match fopt with
@@ -93,6 +95,7 @@ let read_hdfs_file (file_name: string) : string option =
       Some (Buffer.contents buf)
     end
   | None -> None
+  )
 
 (** [write_hdfs_file file_name l s] writes to the file [file_name] 
     the gzipped contents of string [s]. *)
@@ -177,9 +180,10 @@ let read_blob (base_path: string) (page_id: int) (blob_id: int)
     [blob_id] of page [page_id]. *)
 let delete_blob (base_path: string) (page_id: int) (blob_id: int) =
   let (f_name, _) = get_filename base_path page_id blob_id in 
-  try
+    ignore(Unix.system ("hadoop fs -rm " ^ f_name ^ " > /dev/null"))
+  (*try
     Hadoop.delete hdfs f_name
-  with Failure _ -> ()
+  with Failure _ -> ()*)
 
 (** [delete_all base_path] deletes all the tree of blobs rooted
     at base_path. *)
@@ -263,7 +267,7 @@ let read_revision_from_blob (rev_id: int) (blob_content: string) : string =
 (* **************************************************************** *)
 (* Unit tests. *)
 
-if true then begin
+if false then begin
   let not_null = function
       None -> "Error: revision not found."
     | Some x -> x

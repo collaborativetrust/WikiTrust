@@ -121,6 +121,8 @@ let set_wt_base t = wt_base := t
 (* let user_id_server = ref "http://toolserver.org/~Ipye/UserName2UserId.php"
 let set_user_id_server t = user_id_server := t  *)
 
+(* FS type *)
+let use_hdfs = ref false
 
 (* Figure out what to do and how we are going to do it. *)
 let command_line_format = 
@@ -135,6 +137,7 @@ let command_line_format =
  (*  ("-user_id_api", Arg.String set_user_id_server, "<string>: location of a tool which turns user_names into user_ids");  *)
    ("-dump_db_calls", Arg.Set dump_db_calls, ": Writes to the db log all
  database calls.  This is very verbose; use only for debugging.");
+   ("-hdfs", Arg.Set use_hdfs, ": Use Hadoop HDFS instead of the local filesystem.");
    ("-rev_base_path", Arg.String set_wt_db_rev_base_path, "<string>: Filesystem base path for filesystem storage of revisions (default: revisions are stored in the db)");
    ("-blob_base_path", Arg.String set_wt_db_blob_base_path, "<string>: Filesystem base path for filesystem storage of blobs (default: blobs are stored in the db)");
    ("-rev_id",  Arg.Int set_requested_rev_id, "<int>: (optional) revision ID that we want to ensure it is colored");

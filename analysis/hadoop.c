@@ -236,7 +236,7 @@ CAMLprim value stub_hdfs_rename(value fs, value oldPath, value newPath){
 }
 
 /**
-  * delete - Delete file. 
+  * delete - Delete file.  DOES NOT WORK NOW.
   * @param fs The configured filesystem handle.
   * @param path The path of the file. 
   * @return Returns unit. 
@@ -293,4 +293,14 @@ CAMLprim value stub_hdfs_write(value fs, value file_out, value buf, value len){
     handle_return_value(i, "");
   }
   CAMLreturn(tSizeToInt(i));
+}
+
+/** Does the path exist? */
+CAMLprim value stub_hdfs_exists(value fs, value path){
+  CAMLparam2(fs, path);
+  int exists = hdfsExists(Hdfs_fs_val(fs), String_val(path)); 
+  if (exists < 0){
+    CAMLreturn(Val_false);
+  }
+  CAMLreturn(Val_true);
 }
