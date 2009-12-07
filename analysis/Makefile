@@ -133,25 +133,24 @@ TEXT_OBJS = textbuf.cmo text.cmo
 
 TIMECONV_OBJS = timeconv.cmo
 
-#FILESYSTEMSTORE_OBJS = filesystem_store.cmo
-
-#HADOOP_OBJS = hadoop.o hadoop_store.cmo 
-#HADOOP_OPT_OBJS = hadoop.o hadoop_store.cmx 
-
 REVISION_STORE_OBJS = eval_defs.cmo author_sig.cmo editlist.cmo \
 	online_types.cmo revision_store.cmo
 
 hadoop: 
 	$(OCAMLC) $(OCAML_CFLAGS) -c hadoop.mli
 	$(OCAMLC) $(OCAML_CFLAGS) -c hadoop.c
-	$(OCAMLC) $(OCAML_CFLAGS) -c hadoop_store.ml
-	$(OCAMLC) -linkpkg -o hadoop_store -custom $(OCAML_CFLAGS) $(HADOOP_LIBS) $(HADOOP_OBJS)
-	$(OCAMLC) -linkpkg -o hadoop_filesystem_store -custom $(OCAML_CFLAGS) $(HADOOP_LIBS) $(HADOOP_OBJS) hadoop_filesystem_store.ml
+	#$(OCAMLC) $(OCAML_CFLAGS) -c hadoop_store.ml
+	#$(OCAMLC) $(OCAML_CFLAGS) -c hadoop_filesystem_store.ml
+	#$(OCAMLC) -linkpkg -o hadoop_store -custom $(OCAML_CFLAGS) $(HADOOP_LIBS) $(HADOOP_OBJS)
+	#$(OCAMLC) -linkpkg -o hadoop_filesystem_store -custom $(OCAML_CFLAGS) $(HADOOP_LIBS) $(HADOOP_OBJS) 
+
 hadoopopt: 
 	$(OCAMLOPT) $(OCAML_CFLAGS) -c hadoop.mli
 	$(OCAMLOPT) $(OCAML_CFLAGS) -c hadoop.c
-	$(OCAMLOPT) $(OCAML_CFLAGS) -c hadoop_store.ml
-	$(OCAMLOPT) -linkpkg -o hadoop_store $(OCAML_CFLAGS) $(HADOOP_LIBS) $(HADOOP_OPT_OBJS)
+	#$(OCAMLOPT) $(OCAML_CFLAGS) -c hadoop_store.ml
+	#$(OCAMLOPT) $(OCAML_CFLAGS) -c hadoop_filesystem_store.ml
+	#$(OCAMLOPT) -linkpkg -o hadoop_store $(OCAML_CFLAGS) $(HADOOP_LIBS) $(HADOOP_OPT_OBJS)
+	#$(OCAMLOPT) -linkpkg -o hadoop_filesystem_store $(OCAML_CFLAGS) $(HADOOP_LIBS) $(HADOOP_OPT_OBJS)
 
 wikitrust_lib.cma: $(OUR_LIB_OBJS)
 	$(OCAMLC) -a -o wikitrust_lib.cma $(OCAML_CFLAGS) $(OUR_LIB_OBJS)
