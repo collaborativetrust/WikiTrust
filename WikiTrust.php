@@ -20,35 +20,54 @@
 
 if (!defined('MEDIAWIKI')) die();
 
-# There isn't a built in enum for php
-global $wgWikiTrustVersion;
-$wgWikiTrustVersion = "local"; ## This needs to be one of local, remote, wmf.
+# We use a lot of config vars.
+global $wgWikiTrustVersion, $wgWikiTrustGadget, $wgWikiTrustShowVoteButton, $wgWikiTrustContentServerURL;
+global $wgWikiTrustLog, $wgWikiTrustDebugLog, $wgWikiTrustDebugVerbosity;
+global $wgWikiTrustCmd, $wgWikiTrustCmdExtraArgs, $wgWikiTrustShowMouseOrigin,
+  $wgWikiTrustBlobPath, $wgWikiTrustRepSpeed, $wgWikiTrustApiURL, $wgWikiTrustRobots;
 
-global $wgWikiTrustGadget, $wgWikiTrustShowVoteButton, $wgWikiTrustContentServerURL;
-$wgWikiTrustGadget = NULL;
-$wgWikiTrustShowVoteButton = true; // If true, the vote button is shown.
-$wgWikiTrustContentServerURL = "http://localhost:10303/?";
+# There isn't a built in enum for php
+if (!$wgWikiTrustVersion)
+  $wgWikiTrustVersion = "local"; ## This needs to be one of local, remote, wmf.
+if (!$wgWikiTrustGadget)
+  $wgWikiTrustGadget = NULL;
+if (!$wgWikiTrustShowVoteButton)
+  $wgWikiTrustShowVoteButton = true; // If true, the vote button is shown.
+if (!$wgWikiTrustContentServerURL)
+  $wgWikiTrustContentServerURL = "http://localhost:10303/?";
 
 // Debugging Verbosity
 define(WIKITRUST_DEBUG, 0);
 define(WIKITRUST_WARN, 10);
 define(WIKITRUST_ERROR, 20);
 
-global $wgWikiTrustLog, $wgWikiTrustDebugLog, $wgWikiTrustDebugVerbosity;
+// HTML Handling
+define(WIKITRUST_HTML, "H");
+define(WIKITRUST_WIKI, "W");
+
 #$wgWikiTrustLog = "/tmp/{$wgDBname}-trust.log";
 #$wgWikiTrustDebugLog = "/tmp/{$wgDBname}-trust-debug.log";
-$wgWikiTrustDebugVerbosity = WIKITRUST_WARN; // how much information to write;
-$wgWikiTrustLog = "/dev/null";
-$wgWikiTrustDebugLog = "/dev/null";
-$wgWikiTrustShowMouseOrigin = false;
-global $wgWikiTrustCmd, $wgWikiTrustCmdExtraArgs, 
-  $wgWikiTrustBlobPath, $wgWikiTrustRepSpeed, $wgWikiTrustApiURL;
-$wgWikiTrustCmd = dirname(__FILE__) . "/eval_online_wiki";
-$wgWikiTrustCmdExtraArgs = "";
-$wgWikiTrustBlobPath = NULL;
-$wgWikiTrustRepSpeed = 1.0;
-$wgWikiTrustApiURL = "http://en.wikipedia.org/w/api.php?";
-$wgWikiTrustRobots = NULL;
+
+if (!$wgWikiTrustDebugVerbosity)
+  $wgWikiTrustDebugVerbosity = WIKITRUST_WARN; // how much information to write;
+if (!$wgWikiTrustLog)
+  $wgWikiTrustLog = "/dev/null";
+if (!$wgWikiTrustDebugLog)
+  $wgWikiTrustDebugLog = "/dev/null";
+if (!$wgWikiTrustShowMouseOrigin)
+  $wgWikiTrustShowMouseOrigin = false;
+if (!$wgWikiTrustCmd)
+  $wgWikiTrustCmd = dirname(__FILE__) . "/eval_online_wiki";
+if (!$wgWikiTrustCmdExtraArgs)
+  $wgWikiTrustCmdExtraArgs = "";
+if (!$wgWikiTrustBlobPath)
+  $wgWikiTrustBlobPath = NULL;
+if (!$wgWikiTrustRepSpeed)
+  $wgWikiTrustRepSpeed = 1.0;
+if (!$wgWikiTrustApiURL)
+  $wgWikiTrustApiURL = "http://en.wikipedia.org/w/api.php";
+if (!$wgWikiTrustRobots)
+  $wgWikiTrustRobots = NULL;
 
 global $wgExtensionFunctions, $wgExtensionCredits;
 $wgExtensionCredits['other'][] = array(
@@ -90,6 +109,7 @@ function wfWikiTrustSetup() {
     global $wgAutoloadClasses, $wgHooks, $wgWikiTrustVersion;
     $wgAutoloadClasses['WikiTrustBase'] = $dir . 'WikiTrustBase.php';
     $wgAutoloadClasses['WikiTrustUpdate'] = $dir . 'WikiTrustUpdate.php';
+
     switch ($wgWikiTrustVersion) {
       case "local":
 	$wgAutoloadClasses['WikiTrust'] = $dir . 'LocalMode.php';
@@ -115,7 +135,7 @@ function wfWikiTrustSetup() {
     }
 
     # Is the user opting to use wikitrust?
-    global $wgUser;
+    global $wgUser, $wgWikiTrustGadget;
     if ($wgWikiTrustGadget && !$wgUser->getOption($wgWikiTrustGadget))
 	return;
 
