@@ -123,6 +123,9 @@ class WikiTrust extends WikiTrustBase {
 
     $colored_raw = (file_get_contents($url, 0, $ctx));
 
+    if (!$colored_raw)
+      return '';
+
     $mode = substr($colored_raw, 0, 1);
     $colored_text = substr($colored_raw, 1);
    
