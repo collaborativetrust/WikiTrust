@@ -191,42 +191,45 @@ let process_page (page_id: int) (page_title: string) =
     !wt_db_blob_base_path !dump_db_calls 
   in
   let pages_downloaded = ref 0 in
-  let processed_well = ref true in
-  (* If I am using the WikiMedia API, I need to first download any new
-     revisions of the page. *)
-  (try Printexc.print (fun () -> 
-    pages_downloaded := if !use_wikimedia_api then 
-      Wikipedia_api.download_page_from_id child_db page_id else 0
-    ;
+  let processed_well = ref false in
+  let times_tried = ref 0 in
+  while (not !processed_well) && (!times_tried < !times_to_retry_trans) do
+    times_tried := !times_tried + 1;
+    (* If I am using the WikiMedia API, I need to first download any new
+       revisions of the page. *)
+    (try Printexc.print (fun () -> 
+      pages_downloaded := if !use_wikimedia_api then 
+        Wikipedia_api.download_page_from_id child_db page_id else 0
+      ;
     
-    (* If pages have been downloaded, AND if the new_page_id doesn't 
-       match the old_page_id, remove all of the old info from the db 
-       and re-process with the new info. *)
-    if !pages_downloaded > 0 then child_db#clear_old_info_if_pid_changed 
-      page_id page_title;
+      (* If pages have been downloaded, AND if the new_page_id doesn't 
+         match the old_page_id, remove all of the old info from the db 
+         and re-process with the new info. *)
+      if !pages_downloaded > 0 then child_db#clear_old_info_if_pid_changed 
+        page_id page_title;
     
-    (* Creates a new updater. *)
-    let processor = new Updater.updater child_db
-      trust_coeff !times_to_retry_trans each_event_delay every_n_events_delay 
-      !robots in
-      (* Brings the page up to date.  This will take care also of the page 
-	 lock. *)
-      processor#update_page_fast page_id;
-      (* Renders the last revision of this page and stores it in memcached. *)
-      if !render_last_rev then render_rev (db#get_latest_rev_id_from_id 
-	page_id) page_id db;
-    ) () with
-  | Wikipedia_api.API_error e -> (
-      Printf.eprintf "Wikipedia_api Error: %s\nOn %d %s\nExp%s\n" 
-	e page_id page_title (Printexc.to_string (Wikipedia_api.API_error 
+      (* Creates a new updater. *)
+      let processor = new Updater.updater child_db
+        trust_coeff !times_to_retry_trans each_event_delay every_n_events_delay 
+        !robots in
+        (* Brings the page up to date.  This will take care also of the page 
+    	   lock. *)
+        processor#update_page_fast page_id;
+        (* Renders the last revision of this page and stores it in memcached. *)
+        if !render_last_rev then render_rev (db#get_latest_rev_id_from_id page_id) page_id db;
+        processed_well := true
+      ) () with
+    | Wikipedia_api.API_error e -> (
+        Printf.eprintf "Wikipedia_api Error: %s\nOn %d %s\nExp%s\n" 
+          e page_id page_title (Printexc.to_string (Wikipedia_api.API_error 
           e));
-    )
-  | _ -> begin  (* Handle everything else generically here. *)
-      Printf.eprintf "Other Error: On %d %s\n" page_id page_title;
-      child_db#delete_revs_for_page page_id;
-      processed_well := false
-    end
-  );
+      )
+    | _ -> begin  (* Handle everything else generically here. *)
+        Printf.eprintf "Other Error: On %d %s\n" page_id page_title;
+        child_db#delete_revs_for_page page_id;
+      end
+    );
+  done;
   (* Marks the page as processed. *)
   (if !processed_well then
     child_db#mark_page_as_processed page_id page_title !pages_downloaded
