@@ -1,6 +1,7 @@
 (*
 
 Copyright (c) 2009 The Regents of the University of California
+Copyright (c) 2009 Google Inc.
 All rights reserved.
 
 Authors: Luca de Alfaro
@@ -112,7 +113,12 @@ object(self)
       page_id None (Some colored_base_path) None false
       (* Last blob_id *)
     val mutable blob_id : int = Online_types.blob_locations.initial_location
-
+      (* This flag keeps track of whether we have already written the 
+	 initial SQL code for inserting in the wikitrust_revision table.
+	 I could write out the SQL when the page object is created, as
+	 every page is guaranteed in the dump to have at least one revision,
+	 but this is a more conservative way of doing it. *)
+    val mutable written_initial_sql : bool = false
 
     method print_id_title : unit = ()
 
@@ -153,8 +159,19 @@ object(self)
       let db_overall_trust = ml2float quality_info.overall_trust in
       let db_overall_quality = ml2float 0.0 in
       (* Db write access *)
-      Printf.fprintf sql_file "INSERT INTO %swikitrust_revision (revision_id, page_id, text_id, time_string, user_id, username, is_minor, quality_info, blob_id, reputation_delta, overall_trust, overall_quality) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);\n"
-	db_prefix rev_id page_id text_id time_string user_id username is_minor 
+      if written_initial_sql then begin
+	(* Separates from previous set of values. *)
+	Printf.fprintf sql_file ", ";
+      end else begin
+	(* Writes the initial part of the INSERT statement.  We use a single,
+	   multi-row INSERT due to efficiency and disk space considerations. *)
+	written_initial_sql <- true;
+	Printf.fprintf sql_file "INSERT INTO %swikitrust_revision (revision_id, page_id, text_id, time_string, user_id, username, is_minor, quality_info, blob_id, reputation_delta, overall_trust, overall_quality) VALUES " db_prefix;
+      end;
+      (* Writes the SQL for the revision. *)
+      Printf.fprintf sql_file 
+	"(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+	rev_id page_id text_id time_string user_id username is_minor 
 	db_qual_info (ml2int blob_id) aq2 db_overall_trust db_overall_quality
 	
 
@@ -503,6 +520,10 @@ object(self)
     (** This method is called when there are no more revisions to evaluate. 
 	We need to produce the sql that contains the page information. *)
     method eval: unit = 
+      (* Finishes writing the SQL for the wikitrust_revision table *)
+      if written_initial_sql then begin
+	Printf.fprintf sql_file ";\n"
+      end;
       (* Finishes writing all the blobs *)
       let last_blob_id = blob_writer#close in
       (* Produces the page information. *)
