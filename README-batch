@@ -52,10 +52,21 @@ Notes:
 
 The command batch_process.py has many options, which allow also to do
 the processing in step-by-step fashion; do 
-./batch_process.py --help
-for more information. 
-Processing of the Italian Wikipedia as of September 2009 takes about 4
-days on an 8-CPU-core machine. 
+
+  ./batch_process.py --help
+
+for more information.  In particular, batch_process performs the
+following phases:
+ 
+  --do_split: splits the input file into chunks
+  --do_compute_stats: compute the stat files
+  --do_sort_stats: sorts the statistic files
+  --do_compute_rep: computes the user reputations
+  --do_compute_trust: computes text trust
+
+These phases need to be performed in the above order. 
+Processing of the Italian Wikipedia as of September 2009 takes about 1
+day on an 8-CPU-core machine. 
 For the English Wikipedia, it is advisable to use a cluster; for
 cluster processing, you can adapt do_all_it_stats.py and
 do_all_it_revs.py to your needs.
