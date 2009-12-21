@@ -95,7 +95,7 @@ ini_set( 'memory_limit', '40M' );
    for a list of all the configurable variables.  The defaults should
    be correct for most installation, but you can override
    values by placing assignments in your LocalSettings.php
-   after the require_once() call for the WikiTrust extension.
+   before the require_once() call for the WikiTrust extension.
 
    Some settings that you might like to use instead:
 
@@ -122,6 +122,8 @@ ini_set( 'memory_limit', '40M' );
 
 $wgUseTidy = true;
 $wgUseAjax = true;
+global $wgWikiTrustShowVoteButton;
+$wgWikiTrustShowVoteButton = false;
 require_once( $IP . "/extensions/WikiTrust/WikiTrust.php" );
 
 

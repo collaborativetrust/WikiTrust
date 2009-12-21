@@ -25,6 +25,9 @@ class WikiTrustBase {
   ## Median Value of Trust
   static $median = 1.0;
 
+  ## Already rendered HTML?
+  static $html_rendered = false;
+
   ## Don't close the first opening span tag
   static $first_span = true;
 
@@ -154,7 +157,7 @@ class WikiTrustBase {
 				$options);
       $text = $msg->getText() . $text;
     } else {
-      self::color_Wiki2Html($colored_text, $text);
+      self::color_Wiki2Html($colored_text, $text, $rev_id);
       self::vote_showButton($text);
       self::color_addTracker($text);
     }
@@ -302,74 +305,80 @@ if (1) {
     return $colored_text;
   }
 
-  static function color_parseWiki($colored_text, &$options)
+  static function color_parseWiki($colored_text, $rev_id, &$options)
   {
     global $wgTitle, $wgParser;
     $parsed = $wgParser->parse($colored_text, $wgTitle, $options);
     return $parsed->getText();
   }
 
-  static function color_Wiki2Html(&$colored_text, &$text)
+  static function color_Wiki2Html(&$colored_text, &$text, $rev_id)
   {
     global $wgParser, $wgUser, $wgTitle;
     $count = 0;
 
-    // fix trust tags around links
-    $colored_text = preg_replace_callback("/\{\{#t:(\d+),(\d+),([^}]+)\}\}\s*\[\[([^\]]+)\]\]\s*(?=\{\{#t:|$)/D",
+    if (self::$html_rendered){
+      $text = $colored_text;
+    } else {
+
+      // fix trust tags around links
+      $colored_text = preg_replace_callback("/\{\{#t:(\d+),(\d+),([^}]+)\}\}\s*\[\[([^\]]+)\]\]\s*(?=\{\{#t:|$)/D",
 				"WikiTrust::regex_fixBracketTrust",
 				$colored_text,
 				-1,
 				$count);
-    // fix trust tags around semicolon lines
-    $colored_text = preg_replace_callback("/^;\s*\{\{#t:(\d+),(\d+),([^}]+)\}\}(\s*[^\{<]*?)(?=\{|<|$)/m",
+      // fix trust tags around semicolon lines
+      $colored_text = preg_replace_callback("/^;\s*\{\{#t:(\d+),(\d+),([^}]+)\}\}(\s*[^\{<]*?)(?=\{|<|$)/m",
                                 "WikiTrust::regex_fixTextTrust",
                                 $colored_text,
                                 -1,
                                 $count);
 
 
-    $options = ParserOptions::newFromUser($wgUser);
-    $text = WikiTrust::color_parseWiki($colored_text, $options);
+      $options = ParserOptions::newFromUser($wgUser);
+      $text = WikiTrust::color_parseWiki($colored_text, $rev_id, $options);
 
-    // Fix broken dt tags -- caused by ; 
-    $text = preg_replace("/<dt>\{\{#t<\/dt>\n<dd>(.*?)<\/dd>/",
-        "<dt>{{#t:$1</dt>",
-	$text,
-        -1,
-	$count);
+      // Fix broken dt tags -- caused by ; 
+      $text = preg_replace("/<dt>\{\{#t<\/dt>\n<dd>(.*?)<\/dd>/",
+          "<dt>{{#t:$1</dt>",
+	  $text,
+          -1,
+	  $count);
     
-    // Fix edit section links    
-    $text = preg_replace_callback(
-        "/<span class=\"editsection\"([^>]*?)>(.*?) title=\"(.*?)\">/",
-	"WikiTrust::regex_fixSectionEdit",
-        $text,
-        -1,
-        $count);
+      // Fix edit section links    
+      $text = preg_replace_callback(
+          "/<span class=\"editsection\"([^>]*?)>(.*?) title=\"(.*?)\">/",
+          "WikiTrust::regex_fixSectionEdit",
+          $text,
+          -1,
+          $count);
 
-    // Update the trust tags
-    $text = preg_replace_callback("/\{\{#t:(\d+),(\d+),([^}]+)\}\}([^\{<]++[^<]*?)(?=\{\{#t:|<|$)/D",
+      // Update the trust tags
+      $text = preg_replace_callback("/\{\{#t:(\d+),(\d+),([^}]+)\}\}([^\{<]++[^<]*?)(?=\{\{#t:|<|$)/D",
 				"WikiTrust::regex_fixTextTrust",
 				$text,
 				-1,
 				$count);
 
 
-    // Remove all of the trust tags which we can not handle at the moment.
-    $text = preg_replace("/\{\{#t:\d+,\d+,[^}]+\}\}/",
+      // Remove all of the trust tags which we can not handle at the moment.
+      $text = preg_replace("/\{\{#t:\d+,\d+,[^}]+\}\}/",
 				"",
 				$text,
 				-1,
 				$count);
 
-    global $wgScriptPath;
-    $text = '<script type="text/javascript" src="'
+      global $wgScriptPath;
+      $text = '<script type="text/javascript" src="'
 	      .$wgScriptPath
 	      .'/extensions/WikiTrust/js/wz_tooltip.js"></script>' . $text;
 
-    $msg = $wgParser->parse(wfMsgNoTrans("wgTrustExplanation"), 
+      $msg = $wgParser->parse(wfMsgNoTrans("wgTrustExplanation"), 
 			      $wgTitle, 
 			      $options);
-    $text .= $msg->getText();
+      $text .= $msg->getText();
+      WikiTrust::color_shareHTML($text, $rev_id);
+    }
   }
 
   static function regex_fixSectionEdit($matches){
@@ -610,7 +619,7 @@ if (0) {
 				$options);
       $text = $msg->getText() . $text;
     } else {
-      self::color_Wiki2Html($colored_text, $text);
+      self::color_Wiki2Html($colored_text, $text, $rev_id);
       self::vote_showButton($text);
       self::color_addTracker($text);
       // Save the finished text in the cache.

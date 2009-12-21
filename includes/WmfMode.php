@@ -48,36 +48,54 @@ class WikiTrust extends WikiTrustBase {
 	    );
 
     wfWikiTrustDebug(__FILE__.__LINE__.": ".$wgWikiTrustContentServerURL 
-		. "vote=1&rev=".urlencode($rev_id)
-		. "&page=".urlencode($page_id)
-		. "&user=".urlencode($userName)
-		. "&page_title=".urlencode($page_title)
+                . "?method=vote"
+		. "&revid=".urlencode($rev_id)
+		. "&pageid=".urlencode($page_id)
+		. "&username=".urlencode($userName)
+		. "&title=".urlencode($page_title)
     . "&time=".urlencode(wfTimestampNow()));
 
     // TODO: we need a shared key!
     $vote_str = @file_get_contents($wgWikiTrustContentServerURL 
-		. "vote=1&rev=".urlencode($rev_id)
-		. "&page=".urlencode($page_id)
-		. "&user=".urlencode($userName)
-		. "&page_title=".urlencode($page_title)
+                . "?method=vote"
+		. "&revid=".urlencode($rev_id)
+		. "&pageid=".urlencode($page_id)
+		. "&username=".urlencode($userName)
+		. "&title=".urlencode($page_title)
 		. "&time=".urlencode(wfTimestampNow()), 0
 	    , $ctx);
     $response = new AjaxResponse($vote_str);	   
     return $response;
   }
 
-  static function color_parseWiki($colored_text, &$options)
+  static function color_parseWiki($colored_text, $rev_id, &$options)
   {
     global $wgWikiTrustApiURL, $wgTitle;
-    $raw_text = self::file_post_contents($wgWikiTrustApiURL 
-			."action=parse"
+
+    $url = $wgWikiTrustApiURL 
+			."?action=parse"
 			."&title=".urlencode($wgTitle)
 			."&format=json"
-			."&text=".urlencode($colored_text));
+			."&text=".urlencode($colored_text);
+    $raw_text = self::file_post_contents($url);
     $body = json_decode(array_pop(explode("\n", $raw_text)), true);
     $text = $body["parse"]["text"]["*"];
  
     return $text;
+  }
+ 
+  // Share the finished HTML back.
+  static function color_shareHTML($html, $rev_id)
+  {
+    global $wgWikiTrustContentServerURL;
+
+    # Cache the rendered html
+    $url = $wgWikiTrustContentServerURL
+                         ."?method=sharehtml"
+                         ."&revid=".urlencode($rev_id)
+                         ."&myhtml=".urlencode($html);
+    wfWikiTrustDebug(__FILE__.": ".__LINE__.": "."Sharing $rev_id");
+    self::file_post_contents($url);
   }
   
   static function color_getColorData($page_title, $page_id = 0, $rev_id = 0)
@@ -85,40 +103,53 @@ class WikiTrust extends WikiTrustBase {
     $ctx = stream_context_create(
         array('http' => array(
           'timeout' => self::TRUST_TIMEOUT,
-    ))
-	 );
+           ))
+    );
 
     $MAX_TIMES_THROUGH = 2;
     $times_though=0;
     global $wgUser, $wgWikiTrustContentServerURL;
-    $user_id = $wgUser->getID();
+    $username = $wgUser->getName();
 
     $url = $wgWikiTrustContentServerURL
-      . "rev=" . urlencode($rev_id)
-      . "&page=" . urlencode($page_id)
-      . "&page_title=" . urlencode($page_title)
+      . "?method=wikiorhtml"
+      . "&revid=" . urlencode($rev_id)
+      . "&pageid=" . urlencode($page_id)
+      . "&title=" . urlencode($page_title)
       . "&time=" . urlencode(wfTimestampNow())
-      . "&user=" . urlencode($user_id);
+      . "&username=" . urlencode($username);
 
     wfWikiTrustDebug(__FILE__.":".__LINE__.": $url");
 
     $colored_raw = (file_get_contents($url, 0, $ctx));
-    if (!$colored_raw
+
+    if (!$colored_raw)
+      return '';
+
+    $mode = substr($colored_raw, 0, 1);
+    $colored_text = substr($colored_raw, 1);
+   
+    if (!$colored_text
         || $colored_raw == self::NOT_FOUND_TEXT_TOKEN
         || $colored_raw == "bad")
       {
         return '';
-      }    
-
-    $colored_data = $colored_raw;
-
+      }
+   
+    // Are we using HTML or WIKI
+    if ($mode == WIKITRUST_HTML){
+      // The HTML is all rendered -- we just display this.
+      self::$html_rendered = true;
+      return $colored_text;
+    }
     // Pick off the median value first.
-    $colored_data = explode(",", $colored_raw, 2);
-    $colored_text = $colored_data[1];
+    $colored_data = explode(",", $colored_text, 2);
+    $colored_new = $colored_data[1];
     self::$median = $colored_data[0] + 0;
     if (self::$median == 0)
-	self::$median = self::TRUST_DEFAULT_MEDIAN;
-    return $colored_text;
+        self::$median = self::TRUST_DEFAULT_MEDIAN;
+
+    return $colored_new;
   }
 
   public static function ucscArticleSaveComplete(&$article, 
@@ -131,7 +162,6 @@ class WikiTrust extends WikiTrustBase {
     $page_id = $article->getTitle()->getArticleID();
     $rev_id = $revision->getID();
     $page_title = $article->getTitle()->getDBkey();
-    $user_id = $user->getID();
 
     wfWikiTrustDebug(__FILE__.": ".__LINE__.": New article id $rev_id");
 		
@@ -139,19 +169,21 @@ class WikiTrust extends WikiTrustBase {
 
     wfWikiTrustDebug(__FILE__.": ".__LINE__.": ".
        $wgWikiTrustContentServerURL 
-			 ."edit=1&rev=".urlencode($rev_id)
-			 ."&page=".urlencode($page_id)
-			 ."&user=".urlencode($user_id)
+                         ."?method=edit"
+			 ."&revid=".urlencode($rev_id)
+			 ."&pageid=".urlencode($page_id)
+			 ."&username=".urlencode($userName)
 			 ."&text=".urlencode($text)
-			 ."&page_title=".urlencode($page_title)
+			 ."&title=".urlencode($page_title)
 			 ."&time=".urlencode(wfTimestampNow()));
 
-    $colored_text = self::file_post_contents($wgWikiTrustContentServerURL 
-			 ."edit=1&rev=".urlencode($rev_id)
-			 ."&page=".urlencode($page_id)
-			 ."&user=".urlencode($user_id)
+      $colored_text = self::file_post_contents($wgWikiTrustContentServerURL 
+                         ."?method=edit"
+			 ."&revid=".urlencode($rev_id)
+			 ."&pageid=".urlencode($page_id)
+			 ."&username=".urlencode($userName)
 			 ."&text=".urlencode($text)
-			 ."&page_title=".urlencode($page_title)
+			 ."&title=".urlencode($page_title)
 			 ."&time=".urlencode(wfTimestampNow()));
 		
     return true;
