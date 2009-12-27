@@ -264,7 +264,8 @@ Follow these instructions in place of step 2) above.
           libmysql-ocaml-dev
           libextlib-ocaml-dev
           python-mysqldb
-	  libxml-light-ocaml-dev	
+	  libxml-light-ocaml-dev
+	  libzip-ocaml	
 	  libzip-ocaml-dev
 	  libpcre-ocaml-dev
 
@@ -312,6 +313,6 @@ BATCH MODE:
 
 The tool has also a batch mode, useful for analyzing the history of a
 wiki, including the history of author contributions, page reversions,
-quarrels, and more.  Please see analysis/README for more
+quarrels, and more.  Please see the README-batch file for more
 information.
 
