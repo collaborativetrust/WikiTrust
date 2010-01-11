@@ -1,6 +1,7 @@
 (*
 
 Copyright (c) 2007-2008 The Regents of the University of California
+Copyright (c) 2009 Google Inc
 All rights reserved.
 
 Authors: Luca de Alfaro, B. Thomas Adler, Vishwanath Raman, Ian Pye
@@ -33,8 +34,8 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
-(* This module contains the function do_eval, which performs the evaluation of an .xml file, 
-   producing any required output. *)
+(* This module contains the function do_eval, which performs the
+   evaluation of an .xml file, producing any required output. *)
 
 (* Tags *)
 let tag_siteinfo_start    = Str.regexp "<mediawiki"
@@ -78,23 +79,73 @@ let print_vec v =
   let p i = Printf.printf " %s" i in 
   Printf.printf "["; Vec.iter p v; Printf.printf " ]\n"
     
-
 (* It is a silly idea to read a line without the final \n! *)
 let input_line_cr fp = (input_line fp) ^ "\n"
+
+(* This function opens a file using a decompression algorithm. *)
+let open_compressed_file (file_name: string) (unzip_cmd: string)
+    : in_channel =
+  let forked = ref false in
+  let in_f = ref stdin in
+  while not !forked do begin 
+    forked := begin 
+      try 
+	in_f := Unix.open_process_in (unzip_cmd ^ " " ^ file_name); 
+	true
+      with Unix.Unix_error (Unix.EAGAIN, _, _) -> false 
+    end
+  end done; (* while *)
+  (* Waits a bit before reading from the pipe *)
+  Unix.sleep 1;
+  !in_f
+
+(* This function closes a compressed file. *)
+let close_compressed_file (f: in_channel) =
+  begin
+    try ignore (Unix.close_process_in f) 
+    with Unix.Unix_error (Unix.ECHILD, _, _) -> ()
+  end
+
+
+(* This function opens a compressed dump update file. *)
+let open_dump_update (dump_update_path: string) (page_id: int) 
+    : in_channel option =
+  (* Generates the full file name *)
+  let file_name = Printf.sprintf "%012d.xml.gz" page_id in 
+  let page_path = 
+    (String.sub file_name 0 3) ^ "/" ^
+    (String.sub file_name 3 3) ^ "/" ^
+    (String.sub file_name 6 3) ^ "/" in
+  let full_file_name = dump_update_path ^ "/" ^ page_path ^ file_name in
+  (* Checks whether the file exists, to save time. *)
+  begin try
+    Unix.access full_file_name [Unix.F_OK; Unix.R_OK];
+   (* Opens the file decompressing it, and returns the file handle. *)
+    Some (open_compressed_file full_file_name "gunzip -c")
+  with Unix.Unix_error (_, _, _) -> None
+  end
 
 (* This is the function that does all the work *)
 let do_eval 
     (* The page factory that is in charge of analyzing pages *)
     (factory: Page_factory.page_factory) 
+    (* An optional path to a directory tree where additional
+       revisions are to be found. *)
+    (dump_update_path: string option)
     (* The input xml stream to analyze (already open) *)
     (in_file: in_channel)
     : unit =
 
-  (* This function reads a revision, and passes it to the page created by the page factory *)
-  let read_revisions p page_id = 
+  (* This function reads a revision, and passes it to the page created
+     by the page factory.  The function takes as input a timestamp,
+     and only passes to the page factory revisions later than that
+     timestamp.  The function returns the timestamp of the last revision
+     analyzed. *)
+  let read_revisions revision_file p page_id (last_time: float) : float = 
     (* Writes the title, if needed *)
     p#print_id_title; 
     let do_more_page = ref true in 
+    let rev_time = ref 0. in 
     while !do_more_page do 
       begin 
 	(* Reads all the revisions of a page *)
@@ -102,7 +153,6 @@ let do_eval
 	let rev_uid = ref 0 in 
 	let rev_ip = ref "" in 
 	let rev_timestamp = ref "" in 
-	let rev_time = ref 0. in 
 	let rev_contributor = ref "" in 
 	let rev_comment = ref "" in 
 	let rev_username = ref "" in 
@@ -112,7 +162,7 @@ let do_eval
 	while !do_more_rev do 
 	  begin 
 	    (* Reading the fields of a revision *)
-	    let s = input_line_cr in_file in 
+	    let s = input_line_cr revision_file in 
 	    if (has_tag tag_id s) then begin 
 	      try
 		rev_id := int_of_string (Str.matched_group 1 s)
@@ -131,7 +181,7 @@ let do_eval
 		rev_uid := 0; 
 		while !do_more_user do 
 		  begin 
-		    let s = input_line_cr in_file in 
+		    let s = input_line_cr revision_file in 
 		    if (has_tag tag_id s) then begin 
 		      try 
 			rev_uid := int_of_string (Str.matched_group 1 s) 
@@ -170,20 +220,21 @@ let do_eval
 		while !do_more_text do 
 		  begin 
 		    if (has_tag tag_text_end !t) then begin 
-		      rev_text := Textbuf.add (prefix !t (Str.match_beginning ())) !rev_text; 
+		      rev_text := Textbuf.add (prefix !t 
+			(Str.match_beginning ())) !rev_text; 
 		      do_more_text := false
 		    end
 		    else begin
 		      rev_text := Textbuf.add !t !rev_text;
-		      t := input_line_cr in_file 
+		      t := input_line_cr revision_file 
 		    end
 		  end
 		done
 	      end;
-	    if (has_tag tag_rev_end s) then 
+	    if (has_tag tag_rev_end s) && (!rev_time > last_time) then 
 	      begin 
-		(* Ok, now I have all the text. I can create the revision, and 
-		   add it to the page. *)
+		(* Ok, now I have all the text. I can create the
+		   revision, and add it to the page. *)
 		p#add_revision 
 		  !rev_id page_id !rev_timestamp !rev_time 
 		  !rev_contributor !rev_uid !rev_ip !rev_username 
@@ -192,24 +243,28 @@ let do_eval
 	      end
 	  end
 	done; (* while !do_more_rev *)
-	(* Now we must check: either there is another revision to be done, 
-	   or the page ends *)
-	do_more_rev := true; 
-	while !do_more_rev do 
-	  begin 
-	    let s = input_line_cr in_file in 
-	    (* This reads illogical, but it goes to the next rev of the page, which is correct *)
-	    if (has_tag tag_rev_start s) then do_more_rev := false; 
+	(* Now we must check: either there is another revision to be
+	   done, or the file or page ends *)
+	let do_search_rev = ref true in 
+	while !do_search_rev do begin 
+	  try begin
+	    let s = input_line_cr revision_file in 
+	    (* This reads illogical, but it goes to the next rev of
+	       the page, which is correct *)
+	    if (has_tag tag_rev_start s) then do_search_rev := false; 
 	    if (has_tag tag_page_end s) then begin
-	      do_more_rev := false;
+	      do_search_rev := false;
 	      do_more_page := false
 	    end
+	  end 
+	  with End_of_file -> begin
+	    do_search_rev := false;
+	    do_more_page := false
 	  end
-	done
+	end done (* while !do_search_rev *)
       end
     done; (* while !do_more_page *)
-    (* Now is the time to evaluate a page, or to finish its evaluation *)
-    p#eval
+    !rev_time
   in 
 
   (* Skips to beginning of the preamble
@@ -264,28 +319,52 @@ let do_eval
 		  page_title := Str.matched_group 1 s
 		with Not_found -> ()
 	      end;
-	      (* The check for !page_id < 0 is there because there are many ids
-		 in a page, and we only want the first one to matter as page id.
-		 (this is important only if the page is skipped) *)
+	      (* The check for !page_id < 0 is there because there are
+		 many ids in a page, and we only want the first one to
+		 matter as page id.  (this is important only if the
+		 page is skipped) *)
 	      if !page_id < 0 && (has_tag tag_id s) then begin
 		try
 		  page_id := int_of_string (Str.matched_group 1 s)
 		with Not_found -> ()
 	      end; 
 	      if (has_tag tag_page_end s) then do_more_page := false; 
-	      (* If the revisions start, and the page title does not contain ":", 
-		 then this is a page in the main namespace, and we need to examine it. 
-		 If the page title contains ":", the page is skipped. *)
+	      (* If the revisions start, and the page title does not
+		 contain ":", then this is a page in the main
+		 namespace, and we need to examine it.  If the page
+		 title contains ":", the page is skipped. *)
 	      if (has_tag tag_rev_start s) then begin 
-		(* Creates the appropriate page object, depending on whether the page
-		   is in the main name space (no ':' in title), or in a secondary 
-		   name space *)
+		(* Creates the appropriate page object, depending on
+		   whether the page is in the main name space (no ':'
+		   in title), or in a secondary name space *)
 		let p = 
 		  if String.contains !page_title ':'
 		  then factory#make_colon_page !page_id !page_title
 		  else factory#make_page !page_id !page_title
 		in
-		read_revisions p !page_id; 
+		(* Processes the revisions in the xml file. *)
+		let dump_end_time = read_revisions in_file p !page_id 0. in
+		(* If the path to a dump update has been declared,
+		   reads any additional revisions from that file. *)
+		match dump_update_path with 
+		  None -> ()
+		| Some dump_path -> begin
+		    (* Opens the file where additional revisions
+		       for the page can be found. *)
+		    match open_dump_update dump_path !page_id with
+		      Some update_file -> begin
+			(* Processes any additional revisions. *)
+			ignore (
+			  read_revisions update_file p !page_id dump_end_time);
+			(* Closes the file containing the additional
+			   revisions. *)
+			close_compressed_file update_file
+		      end
+		    | None -> ()
+		  end;
+		(* Calls the code that finishes evaluating a page. *)
+		p#eval;
+		(* Done with the page. *)
 		do_more_page := false
 	      end
 	    end 
@@ -298,16 +377,18 @@ let do_eval
 let do_single_eval 
     (factory: Page_factory.page_factory)
     (f_in: in_channel)
+    (dump_update_path: string option)
     (f_out: out_channel) = 
   factory#set_single_file f_out; 
-  do_eval factory f_in;
+  do_eval factory dump_update_path f_in;
   factory#close_out_files
 
-(* Does the evaluation on multiple files, even uncompressing them if needed. 
-   It returns the list of file names created. *)
+(* Does the evaluation on multiple files, even uncompressing them if
+   needed.  It returns the list of file names created. *)
 let do_multi_eval 
-    (input_files: string Vec.t) 
     (factory: Page_factory.page_factory)
+    (input_files: string Vec.t) 
+    (dump_update_path: string option)
     (working_dir: string) 
     (unzip_cmd: string)
     (continue: bool) : unit =
@@ -315,11 +396,13 @@ let do_multi_eval
     (* We must set in_file, out_file *) 
     let in_file = Vec.get file_idx input_files in 
     let local_in_file = try 
-	let pos_slash = Str.search_backward (Str.regexp "/") in_file ((String.length in_file) - 1)
+	let pos_slash = Str.search_backward (Str.regexp "/") 
+	  in_file ((String.length in_file) - 1)
 	in Str.string_after in_file pos_slash
       with Not_found -> in_file in 
     let base_name = try 
-	let pos_xml = Str.search_forward (Str.regexp ".xml") local_in_file 0 
+	let pos_xml = Str.search_forward (Str.regexp ".xml") 
+	  local_in_file 0 
 	in Str.string_before local_in_file pos_xml
       with Not_found -> local_in_file in 
     (* Opens the output files *)
@@ -332,28 +415,16 @@ let do_multi_eval
 	  if Str.last_chars in_file 4 <> ".xml" then begin 
 	    (* We need to uncompress the file *)
 	    use_decomp := true;
-	    let forked = ref false in 
-	    while not !forked do begin 
-	      forked := begin 
-		try 
-		  in_f := Unix.open_process_in (unzip_cmd ^ " " ^ in_file); 
-		  true
-		with Unix.Unix_error (Unix.EAGAIN, _, _) -> false 
-	      end
-	    end done; (* while *)
-	    (* Waits a bit before reading from the pipe *)
-	    Unix.sleep 1
+	    in_f := open_compressed_file in_file unzip_cmd;
 	  end else in_f := open_in in_file
 	end else in_f := open_in in_file; 
 	(* Both in and out files are open.  Does the evaluation *)
-	do_eval factory !in_f;
+	do_eval factory dump_update_path !in_f;
 	(* Closes the files *)
 	factory#close_out_files; 
-
-	if !use_decomp then begin 
-	  try ignore (Unix.close_process_in !in_f) 
-	  with Unix.Unix_error (Unix.ECHILD, _, _) -> ()
-	end else close_in !in_f 
+	if !use_decomp
+	then close_compressed_file !in_f
+	else close_in !in_f 
       end
     with x -> begin 
       Printf.fprintf stderr "Error while processing input %s\n" in_file; 

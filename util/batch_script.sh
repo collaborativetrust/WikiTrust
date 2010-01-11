@@ -74,6 +74,17 @@ rm -rf /home/luca/wiki-data/enwork/sql/*
     -d ~/wiki-data/test/sql \
     /home/luca/wiki-data/itwiki/individual/000/wiki-00000037.xml.gz
 
+# Generating the colored pages and the sql file for batch-online, reading
+# some revisions from a continuation:
+./evalwiki -trust_for_online \
+    -historyfile ~/wiki-data/enwork/reps/rep_history.txt \
+    -blob_base_path ~/wiki-data/enwork/blobtree \
+    -dump_update_path ~/wiki-data/test-addendum/add-00100000 \
+    -n_sigs 8 \
+    -robots ~/wiki-data/wp_bots.txt \
+    -d ~/wiki-data/enwork/sql \
+    /home/luca/wiki-data/test-addendum/wiki-00100000-trunc.xml.gz
+
 # For profiling:
 ./evalwiki -trust_for_online \
     -historyfile ~/wiki-data/itwiki/rep_history.txt \

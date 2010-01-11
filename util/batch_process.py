@@ -96,7 +96,8 @@ def compute_stats(descr):
     for f in in_file_list:
         in_file_str += f + " "
     cmd = (opt["nice"] + opt["cmd_dir"] + 
-           "/evalwiki -compute_stats -d " + dest_dir + in_file_str)
+           "/evalwiki -compute_stats " + opt["dump_update_path"] +
+           " -d " + dest_dir + in_file_str)
     dodo(cmd)
 
 # Sorts the reduced statistics. 
@@ -111,9 +112,7 @@ def sort_stats(opt):
 def compute_reps(opt):
     cmd = (opt["nice"] + opt["cmd_dir"] + "/generate_reputation -u " + 
            opt["rep_file"] + " -buckets " + opt["bucket_dir"] + 
-           "/ -write_final_reps")
-    if "robots" in opt:
-        cmd += " -robots " + opt["robots"] 
+           "/ -write_final_reps" + opt["robots"])
     # We don't want to print the extensive output of computerep.
     print cmd
     commands.getoutput(cmd)
@@ -129,9 +128,8 @@ def compute_trust(descr):
         in_file_str += f + " "
     cmd = (opt["nice"] + opt["cmd_dir"] + 
            "/evalwiki -trust_for_online -historyfile " + opt["rep_file"] + 
-           " -blob_base_path " + opt["blobs_dir"] + " -n_sigs 8")
-    if "robots" in opt:
-        cmd += " -robots " + opt["robots"]
+           opt["dump_update_path"] + " -blob_base_path " + 
+           opt["blobs_dir"] + " -n_sigs 8 " + opt["robots"])
     cmd += " -d " + dest_dir + in_file_str
     dodo(cmd)
 
@@ -144,6 +142,8 @@ def usage():
     print "--robots <file>: file containing robots to exclude from evaluation"
     print "--n_cores <int>: number of processor cores to use (default: all)"
     print "--nice: nice the long-running processes"
+    print "--dump_update_path <dir>: directory where a tree of revision"
+    print "                          updates is rooted."
     print "--cleanup: remove results once they are used. This is used only"
     print "           if none of the do_... options below is specified."
     print "    If some of the following options are specified,"
@@ -164,6 +164,7 @@ def main():
                                     "decomp=",
                                     "robots=",
                                     "n_cores=",
+                                    "dump_update_path=",
                                     "nice",
                                     "cleanup",
                                     "do_split",
@@ -184,6 +185,9 @@ def main():
     options["n_pages_per_chunk"] = "100"
     options["decompression"] = "7za e -so"
     options["cmd_dir"] = os.getcwd()
+    # Some options are init to empty, and filled in only if present.
+    options["robots"] = ""
+    options["dump_update_path"] = ""
     # Options on which parts to do.
     do_split = False
     do_compute_stats = False
@@ -202,7 +206,7 @@ def main():
         elif o == "--cmd_dir":
             options["cmd_dir"] = a
         elif o == "--robots":
-            options["robots"] = a
+            options["robots"] = " -robots " + a
         elif o == "--do_split":
             do_split = True
         elif o == "--do_compute_stats":
@@ -219,6 +223,8 @@ def main():
             options["n_cores"] = int(a)
         elif o == "--nice":
             options["nice"] = "nice "
+        elif o == "--dump_update_path":
+            options["dump_update_path"] = " -dump_update_path " + a
         else:
             usage()
             sys.exit(2)

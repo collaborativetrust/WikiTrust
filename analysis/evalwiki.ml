@@ -1,6 +1,7 @@
 (*
 
 Copyright (c) 2007-2008 The Regents of the University of California
+Copyright (c) 2009 Google Inc
 All rights reserved.
 
 Authors: Luca de Alfaro, B. Thomas Adler, Vishwanath Raman, Ian Pye
@@ -57,6 +58,8 @@ let remote_host = ref ""
 let set_remote_host_cmd s = remote_host := s  
 let times_to_loop = ref 1
 let set_times_to_loop_cmd t = times_to_loop := t
+let dump_update_path = ref None
+let set_dump_update_path (s: string) = dump_update_path := Some s
 let loop_until_done = ref false
 let single_out = ref ""
 let set_single_out s = begin 
@@ -71,6 +74,7 @@ let command_line_format =
    ("-si", Arg.String set_single_out, "<file>: Uses stdin as input, and directs the output to the single file named <file>.  The [input_files] arguments are discarded");
    ("-unzip", Arg.String set_unzip_cmd, "<cmd>: Command to unzip the input wiki xml files (default: gunzip -c)");
    ("-continue", Arg.Set continue, "do not stop for errors on single input files");
+   ("-dump_update_path", Arg.String set_dump_update_path, "<dir>: Path to the root directory of a tree of revisions to be analyzed, after the revisions in the main dump are analyzed.  The tree of revisions muse be in this form: for page xxxyyyzzzuuu, we can find in file <dir>/xxx/yyy/zzz/xxxyyyzzzuuu.gz any additional revisions, each enclosed in <revision> ... </revision> tags.");
   ] 
   @ factory#get_arg_parser
 
@@ -80,10 +84,10 @@ let _ = Arg.parse command_line_format set_input_files "Usage: evalwiki [input_fi
 
 if !use_stdin then begin 
   let f_out = open_out !single_out in 
-  Do_eval.do_single_eval factory stdin f_out;
+  Do_eval.do_single_eval factory stdin !dump_update_path f_out;
   close_out f_out
 end
-else Do_eval.do_multi_eval !input_files factory !working_dir 
+else Do_eval.do_multi_eval factory !input_files !dump_update_path !working_dir 
   !unzip_cmd !continue;;
  
 

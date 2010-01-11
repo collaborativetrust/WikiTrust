@@ -1,6 +1,7 @@
 (*
 
 Copyright (c) 2007-2008 The Regents of the University of California
+Copyright (c) 2009 Google Inc
 All rights reserved.
 
 Authors: Luca de Alfaro, B. Thomas Adler, Vishwanath Raman, Ian Pye
@@ -34,15 +35,18 @@ POSSIBILITY OF SUCH DAMAGE.
  *)
 
 
-(** [do_single_eval factory in_file out_file] evaluates the xml dump
-    [in_file] via the page factory [factory], writing the resulting
-    output in [out_file]. *)
-val do_single_eval : Page_factory.page_factory -> in_channel -> out_channel -> unit
+(** [do_single_eval factory in_file dump_extension_path out_file]
+    evaluates the xml dump [in_file] via the page factory [factory],
+    using also the dump update rooted at [dump_update_path], writing
+    the resulting output in [out_file]. *)
+val do_single_eval : Page_factory.page_factory -> in_channel -> string option -> out_channel -> unit
 
-(** [do_multi_eval in_files factory working_dir unzip_cmd continue]
-    evaluates all the wiki xml dumps in [in_files], using [factory].
-    If flag [continue] is used, then it does not stop in case of
-    errors during the evaluation of one of the files. *)
+(** [do_multi_eval factory in_files dump_extension_path working_dir
+    unzip_cmd continue] evaluates all the wiki xml dumps in
+    [in_files], considering also the dump update rooted at
+    [dump_update_path], using [factory].  If flag [continue] is used,
+    then it does not stop in case of errors during the evaluation of
+    one of the files. *)
 val do_multi_eval :
-  string Vec.t -> Page_factory.page_factory -> string -> string -> bool -> unit
+  Page_factory.page_factory -> string Vec.t -> string option -> string -> string -> bool -> unit
 
