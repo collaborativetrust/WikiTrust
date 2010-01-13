@@ -59,6 +59,10 @@ POSSIBILITY OF SUCH DAMAGE.
 open Online_command_line
 open Online_types
 
+exception Timeout of (int * string) (* Child Process is taking too long *)
+
+let child_timeout_sec = 60 * 60 * 4 (* Stop trying to process a page after 4 hours. *) 
+
 (* evry batch corresponds to 50 revisions, so this will do 1000 at most. *)
 let max_batches_to_do = 20
 let max_concurrent_procs = ref 1
@@ -102,6 +106,7 @@ let _ = Arg.parse custom_line_format noop "Usage: dispatcher";;
 
 (* Store the active sub-processes *)
 let working_children = Hashtbl.create !max_concurrent_procs
+let working_pid2page_id = Hashtbl.create !max_concurrent_procs
 
 (* Prepares the database connection information *)
 let mediawiki_db = {
@@ -150,14 +155,14 @@ in
    This function cleans out the hashtable working_children, removing all of the 
    entries which correspond to child processes which have stopped working.
 *)
-let check_subprocess_termination (page_id: int) (process_id: int) = 
-  let stat = Unix.waitpid [Unix.WNOHANG] process_id in
+let check_subprocess_termination (page_id: int) ((process_id: int), (started_on: float)) = 
+    let stat = Unix.waitpid [Unix.WNOHANG] process_id in
     begin
       match (stat) with
-	(* Process not yet done. *)
+        (* Process not yet done. *)
       | (0,_) -> () 
-	  (* Otherwise, remove the process. *)
-	  (* TODO(Luca): release the db lock! *)
+        (* Otherwise, remove the process. *)
+        (* TODO(Luca): release the db lock! *)
       | (_, Unix.WEXITED s) 
       | (_, Unix.WSIGNALED s) 
       | (_, Unix.WSTOPPED s) -> Hashtbl.remove working_children page_id
@@ -177,6 +182,21 @@ let render_rev (rev_id : int) (page_id : int) (db : Online_db.db) : unit =
     Memcached.close_connection cache
 in
 
+(** Handle child process timeouts. *)
+let sigalrm_handler = Sys.Signal_handle 
+  (fun _ -> 
+    let (page_id, page_title) = Hashtbl.find working_pid2page_id (Unix.getpid ()) in
+    let child_dbh = Mysql.connect mediawiki_db in
+    let child_db = Online_db.create_db !use_exec_api !db_prefix child_dbh
+      None !mw_db_name !wt_db_rev_base_path
+      !wt_db_blob_base_path !dump_db_calls
+    in
+    child_db#mark_page_as_processed page_id page_title 0;
+    child_db#close;
+    raise (Timeout (page_id, page_title))
+  ) 
+in
+
 (** [process_page page_id] is a child process that processes a page
     with [page_id] as id. *)
 let process_page (page_id: int) (page_title: string) = 
@@ -190,6 +210,9 @@ let process_page (page_id: int) (page_title: string) =
     child_global_dbh !mw_db_name !wt_db_rev_base_path 
     !wt_db_blob_base_path !dump_db_calls 
   in
+  (* Timeout after not getting anywhere. *) 
+  ignore (Unix.alarm child_timeout_sec);
+  Sys.set_signal Sys.sigalrm sigalrm_handler;
   let pages_downloaded = ref 0 in
   let processed_well = ref false in
   let times_tried = ref 0 in
@@ -231,11 +254,7 @@ let process_page (page_id: int) (page_title: string) =
     );
   done;
   (* Marks the page as processed. *)
-  (if !processed_well then
-    child_db#mark_page_as_processed page_id page_title !pages_downloaded
-  else (* Or to try doing this guy again. *)
-    child_db#mark_page_as_unprocessed page_id 
-  );
+  child_db#mark_page_as_processed page_id page_title !pages_downloaded;
   child_db#close; (* Release any locks still held. *)
   (* End of page processing. *)
   Printf.printf "Done with %s.\n" page_title; flush_all ();
@@ -263,7 +282,8 @@ let dispatch_page (pages : (int * string) list) =
 	end
       | _ -> begin
 	  logger#log (Printf.sprintf "Parent of pid %d\n" new_pid);  
-	  Hashtbl.add working_children page_id (new_pid)
+	  Hashtbl.add working_children page_id ((new_pid), (Unix.time ()));
+          Hashtbl.add working_pid2page_id new_pid (page_id, page_title) 
 	end
     end  (* if the page is already begin processed *)
   end in
