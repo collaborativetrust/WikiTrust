@@ -103,6 +103,15 @@ rm -rf /home/luca/wiki-data/enwork/sql/*
     -d ~/wiki-data/test/sql \
     /home/luca/wiki-data/segments/wiki-00000200.xml.gz 
 
+# Some enwiki profiling:
+./evalwiki -trust_for_online \
+    -historyfile ~/wiki-data/itwiki/rep_history.txt \
+    -blob_base_path ~/wiki-data/test/blobtree \
+    -n_sigs 8 \
+    -robots ~/wiki-data/wp_bots.txt \
+    -d ~/wiki-data/test/sql \
+    /home/luca/wiki-data/enwiki/wiki-00001000.xml.gz
+
 # and also for debugging:
 ./evalwiki -trust_for_online \
     -historyfile ~/wiki-data/itwiki/rep_history.txt \
