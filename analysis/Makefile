@@ -49,7 +49,7 @@ SUFFIXES= .ml .cmo .cmi .cmx
 OCAMLDEBUG = -g
 
 # For native code profiling
-# PROFILE = -p film
+# PROFILE = -g -p
 # Avoid profiling
 PROFILE =
 

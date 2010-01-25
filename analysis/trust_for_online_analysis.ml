@@ -53,6 +53,10 @@ open Sexplib.Conv
 open Sexplib.Sexp
 open Sexplib
 
+(* Max age of a chunk, in seconds. *)
+let max_chunk_age_time = 3600. *. 24. *. 30.;;
+let max_chunk_age_revisions = 25;;
+
 (* This is the function that sexplib uses to convert floats *)
 Sexplib.Conv.default_string_of_float := (fun n -> Printf.sprintf "%.3f" n);;
 
@@ -108,6 +112,10 @@ object(self)
     val mutable chunks_author_a : string array array = [| [| |] |]
       (* This array keeps track of the author sigs *)
     val mutable chunks_sig_a : Author_sig.packed_author_signature_t array array = [| [| |] |]
+      (* Chunk ages, in n. of revisions *)
+    val mutable chunks_age_revisions_a : int array = [| |]
+      (* Chunk ages, in time *)
+    val mutable chunks_age_time_a :  float array = [| |]
       (* Writer for blobs *)
     val blob_writer = new Revision_writer.writer 
       page_id None (Some colored_base_path) None false
@@ -261,6 +269,48 @@ object(self)
       end done (* loop over preceding revisions *)
 
 
+    (** Updates the age of deleted chunks.  We keep track of the age, to
+	avoid keeping chunks that are too old: it would make the analysis of pages
+	with a long revision history rather inefficient. 
+        The function returns the computed ages as a pair of arrays, the first array
+        describing the age of the chunks in n. of past revisions, the second describing
+        the age of the chunks in number of seconds. *)
+    method private compute_chunk_age 
+      (new_chunks_a: word array array) 
+      (medit_l: Editlist.medit list) : (int array * float array) =
+      (* First produces the empty age arrays.  Note that the initialization for
+         element 0, which is not changed in the following, is the correct one. *)
+      let l = Array.length new_chunks_a in
+      let age_revisions_a = Array.make l 0 in
+      let age_time_a = Array.make l 0. in
+      (* If we are at the first revisions, then the ages are all 0. *)
+      let rev_idx = (Vec.length revs) - 1 in 
+      if rev_idx > 0 then begin
+	(* If we are at a subsequent revision, then first figures out the length
+	   of time since the previous revision. *)
+	let rev = Vec.get rev_idx revs in 
+	let rev_time = rev#get_time in 
+	let prev_rev = Vec.get (rev_idx - 1) revs in
+	let prev_time = prev_rev#get_time in
+	let delta_time = max 0. (rev_time -. prev_time) in
+	(* Updates the ages of the chunks, using medit_l *)
+	let update_revision_age : Editlist.medit -> unit = function
+	    Editlist.Mins (_, _) -> ()
+	  | Editlist.Mdel (_, _, _) -> ()
+	  | Editlist.Mmov (_, src_idx, _, dst_idx, _) -> begin 
+            (* if the destination is a dead chunk *)
+              if dst_idx > 0 then begin 
+		age_revisions_a.(dst_idx) <- 1 + chunks_age_revisions_a.(src_idx);
+		age_time_a.(dst_idx) <- delta_time +. chunks_age_time_a.(src_idx)
+	      end
+	    end
+	in 
+	List.iter update_revision_age medit_l;
+      end;
+      (* All done! *)
+      (age_revisions_a, age_time_a)
+
+
     (** Processes a new revision, computing trust, author, and origin, 
 	and outputting:
 	- The colored revision text, compressed, in the filesystem, if 
@@ -317,6 +367,11 @@ object(self)
 	  trust_coeff_cut_rep_radius read_all read_part 
 	  trust_coeff_local_decay 
       in
+      (* Computes the age of the new deleted chunks.  We can do this now, since
+         it is the chunks that derive from the comparison with the preceding page
+         that will be kept. *)
+      let (new_chunks_age_revisions_a, new_chunks_age_time_a) =
+	self#compute_chunk_age new_chunks_10_a medit_10_l in
       (* We check if there is some recent revision closer than the 
 	 immediately preceding one. *)
       let closest_idx = ref (rev_idx - 1) in
@@ -369,6 +424,7 @@ object(self)
         (* Analyzes this different chunk setup *)
         let (new_chunks_20_a, medit_20_l) = 
 	  Chdiff.text_tracking chunks_dual_a new_wl in 
+
 	(* Computes origin *)
 	let (new_origin_20_a, new_author_20_a) = 
 	  Compute_robust_trust.compute_origin 
@@ -389,7 +445,7 @@ object(self)
         in
         (* The trust of each word is the max of the trust under both edits;
 	   the signature is the signature of the max. *)
-        for i = 0 to Array.length (new_trust_10_a.(0)) - 1 do
+        for i = 0 to (Array.length (new_trust_10_a.(0))) - 1 do
 	  if new_trust_20_a.(0).(i) > new_trust_10_a.(0).(i) then begin 
 	    new_trust_10_a.(0).(i) <- new_trust_20_a.(0).(i); 
 	    new_sigs_10_a.(0).(i)  <- new_sigs_20_a.(0).(i)
@@ -401,24 +457,55 @@ object(self)
 	   _10 variables that contain the correct values of trust and author 
 	   signatures. *)
 
-      (* Replaces the chunks for the next iteration *)
-      chunks_trust_a  <- new_trust_10_a;
-      chunks_origin_a <- new_origin_10_a; 
-      chunks_author_a <- new_author_10_a;
-      chunks_sig_a    <- new_sigs_10_a;
-      chunks_a        <- new_chunks_10_a;
-      (* Also notes in the revision the reputations and the origins,
+      (* Notes in the revision the reputations and the origins,
 	 as well as the author_sigs. *)
-      rev#set_word_trust  chunks_trust_a.(0);
-      rev#set_word_origin chunks_origin_a.(0);
-      rev#set_word_author chunks_author_a.(0);
-      rev#set_word_sig    chunks_sig_a.(0);
+      rev#set_word_trust  new_trust_10_a.(0);
+      rev#set_word_origin new_origin_10_a.(0);
+      rev#set_word_author new_author_10_a.(0);
+      rev#set_word_sig    new_sigs_10_a.(0);
 
       (* Outputs the colored text to the blob. *)
       blob_id <- blob_writer#write_revision rev#get_id rev#get_colored_text;
       (* Now we have to write the metadata for sql. *)
-      self#write_wikitrust_revision_sql rev
+      self#write_wikitrust_revision_sql rev;
 
+      (* Replaces the chunks for the next iteration, filtering away those that
+         are too old.  To this end, we first create destination lists. *)
+      let chunks_trust_l         = ref [] in
+      let chunks_origin_l        = ref [] in
+      let chunks_author_l        = ref [] in
+      let chunks_sig_l           = ref [] in
+      let chunks_l               = ref [] in
+      let chunks_age_revisions_l = ref [] in
+      let chunks_age_time_l      = ref [] in
+      (* The function young_enough tells us whether chunk i is young enough *)
+      let young_enough (i: int) : bool =
+	(* The live chunk is always included. *)
+	(i = 0) || 
+	  (new_chunks_age_revisions_a.(i) <= max_chunk_age_revisions) ||
+	  (new_chunks_age_time_a.(i) <= max_chunk_age_time) 
+      in
+      for i = 0 to (Array.length new_chunks_10_a) - 1 do begin
+	if (young_enough i) then begin
+	  chunks_trust_l         := new_trust_10_a.(i)  :: !chunks_trust_l;
+	  chunks_origin_l        := new_origin_10_a.(i) :: !chunks_origin_l;
+	  chunks_author_l        := new_author_10_a.(i) :: !chunks_author_l;
+	  chunks_sig_l           := new_sigs_10_a.(i)   :: !chunks_sig_l;
+	  chunks_l               := new_chunks_10_a.(i) :: !chunks_l;
+	  chunks_age_revisions_l := new_chunks_age_revisions_a.(i) :: !chunks_age_revisions_l;
+	  chunks_age_time_l      := new_chunks_age_time_a.(i)      :: !chunks_age_time_l;
+	end
+      end done;
+
+      (* Converts the lists to arrays, reversing them. *)
+      chunks_trust_a     <- Array.of_list (List.rev !chunks_trust_l);
+      chunks_origin_a    <- Array.of_list (List.rev !chunks_origin_l);
+      chunks_author_a    <- Array.of_list (List.rev !chunks_author_l);
+      chunks_sig_a       <- Array.of_list (List.rev !chunks_sig_l);
+      chunks_a           <- Array.of_list (List.rev !chunks_l);
+      chunks_age_revisions_a <- Array.of_list (List.rev !chunks_age_revisions_l);
+      chunks_age_time_a <- Array.of_list (List.rev !chunks_age_time_l);
+      
 
     (** This method is called to add a new revision to be evaluated
         for trust.  Note that here, we do analyze revisions, even
