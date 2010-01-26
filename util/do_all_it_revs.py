@@ -7,8 +7,8 @@
 import commands, sys
 
 source_prefix = "/store/itwiki/split-wiki/"
-sql_prefix    = "/store/itwiki/sql/"
-blob_prefix   = "/store/itwiki/blobs/"
+sql_prefix    = "/raid/itwiki/sql/"
+blob_prefix   = "/raid/itwiki/blobs/"
 cmd_dir       = "/cse/faculty/luca/gaston/WikiTrust/analysis/"
 history_file  = "/store/itwiki/rep_history.txt"
 robots_file   = "/store/itwiki/wp_bots.txt"
