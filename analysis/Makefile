@@ -49,10 +49,9 @@ SUFFIXES= .ml .cmo .cmi .cmx
 OCAMLDEBUG = -g
 
 # For native code profiling
-# PROFILE = -g -p
+# PROFILE = -p
 # Avoid profiling
 PROFILE =
-
 
 # Flags for commands, depending on optimization/debugging
 OCAML_CFLAGS=$(INCLUDES) $(OCAMLDEBUG)
