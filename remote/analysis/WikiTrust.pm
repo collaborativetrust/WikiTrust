@@ -359,7 +359,7 @@ sub handle_deletepage {
   # Get the page_title.
   # We need to make sure we get the actual page title, as this is currently the only
   # way to get the page_title entry column wikitrust_page to be correct.
-  my $sth = $dbh->prepare ("SELECT page_id,page_title FROM wikitrust_page WHERE page_id = ?") 
+  my $sth = $dbh->prepare ("SELECT page_title FROM wikitrust_page WHERE page_id = ?") 
     || die $dbh->errstr;
   $sth->execute($page) || die $dbh->errstr;
   if (my $title = $sth->fetchrow_hashref()){
