@@ -111,4 +111,5 @@ let close_connection self =
   Unix.close self.sock
     
 let make_revision_text_key (rev_id : int) (db_name : string) : string =
+  (* TODO(Bo): Doesn't this key need to match WikiTrust.pm line 460? *)
   Printf.sprintf "%s:revisiontext:revid:%d" db_name rev_id
