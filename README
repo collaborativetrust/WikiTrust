@@ -243,6 +243,7 @@ Follow these instructions in place of step 2) above.
 
           godi-extlib
           godi-findlib
+	  godi-json-static
 	  godi-json-wheel
           godi-ocaml-mysql
 	  godi-ocamlnet
