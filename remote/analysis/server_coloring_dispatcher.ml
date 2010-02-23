@@ -203,7 +203,7 @@ let process_page (page_id: int) (page_title: string) =
     !wt_db_blob_base_path !dump_db_calls 
   in
   (* Setup an alarm so we can timeout if taking too long *)
-  let sigalrm_oldhandler = Sys.set_signal Sys.sigalrm sigalrm_handler in
+  let sigalrm_oldhandler = Sys.signal Sys.sigalrm sigalrm_handler in
   let sigalrm_reset () = Sys.set_signal Sys.sigalrm sigalrm_oldhandler in
   let pages_downloaded = ref 0 in
   let processed_well = ref false in
