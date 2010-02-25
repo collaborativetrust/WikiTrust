@@ -183,11 +183,7 @@ let render_rev (rev_id : int) (page_id : int) (db : Online_db.db) : unit =
 in
 
 (** Handle child process timeouts. *)
-let sigalrm_handler = Sys.Signal_handle 
-  (fun _ -> 
-    raise Timeout
-  ) 
-in
+let sigalrm_handler = Sys.Signal_handle (fun _ -> raise Timeout) in
 
 (** [process_page page_id] is a child process that processes a page
     with [page_id] as id. *)
@@ -204,7 +200,10 @@ let process_page (page_id: int) (page_title: string) =
   in
   (* Setup an alarm so we can timeout if taking too long *)
   let sigalrm_oldhandler = Sys.signal Sys.sigalrm sigalrm_handler in
-  let sigalrm_reset () = Sys.set_signal Sys.sigalrm sigalrm_oldhandler in
+  let sigalrm_reset () = begin
+    ignore (Unix.alarm 0);
+    Sys.set_signal Sys.sigalrm sigalrm_oldhandler;
+  end in
   let pages_downloaded = ref 0 in
   let processed_well = ref false in
   let times_tried = ref 0 in
