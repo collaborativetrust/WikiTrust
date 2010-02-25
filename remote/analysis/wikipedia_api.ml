@@ -435,7 +435,7 @@ let rec download_page_starting_with (db: Online_db.db) (title: string)
   let (wiki_page, wiki_revs, next_rev) = get_revs_from_api (Title_Selector title) last_rev 50 in
   begin
     store_wiki_revs db wiki_page wiki_revs;
-    let _ = Unix.sleep sleep_time_sec in
+    Unix.sleep sleep_time_sec;
     match next_rev with
       | Some next_id -> begin
 	  if next_id = prev_last_rev then begin
@@ -455,22 +455,22 @@ let rec download_page_starting_with_from_id (db: Online_db.db) (page_id: int)
     begin
       let n_new_revs_downloaded = List.length wiki_revs in
 	store_wiki_revs db wiki_page wiki_revs;
-	let _ = Unix.sleep sleep_time_sec in
-	  match next_rev with
-	    | Some next_id -> begin
-		if next_id = prev_last_rev then (
-		  !logger#log (Printf.sprintf 
-		      "Not making forward progress -- giving up");
-		  n_revs_downloaded
-		) else (
-		  !logger#log (Printf.sprintf 
-		      "Loading next batch: %d -> %d\n" 
-		      page_id next_id);
-		  download_page_starting_with_from_id db page_id next_id 
-		    last_rev (n_revs_downloaded + n_new_revs_downloaded)
-		)
-	      end
-	    | None -> (n_revs_downloaded + n_new_revs_downloaded)
+	Unix.sleep sleep_time_sec;
+	match next_rev with
+	  | Some next_id -> begin
+	      if next_id = prev_last_rev then (
+		!logger#log (Printf.sprintf 
+		    "Not making forward progress -- giving up");
+		n_revs_downloaded
+	      ) else (
+		!logger#log (Printf.sprintf 
+		    "Loading next batch: %d -> %d\n" 
+		    page_id next_id);
+		download_page_starting_with_from_id db page_id next_id 
+		  last_rev (n_revs_downloaded + n_new_revs_downloaded)
+	      )
+	    end
+	  | None -> (n_revs_downloaded + n_new_revs_downloaded)
     end
 
 (** Downloads all revisions of a page, given the title, and sticks them into the db. *)
