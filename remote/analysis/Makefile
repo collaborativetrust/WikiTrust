@@ -106,7 +106,7 @@ fetch_all_revs_after: $(OUR_ONLINE_OBJS) fetch_all_revs_after.ml
 fetch_all_revs_afteropt: $(OUR_OPT_ONLINE_OBJS) fetch_all_revs_after.ml
 	$(OCAMLOPT) -linkpkg -o fetch_all_revs_after $(OCAMLOPT_FLAGS) $(OUR_LIBS_OPT) $(OUR_OPT_ONLINE_OBJS) fetch_all_revs_after.ml
 
-dispatcher: $(OUR_ONLINE_OBJS) 	
+dispatcher: $(OUR_ONLINE_OBJS) server_coloring_dispatcher.ml
 	$(OCAMLC) -linkpkg -o dispatcher $(OCAML_CFLAGS) $(OUR_LIBS) $(OUR_ONLINE_OBJS) server_coloring_dispatcher.ml 
 
 dispatcheropt: $(OUR_OPT_ONLINE_OBJS)
