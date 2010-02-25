@@ -68,11 +68,6 @@ let max_batches_to_do = 20
 let max_concurrent_procs = ref 1
 let set_max_concurrent_procs m = max_concurrent_procs := m 
 let sleep_time_sec = 1
-let memcached_host = ref "localhost"
-let set_memcached_host h = memcached_host := h
-let memcached_port = ref 11211
-let set_memcached_port p = memcached_port := p
-let render_last_rev = ref false
 
 (* All-wiki DB *)
 let global_db_user = ref "wikiuser"
@@ -90,9 +85,6 @@ let set_global_db_prefix d = global_db_prefix := d
 
 let custom_line_format = [
   ("-concur_procs", Arg.Int set_max_concurrent_procs, "<int>: Number of pages to process in parellel.");
-  ("-memcached_host", Arg.String set_memcached_host, "<string>: memcached server (default localhost)");
-  ("-memcached_port", Arg.Int set_memcached_port, "<int>: memcached port (default 11211).");
-  ("-render_last_rev", Arg.Set render_last_rev, "render the most current rev and save it in memcached.");
   ("-global_db_prefix", Arg.String set_global_db_prefix, "<string>: All wiki Database table prefix (default: none)");
   ("-global_db_user", Arg.String set_global_db_user, "<string>: All wiki DB username (default: wikiuser)");
   ("-global_db_name", Arg.String set_global_db_name, "<string>: All wiki DB name (default: wikidb)");
@@ -168,22 +160,6 @@ let check_subprocess_termination (page_id: int) ((process_id: int), (started_on:
       | (_, Unix.WSTOPPED s) -> Hashtbl.remove working_children page_id
     end
 in
-  
-(** Renders the last revision of the given page and puts it into memcached. *)
-let render_rev (rev_id : int) (page_id : int) (db : Online_db.db) : unit =
-  let (_, _, blob_id) = db#read_wikitrust_revision rev_id in
-  let rev_text = db#read_colored_markup page_id rev_id blob_id in
-  let raw_rendered_text = Wikipedia_api.render_revision rev_text in
-  let rendered_text = Renderer.render raw_rendered_text in
-  let cache = Memcached.open_connection !memcached_host !memcached_port in
-    Memcached.add cache (Memcached.make_revision_text_key rev_id 
-      !Online_command_line.mw_db_name) 
-      rendered_text;
-    Memcached.close_connection cache
-in
-
-(** Handle child process timeouts. *)
-let sigalrm_handler = Sys.Signal_handle (fun _ -> raise Timeout) in
 
 (** [process_page page_id] is a child process that processes a page
     with [page_id] as id. *)
@@ -198,12 +174,6 @@ let process_page (page_id: int) (page_title: string) =
     child_global_dbh !mw_db_name !wt_db_rev_base_path 
     !wt_db_blob_base_path !dump_db_calls 
   in
-  (* Setup an alarm so we can timeout if taking too long *)
-  let sigalrm_oldhandler = Sys.signal Sys.sigalrm sigalrm_handler in
-  let sigalrm_reset () = begin
-    ignore (Unix.alarm 0);
-    Sys.set_signal Sys.sigalrm sigalrm_oldhandler;
-  end in
   let pages_downloaded = ref 0 in
   let processed_well = ref false in
   let times_tried = ref 0 in
@@ -231,8 +201,6 @@ let process_page (page_id: int) (page_title: string) =
 	  (* Brings the page up to date.  This will take care also of the page 
 	     lock. *)
 	  processor#update_page_fast page_id;
-	  (* Renders the last revision of this page and stores it in memcached. *)
-	  if !render_last_rev then render_rev (db#get_latest_rev_id_from_id page_id) page_id db;
 	  processed_well := true
 	) () with
       | Wikipedia_api.API_error e -> (
@@ -240,21 +208,14 @@ let process_page (page_id: int) (page_title: string) =
 	    e page_id page_title (Printexc.to_string (Wikipedia_api.API_error 
 	    e));
 	)
-      | Timeout -> raise Timeout
       | _ -> begin  (* Handle everything else generically here. *)
 	  Printf.eprintf "Other Error: On %d %s\n" page_id page_title;
 	  child_db#delete_revs_for_page page_id;
 	end
       );
     done;
-    sigalrm_reset ();
-  with Timeout -> begin
-    sigalrm_reset ();
-    child_db#rollback_transaction;
-    Printf.eprintf "Timeout on <%d>%s\n" page_id page_title;
-  end
+    with
   | exc -> begin
-    sigalrm_reset ();
     child_db#rollback_transaction;
     Printf.eprintf "Unhandled exception: %s, on <%d>%s\n"
       (Printexc.to_string exc) page_id page_title;
