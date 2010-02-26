@@ -59,8 +59,6 @@ POSSIBILITY OF SUCH DAMAGE.
 open Online_command_line
 open Online_types
 
-exception Timeout (* Child Process is taking too long *)
-
 let child_timeout_sec = 60 * 60 * 4 (* Stop trying to process a page after 4 hours. *) 
 
 (* evry batch corresponds to 50 revisions, so this will do 1000 at most. *)
@@ -177,7 +175,6 @@ let process_page (page_id: int) (page_title: string) =
   let pages_downloaded = ref 0 in
   let processed_well = ref false in
   let times_tried = ref 0 in
-  try
     ignore (Unix.alarm child_timeout_sec);
     while (not !processed_well) && (!times_tried < !times_to_retry_trans) do
       times_tried := !times_tried + 1;
@@ -214,12 +211,6 @@ let process_page (page_id: int) (page_title: string) =
 	end
       );
     done;
-    with
-  | exc -> begin
-    child_db#rollback_transaction;
-    Printf.eprintf "Unhandled exception: %s, on <%d>%s\n"
-      (Printexc.to_string exc) page_id page_title;
-  end;
   (* Marks the page as processed. *)
   child_db#mark_page_as_processed page_id page_title !pages_downloaded;
   child_db#close; (* Release any locks still held. *)
