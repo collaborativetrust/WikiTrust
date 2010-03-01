@@ -175,7 +175,6 @@ let process_page (page_id: int) (page_title: string) =
   let pages_downloaded = ref 0 in
   let processed_well = ref false in
   let times_tried = ref 0 in
-  ignore (Unix.alarm child_timeout_sec);
   while (not !processed_well) && (!times_tried < !times_to_retry_trans) do
     times_tried := !times_tried + 1;
     (* If I am using the WikiMedia API, I need to first download any new
