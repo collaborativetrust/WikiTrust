@@ -59,8 +59,6 @@ POSSIBILITY OF SUCH DAMAGE.
 open Online_command_line
 open Online_types
 
-let child_timeout_sec = 60 * 60 * 4 (* Stop trying to process a page after 4 hours. *) 
-
 (* evry batch corresponds to 50 revisions, so this will do 1000 at most. *)
 let max_batches_to_do = 20
 let max_concurrent_procs = ref 1
