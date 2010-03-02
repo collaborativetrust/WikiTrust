@@ -144,17 +144,14 @@ object(self)
       let username = ml2str r#get_user_name in
       let is_minor = ml2int (if r#get_is_minor then 1 else 0) in 
       (* Quality parameters *)
-      (* I do field-by-field initialization, rather than copying the whole
-	 structure, because otherwise we get two references to the SAME
-	 structure, unfortunately. *)
       let trust_a = r#get_word_trust in
       let quality_info : qual_info_t = {
-	n_edit_judges = quality_info_default.n_edit_judges;
-	total_edit_quality = quality_info_default.total_edit_quality;
-	min_edit_quality = quality_info_default.min_edit_quality;
-	nix_bit = quality_info_default.nix_bit;
-	delta = quality_info_default.delta;
-	reputation_gain = quality_info_default.reputation_gain;
+	n_edit_judges = 0;
+	total_edit_quality = 0.;
+	min_edit_quality = 0.;
+	nix_bit = false;
+	delta = 0.;
+	reputation_gain = 0.;
 	overall_trust = Compute_robust_trust.compute_overall_trust trust_a;
 	word_trust_histogram = 
 	  Compute_robust_trust.compute_trust_histogram trust_a;
@@ -183,6 +180,8 @@ object(self)
 	db_qual_info (ml2int blob_id) aq2 db_overall_trust db_overall_quality
 	
 
+    (* TODO(Luca): take the occasion to compute the quality q of a revision, since
+       we can? *)
     (** Computes the distances between the newest revision and all previous ones. *)
     method private compute_distances : unit =
       (* gets last version *)

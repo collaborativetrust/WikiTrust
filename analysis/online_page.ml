@@ -1053,7 +1053,7 @@ class page
 	 There are two cases: 
 	 - If n_recent_revs < trust_coeff.n_revs_to_consider, this means that 
 	   among the recent revisions is also the initial revision of the page.
-	   In this case, we have to analize it, so the index of the oldest one
+	   In this case, we have to analize it, and the index of the oldest one
 	   we analize is n_recent_revs - 1.
 	   To analize this old revision, we compare with a virtual, empty 
 	   initial revision. 
@@ -1062,10 +1062,9 @@ class page
 	   others as well.
        *)
       let (include_initial_empty_rev, oldest_judged_idx) = 
-	(* The test n_revs = n_recent_revs is there just for safety *)
-	if n_recent_revs = trust_coeff.n_revs_to_consider && n_recent_revs = n_revs
-	then (false, n_recent_revs - 2)
-	else (true, n_recent_revs - 1)
+	if n_recent_revs < trust_coeff.n_revs_to_consider
+	then (true,  n_recent_revs - 1)
+	else (false, n_recent_revs - 2)
       in
       if oldest_judged_idx > 0 then begin 
 
