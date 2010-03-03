@@ -175,7 +175,7 @@ object(self)
       end;
       (* Writes the SQL for the revision. *)
       Printf.fprintf sql_file 
-	"(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+	"(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)\n"
 	rev_id page_id text_id time_string user_id username is_minor 
 	db_qual_info (ml2int blob_id) aq2 db_overall_trust db_overall_quality
 	
