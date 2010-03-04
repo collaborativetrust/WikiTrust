@@ -44,8 +44,7 @@ exception API_error_noretry of string;;
 Random.self_init ()
 
 let sleep_time_sec = 0
-let times_to_retry = 3
-let retry_delay_sec = 60
+let retry_delay_sec = 120
 
 let pipeline = new Http_client.pipeline
 let buf_len = 8192
