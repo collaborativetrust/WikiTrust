@@ -197,15 +197,18 @@ ocamldebug -I `ocamlfind query unix` -I `ocamlfind query str` \
 # To use the dispatcher:
 
 # Clean the situation:
-sudo rm -rf /home/luca/wiki-data/enwork/blobtree
+sudo rm -rf /home/luca/wiki-data/enwork/blobtree/*
 sudo rm -rf /home/luca/wiki-data/enwork/sql/*
 sudo rm -rf /home/luca/wiki-data/enwork/rev_cache/*
 # Or
-rm -rf /home/luca/wiki-data/enwork/blobtree
+rm -rf /home/luca/wiki-data/enwork/blobtree/*
 rm -rf /home/luca/wiki-data/enwork/sql/*
 rm -rf /home/luca/wiki-data/enwork/rev_cache/*
 # Then
 python load_data.py --clear_db /dev/null
+
+cat ~/wiki-data/user_reputations.txt | ~/WikiTrust/analysis/load_reputations \
+  -db_user wikiuser -db_name wikidb -db_pass localwiki
 
 # Truncate wikitrust tables preserving reputation.
 python truncate_wikitrust_keep_user.py
@@ -213,10 +216,9 @@ python truncate_wikitrust_keep_user.py
 # Launch the dispatcher
 ./dispatcher -db_user wikiuser -db_name wikidb -db_pass localwiki \
   -use_wikimedia_api -blob_base_path ~/wiki-data/enwork/blobtree \
-  -robots ~/wiki-data/wp_bots.txt \
-  -log_file /tmp/dispatcher.log \
+  -robots ~/wiki-data/wp_bots.txt   -log_file /tmp/dispatcher.log \
   -use_exec_api -wiki_api http://en.wikipedia.org/w/api.php \
-  -wikitrust_base ~/WikiTrust/remote/analysis/ \
+  -wikitrust_base ~/WikiTrust \
   -concur_procs 2  -rev_base_path ~/wiki-data/enwork/rev_cache
 
 # Or, with debugger on:
@@ -230,7 +232,8 @@ ocamldebug -I `ocamlfind query unix` -I `ocamlfind query str` \
     -use_wikimedia_api -blob_base_path ~/wiki-data/enwork/blobtree \
     -robots ~/wiki-data/wp_bots.txt \
     -log_file /tmp/dispatcher.log \
-    -use_exec_api -wiki_api http://it.wikipedia.org/w/api.php \
+    -use_exec_api -wiki_api http://en.wikipedia.org/w/api.php \
+    -wikitrust_base ~/WikiTrust \
     -concur_procs 2  -rev_base_path ~/wiki-data/enwork/rev_cache
 
 

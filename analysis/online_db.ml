@@ -997,23 +997,21 @@ object(self)
   (** Delete only the articles for 1 page, along with any cached content *)
   method delete_revs_for_page (page_id : int) : unit =
     let s1 = Printf.sprintf 
-      "DELETE FROM %swikitrust_revision WHERE page_id = %s" 
-      db_prefix 
-      (ml2int page_id) 
+      "DELETE FROM %swikitrust_revision WHERE page_id = %s" db_prefix (ml2int page_id) 
     in
-    let s2 = Printf.sprintf 
-      "DELETE FROM %spage WHERE page_id = %s" 
-      db_prefix 
-      (ml2int page_id) 
+    let s2 = Printf.sprintf
+      "DELETE FROM %swikitrust_page WHERE page_id = %s" db_prefix (ml2int page_id) 
     in
     let s3 = Printf.sprintf 
-      "DELETE FROM %srevision WHERE rev_page = %s" 
-      db_prefix 
-      (ml2int page_id) 
+      "DELETE FROM %spage WHERE page_id = %s" db_prefix (ml2int page_id) 
+    in
+    let s4 = Printf.sprintf 
+      "DELETE FROM %srevision WHERE rev_page = %s" db_prefix (ml2int page_id) 
     in
     ignore (self#db_exec mediawiki_dbh s1);
     ignore (self#db_exec mediawiki_dbh s2);
-    ignore (self#db_exec mediawiki_dbh s3)
+    ignore (self#db_exec mediawiki_dbh s3);
+    ignore (self#db_exec mediawiki_dbh s4)
 
 
   (* ================================================================ *)
@@ -1173,7 +1171,7 @@ object(self)
 	| Some r -> r
       end
    
-  (** [erase_cached_rev_text page_id rev_id rev_time_string] erases
+  (** [erase_cached_rev_text page_id] erases
       the cached text of all revisions of [page_id] *)
   method erase_cached_rev_text (page_id: int) : unit =
     match rev_base_path with

@@ -54,7 +54,7 @@ open Sexplib.Sexp
 open Sexplib
 
 (* Max age of a chunk, in seconds. *)
-let max_chunk_age_time = 3600. *. 24. *. 30.;;
+let max_chunk_age_time = 3600. *. 24. *. 10.;;
 let max_chunk_age_revisions = 25;;
 
 (* This is the function that sexplib uses to convert floats *)
@@ -143,19 +143,9 @@ object(self)
       let user_id = ml2int r#get_user_id in
       let username = ml2str r#get_user_name in
       let is_minor = ml2int (if r#get_is_minor then 1 else 0) in 
+      let r_blob_id = ml2int r#get_blob_id in
       (* Quality parameters *)
-      let trust_a = r#get_word_trust in
-      let quality_info : qual_info_t = {
-	n_edit_judges = 0;
-	total_edit_quality = 0.;
-	min_edit_quality = 0.;
-	nix_bit = false;
-	delta = 0.;
-	reputation_gain = 0.;
-	overall_trust = Compute_robust_trust.compute_overall_trust trust_a;
-	word_trust_histogram = 
-	  Compute_robust_trust.compute_trust_histogram trust_a;
-      } in
+      let quality_info : qual_info_t = r#get_quality_info in
       (* Prepares these parameters. *)
       let db_qual_info = ml2str 
 	(string_of__of__sexp_of sexp_of_qual_info_t quality_info) in 
@@ -175,13 +165,11 @@ object(self)
       end;
       (* Writes the SQL for the revision. *)
       Printf.fprintf sql_file 
-	"(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+	"(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)\n"
 	rev_id page_id text_id time_string user_id username is_minor 
-	db_qual_info (ml2int blob_id) aq2 db_overall_trust db_overall_quality
+	db_qual_info r_blob_id aq2 db_overall_trust db_overall_quality
 	
 
-    (* TODO(Luca): take the occasion to compute the quality q of a revision, since
-       we can? *)
     (** Computes the distances between the newest revision and all previous ones. *)
     method private compute_distances : unit =
       (* gets last version *)
@@ -311,12 +299,8 @@ object(self)
 
 
     (** Processes a new revision, computing trust, author, and origin, 
-	and outputting:
-	- The colored revision text, compressed, in the filesystem, if 
-	  requested.
-	- The sql code for the online system metadata.
-	- The colored revisions in an xml file. *)
-    method private eval_newest : unit = 
+	and outputting the annotated text. *)
+    method private eval_trust : unit = 
       let rev_idx = (Vec.length revs) - 1 in 
       let rev = Vec.get rev_idx revs in 
       let uid = rev#get_user_id in 
@@ -462,11 +446,15 @@ object(self)
       rev#set_word_origin new_origin_10_a.(0);
       rev#set_word_author new_author_10_a.(0);
       rev#set_word_sig    new_sigs_10_a.(0);
+      (* Sets the word trust histogram. *)
+      let word_trust_histogram = 
+	  Compute_robust_trust.compute_trust_histogram new_trust_10_a.(0) in
+      rev#set_trust_histogram word_trust_histogram;
 
-      (* Outputs the colored text to the blob. *)
+      (* Outputs the colored text to the blob... *)
       blob_id <- blob_writer#write_revision rev#get_id rev#get_colored_text;
-      (* Now we have to write the metadata for sql. *)
-      self#write_wikitrust_revision_sql rev;
+      (* ... and sets the blob_id. *)
+      rev#set_blob_id blob_id;
 
       (* Replaces the chunks for the next iteration, filtering away those that
          are too old.  To this end, we first create destination lists. *)
@@ -506,6 +494,42 @@ object(self)
       chunks_age_time_a <- Array.of_list (List.rev !chunks_age_time_l);
       
 
+    (** Updates the trust histograms of older revisions. *)
+    method private percolate_back_trust : unit = 
+      let last_rev_idx = (Vec.length revs) - 1 in
+      let rev0 = Vec.get last_rev_idx revs in 
+      let rev0_uname = rev0#get_user_name in 
+      let rev0_trust = rev0#get_word_trust in
+      (* We do something only if the revision is not by a robot. 
+	 There are so many robotic revisions that this is a valuable speed-up. *)
+      if not (is_user_a_bot robots rev0_uname) then begin
+	for old_rev_idx = 0 to last_rev_idx - 1 do begin
+	  let rev1 = Vec.get old_rev_idx revs in 
+	  (* We need to percolate the trust of rev0 back to rev1. *)
+	  (* We get the edit list from rev1 to rev0. *)
+	  let i = last_rev_idx - old_rev_idx in
+	  let rev1_trust = rev1#get_word_trust in
+	  let elist = Vec.get i rev1#get_editlist in
+	  let percolate = function 
+	      Editlist.Ins (_, _) -> ()
+	    | Editlist.Del (_, _) -> ()
+	    | Editlist.Mov (i, j, l) -> begin
+		(* l words are moved from i to j.  So we take the trust from the
+		   destination, and we apply it to the source via max. *)
+		for k = 0 to l - 1 do
+		  rev1_trust.(i + k) <- max rev1_trust.(i + k) rev0_trust.(j + k)
+		done
+	      end
+	  in List.iter percolate elist;
+	  (* Sets the new trust values. *)
+	  rev1#set_word_trust rev1_trust;
+	  (* Computes and sets the new histogram. *)
+	  let th = Compute_robust_trust.compute_trust_histogram rev1_trust in
+	  rev1#set_trust_histogram th
+	end done
+      end (* Not by anonymous. *)
+
+
     (** This method is called to add a new revision to be evaluated
         for trust.  Note that here, we do analyze revisions, even
         thought they might be from the same author.  Signatures
@@ -536,15 +560,16 @@ object(self)
       (* Computes all the distances from this new revision to the
 	 previous ones. *)
       self#compute_distances;
-      (* Evaluates the newest version *)
-      self#eval_newest; 
-      (* If the buffer is full, evaluates the oldest version and kicks
-	 it out *)
+      (* Computes the trust of the new revision. *)
+      self#eval_trust; 
+      (* Updates the trust histograms of the older revisions. *)
+      self#percolate_back_trust;
+      (* If the buffer is full, removes the oldest revisions, and writes
+	 the sql out. *)
       if (Vec.length revs) > n_sigs then begin 
-	(* The parameter 0 is the index of what is considered to be
-           the oldest.  It is used, since in no_more_revisions it may
-           be a larger number *)
-	revs <- Vec.remove 0 revs;
+	let (r, revs') = Vec.pop 0 revs in
+	revs <- revs';
+	self#write_wikitrust_revision_sql r;
 	(* increments the offset of the oldest version *)
 	offset <- offset + 1;
       end; (* if *)
@@ -607,6 +632,7 @@ object(self)
 	We need to produce the sql that contains the page information. *)
     method eval: unit = 
       (* Finishes writing the SQL for the wikitrust_revision table *)
+      Vec.iter self#write_wikitrust_revision_sql revs;
       if written_initial_sql then begin
 	Printf.fprintf sql_file ";\n"
       end;
