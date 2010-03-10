@@ -187,7 +187,9 @@ let get_default_coeff : trust_coeff_t = default_trust_coeff ;;
 type qual_info_t = {
   (** Number of times the revision has been judged *)
   mutable n_edit_judges: int; 
-  (** Total edit quality: the average is given by dividing by n_edit_judges *)
+  (** Total weight of the judges for the revision. *)
+  mutable judge_weight: float;
+  (** Total edit quality: the average is given by dividing by judge_weight *)
   mutable total_edit_quality: float;
   (** Minimum edit quality of all judgements *)
   mutable min_edit_quality: float; 

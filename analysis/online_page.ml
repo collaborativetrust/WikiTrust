@@ -1369,7 +1369,11 @@ class page
 		self#set_rep rev1_uid new_rep rev1_uname;
 
 		(* Adds quality information for the revision *)
-		rev1#add_edit_quality_info delta q (new_rep -. rev1_rep) ; 
+		(* The amount of judge_weight is equal to the reputation of rev2, 
+		   multiplied by d(rev_c2, rev1) / (20 + min (d(rev_c2, rev2), d(rev1, rev2))). *)
+		let judge_weight = rev2_weight *. d_c2_1 /. (20. +. min d_c2_2 d12) in
+
+		rev1#add_edit_quality_info delta judge_weight q (new_rep -. rev1_rep) ; 
 
 		(* For logging purposes, produces the Edit_inc line *)
 		!Online_log.online_logger#log (Printf.sprintf 

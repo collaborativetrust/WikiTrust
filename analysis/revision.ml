@@ -402,6 +402,7 @@ class trust_revision
     val mutable sep_word_idx : int array =  [| |]
     val mutable quality_info : qual_info_t = {
       n_edit_judges = 0;
+      judge_weight = 0.;
       total_edit_quality = 0.;
       min_edit_quality = 0.;
       nix_bit = false;
