@@ -245,3 +245,6 @@ INSERT INTO wikitrust_queue (page_id, page_title) VALUES (38166, "Chieri");
 ./read_revision  -db_user wikiuser -db_name wikidb -db_pass localwiki \
     -blob_base_path ~/wiki-data/enwork/blobtree \
     -rev_id 2754456
+
+# Evaluate the quality
+./eval_quality.py ~/Desktop/Good\ and\ bad\ versions\ of\ Wikipedia\ Articles.csv

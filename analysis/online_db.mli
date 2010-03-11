@@ -83,6 +83,7 @@ class db :
   string option ->    (* revision base path *)
   string option ->    (* colored revisions base path *)
   bool ->             (* debug_mode *)
+  bool ->             (* keep text cache *)
   object
 
     (* ================================================================ *)
@@ -440,4 +441,5 @@ val create_db :
   string option ->    (* revision base path *)
   string option ->    (* colored revisions base path *)
   bool ->             (* debug_mode *)
+  bool ->             (* keep text cache *)
   db
