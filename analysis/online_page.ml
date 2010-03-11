@@ -579,6 +579,7 @@ class page
 		  (* It has found some suitable zipping; uses it. *)
 		  let revm = Vec.get !best_middle_idx revs in 
 		  let revm_id = revm#get_id in 
+		  (* !Online_log.online_logger#log (Printf.sprintf "\n***DIST: To compute between %d and %d uses %d" rev1_id rev2_id revm_id); *) (* debug *)
 		  let (_, _, rev1_e) = Hashtbl.find edit_list (revm_id, rev1_id) in 
 		  let (_, _, rev2_e) = Hashtbl.find edit_list (rev2_id, revm_id) in 
 		  (* computes the distance via zipping. *)
@@ -600,7 +601,9 @@ class page
 	    (* Writes the distance in the hash table *)
 	    let d = Editlist.edit_distance edl (max rev2_l rev1_l) in 
 	    Hashtbl.add edit_dist (rev2_id, rev1_id) d; 
-	    Hashtbl.add edit_dist (rev1_id, rev2_id) d
+	    Hashtbl.add edit_dist (rev1_id, rev2_id) d;
+	    (* !Online_log.online_logger#log (Printf.sprintf "\n***DIST: Between %d and %d is %f" rev1_id rev2_id d); *) (* debug *)
+	    (* !Online_log.online_logger#log (Printf.sprintf "\n***EDIT: Between %d and %d is %s" rev1_id rev2_id (Editlist.diff_to_string edl)) *) (* debug *)
 
           end done (* for rev2_idx *)
         end done (* for rev1_idx *)

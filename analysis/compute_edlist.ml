@@ -41,6 +41,11 @@ type word = string
 let left_separator = " 1 "
 let right_separator = " 2 "
 
+(* Print an array of words *)
+let print_wa a = 
+  let f el = Printf.printf "%s " el in
+  Array.iter f a;;
+
 
 (* **************************************************************** *)
 (* Code for zipping together edit lists *)
@@ -353,13 +358,35 @@ let edit_diff_using_zipped_edits
   let (info_l, local_wl) = make_arrays_for_local_diff cl wl left_separator in 
   let (info_r, local_wr) = make_arrays_for_local_diff cr wr right_separator in 
   (* Now computes the local difference between local_wl and local_wr *)
+  (* print_string "\nLocal_wl: "; print_wa local_wl; print_string "\n"; *) (* debug *)
+  (* print_string "\nLocal_wr: "; print_wa local_wr; print_string "\n"; *) (* debug *)
   let local_diff = Chdiff.edit_diff local_wl local_wr in 
+  (* print_string "\n"; print_diff local_diff; print_string "\n"; *) (* debug *)
   (* And from the local difference, computes a global one *)
   (global_from_local_diff info_l info_r cl cr local_diff) @ zipped_diffs;;
 
 
 (* **************************************************************** *)
 (* unit testing code for difference with zipping *)
+
+if false then begin
+  (* The first list was 2035 + 131 = 2166 long; the middle was 1999 + 131 = 2130 long *)
+  let l1 = [Ins(699, 7); Del(2001, 34); Del(204, 9); Mov(0, 0, 204); Mov(213, 204, 495); 
+            Mov(708, 706, 1293); Mov(2035, 1999, 131)] in
+  (* The middle list is 2130 long, the second list is 2123 long *)
+  let l2 = [Mov(0, 0, 699); Mov(706, 699, 1424); Del(699, 7)] in
+  let lz = zip_edit_lists l1 l2 in
+  print_diff lz;
+  (* Constructs suitable arrays of words *)
+  let w1 = Array.make 2166 "" in
+  let f i _ = w1.(i) <- string_of_int i in
+  Array.iteri f w1;
+  let w2 = Array.make 2123 "" in
+  let f i _ = w2.(i) <- string_of_int i in
+  Array.iteri f w2;
+  let join_l = edit_diff_using_zipped_edits w1 w2 l1 l2 in
+  print_diff join_l; print_string "\n"
+end;;
 
 
 if false then begin
