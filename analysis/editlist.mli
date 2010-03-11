@@ -46,8 +46,7 @@ val print_diff : edit list -> unit
 
 (** This is an edit list between a chunk array, and a string. *)
 type medit =
-    Mins of int * int 
-(* right position in chunk 0, length *)
+    Mins of int * int (* right position in chunk 0, length *)
   | Mdel of int * int * int (* left position, left chunk idx, length *)
   | Mmov of int * int * int * int * int (* left position, left chunk idx, 
 					   right pos, right chunk idx, length *)

@@ -80,8 +80,8 @@ let rec mdiff_to_string l : string =
       end
   | [] -> "";;
 
-let print_diff l = Printf.printf "\n%s" (diff_to_string l);;
-let print_mdiff l = Printf.printf "\n%s" (mdiff_to_string l);;
+let print_diff l = Printf.printf "\n%s\n" (diff_to_string l);;
+let print_mdiff l = Printf.printf "\n%s\n" (mdiff_to_string l);;
 
 
 (* **************************************************************** *)
