@@ -56,33 +56,33 @@ type medit =
 
 
 (** Useful for debugging purposes *)
-let rec print_diff l = 
+let rec diff_to_string l : string = 
   match l with 
     d :: l' ->
       begin
-	begin 
-	  match d with 
-	    Ins (i, l) -> Printf.printf "\nIns %d %d" i l 
-	  | Del (i, l) -> Printf.printf "\nDel %d %d" i l 
-	  | Mov (i, j, l) -> Printf.printf "\nMov %d %d %d" i j l 
-	end;
-	print_diff l'
+	let s = match d with 
+	    Ins (i, l) -> Printf.sprintf "Ins(%d, %d) " i l 
+	  | Del (i, l) -> Printf.sprintf "Del(%d, %d) " i l 
+	  | Mov (i, j, l) -> Printf.sprintf "Mov(%d, %d, %d) " i j l 
+	in s ^ diff_to_string l'
       end
-  | [] -> Printf.printf "\n";;
+  | [] -> "";;
 
-let rec print_mdiff l = 
+let rec mdiff_to_string l : string = 
   match l with 
     d :: l' ->
-      begin
-	begin 
-	  match d with 
-	    Mins (i, l) -> Printf.printf "\nIns (%d, 0) %d" i l 
-	  | Mdel (i, k, l) -> Printf.printf "\nDel (%d, %d) %d" i k l 
-	  | Mmov (i, k, j, n, l) -> Printf.printf "\nMov (%d, %d) (%d, %d) %d" i k j n l 
-	end;
-	print_mdiff l'
+      begin 
+	let s = match d with 
+	    Mins (i, l) -> Printf.sprintf "Ins(%d, 0) %d " i l 
+	  | Mdel (i, k, l) -> Printf.sprintf "Del(%d, %d) %d " i k l 
+	  | Mmov (i, k, j, n, l) -> Printf.sprintf "Mov(%d, %d) (%d, %d) %d " i k j n l 
+	in s ^ mdiff_to_string l'
       end
-  | [] -> Printf.printf "\n";;
+  | [] -> "";;
+
+let print_diff l = Printf.printf "\n%s" (diff_to_string l);;
+let print_mdiff l = Printf.printf "\n%s" (mdiff_to_string l);;
+
 
 (* **************************************************************** *)
 (* Edit distance computation *)
