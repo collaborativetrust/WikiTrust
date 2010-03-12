@@ -218,9 +218,8 @@ python truncate_wikitrust_keep_user.py
   -use_wikimedia_api -blob_base_path ~/wiki-data/enwork/blobtree \
   -robots ~/wiki-data/wp_bots.txt   -log_file /tmp/dispatcher.log \
   -use_exec_api -wiki_api http://en.wikipedia.org/w/api.php \
-  -wikitrust_base ~/WikiTrust \
-  -concur_procs 2  -rev_base_path ~/wiki-data/enwork/rev_cache \
-  -keep_cached_text
+  -wikitrust_base ~/WikiTrust -keep_cached_text \
+  -concur_procs 2  -rev_base_path ~/wiki-data/enwork/rev_cache
 
 # Or, with debugger on:
 ocamldebug -I `ocamlfind query unix` -I `ocamlfind query str` \
@@ -234,7 +233,7 @@ ocamldebug -I `ocamlfind query unix` -I `ocamlfind query str` \
     -robots ~/wiki-data/wp_bots.txt \
     -log_file /tmp/dispatcher.log \
     -use_exec_api -wiki_api http://en.wikipedia.org/w/api.php \
-    -wikitrust_base ~/WikiTrust \
+    -wikitrust_base ~/WikiTrust -keep_cached_text \
     -concur_procs 2  -rev_base_path ~/wiki-data/enwork/rev_cache
 
 
