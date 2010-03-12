@@ -260,7 +260,7 @@ type blob_locations_t = {
 }
 
 let blob_locations = {
-  invalid_location = 0; (* A revision sig can never be here. *)
+  invalid_location = -1; (* A revision sig can never be here. *)
   sig_location = 0;
   chunks_location = 1;
   (* I use 8 as an initial location to leave a bit of space for other
