@@ -348,8 +348,7 @@ let fetch_page_and_revs_after (selector : string)
 
 
 (** [get_user_id user_name db]
-    Returns the user id of the user name if we have it,
-    or asks a web service for it if we do not.
+    Returns the user id of the user name if we have it.
 *)
 let get_user_id (user_name: string) (db: Online_db.db) : int =
   try
@@ -368,6 +367,20 @@ let get_user_id (user_name: string) (db: Online_db.db) : int =
       with
       | int_of_string -> 0
     )
+
+(** [get_remote_user_id user_name]
+    Fetches the user id from a web service.
+*)
+let get_remote_user_id (user_name: string) : int =
+  if Str.string_match ip_re user_name 0 then 0
+  else begin
+    let safe_name = Netencoding.Url.encode user_name in
+    let url = !Online_command_line.user_id_server ^ "?n=" ^ safe_name in
+    !logger#log (Printf.sprintf "userId lookup: %s\n" url);
+    let uids = ExtString.String.nsplit (get_url url) "`" in
+    let uid = List.nth uids 1 in
+    try int_of_string uid with int_of_string -> 0
+  end
 
 (**
    [get_revs_from_api page_title last_id db 0] reads

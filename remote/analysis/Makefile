@@ -75,10 +75,12 @@ OCAMLOPT_FLAGS=$(INCLUDES) $(PROFILE)
 
 universe: all allopt
 
-all: downloadwp dispatcher read_rev_text fetch_all_revs_after bot_reader \
+all: downloadwp downloadwp2xml \
+	dispatcher read_rev_text fetch_all_revs_after bot_reader \
 	read_revision
 
-allopt: downloadwpopt dispatcheropt read_rev_textopt fetch_all_revs_afteropt \
+allopt: downloadwpopt downloadwp2xmlopt \
+	dispatcheropt read_rev_textopt fetch_all_revs_afteropt \
 	bot_readeropt read_revisionopt
 
 # Here are the objects that we want to build. 
@@ -93,6 +95,13 @@ downloadwp: $(OUR_ONLINE_OBJS) downloadwp.ml
 
 downloadwpopt: $(OUR_OPT_ONLINE_OBJS) downloadwp.ml
 	$(OCAMLOPT) -linkpkg -o downloadwp $(OCAMLOPT_FLAGS) $(OUR_LIBS_OPT) $(OUR_OPT_ONLINE_OBJS) downloadwp.ml
+
+downloadwp2xml: $(OUR_ONLINE_OBJS) downloadwp2xml.ml
+	$(OCAMLC) -linkpkg -o downloadwp2xml $(OCAML_CFLAGS) $(OUR_LIBS) $(OUR_ONLINE_OBJS) downloadwp2xml.ml 
+
+downloadwp2xmlopt: $(OUR_OPT_ONLINE_OBJS) downloadwp2xml.ml
+	$(OCAMLOPT) -linkpkg -o downloadwp2xml $(OCAMLOPT_FLAGS) $(OUR_LIBS_OPT) $(OUR_OPT_ONLINE_OBJS) downloadwp2xml.ml
+
 
 read_rev_text: $(OUR_ONLINE_OBJS) read_rev_text.ml
 	$(OCAMLC) -linkpkg -o read_rev_text $(OCAML_CFLAGS) $(OUR_LIBS) $(OUR_ONLINE_OBJS) read_rev_text.ml 
