@@ -248,3 +248,30 @@ INSERT INTO wikitrust_queue (page_id, page_title) VALUES (38166, "Chieri");
 
 # Evaluate the quality
 ./eval_quality.py ~/Desktop/Good\ and\ bad\ versions\ of\ Wikipedia\ Articles.csv
+
+################################################################
+# Online system testing:
+
+# To load a wiki using mwdumper:
+cd ../test-scripts 
+python load_data.py --clear_db /home/luca/wiki-data/enwiki/wiki-00100000.xml /home/luca/wiki-data/enwiki/wiki-00100220.xml
+
+# To clear the old wikitrust information (keeping the user information):
+python truncate_wikitrust_keep_user.py
+
+# To use the online system to do the coloring:
+# Call for vote processing.
+./eval_online_wiki \
+  -db_user wikiuser -db_pass localwiki -db_name wikidb \
+  -blob_base_path /home/luca/wiki-data/enwork/blobtree \
+  -log_file /tmp/test.log
+# Or with the debugger:
+ocamldebug -I `ocamlfind query unix` -I `ocamlfind query str` \
+  -I `ocamlfind query vec` -I `ocamlfind query mapmin` \
+  -I `ocamlfind query hashtbl_bounded` -I `ocamlfind query fileinfo` \
+  -I `ocamlfind query intvmap` -I `ocamlfind query extlib` \
+  -I `ocamlfind query mysql` -I `ocamlfind query sexplib` \
+  ./eval_online_wiki \
+  -db_user wikiuser -db_pass localwiki -db_name wikidb \
+  -blob_base_path /home/luca/wiki-data/enwork/blobtree \
+  -log_file /tmp/test.log
