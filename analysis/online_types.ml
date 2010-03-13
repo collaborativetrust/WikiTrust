@@ -1,6 +1,7 @@
 (*
 
 Copyright (c) 2008 The Regents of the University of California
+Copyright (c) 2010 Google Inc.
 All rights reserved.
 
 Authors: Luca de Alfaro
@@ -205,8 +206,9 @@ type qual_info_t = {
   mutable word_trust_histogram: int array;
 } with sexp
 
-(* Infinity for reputation delta *)
-let infinity = 100000.0;;
+(** Coefficient used to estimate the effect of low-quality words
+    on total revision quality; see compute_robust_trust. *)
+let coeff_spam_reduction = 0.05
 
 (** This is the type of an edit list, annotated *)
 type edit_list_t = {
