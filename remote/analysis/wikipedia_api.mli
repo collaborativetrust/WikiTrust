@@ -51,7 +51,7 @@ val default_timestamp : string
 (* val get_user_id : string -> Online_db.db -> int *)
 
 (** Downloads all revisions of a page, given the page_id, and sticks them into the db, returning the number of revs downloaded. *)
-val download_page_from_id : Online_db.db -> int -> int
+val download_page_from_id : ?sid:int option -> Online_db.db -> int -> int
 
 val download_page_starting_with_from_id : Online_db.db -> int -> int -> int 
   -> int -> int

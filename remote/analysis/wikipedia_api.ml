@@ -450,7 +450,7 @@ let rec download_page_starting_with (db: Online_db.db) (title: string)
   end
 
 let rec download_page_starting_with_from_id (db: Online_db.db) (page_id: int)
-    (last_rev: int) (prev_last_rev: int) (n_revs_downloaded) : int =
+    (last_rev: int) (prev_last_rev: int) (n_revs_downloaded : int) =
   let (wiki_page, wiki_revs, next_rev) = get_revs_from_api (Page_Selector page_id) last_rev 50 in
     begin
       let n_new_revs_downloaded = List.length wiki_revs in
@@ -474,12 +474,18 @@ let rec download_page_starting_with_from_id (db: Online_db.db) (page_id: int)
     end
 
 (** Downloads all revisions of a page, given the title, and sticks them into the db. *)
-let download_page_from_id (db: Online_db.db) (page_id : int) : int =
+let download_page_from_id ?sid:(start_id=None) (db: Online_db.db) (page_id : int) : int =
   let lastid =
     try
       (db#get_latest_rev_id_from_id page_id) + 1
     with Online_db.DB_Not_Found -> 0
-  in download_page_starting_with_from_id db page_id lastid 0 0
+  in
+  let actual_lastid =
+    match start_id with
+      | None -> lastid
+      | Some bid -> if bid > lastid then bid else lastid
+  in
+  download_page_starting_with_from_id db page_id actual_lastid 0 0
 
 (**
   Render the html using the wikimedia api

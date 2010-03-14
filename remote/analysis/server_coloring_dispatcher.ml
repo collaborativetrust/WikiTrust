@@ -81,6 +81,11 @@ let set_global_db_port d = global_db_port := d
 let global_db_prefix = ref ""
 let set_global_db_prefix d = global_db_prefix := d
 
+(* Debugging *)
+let min_rev_id = ref None
+let set_min_rev_id m = min_rev_id := Some m
+let single_threaded = ref false
+
 let custom_line_format = [
   ("-concur_procs", Arg.Int set_max_concurrent_procs, "<int>: Number of pages to process in parellel.");
   ("-global_db_prefix", Arg.String set_global_db_prefix, "<string>: All wiki Database table prefix (default: none)");
@@ -89,7 +94,8 @@ let custom_line_format = [
   ("-global_db_pass", Arg.String set_global_db_pass, "<string>: All wiki DB password");
   ("-global_db_host", Arg.String set_global_db_host, "<string>: All wiki DB host (default: localhost)");
   ("-global_db_port", Arg.Int set_global_db_port,    "<int>: All wiki DB port (default: 3306)");
-
+  ("-min_rev_id", Arg.Int set_min_rev_id, "<int>: The earliest revision ID to download");
+  ("-single_threaded_mode", Arg.Set single_threaded, "Run without forking -- for debugging");
 ] @ command_line_format
 
 let _ = Arg.parse custom_line_format noop "Usage: dispatcher";;
@@ -181,7 +187,7 @@ let process_page (page_id: int) (page_title: string) =
        revisions of the page. *)
     (try Printexc.print (fun () -> 
       pages_downloaded := if !use_wikimedia_api then 
-	Wikipedia_api.download_page_from_id child_db page_id else 0
+	Wikipedia_api.download_page_from_id ~sid:!min_rev_id child_db page_id else 0
       ;
   
       (* If pages have been downloaded, AND if the new_page_id doesn't 
@@ -227,6 +233,7 @@ let dispatch_page (pages : (int * string) list) =
   (* [launch_processing page]
      Given a page_id, forks a child which brings the page up to date. *)
   let launch_processing (page_id, page_title) = begin
+    if !single_threaded then process_page page_id page_title else begin
     (* If the page is currently being processed, does nothing. *)
     if not (Hashtbl.mem working_children page_id) then begin
       let new_pid = Unix.fork () in
@@ -243,6 +250,7 @@ let dispatch_page (pages : (int * string) list) =
           Hashtbl.add working_pid2page_id new_pid (page_id, page_title) 
 	end
     end  (* if the page is already begin processed *)
+  end
   end in
   List.iter launch_processing pages
 in
