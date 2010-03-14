@@ -206,20 +206,6 @@ type qual_info_t = {
 (* Infinity for reputation delta *)
 let infinity = 100000.0;;
 
-(* Default for quality information.  This is used both for
-   new revisions, and for revisions that have been processed
-   as part of the online analysis. *)
-let quality_info_default = {
-  n_edit_judges = 0;
-  total_edit_quality = 0.;
-  min_edit_quality = 1000.;
-  nix_bit = false;
-  delta = 0.0;
-  reputation_gain = 0.0;
-  overall_trust = 0.0;
-  word_trust_histogram = Array.make 10 0
-}
-
 (** This is the type of an edit list, annotated *)
 type edit_list_t = {
   (** version of text analysis algo *)
@@ -274,7 +260,7 @@ type blob_locations_t = {
 }
 
 let blob_locations = {
-  invalid_location = 0; (* A revision sig can never be here. *)
+  invalid_location = -1; (* A revision sig can never be here. *)
   sig_location = 0;
   chunks_location = 1;
   (* I use 8 as an initial location to leave a bit of space for other

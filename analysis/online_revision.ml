@@ -75,18 +75,15 @@ class revision
     (* First, I have a flag that says whether I have read the quantities 
        or not.  They are not read by default; they reside in a 
        separate table from standard revision data. *)
-    (* NOTE: Every revision needs ITS OWN copy of the quality info, so I cannot
-       just do quality_info = quality_info_default, or they would all share the
-       same copy. *)
     val mutable quality_info : qual_info_t = {
-      n_edit_judges = quality_info_default.n_edit_judges;
-      total_edit_quality = quality_info_default.total_edit_quality;
-      min_edit_quality = quality_info_default.min_edit_quality;
-      nix_bit = quality_info_default.nix_bit;
-      delta = quality_info_default.delta;
-      reputation_gain = quality_info_default.reputation_gain;
-      overall_trust = quality_info_default.overall_trust;
-      word_trust_histogram = quality_info_default.word_trust_histogram;
+      n_edit_judges = 0;
+      total_edit_quality = 0.;
+      min_edit_quality = 0.;
+      nix_bit = false;
+      delta = 0.;
+      reputation_gain = 0.;
+      overall_trust = 0.;
+      word_trust_histogram = Array.make 10 0;
     }
     (* As part of the quality info, we also keep the blob id. *)
     val mutable blob_id_opt : int option = None
@@ -359,16 +356,24 @@ class revision
     method set_sigs (s: Author_sig.packed_author_signature_t array) = sigs <- s
 
     (** Adds edit quality information *)
-    method add_edit_quality_info (delta: float) (new_q: float) 
-      (rep_gain: float) : unit = 
-      (* updated *)
-      quality_info.delta <- delta;
-      quality_info.total_edit_quality <- 
-	quality_info.total_edit_quality +. new_q; 
-      if new_q < quality_info.min_edit_quality 
-      then quality_info.min_edit_quality <- new_q; 
-      quality_info.n_edit_judges <- quality_info.n_edit_judges + 1; 
-      quality_info.reputation_gain <- quality_info.reputation_gain +. rep_gain;
+    method add_edit_quality_info (delta: float) (new_q: float) (rep_gain: float) 
+      : unit = 
+      (* If there are no judges yet, sets the information for the first time. *)
+      if quality_info.n_edit_judges = 0 then begin
+	(* Sets the quality info for the first time. *)
+	quality_info.delta <- delta;
+	quality_info.total_edit_quality <- new_q; 
+	quality_info.min_edit_quality <- new_q;
+	quality_info.n_edit_judges <- 1; 
+	quality_info.reputation_gain <- rep_gain;
+      end else begin
+	(* Updates the quality info. *)
+	quality_info.delta <- min quality_info.delta delta;
+	quality_info.total_edit_quality <- quality_info.total_edit_quality +. new_q; 
+	quality_info.min_edit_quality <- min new_q quality_info.min_edit_quality;
+	quality_info.n_edit_judges <- quality_info.n_edit_judges + 1; 
+	quality_info.reputation_gain <- quality_info.reputation_gain +. rep_gain;
+      end;
       (* flags the change *)
       modified_quality_info <- true
 

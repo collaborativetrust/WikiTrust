@@ -389,7 +389,7 @@ let edit_diff (words1: word array) (words2: word array) : edit list =
   if front_prefix_idx = l1
   then dezero [Mov (0, 0, l1); Ins (l1, l2 - l1)]
   else if front_prefix_idx = l2
-  then dezero [Mov (0, 0, l2); Del (l2, l2 - l1)]
+  then dezero [Mov (0, 0, l2); Del (l2, l1 - l2)]
   else 
   (* Computes final prefix. *)
     let k = ref 0 in

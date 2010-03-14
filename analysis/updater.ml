@@ -415,8 +415,8 @@ class updater
 	  db#write_page_sigs page_id running_info.Online_page.run_sigs;
 	  let open_page_blob_id = writer#close in
 	  db#write_open_blob_id page_id open_page_blob_id;
-    (* Delete the raw text from the cache *)
-    db#erase_cached_rev_text page_id;
+	  (* Delete the raw text from the cache *)
+	  db#erase_cached_rev_text page_id;
 	  db#commit;
 	  db#release_page_lock page_id
 	with e -> begin

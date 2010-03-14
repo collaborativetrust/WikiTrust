@@ -1,6 +1,7 @@
 (*
 
 Copyright (c) 2008-2009 The Regents of the University of California
+Copyright (c) 2010 Google Inc.
 All rights reserved.
 
 Authors: Luca de Alfaro, Krishnendu Chatterjee
@@ -56,7 +57,7 @@ type running_page_info_t = {
   run_writer: Revision_writer.writer;
 }
 
-(** [Missing_trust (page_id, rev)] is raised if:
+(** [Missing_trust rev] is raised if:
     - in a vote, the trust information for a revision voted on 
       is missing.  The vote should then most likely be discarded.
     - in an edit, this should never happen, and would be an indication of a bug. *)
@@ -224,36 +225,45 @@ class page
       in 
       let hi_rep_revs   = List.fold_left f Vec.empty 
 	page_info.past_hi_rep_revs in
-      
-      (* This function merges two lists of revisions in chronological order *)
-      let merge_chron (v1: rev_t Vec.t) (v2: rev_t Vec.t) : rev_t Vec.t = 
-	let rec merge v w1 w2 = 
-	  if w1 = Vec.empty then Vec.concat v w2
-	  else if w2 = Vec.empty then Vec.concat v w1
-	  else begin (* We must choose the least revision *)
-	    let r1 = Vec.get 0 w1 in 
-	    let r2 = Vec.get 0 w2 in 
-	    let t1 = r1#get_time in 
-	    let t2 = r2#get_time in 
-	    let i1 = r1#get_id in 
-	    let i2 = r2#get_id in 
-	    if (t1, i1) = (t2, i2) then merge (Vec.append r1 v) (Vec.remove 0 w1) (Vec.remove 0 w2)
-	    else begin 
-	      if (t1, i1) > (t2, i2) 
-	      then merge (Vec.append r1 v) (Vec.remove 0 w1) w2
-	      else merge (Vec.append r2 v) w1 (Vec.remove 0 w2)
-	    end
-	  end
-	in merge Vec.empty v1 v2
+
+      (* Compare revisions, to sort them in decreasing time order (most recent first). *)
+      let compare_revisions r1 r2 = - compare (r1#get_time, r1#get_id) (r2#get_time, r2#get_id) in
+      let rec remove_duplicates = function
+	  [] -> []
+	| r :: [] -> [r]
+	| r1 :: r2 :: rest -> if (compare_revisions r1 r2) = 0 
+	  then remove_duplicates (r2 :: rest)
+	  else r1 :: remove_duplicates (r2 :: rest)  
       in 
-      
+      let sort_revision_list = List.sort compare_revisions in
+      (* Merges two revision lists, eliminating duplicates *)
+      let rec merge_unique = function
+	  ([], []) -> []
+	| (rl, []) -> rl
+	| ([], rl) -> rl
+	| (r1 :: l1, r2 :: l2) -> begin
+	    let c = compare_revisions r1 r2 in
+	    if c = 0 then r1 :: merge_unique (l1, l2)
+	    else if c = 1 then r2 :: merge_unique (r1 :: l1, l2)
+	    else r1 :: merge_unique (l1, r2 :: l2)
+	  end in
       (* Produces the Vec of all revisions *)
-      revs <- merge_chron recent_revs (merge_chron hi_rep_revs hi_trust_revs); 
-      let f (r: rev_t) : unit = !Online_log.online_logger#log (Printf.sprintf "%d " r#get_id) in 
-      !Online_log.online_logger#log "\n  Recent   revisions: "; Vec.iter f recent_revs;
-      !Online_log.online_logger#log "\n  Hi-trust revisions: "; Vec.iter f hi_trust_revs;
-      !Online_log.online_logger#log "\n  Hi-rep   revisions: "; Vec.iter f hi_rep_revs;
-      !Online_log.online_logger#log "\n  Total    revisions: "; Vec.iter f revs;
+      (* The most recent revision is the one that needs to be worked on, so we treat
+	 it separately, to handle gracefully the case in which the sorting in the DB
+	 may differ from the sorting defined here. *)
+      let (most_recent_rev, rest) = Vec.pop 0 recent_revs in
+      let rest_recent = Vec.to_list rest in
+      let l1 = remove_duplicates (sort_revision_list rest_recent) in
+      let l2 = remove_duplicates (sort_revision_list (Vec.to_list hi_trust_revs)) in
+      let l3 = remove_duplicates (sort_revision_list (Vec.to_list hi_rep_revs)) in
+      let l123 = merge_unique (l1, merge_unique (l2, l3)) in
+      revs <- Vec.of_list (remove_duplicates (most_recent_rev :: l123));
+      
+      let print_revision_vec (r: rev_t) : unit = !Online_log.online_logger#log (Printf.sprintf "%d " r#get_id) in 
+      !Online_log.online_logger#log "\n  Recent    revisions: "; Vec.iter print_revision_vec recent_revs;
+      !Online_log.online_logger#log "\n  Hi-trust  revisions: "; Vec.iter print_revision_vec hi_trust_revs;
+      !Online_log.online_logger#log "\n  Hi-rep    revisions: "; Vec.iter print_revision_vec hi_rep_revs;
+      !Online_log.online_logger#log "\n  Total     revisions: "; Vec.iter print_revision_vec revs;
       
       (* Sets the current time *)
       let n_revs = Vec.length revs in 
@@ -280,8 +290,11 @@ class page
           with Online_db.DB_Not_Found -> begin
 	    (* If the revision is recent, it complains. *)
 	    if i < 3 
-	    then raise (Missing_trust r)
-	    else begin
+	    then begin
+	      Printf.eprintf "Missing text trust for revision %d; the current revision is %d\n"
+		r#get_id revision_id;
+	      raise (Missing_trust r)
+	    end else begin
 	      (* Removes the revision from consideration. *)
 	      let f r' = (r'#get_id <> r#get_id) in
 	      revs <- Vec.filter f revs;
@@ -566,6 +579,7 @@ class page
 		  (* It has found some suitable zipping; uses it. *)
 		  let revm = Vec.get !best_middle_idx revs in 
 		  let revm_id = revm#get_id in 
+		  (* !Online_log.online_logger#log (Printf.sprintf "\n***DIST: To compute between %d and %d uses %d" rev1_id rev2_id revm_id); *) (* debug *)
 		  let (_, _, rev1_e) = Hashtbl.find edit_list (revm_id, rev1_id) in 
 		  let (_, _, rev2_e) = Hashtbl.find edit_list (rev2_id, revm_id) in 
 		  (* computes the distance via zipping. *)
@@ -587,7 +601,9 @@ class page
 	    (* Writes the distance in the hash table *)
 	    let d = Editlist.edit_distance edl (max rev2_l rev1_l) in 
 	    Hashtbl.add edit_dist (rev2_id, rev1_id) d; 
-	    Hashtbl.add edit_dist (rev1_id, rev2_id) d
+	    Hashtbl.add edit_dist (rev1_id, rev2_id) d;
+	    (* !Online_log.online_logger#log (Printf.sprintf "\n***DIST: Between %d and %d is %f" rev1_id rev2_id d); *) (* debug *)
+	    (* !Online_log.online_logger#log (Printf.sprintf "\n***EDIT: Between %d and %d is %s" rev1_id rev2_id (Editlist.diff_to_string edl)) *) (* debug *)
 
           end done (* for rev2_idx *)
         end done (* for rev1_idx *)
@@ -955,11 +971,54 @@ class page
 	(* Computes the overall trust of the revision. *)
 	let t = Compute_robust_trust.compute_overall_trust new_trust_10_a.(0) in
 	rev0#set_overall_trust t;
-	let th = 
-	  Compute_robust_trust.compute_trust_histogram new_trust_10_a.(0) in
+	let th = Compute_robust_trust.compute_trust_histogram new_trust_10_a.(0) in
 	rev0#set_trust_histogram th
 
       end (* method compute_trust *)
+
+
+    (** [percolate_back_trust] percolates back the text trust of the latest revision
+	to previous revisions, updating their histograms, and optionally, also
+	the trust that is stored in the sigs. *)
+    method private percolate_back_trust: unit =
+      (* The most recent revision has index 0. *)
+      let rev0 = Vec.get 0 revs in 
+      let rev0_id = rev0#get_id in
+      let rev0_uname = rev0#get_user_name in 
+      let rev0_trust = rev0#get_trust in
+      (* We do something only if the revision is not by a robot. 
+	 There are so many robotic revisions that this is a valuable speed-up. *)
+      if not (is_user_a_bot robots rev0_uname) then begin
+	(* This is the total number of recent revisions; we only percolate to those. *)
+	let n_recent_revs = Vec.length recent_revs in 
+	(* We percolate back. *)
+	for old_rev_idx = 1 to n_recent_revs - 1 do begin
+	  let rev1 = Vec.get old_rev_idx revs in 
+	  let rev1_id = rev1#get_id in
+	  (* We need to percolate the trust of rev0 back to rev1. *)
+	  (* We get the edit list from rev1 to rev0. *)
+	  let (_, _, elist) = Hashtbl.find edit_list (rev1_id, rev0_id) in
+	  (* Percolation! *)
+	  let rev1_trust = rev1#get_trust in
+	  let percolate = function 
+	      Editlist.Ins (_, _) -> ()
+	    | Editlist.Del (_, _) -> ()
+	    | Editlist.Mov (i, j, l) -> begin
+		(* l words are moved from i to j.  So we take the trust from the
+		   destination, and we apply it to the source via max. *)
+		for k = 0 to l - 1 do
+		  rev1_trust.(i + k) <- max rev1_trust.(i + k) rev0_trust.(j + k)
+		done
+	      end
+	  in List.iter percolate elist;
+	  (* Sets the new trust values. *)
+	  rev1#set_trust rev1_trust;
+	  page_sigs <- rev1#write_words_trust_origin_sigs page_sigs;
+	  (* Computes and sets the new histogram. *)
+	  let th = Compute_robust_trust.compute_trust_histogram rev1_trust in
+	  rev1#set_trust_histogram th
+	end done (* Percolation *)
+      end (* If the user is not a robot *)
 
 
     (** [vote_for_trust voter_uid] increases the trust of a piece of text 
@@ -1053,7 +1112,7 @@ class page
 	 There are two cases: 
 	 - If n_recent_revs < trust_coeff.n_revs_to_consider, this means that 
 	   among the recent revisions is also the initial revision of the page.
-	   In this case, we have to analize it, so the index of the oldest one
+	   In this case, we have to analize it, and the index of the oldest one
 	   we analize is n_recent_revs - 1.
 	   To analize this old revision, we compare with a virtual, empty 
 	   initial revision. 
@@ -1062,10 +1121,9 @@ class page
 	   others as well.
        *)
       let (include_initial_empty_rev, oldest_judged_idx) = 
-	(* The test n_revs = n_recent_revs is there just for safety *)
-	if n_recent_revs = trust_coeff.n_revs_to_consider && n_recent_revs = n_revs
-	then (false, n_recent_revs - 2)
-	else (true, n_recent_revs - 1)
+	if n_recent_revs < trust_coeff.n_revs_to_consider
+	then (true,  n_recent_revs - 1)
+	else (false, n_recent_revs - 2)
       in
       if oldest_judged_idx > 0 then begin 
 
@@ -1403,7 +1461,10 @@ class page
 		   newest revision *)
 		!Online_log.online_logger#log "\n   Computing trust...";
 		self#compute_trust;
-		
+		(* Percolates back the trust that has been computed. *)
+		!Online_log.online_logger#log "\n   Percolating back trust...";
+		self#percolate_back_trust;
+
 		(* We now process the reputation update. *)
 		!Online_log.online_logger#log "\n   Computing edit incs...";
 		self#compute_edit_inc;
