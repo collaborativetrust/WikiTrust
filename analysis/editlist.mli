@@ -41,16 +41,17 @@ type edit =
   | Del of int * int (* position, length *)
   | Mov of int * int * int with sexp (* left position, right position, end *)
 
+val diff_to_string : edit list -> string
 val print_diff : edit list -> unit
 
 (** This is an edit list between a chunk array, and a string. *)
 type medit =
-    Mins of int * int 
-(* right position in chunk 0, length *)
+    Mins of int * int (* right position in chunk 0, length *)
   | Mdel of int * int * int (* left position, left chunk idx, length *)
   | Mmov of int * int * int * int * int (* left position, left chunk idx, 
 					   right pos, right chunk idx, length *)
 
+val mdiff_to_string : medit list -> string
 val print_mdiff : medit list -> unit
 
 (** [edit_distance el n] computes the edit distance between two 

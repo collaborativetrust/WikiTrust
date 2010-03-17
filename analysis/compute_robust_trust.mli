@@ -76,9 +76,9 @@ val compute_origin :
   (* author_name *) string -> 
   (* chunks_origin_a * chunks_author_a *) (int array array) * (string array array)
 
-(** [compute_overall_trust t] computes the overall trust of a revision
-    where the word trust is given by array [t]. *)
-val compute_overall_trust : float array -> float
+(** [compute_overall_trust ht] computes the overall trust of a revision
+    where the word trust histogram is given by array [ht]. *)
+val compute_overall_trust : int array -> float
 
 (** [compute_trust_histogram trust_a] computes the trust histogram of a page
     with an array [trust_a] of trust values.

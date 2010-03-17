@@ -139,7 +139,8 @@ class db
   (db_name: string)
   (rev_base_path: string option)
   (colored_base_path: string option)
-  (debug_mode : bool) =
+  (debug_mode : bool) 
+  (keep_text_cache : bool) =
   
 object(self)
 
@@ -931,7 +932,7 @@ object(self)
       revision and text tables of the database.  It can be used to
       import data from the mediawiki api and store it locally.  *)
   method write_revision (rev : wiki_revision_t) = 
-    self#write_revision_text(rev);
+    self#write_revision_text rev;
     (* And then the revision metadata. *)
     let s = Printf.sprintf "INSERT INTO %srevision (rev_id, rev_page, rev_text_id, rev_comment, rev_user, rev_user_text, rev_timestamp, rev_minor_edit, rev_deleted, rev_len, rev_parent_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE rev_len = %s" 
       db_prefix 
@@ -1112,11 +1113,12 @@ class db_exec_api
   (db_name: string)
   (rev_base_path: string option)
   (colored_base_path: string option)
-  (debug_mode : bool) =
+  (debug_mode : bool) 
+  (keep_text_cache : bool) =
   
 object(self)
   inherit db db_prefix mediawiki_dbh global_dbh db_name rev_base_path 
-    colored_base_path debug_mode as super 
+    colored_base_path debug_mode keep_text_cache as super 
 
   (** Puts the text in the text cache, and the rest in the db using the 
       super method *)
@@ -1132,6 +1134,7 @@ object(self)
 	    rev.revision_page rev.revision_id rev.revision_content;
     end
 
+  (** Reads an individual revision from the exec API. *)
   method private exec_read_rev_text (rev_id : int) : string =
     let cmdline = Printf.sprintf 
       "%s/remote/analysis/read_rev_text -log_file /dev/null -rev_id %d -wiki_api %s"
@@ -1174,13 +1177,15 @@ object(self)
   (** [erase_cached_rev_text page_id] erases
       the cached text of all revisions of [page_id] *)
   method erase_cached_rev_text (page_id: int) : unit =
-    match rev_base_path with
-    | None -> begin
-	let s = Printf.sprintf "DELETE FROM %swikitrust_text_cache WHERE page_id = %s" 
-	  db_prefix (ml2int page_id) in
-	ignore (self#db_exec mediawiki_dbh s)
-      end
-    | Some b -> Filesystem_store.delete_revision b page_id None
+    if not keep_text_cache then begin
+      match rev_base_path with
+      | None -> begin
+	  let s = Printf.sprintf "DELETE FROM %swikitrust_text_cache WHERE page_id = %s" 
+	    db_prefix (ml2int page_id) in
+	  ignore (self#db_exec mediawiki_dbh s)
+	end
+      | Some b -> Filesystem_store.delete_revision b page_id None
+    end
 
   (**  [fetch_all_revs_after] is like the superclass method, except that it
        uses the exec api to read the revisions. *)
@@ -1210,10 +1215,11 @@ let create_db
     (db_name: string)
     (rev_base_path: string option)
     (colored_base_path: string option)
-    (debug_mode : bool) =
+    (debug_mode : bool) 
+    (keep_text_cache : bool) =
   if use_exec_api
   then (new db_exec_api db_prefix mediawiki_dbh global_dbh db_name 
-    rev_base_path colored_base_path debug_mode)
+    rev_base_path colored_base_path debug_mode keep_text_cache)
   else (new db db_prefix mediawiki_dbh global_dbh db_name rev_base_path 
-    colored_base_path debug_mode)
+    colored_base_path debug_mode keep_text_cache)
 
