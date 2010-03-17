@@ -277,7 +277,7 @@ object(self)
 	let rev2_uid = rev2#get_id in
 	let rev2_uname = rev2#get_user_name in 
 	(* If the judge revision is a robot, we do not do anything. *)
-	if not (Hashtbl.mem robots rev2_uname) then begin
+	if not (is_user_a_bot robots rev2_uname) then begin
 	  (* Loops over suitable rev1 to be judged. *)
 	  for rev1_idx = 1 to last_rev_idx - 1 do begin
 	    let rev1 = Vec.get rev1_idx revs in

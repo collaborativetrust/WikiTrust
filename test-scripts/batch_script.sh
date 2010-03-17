@@ -275,3 +275,4 @@ ocamldebug -I `ocamlfind query unix` -I `ocamlfind query str` \
   -db_user wikiuser -db_pass localwiki -db_name wikidb \
   -blob_base_path /home/luca/wiki-data/enwork/blobtree \
   -log_file /tmp/test.log
+

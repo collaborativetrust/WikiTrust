@@ -1136,7 +1136,7 @@ class page
 	let rev2_weight = self#weight rev2_rep in 
 
 	(* If the judge revision is a robot, we do not do anything. *)
-	if not (Hashtbl.mem robots rev2_uname) then begin
+	if not (is_user_a_bot robots rev2_uname) then begin
 
 	  (* Reads the histogram of reputations, and the high median,
 	     and uses them to renormalize the weight of the judging
