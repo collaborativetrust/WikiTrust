@@ -1,6 +1,7 @@
 (*
 
 Copyright (c) 2007-2009 The Regents of the University of California
+Copyright (c) 2010 Google Inc.
 All rights reserved.
 
 Authors: Luca de Alfaro, B. Thomas Adler, Ian Pye
@@ -395,10 +396,22 @@ class trust_revision
   =
 
   object (self)
-    inherit revision id page_id timestamp time contributor user_id ip_addr username is_minor comment text_init text_disarm text_rearm
+    inherit revision id page_id timestamp time contributor user_id ip_addr username 
+      is_minor comment text_init text_disarm text_rearm
 
     val mutable seps  : Text.sep_t array = [| |]
     val mutable sep_word_idx : int array =  [| |]
+    val mutable quality_info : qual_info_t = {
+      n_edit_judges = 0;
+      judge_weight = 0.;
+      total_edit_quality = 0.;
+      min_edit_quality = 0.;
+      nix_bit = false;
+      delta = 0.;
+      reputation_gain = 0.;
+      overall_trust = 0.;
+      word_trust_histogram = Array.make 10 0;
+    }
 
     initializer begin
       let (t, swi, s) = Text.split_into_words_and_seps text_disarm text_rearm text_init
@@ -434,6 +447,36 @@ class trust_revision
     val mutable word_sig : Author_sig.packed_author_signature_t array = [| |]
     method set_word_sig a : unit = word_sig <- a
     method get_word_sig = word_sig
+
+    (* This is the blob id, to be able to output the correct sql. *)
+    val mutable blob_id : int = Online_types.blob_locations.invalid_location
+    method set_blob_id (n: int) : unit = blob_id <- n
+    method get_blob_id : int = blob_id
+
+    method get_quality_info = quality_info
+
+    method set_trust_histogram (a: int array) : unit =
+      quality_info.word_trust_histogram <- a
+
+    method set_overall_trust (t: float) : unit =
+      quality_info.overall_trust <- t
+
+    method set_delta (d: float) : unit =
+      quality_info.delta <- d
+
+    method add_judgement (judge_weight: float) (q: float) : unit =
+      if quality_info.n_edit_judges = 0 then begin
+	quality_info.n_edit_judges <- 1;
+	quality_info.judge_weight <- judge_weight;
+	quality_info.min_edit_quality <- q;
+	quality_info.total_edit_quality <- q *. judge_weight
+      end else begin
+	quality_info.n_edit_judges <- quality_info.n_edit_judges + 1;
+	quality_info.judge_weight <- quality_info.judge_weight +. judge_weight;
+	quality_info.min_edit_quality <- min quality_info.min_edit_quality q;
+	quality_info.total_edit_quality <- 
+	  quality_info.total_edit_quality +. q *. judge_weight
+      end
 
     method print_words_and_seps : unit = begin 
       Text.print_words_and_seps words seps;

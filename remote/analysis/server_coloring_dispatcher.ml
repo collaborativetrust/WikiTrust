@@ -87,12 +87,14 @@ let global_db_port = ref 3306
 let set_global_db_port d = global_db_port := d
 let global_db_prefix = ref ""
 let set_global_db_prefix d = global_db_prefix := d
+let keep_cached_text = ref false
 
 let custom_line_format = [
   ("-concur_procs", Arg.Int set_max_concurrent_procs, "<int>: Number of pages to process in parellel.");
   ("-memcached_host", Arg.String set_memcached_host, "<string>: memcached server (default localhost)");
   ("-memcached_port", Arg.Int set_memcached_port, "<int>: memcached port (default 11211).");
-  ("-render_last_rev", Arg.Set render_last_rev, "render the most current rev and save it in memcached.");
+  ("-render_last_rev", Arg.Set render_last_rev, ": render the most current rev and save it in memcached.");
+  ("-keep_cached_text", Arg.Set keep_cached_text, ": keeps the text in the cache after it has been downloaded by the API");
   ("-global_db_prefix", Arg.String set_global_db_prefix, "<string>: All wiki Database table prefix (default: none)");
   ("-global_db_user", Arg.String set_global_db_user, "<string>: All wiki DB username (default: wikiuser)");
   ("-global_db_name", Arg.String set_global_db_name, "<string>: All wiki DB name (default: wikidb)");
@@ -134,7 +136,7 @@ let global_dbh = match !global_db_name with
 in 
 let db = Online_db.create_db !use_exec_api !db_prefix mediawiki_dbh 
   global_dbh !mw_db_name !wt_db_rev_base_path !wt_db_blob_base_path 
-  !dump_db_calls in
+  !dump_db_calls !keep_cached_text in
 let logger = !Online_log.online_logger in
 let trust_coeff = Online_types.get_default_coeff in
 
@@ -189,7 +191,7 @@ let sigalrm_handler = Sys.Signal_handle
     let child_dbh = Mysql.connect mediawiki_db in
     let child_db = Online_db.create_db !use_exec_api !db_prefix child_dbh
       None !mw_db_name !wt_db_rev_base_path
-      !wt_db_blob_base_path !dump_db_calls
+      !wt_db_blob_base_path !dump_db_calls !keep_cached_text
     in
     child_db#mark_page_as_processed page_id page_title 0;
     child_db#close;
@@ -208,7 +210,7 @@ let process_page (page_id: int) (page_title: string) =
   in 
   let child_db = Online_db.create_db !use_exec_api !db_prefix child_dbh
     child_global_dbh !mw_db_name !wt_db_rev_base_path 
-    !wt_db_blob_base_path !dump_db_calls 
+    !wt_db_blob_base_path !dump_db_calls !keep_cached_text
   in
   (* Timeout after not getting anywhere. *) 
   ignore (Unix.alarm child_timeout_sec);

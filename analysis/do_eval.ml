@@ -346,22 +346,24 @@ let do_eval
 		let dump_end_time = read_revisions in_file p !page_id 0. in
 		(* If the path to a dump update has been declared,
 		   reads any additional revisions from that file. *)
-		match dump_update_path with 
-		  None -> ()
-		| Some dump_path -> begin
-		    (* Opens the file where additional revisions
-		       for the page can be found. *)
-		    match open_dump_update dump_path !page_id with
-		      Some update_file -> begin
-			(* Processes any additional revisions. *)
-			ignore (
-			  read_revisions update_file p !page_id dump_end_time);
-			(* Closes the file containing the additional
-			   revisions. *)
-			close_compressed_file update_file
-		      end
-		    | None -> ()
-		  end;
+		begin
+		  match dump_update_path with 
+		    None -> ()
+		  | Some dump_path -> begin
+		      (* Opens the file where additional revisions
+			 for the page can be found. *)
+		      match open_dump_update dump_path !page_id with
+			Some update_file -> begin
+			  (* Processes any additional revisions. *)
+			  ignore (
+			    read_revisions update_file p !page_id dump_end_time);
+			  (* Closes the file containing the additional
+			     revisions. *)
+			  close_compressed_file update_file
+			end
+		      | None -> ()
+		    end
+		end;
 		(* Calls the code that finishes evaluating a page. *)
 		p#eval;
 		(* Done with the page. *)

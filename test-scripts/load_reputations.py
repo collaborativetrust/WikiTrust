@@ -102,10 +102,11 @@ for f_name in rep_files:
     uid = int (l_p [1])
     rep = float (l_p [4])
     weight = int (l_p [3])
+    uname = l.split('"')[1]
     histogram [weight] += 1
     curs.execute ("insert into " + ini_config.get('db', 'prefix') +
-                  "wikitrust_user (user_id, user_rep) values ( %s , %s ) on duplicate key update user_rep = %s", 
-                  (uid, rep, rep) )
+                  "wikitrust_user (user_id, username, user_rep) values ( %s , %s , %s ) on duplicate key update user_rep = %s", 
+                  (uid, uname, rep, rep) )
   connection.commit ()
   f.close ()
   # Writes the histogram if requested.

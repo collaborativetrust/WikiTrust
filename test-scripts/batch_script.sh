@@ -103,6 +103,15 @@ rm -rf /home/luca/wiki-data/enwork/sql/*
     -d ~/wiki-data/test/sql \
     /home/luca/wiki-data/segments/wiki-00000200.xml.gz 
 
+# Some enwiki profiling:
+./evalwiki -trust_for_online \
+    -historyfile ~/wiki-data/itwiki/rep_history.txt \
+    -blob_base_path ~/wiki-data/test/blobtree \
+    -n_sigs 8 \
+    -robots ~/wiki-data/wp_bots.txt \
+    -d ~/wiki-data/test/sql \
+    /home/luca/wiki-data/enwiki/wiki-00001000.xml.gz
+
 # and also for debugging:
 ./evalwiki -trust_for_online \
     -historyfile ~/wiki-data/itwiki/rep_history.txt \
@@ -188,15 +197,18 @@ ocamldebug -I `ocamlfind query unix` -I `ocamlfind query str` \
 # To use the dispatcher:
 
 # Clean the situation:
-sudo rm -rf /home/luca/wiki-data/enwork/blobtree
+sudo rm -rf /home/luca/wiki-data/enwork/blobtree/*
 sudo rm -rf /home/luca/wiki-data/enwork/sql/*
 sudo rm -rf /home/luca/wiki-data/enwork/rev_cache/*
 # Or
-rm -rf /home/luca/wiki-data/enwork/blobtree
+rm -rf /home/luca/wiki-data/enwork/blobtree/*
 rm -rf /home/luca/wiki-data/enwork/sql/*
 rm -rf /home/luca/wiki-data/enwork/rev_cache/*
 # Then
 python load_data.py --clear_db /dev/null
+
+cat ~/wiki-data/user_reputations.txt | ~/WikiTrust/analysis/load_reputations \
+  -db_user wikiuser -db_name wikidb -db_pass localwiki
 
 # Truncate wikitrust tables preserving reputation.
 python truncate_wikitrust_keep_user.py
@@ -204,10 +216,9 @@ python truncate_wikitrust_keep_user.py
 # Launch the dispatcher
 ./dispatcher -db_user wikiuser -db_name wikidb -db_pass localwiki \
   -use_wikimedia_api -blob_base_path ~/wiki-data/enwork/blobtree \
-  -robots ~/wiki-data/wp_bots.txt \
-  -log_file /tmp/dispatcher.log \
-  -use_exec_api -wiki_api http://it.wikipedia.org/w/api.php \
-  -wikitrust_base ~/WikiTrust/remote/analysis/ \
+  -robots ~/wiki-data/wp_bots.txt   -log_file /tmp/dispatcher.log \
+  -use_exec_api -wiki_api http://en.wikipedia.org/w/api.php \
+  -wikitrust_base ~/WikiTrust -keep_cached_text \
   -concur_procs 2  -rev_base_path ~/wiki-data/enwork/rev_cache
 
 # Or, with debugger on:
@@ -221,7 +232,8 @@ ocamldebug -I `ocamlfind query unix` -I `ocamlfind query str` \
     -use_wikimedia_api -blob_base_path ~/wiki-data/enwork/blobtree \
     -robots ~/wiki-data/wp_bots.txt \
     -log_file /tmp/dispatcher.log \
-    -use_exec_api -wiki_api http://it.wikipedia.org/w/api.php \
+    -use_exec_api -wiki_api http://en.wikipedia.org/w/api.php \
+    -wikitrust_base ~/WikiTrust -keep_cached_text \
     -concur_procs 2  -rev_base_path ~/wiki-data/enwork/rev_cache
 
 
@@ -233,3 +245,34 @@ INSERT INTO wikitrust_queue (page_id, page_title) VALUES (38166, "Chieri");
 ./read_revision  -db_user wikiuser -db_name wikidb -db_pass localwiki \
     -blob_base_path ~/wiki-data/enwork/blobtree \
     -rev_id 2754456
+
+# Evaluate the quality
+./eval_quality.py ~/Desktop/Good\ and\ bad\ versions\ of\ Wikipedia\ Articles.csv
+
+################################################################
+# Online system testing:
+
+# To load a wiki using mwdumper:
+cd ../test-scripts 
+python load_data.py --clear_db /home/luca/wiki-data/enwiki/wiki-00100000.xml /home/luca/wiki-data/enwiki/wiki-00100220.xml
+
+# To clear the old wikitrust information (keeping the user information):
+python truncate_wikitrust_keep_user.py
+
+# To use the online system to do the coloring:
+# Call for vote processing.
+./eval_online_wiki \
+  -db_user wikiuser -db_pass localwiki -db_name wikidb \
+  -blob_base_path /home/luca/wiki-data/enwork/blobtree \
+  -log_file /tmp/test.log
+# Or with the debugger:
+ocamldebug -I `ocamlfind query unix` -I `ocamlfind query str` \
+  -I `ocamlfind query vec` -I `ocamlfind query mapmin` \
+  -I `ocamlfind query hashtbl_bounded` -I `ocamlfind query fileinfo` \
+  -I `ocamlfind query intvmap` -I `ocamlfind query extlib` \
+  -I `ocamlfind query mysql` -I `ocamlfind query sexplib` \
+  ./eval_online_wiki \
+  -db_user wikiuser -db_pass localwiki -db_name wikidb \
+  -blob_base_path /home/luca/wiki-data/enwork/blobtree \
+  -log_file /tmp/test.log
+

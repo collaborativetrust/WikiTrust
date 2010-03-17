@@ -1,6 +1,7 @@
 (*
 
 Copyright (c) 2008 The Regents of the University of California
+Copyright (c) 2010 Google Inc.
 All rights reserved.
 
 Authors: Luca de Alfaro
@@ -187,7 +188,9 @@ let get_default_coeff : trust_coeff_t = default_trust_coeff ;;
 type qual_info_t = {
   (** Number of times the revision has been judged *)
   mutable n_edit_judges: int; 
-  (** Total edit quality: the average is given by dividing by n_edit_judges *)
+  (** Total weight of the judges for the revision. *)
+  mutable judge_weight: float;
+  (** Total edit quality: the average is given by dividing by judge_weight *)
   mutable total_edit_quality: float;
   (** Minimum edit quality of all judgements *)
   mutable min_edit_quality: float; 
@@ -203,22 +206,9 @@ type qual_info_t = {
   mutable word_trust_histogram: int array;
 } with sexp
 
-(* Infinity for reputation delta *)
-let infinity = 100000.0;;
-
-(* Default for quality information.  This is used both for
-   new revisions, and for revisions that have been processed
-   as part of the online analysis. *)
-let quality_info_default = {
-  n_edit_judges = 0;
-  total_edit_quality = 0.;
-  min_edit_quality = 1000.;
-  nix_bit = false;
-  delta = 0.0;
-  reputation_gain = 0.0;
-  overall_trust = 0.0;
-  word_trust_histogram = Array.make 10 0
-}
+(** Coefficient used to estimate the effect of low-quality words
+    on total revision quality; see compute_robust_trust. *)
+let coeff_spam_reduction = 0.05
 
 (** This is the type of an edit list, annotated *)
 type edit_list_t = {
@@ -274,7 +264,7 @@ type blob_locations_t = {
 }
 
 let blob_locations = {
-  invalid_location = 0; (* A revision sig can never be here. *)
+  invalid_location = -1; (* A revision sig can never be here. *)
   sig_location = 0;
   chunks_location = 1;
   (* I use 8 as an initial location to leave a bit of space for other

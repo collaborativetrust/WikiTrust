@@ -48,10 +48,14 @@ SUFFIXES= .ml .cmo .cmi .cmx
 # OCAMLDEBUG = -g -p film 
 OCAMLDEBUG = -g
 
+# For native code profiling
+# PROFILE = -p
+# Avoid profiling
+PROFILE =
 
 # Flags for commands, depending on optimization/debugging
 OCAML_CFLAGS=$(INCLUDES) $(OCAMLDEBUG)
-OCAMLOPT_FLAGS=$(INCLUDES)
+OCAMLOPT_FLAGS=$(INCLUDES) $(PROFILE)
 
 %.cmo: %.ml
 	@echo '$(OCAMLC) $(OCAML_CFLAGS) -c $<'; \

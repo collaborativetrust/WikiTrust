@@ -139,12 +139,6 @@ let rec dezero = function
   | Mov (_, _, 0) :: l -> dezero l
   | el :: l -> el :: dezero l
 
-let rec inc_indices n = function
-    [] -> []
-  | Ins (i, k) :: l -> Ins (i + n, k) :: inc_indices n l
-  | Del (i, k) :: l -> Del (i + n, k) :: inc_indices n l
-  | Mov (i, j, k) :: l -> Mov (i + n, j + n, k) :: inc_indices n l
-
 let single_word_edit_diff (w: word) (words2: word array) : edit list =
   let l2 = Array.length words2 in
   match find_word w words2 with
@@ -380,40 +374,36 @@ let edit_diff (words1: word array) (words2: word array) : edit list =
   (* First, as a special case, takes care of initial and final prefixes. *)
   let l1 = Array.length words1 in
   let l2 = Array.length words2 in
-  (* Computes initial prefix. *)
+  (* Computes front prefix. *)
   let k = ref 0 in
   while !k < l1 && !k < l2 && words1.(!k) = words2.(!k) do 
     k := !k + 1 done;
-  let front_prefix_idx = !k in
-  (* Takes care of some special cases right away. *)
-  if front_prefix_idx = l1
-  then dezero [Mov (0, 0, l1); Ins (l1, l2 - l1)]
-  else if front_prefix_idx = l2
-  then dezero [Mov (0, 0, l2); Del (l2, l2 - l1)]
-  else 
-  (* Computes final prefix. *)
-    let k = ref 0 in
-    while !k < l1 && !k < l2 && words1.(l1 - !k - 1) = words2.(l2 - !k - 1) do 
-      k := !k + 1 done;
-    let end_prefix_idx = !k in
-    (* If the two strings are different length, then it is possible that 
-       front_prefix_idx + end_prefix_idx is longer than some of l1, l2. 
-       Hence, we adjust the rear prefix length. *)
-    let min_l = min l1 l2 in
-    let end_pos = 
-      if front_prefix_idx + end_prefix_idx <= min_l
-      then end_prefix_idx
-      else min_l - front_prefix_idx
-    in
-    (* Computes the portion of word arrays that still need analysis. *)
-    let wa1 = Array.sub words1 front_prefix_idx (l1 - front_prefix_idx - end_pos) in
-    let wa2 = Array.sub words2 front_prefix_idx (l2 - front_prefix_idx - end_pos) in
-    let mid_diff = edit_diff_core wa1 wa2 in
-    let mid_diff_adjusted = inc_indices front_prefix_idx mid_diff in
-    dezero (
-      Mov (0, 0, front_prefix_idx) 
-      :: Mov (l1 - end_pos, l2 - end_pos, end_pos)
-      :: mid_diff_adjusted)
+  let front_prefix_len = !k in
+  (* Computes rear prefix. *)
+  let k = ref 0 in
+  while l1 - !k > front_prefix_len && l2 - !k > front_prefix_len 
+    && words1.(l1 - !k - 1) = words2.(l2 - !k - 1) do k := !k + 1 done;
+  let rear_prefix_len = !k in
+  (* Builds two new sequences of words1 and word2, removing the prefixes. *)
+  let words1' = Array.sub words1 front_prefix_len (l1 - front_prefix_len - rear_prefix_len) in
+  let words2' = Array.sub words2 front_prefix_len (l2 - front_prefix_len - rear_prefix_len) in
+  (* Computes the new difference *)
+  let dlist = edit_diff_core words1' words2' in
+  (* Fixes the edit difference *)
+  let f = function
+      Ins (k, n) -> Ins (k + front_prefix_len, n)
+    | Del (k, n) -> Del (k + front_prefix_len, n)
+    | Mov (j, k, n) -> Mov (j + front_prefix_len, k + front_prefix_len, n)
+  in 
+  let dlist' = dezero (List.map f dlist) in
+  (* Tacks on initial and final diff *)
+  begin
+    match (front_prefix_len, rear_prefix_len) with
+      (0, 0) -> dlist'
+    | (k, 0) -> Mov (0, 0, k) :: dlist'
+    | (0, k) -> Mov (l1 - k, l2 - k, k) :: dlist'
+    | (j, k) -> Mov (0, 0, j) :: Mov (l1 - k, l2 - k, k) :: dlist'
+  end
 
 
 (* **************************************************************** *)
@@ -441,12 +431,12 @@ let make_survival_index (chunks: word array array) : ((word * word * word), (int
   idx;;
 	
 
-(** [text_tracking chunks1 words2] takes an array of text [chunks1], 
+(** [core_text_tracking chunks1 words2] takes an array of text [chunks1], 
     and a new word [words2], and produces a new list of chunks [chunks2], 
     and a list of matches that pair up the new text with the old one. 
     chunks2.(0) is guaranteed to exist (but it might be empty). *)
 
-let text_tracking
+let core_text_tracking
     (chunks1: word array array)
     (words2: word array)
     : ((word array array) * (medit list))
@@ -685,8 +675,66 @@ let text_tracking
     diff := Mins (!unmatched_start, len2 - !unmatched_start) :: !diff; 
 
   (* Ok, now we have everything, and we can assemble the result *)
-  
   ((Array.of_list (List.rev !chunks2_l)), !diff);;
+
+
+(** [text_tracking chunks1 words2] takes an array of text [chunks1], 
+    and a new word [words2], and produces a new list of chunks [chunks2], 
+    and a list of matches that pair up the new text with the old one. 
+    chunks2.(0) is guaranteed to exist (but it might be empty). 
+    This function is a faster version of core_text_tracking for the common
+    case in which words2 and chunks1.(0) share extended initial and final
+    prefixes. *)
+
+let text_tracking
+    (chunks1: word array array)
+    (words2: word array)
+    : ((word array array) * (medit list))
+    =
+  (* First, as a special case, takes care of initial and final prefixes. *)
+  let words1 = chunks1.(0) in
+  let l1 = Array.length words1 in
+  let l2 = Array.length words2 in
+  (* Computes front prefix. *)
+  let k = ref 0 in
+  while !k < l1 && !k < l2 && words1.(!k) = words2.(!k) do 
+    k := !k + 1 done;
+  let front_prefix_len = !k in
+  (* Computes rear prefix. *)
+  let k = ref 0 in
+  while l1 - !k > front_prefix_len && l2 - !k > front_prefix_len 
+    && words1.(l1 - !k - 1) = words2.(l2 - !k - 1) do k := !k + 1 done;
+  let rear_prefix_len = !k in
+  (* Builds two new sequences of words1 and word2, removing the prefixes. *)
+  let words1' = Array.sub words1 front_prefix_len (l1 - front_prefix_len - rear_prefix_len) in
+  let words2' = Array.sub words2 front_prefix_len (l2 - front_prefix_len - rear_prefix_len) in
+  (* Replaces words1' into chunks1; we will have to do the opposite. *)
+  chunks1.(0) <- words1';
+  (* Computes the new difference. *)
+  let (chunks2, mlist) = core_text_tracking chunks1 words2' in
+  (* Puts back the words that were replaced at the beginning. *)
+  chunks1.(0) <- words1;
+  (* And puts back the new text where it belongs. *)
+  chunks2.(0) <- words2;
+  (* We translate the list of modifications. *)
+  let f = function
+      Mins (k, n) -> Mins (k + front_prefix_len, n)
+    | Mdel (k, 0, n) -> Mdel (k + front_prefix_len, 0, n)
+    | Mdel (k, c, n) -> Mdel (k, c, n)
+    | Mmov (k, 0, j, 0, n) -> Mmov (k + front_prefix_len, 0, j + front_prefix_len, 0, n)
+    | Mmov (k, 0, j, c, n) -> Mmov (k + front_prefix_len, 0, j, c, n)
+    | Mmov (k, c, j, 0, n) -> Mmov (k, c, j + front_prefix_len, 0, n)
+    | Mmov (k, c, j, d, n) -> Mmov (k, c, j, d, n)
+  in 
+  let mlist' = List.map f mlist in
+  (* Now tacks on the additional Mmov for initial and final part. *)
+  begin
+    match (front_prefix_len, rear_prefix_len) with
+      (0, 0) -> (chunks2, mlist')
+    | (k, 0) -> (chunks2, Mmov (0, 0, 0, 0, k) :: mlist')
+    | (0, k) -> (chunks2, Mmov (l1 - k, 0, l2 - k, 0, k) :: mlist')
+    | (j, k) -> (chunks2, Mmov (0, 0, 0, 0, j) :: Mmov (l1 - k, 0, l2 - k, 0, k) :: mlist')
+  end
 
 
 (* **************************************************************** *)
@@ -856,6 +904,8 @@ if false then begin
   let ts8 = "Volete comperare Viagra? Molto buono dato che le persone non badano a quello comune." in 
   let ts9 = ts7 in 
   let ts10 = "In generale, il bene comune non coincide con quello individuale. Questo e' causato dal fatto che le persone badano al loro bene privato, piuttosto che al bene comune." in
+  let ts11 = "Piuttosto che al bene comune io credo In generale, il bene comune non coincide con quello individuale. Questo e' causato dal bene privato fatto che le persone badano al loro privato,." in
+  let ts12 = "In generale, il bene non Questo e' causato dal fatto che le persone badano al loro bene piuttosto che al bene coincide con quello individuale comune." in
 
   let ta1  = Text.split_into_words false false (Vec.singleton ts1) in 
   let ta2  = Text.split_into_words false false (Vec.singleton ts2) in 
@@ -867,24 +917,57 @@ if false then begin
   let ta8  = Text.split_into_words false false (Vec.singleton ts8) in 
   let ta9  = Text.split_into_words false false (Vec.singleton ts9) in 
   let ta10 = Text.split_into_words false false (Vec.singleton ts10) in 
+  let ta11 = Text.split_into_words false false (Vec.singleton ts11) in 
+  let ta12 = Text.split_into_words false false (Vec.singleton ts12) in 
 
-  let t = [|ta1; ta2; ta3; ta4; ta5; ta6; ta7; ta8; ta9; ta10|] in 
+  let random_permutation (l: 'a list) : 'a list =
+    let v = ref (Vec.of_list l) in
+    let r = ref [] in
+    for k = (List.length l) downto 1 do begin
+      let (r', v') = Vec.pop (Random.int k) !v in
+      v := v';
+      r := r' :: !r
+    end done;
+    !r
+  in
+
+  let t = [|ta1; ta2; ta3; ta4; ta5; ta6; ta7; ta8; ta9; ta10; ta11; ta12|] in 
   let len = Array.length (t) in 
-  for i = 0 to len - 1 do 
-    begin
-      print_newline (); 
-      print_string ((string_of_int (i + 1)) ^ ": ");
-      for j = 0 to i - 1 do 
-	begin
-	  let l1 = Array.length (t.(i)) in 
-	  let l2 = Array.length (t.(j)) in 
-	  let l = min l1 l2 in 
-	  print_string (string_of_float (edit_distance (edit_diff t.(j) t.(i)) l));
-	  print_string " "
-	end
-      done
-    end
-  done;
-  print_newline ()
+  for i = 0 to len - 1 do begin
+    print_newline (); 
+    print_string ((string_of_int (i + 1)) ^ ": ");
+    for j = 0 to i - 1 do begin
+      let l1 = Array.length (t.(i)) in 
+      let l2 = Array.length (t.(j)) in 
+      let l = min l1 l2 in 
+      print_string (string_of_float (edit_distance (edit_diff t.(j) t.(i)) l));
+      print_string " "
+    end done
+  end done;
+  print_string "\n\n";
+  Random.init 12;
+  for i = 0 to len - 1 do begin
+    for j = 0 to i - 1 do begin
+      let l1 = Array.length (t.(i)) in 
+      let l2 = Array.length (t.(j)) in 
+      let l = min l1 l2 in 
+      let new_ed = edit_diff t.(j) t.(i) in
+      let cor_ed = edit_diff_core t.(j) t.(i) in
+      Text.print_words t.(j); print_string "\n";
+      Text.print_words t.(i); print_string "\n";
+      print_string "Core:"; print_diff cor_ed;
+      print_string "New: "; print_diff new_ed;
+      print_string "Core:"; print_string (string_of_float (edit_distance cor_ed l)); print_string "\n";
+      print_string "New: "; print_string (string_of_float (edit_distance new_ed l)); print_string "\n";
+      for k = 0 to 10 do begin
+	let ed = random_permutation new_ed in
+	print_string "Rand:"; print_diff ed;
+	print_string "Rand:"; print_string (string_of_float (edit_distance new_ed l)); 
+	print_string "\n";
+      end done
+    end done
+  end done
+
+
 end;;
 

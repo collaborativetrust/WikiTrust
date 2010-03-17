@@ -1,0 +1,165 @@
+0:"il" 1:"bene" 2:"comune" 3:"coincide" 4:"col" 5:"bene" 6:"individuale" 
+0:"il" 1:"bene" 2:"comune" 3:"non" 4:"coincide" 5:"col" 6:"bene" 7:"individuale" 
+
+Chunks: 
+0:"il" 1:"bene" 2:"comune" 3:"non" 4:"coincide" 5:"col" 6:"bene" 7:"individuale" 
+
+Ins(3, 0) 1 Mov(3, 0) (4, 0) 4 Mov(0, 0) (0, 0) 3 
+================
+New words:
+0:"nella" 1:"maggior" 2:"parte" 3:"dei" 4:"casi" 5:"il" 6:"bene" 7:"comune" 8:"non" 9:"coincide" 10:"con" 11:"il" 12:"bene" 13:"individuale" 
+Chunks: 
+0:"nella" 1:"maggior" 2:"parte" 3:"dei" 4:"casi" 5:"il" 6:"bene" 7:"comune" 8:"non" 9:"coincide" 10:"con" 11:"il" 12:"bene" 13:"individuale" 
+0:"col" 1:"bene" 2:"individuale" 
+
+Ins(10, 0) 4 Ins(0, 0) 5 Mov(5, 0) (0, 1) 3 Mov(0, 0) (5, 0) 5 
+================
+New words:
+0:"in" 1:"molti" 2:"casi" 3:"il" 4:"bene" 5:"comune" 6:"non" 7:"coincide" 8:"completamente" 9:"con" 10:"quello" 11:"individuale" 12:"a" 13:"causa" 14:"dell'egoismo" 15:"delle" 16:"persone" 
+Chunks: 
+0:"in" 1:"molti" 2:"casi" 3:"il" 4:"bene" 5:"comune" 6:"non" 7:"coincide" 8:"completamente" 9:"con" 10:"quello" 11:"individuale" 12:"a" 13:"causa" 14:"dell'egoismo" 15:"delle" 16:"persone" 
+0:"nella" 1:"maggior" 2:"parte" 3:"dei" 
+0:"con" 1:"il" 2:"bene" 3:"individuale" 
+0:"col" 1:"bene" 2:"individuale" 
+
+Ins(8, 0) 9 Ins(0, 0) 2 Mov(0, 1) (0, 3) 3 Mov(10, 0) (0, 2) 4 Mov(0, 0) (0, 1) 4 Mov(4, 0) (2, 0) 6 
+================
+New words:
+0:"in" 1:"molti" 2:"casi" 3:"il" 4:"bene" 5:"comune" 6:"non" 7:"coincide" 8:"con" 9:"quello" 10:"individuale" 11:"questo" 12:"e'" 13:"causato" 14:"dall'egoismo" 15:"delle" 16:"persone" 17:"che" 18:"cercano" 19:"di" 20:"massimizzare" 21:"il" 22:"loro" 23:"bene" 24:"individuale" 25:"invece" 26:"di" 27:"quello" 28:"comune" 
+Chunks: 
+0:"in" 1:"molti" 2:"casi" 3:"il" 4:"bene" 5:"comune" 6:"non" 7:"coincide" 8:"con" 9:"quello" 10:"individuale" 11:"questo" 12:"e'" 13:"causato" 14:"dall'egoismo" 15:"delle" 16:"persone" 17:"che" 18:"cercano" 19:"di" 20:"massimizzare" 21:"il" 22:"loro" 23:"bene" 24:"individuale" 25:"invece" 26:"di" 27:"quello" 28:"comune" 
+0:"a" 1:"causa" 2:"dell'egoismo" 3:"delle" 4:"persone" 
+0:"nella" 1:"maggior" 2:"parte" 3:"dei" 
+0:"con" 1:"il" 2:"bene" 3:"individuale" 
+0:"col" 1:"bene" 2:"individuale" 
+
+Ins(11, 0) 18 Mov(0, 3) (0, 4) 3 Mov(0, 2) (0, 3) 4 Mov(0, 1) (0, 2) 4 Mov(12, 0) (0, 1) 5 Del(8, 0) 1 Mov(0, 0) (0, 0) 8 Mov(9, 0) (8, 0) 3 
+================
+New words:
+0:"in" 1:"generale" 2:"il" 3:"bene" 4:"comune" 5:"non" 6:"coincide" 7:"con" 8:"quello" 9:"individuale" 10:"la" 11:"causa" 12:"e'" 13:"l'egoismo" 14:"delle" 15:"persone" 16:"che" 17:"cercano" 18:"di" 19:"massimizzare" 20:"il" 21:"loro" 22:"bene" 23:"individuale" 24:"invece" 25:"di" 26:"quello" 27:"comune" 
+Chunks: 
+0:"in" 1:"generale" 2:"il" 3:"bene" 4:"comune" 5:"non" 6:"coincide" 7:"con" 8:"quello" 9:"individuale" 10:"la" 11:"causa" 12:"e'" 13:"l'egoismo" 14:"delle" 15:"persone" 16:"che" 17:"cercano" 18:"di" 19:"massimizzare" 20:"il" 21:"loro" 22:"bene" 23:"individuale" 24:"invece" 25:"di" 26:"quello" 27:"comune" 
+0:"in" 1:"molti" 2:"casi" 
+0:"questo" 1:"e'" 2:"causato" 3:"dall'egoismo" 
+0:"a" 1:"causa" 2:"dell'egoismo" 3:"delle" 4:"persone" 
+0:"nella" 1:"maggior" 2:"parte" 3:"dei" 
+0:"con" 1:"il" 2:"bene" 3:"individuale" 
+0:"col" 1:"bene" 2:"individuale" 
+
+Ins(10, 0) 4 Ins(0, 0) 2 Mov(0, 4) (0, 6) 3 Mov(0, 3) (0, 5) 4 Mov(0, 2) (0, 4) 4 Mov(0, 1) (0, 3) 5 Mov(11, 0) (0, 2) 4 Mov(0, 0) (0, 1) 3 Mov(15, 0) (14, 0) 14 Mov(3, 0) (2, 0) 8 
+================
+New words:
+0:"in" 1:"generale" 2:"il" 3:"bene" 4:"comune" 5:"non" 6:"coincide" 7:"con" 8:"quello" 9:"individuale" 10:"dato" 11:"che" 12:"le" 13:"persone" 14:"non" 15:"badano" 16:"a" 17:"quello" 18:"comune" 
+Chunks: 
+0:"in" 1:"generale" 2:"il" 3:"bene" 4:"comune" 5:"non" 6:"coincide" 7:"con" 8:"quello" 9:"individuale" 10:"dato" 11:"che" 12:"le" 13:"persone" 14:"non" 15:"badano" 16:"a" 17:"quello" 18:"comune" 
+0:"la" 1:"causa" 2:"e'" 3:"l'egoismo" 4:"delle" 5:"persone" 6:"che" 7:"cercano" 8:"di" 9:"massimizzare" 10:"il" 11:"loro" 12:"bene" 13:"individuale" 14:"invece" 15:"di" 16:"quello" 17:"comune" 
+0:"in" 1:"molti" 2:"casi" 
+0:"questo" 1:"e'" 2:"causato" 3:"dall'egoismo" 
+0:"a" 1:"causa" 2:"dell'egoismo" 3:"delle" 4:"persone" 
+0:"nella" 1:"maggior" 2:"parte" 3:"dei" 
+0:"con" 1:"il" 2:"bene" 3:"individuale" 
+0:"col" 1:"bene" 2:"individuale" 
+
+Ins(10, 0) 9 Mov(0, 6) (0, 7) 3 Mov(0, 5) (0, 6) 4 Mov(0, 4) (0, 5) 4 Mov(0, 3) (0, 4) 5 Mov(0, 2) (0, 3) 4 Mov(0, 1) (0, 2) 3 Mov(10, 0) (0, 1) 18 Mov(0, 0) (0, 0) 10 
+================
+New words:
+0:"volete" 1:"comperare" 2:"viagra?" 3:"molto" 4:"buono" 5:"basso" 6:"prezzo" 
+Chunks: 
+0:"volete" 1:"comperare" 2:"viagra?" 3:"molto" 4:"buono" 5:"basso" 6:"prezzo" 
+0:"in" 1:"generale" 2:"il" 3:"bene" 4:"comune" 5:"non" 6:"coincide" 7:"con" 8:"quello" 9:"individuale" 10:"dato" 11:"che" 12:"le" 13:"persone" 14:"non" 15:"badano" 16:"a" 17:"quello" 18:"comune" 
+0:"la" 1:"causa" 2:"e'" 3:"l'egoismo" 4:"delle" 5:"persone" 6:"che" 7:"cercano" 8:"di" 9:"massimizzare" 10:"il" 11:"loro" 12:"bene" 13:"individuale" 14:"invece" 15:"di" 16:"quello" 17:"comune" 
+0:"in" 1:"molti" 2:"casi" 
+0:"questo" 1:"e'" 2:"causato" 3:"dall'egoismo" 
+0:"a" 1:"causa" 2:"dell'egoismo" 3:"delle" 4:"persone" 
+0:"nella" 1:"maggior" 2:"parte" 3:"dei" 
+0:"con" 1:"il" 2:"bene" 3:"individuale" 
+0:"col" 1:"bene" 2:"individuale" 
+
+Ins(0, 0) 7 Mov(0, 7) (0, 8) 3 Mov(0, 6) (0, 7) 4 Mov(0, 5) (0, 6) 4 Mov(0, 4) (0, 5) 5 Mov(0, 3) (0, 4) 4 Mov(0, 2) (0, 3) 3 Mov(0, 1) (0, 2) 18 Mov(0, 0) (0, 1) 19 
+================
+New words:
+0:"in" 1:"generale" 2:"il" 3:"bene" 4:"comune" 5:"non" 6:"coincide" 7:"con" 8:"quello" 9:"individuale" 10:"dato" 11:"che" 12:"le" 13:"persone" 14:"non" 15:"badano" 16:"a" 17:"quello" 18:"comune" 
+Chunks: 
+0:"in" 1:"generale" 2:"il" 3:"bene" 4:"comune" 5:"non" 6:"coincide" 7:"con" 8:"quello" 9:"individuale" 10:"dato" 11:"che" 12:"le" 13:"persone" 14:"non" 15:"badano" 16:"a" 17:"quello" 18:"comune" 
+0:"volete" 1:"comperare" 2:"viagra?" 3:"molto" 4:"buono" 5:"basso" 6:"prezzo" 
+0:"la" 1:"causa" 2:"e'" 3:"l'egoismo" 4:"delle" 5:"persone" 6:"che" 7:"cercano" 8:"di" 9:"massimizzare" 10:"il" 11:"loro" 12:"bene" 13:"individuale" 14:"invece" 15:"di" 16:"quello" 17:"comune" 
+0:"in" 1:"molti" 2:"casi" 
+0:"questo" 1:"e'" 2:"causato" 3:"dall'egoismo" 
+0:"a" 1:"causa" 2:"dell'egoismo" 3:"delle" 4:"persone" 
+0:"nella" 1:"maggior" 2:"parte" 3:"dei" 
+0:"con" 1:"il" 2:"bene" 3:"individuale" 
+0:"col" 1:"bene" 2:"individuale" 
+
+Mov(0, 8) (0, 8) 3 Mov(0, 7) (0, 7) 4 Mov(0, 6) (0, 6) 4 Mov(0, 5) (0, 5) 5 Mov(0, 4) (0, 4) 4 Mov(0, 3) (0, 3) 3 Mov(0, 2) (0, 2) 18 Mov(0, 0) (0, 1) 7 Mov(0, 1) (0, 0) 19 
+================
+New words:
+0:"in" 1:"generale" 2:"il" 3:"bene" 4:"comune" 5:"non" 6:"coincide" 7:"con" 8:"quello" 9:"individuale" 10:"dato" 11:"che" 12:"le" 13:"persone" 14:"non" 15:"badano" 16:"a" 17:"quello" 18:"comune" 19:"se" 20:"non" 21:"quando" 22:"gli" 23:"fa" 24:"comodo" 
+Chunks: 
+0:"in" 1:"generale" 2:"il" 3:"bene" 4:"comune" 5:"non" 6:"coincide" 7:"con" 8:"quello" 9:"individuale" 10:"dato" 11:"che" 12:"le" 13:"persone" 14:"non" 15:"badano" 16:"a" 17:"quello" 18:"comune" 19:"se" 20:"non" 21:"quando" 22:"gli" 23:"fa" 24:"comodo" 
+0:"volete" 1:"comperare" 2:"viagra?" 3:"molto" 4:"buono" 5:"basso" 6:"prezzo" 
+0:"la" 1:"causa" 2:"e'" 3:"l'egoismo" 4:"delle" 5:"persone" 6:"che" 7:"cercano" 8:"di" 9:"massimizzare" 10:"il" 11:"loro" 12:"bene" 13:"individuale" 14:"invece" 15:"di" 16:"quello" 17:"comune" 
+0:"in" 1:"molti" 2:"casi" 
+0:"questo" 1:"e'" 2:"causato" 3:"dall'egoismo" 
+0:"a" 1:"causa" 2:"dell'egoismo" 3:"delle" 4:"persone" 
+0:"nella" 1:"maggior" 2:"parte" 3:"dei" 
+0:"con" 1:"il" 2:"bene" 3:"individuale" 
+0:"col" 1:"bene" 2:"individuale" 
+
+Ins(19, 0) 6 Mov(0, 8) (0, 8) 3 Mov(0, 7) (0, 7) 4 Mov(0, 6) (0, 6) 4 Mov(0, 5) (0, 5) 5 Mov(0, 4) (0, 4) 4 Mov(0, 3) (0, 3) 3 Mov(0, 2) (0, 2) 18 Mov(0, 1) (0, 1) 7 Mov(0, 0) (0, 0) 19 0:"a" 1:"b" 2:"c" 3:"d" 4:"e" 5:"o" 6:"o" 7:"o" 8:"o" 9:"o" 10:"a" 11:"b" 12:"c" 13:"d" 14:"e" 
+0:"a" 1:"b" 2:"c" 3:"d" 4:"e" 5:"q" 6:"q" 7:"a" 8:"b" 9:"c" 10:"d" 11:"e" 12:"q" 13:"q" 14:"q" 15:"q" 16:"a" 17:"b" 18:"c" 19:"d" 20:"e" 
+
+Chunks: 
+0:"a" 1:"b" 2:"c" 3:"d" 4:"e" 5:"q" 6:"q" 7:"a" 8:"b" 9:"c" 10:"d" 11:"e" 12:"q" 13:"q" 14:"q" 15:"q" 16:"a" 17:"b" 18:"c" 19:"d" 20:"e" 
+0:"o" 1:"o" 2:"o" 3:"o" 4:"o" 
+
+Ins(12, 0) 4 Ins(5, 0) 2 Mov(5, 0) (0, 1) 5 Mov(10, 0) (16, 0) 5 Mov(0, 0) (0, 0) 5 Mov(0, 0) (7, 0) 5 
+================
+New words:
+0:"o" 1:"o" 2:"a" 3:"b" 4:"c" 5:"d" 6:"o" 7:"o" 8:"b" 9:"c" 10:"d" 11:"e" 12:"o" 13:"o" 14:"b" 15:"c" 16:"d" 17:"e" 
+Chunks: 
+0:"o" 1:"o" 2:"a" 3:"b" 4:"c" 5:"d" 6:"o" 7:"o" 8:"b" 9:"c" 10:"d" 11:"e" 12:"o" 13:"o" 14:"b" 15:"c" 16:"d" 17:"e" 
+0:"e" 1:"q" 2:"q" 3:"a" 
+0:"q" 1:"q" 2:"q" 3:"q" 4:"a" 
+0:"o" 1:"o" 2:"o" 3:"o" 4:"o" 
+
+Ins(12, 0) 2 Ins(6, 0) 2 Ins(0, 0) 2 Mov(0, 1) (0, 3) 5 Mov(12, 0) (0, 2) 5 Mov(4, 0) (0, 1) 4 Mov(17, 0) (14, 0) 4 Mov(8, 0) (8, 0) 4 Mov(0, 0) (2, 0) 4 
+Chunks: 
+0:"a" 1:"b" 2:"c" 3:"d" 4:"e" 5:"o" 6:"o" 7:"o" 8:"o" 9:"o" 10:"a" 11:"b" 12:"c" 13:"d" 14:"e" 
+0:"a" 1:"b" 2:"c" 3:"d" 4:"e" 5:"q" 6:"q" 7:"q" 8:"q" 9:"q" 10:"q" 11:"a" 12:"b" 13:"c" 14:"d" 15:"e" 16:"q" 17:"q" 18:"q" 19:"q" 20:"q" 21:"q" 22:"a" 23:"b" 24:"c" 25:"d" 26:"e" 
+Words:
+0:"a" 1:"b" 2:"c" 3:"d" 4:"o" 5:"o" 6:"a" 7:"b" 8:"c" 9:"d" 10:"e" 11:"z" 12:"q" 13:"q" 14:"q" 15:"q" 16:"q" 17:"q" 18:"z" 19:"a" 20:"b" 21:"c" 22:"d" 23:"e" 
+
+Chunks: 
+0:"a" 1:"b" 2:"c" 3:"d" 4:"o" 5:"o" 6:"a" 7:"b" 8:"c" 9:"d" 10:"e" 11:"z" 12:"q" 13:"q" 14:"q" 15:"q" 16:"q" 17:"q" 18:"z" 19:"a" 20:"b" 21:"c" 22:"d" 23:"e" 
+0:"e" 1:"o" 2:"o" 3:"o" 
+0:"a" 1:"b" 2:"c" 3:"d" 4:"e" 5:"q" 6:"q" 7:"q" 8:"q" 9:"q" 10:"q" 11:"a" 12:"b" 13:"c" 14:"d" 15:"e" 
+0:"a" 1:"b" 2:"c" 3:"d" 4:"e" 
+
+Ins(18, 0) 1 Ins(11, 0) 1 Mov(22, 1) (0, 3) 5 Mov(0, 1) (0, 2) 16 Mov(4, 0) (0, 1) 4 Mov(8, 0) (4, 0) 7 Mov(16, 1) (12, 0) 6 Mov(10, 0) (19, 0) 5 Mov(0, 0) (0, 0) 4 
+Chunks: 
+0:"a" 1:"b" 2:"c" 3:"d" 4:"e" 5:"o" 6:"o" 7:"o" 8:"o" 9:"o" 10:"a" 11:"b" 12:"c" 13:"d" 14:"e" 
+0:"a" 1:"b" 2:"c" 3:"d" 4:"e" 5:"o" 6:"o" 7:"o" 8:"o" 9:"o" 10:"a" 11:"b" 12:"c" 13:"d" 14:"e" 
+Words:
+0:"a" 1:"b" 2:"c" 3:"d" 4:"o" 5:"o" 6:"a" 7:"b" 8:"c" 9:"d" 10:"e" 11:"z" 12:"q" 13:"q" 14:"q" 15:"q" 16:"q" 17:"q" 18:"z" 19:"a" 20:"b" 21:"c" 22:"d" 23:"e" 
+
+Chunks: 
+0:"a" 1:"b" 2:"c" 3:"d" 4:"o" 5:"o" 6:"a" 7:"b" 8:"c" 9:"d" 10:"e" 11:"z" 12:"q" 13:"q" 14:"q" 15:"q" 16:"q" 17:"q" 18:"z" 19:"a" 20:"b" 21:"c" 22:"d" 23:"e" 
+0:"e" 1:"o" 2:"o" 3:"o" 
+0:"a" 1:"b" 2:"c" 3:"d" 4:"e" 5:"o" 6:"o" 7:"o" 8:"o" 9:"o" 10:"a" 11:"b" 12:"c" 13:"d" 14:"e" 
+
+Ins(11, 0) 8 Mov(0, 1) (0, 2) 15 Mov(4, 0) (0, 1) 4 Mov(8, 0) (4, 0) 7 Mov(10, 0) (19, 0) 5 Mov(0, 0) (0, 0) 4 0:"la" 1:"capra" 2:"canta" 3:"contenta" 4:"sotto" 5:"la" 6:"collina" 7:"sopra" 8:"la" 9:"panca" 10:"la" 11:"capra" 12:"campa" 0:"sotto" 1:"la" 2:"panca" 3:"la" 4:"capra" 5:"crepa" 6:"e" 7:"la" 8:"capra" 9:"canta" 
+Ins(5, 2) Ins(0, 1) Del(12, 1) Del(3, 5) Mov(0, 7, 3) Mov(8, 1, 4) 0:"nel" 1:"bel" 2:"mezzo" 3:"del" 4:"cammin" 5:"di" 6:"nostra" 7:"vita" 8:"mi" 9:"trovai" 10:"in" 11:"una" 12:"selva" 13:"oscura" 14:"che" 15:"la" 16:"diritta" 17:"via" 18:"era" 19:"smarrita" 0:"nel" 1:"frammezzo" 2:"del" 3:"cammin" 4:"di" 5:"nostra" 6:"esistenza" 7:"mi" 8:"trovai" 9:"nel" 10:"bel" 11:"mezzo" 12:"di" 13:"una" 14:"selva" 15:"oscura" 16:"dove" 17:"la" 18:"via" 19:"era" 20:"smarrita" 21:"e" 22:"non" 23:"mi" 24:"trovai" 25:"nel" 26:"cammin" 27:"di" 28:"casa" 29:"nostra" 
+Mov(0, 0, 1) Ins(21, 9) Ins(16, 2) Ins(12, 1) Ins(9, 1) Ins(6, 1) Ins(1, 1) Del(14, 3) Del(10, 1) Del(7, 1) Mov(17, 18, 3) Mov(1, 10, 2) Mov(8, 7, 2) Mov(11, 13, 3) Mov(3, 2, 4) 0:"a" 1:"b" 2:"c" 3:"d" 4:"e" 5:"f" 6:"g" 7:"m" 8:"n" 9:"o" 10:"p" 11:"q" 12:"r" 0:"a" 1:"b" 2:"c" 3:"d" 4:"e" 5:"f" 6:"g" 7:"e" 8:"f" 9:"g" 10:"m" 11:"n" 12:"o" 13:"p" 14:"q" 15:"r" 
+Mov(0, 0, 7) Mov(7, 10, 6) Ins(7, 3) 0:"a" 1:"b" 2:"c" 3:"d" 4:"e" 5:"o" 6:"o" 7:"o" 8:"o" 9:"o" 10:"a" 11:"b" 12:"c" 13:"d" 14:"e" 
+0:"a" 1:"b" 2:"c" 3:"d" 4:"e" 5:"q" 6:"q" 7:"a" 8:"b" 9:"c" 10:"d" 11:"e" 12:"q" 13:"q" 14:"q" 15:"q" 16:"a" 17:"b" 18:"c" 19:"d" 20:"e" 
+Mov(0, 0, 5) Mov(10, 16, 5) Ins(5, 11) Del(5, 5) 
+1: 
+2: 1. 
+3: 8.2 6.6 
+4: 12.4 10.8 10.6 
+5: 23.2 21.6 20.8 15.8 
+6: 22.2 20.6 21.8 17.4 4. 
+7: 14.4 12.8 14. 9.6 14.8 13.2 
+8: 11.2 10.8 8.4 11.4 22.2 21.2 8. 
+9: 14.4 12.8 14. 9.6 14.8 13.2 0. 8. 
+10: 23.4 21.8 23. 18.6 10.2 10.4 12. 20. 12. 

@@ -1,7 +1,7 @@
 (*
 
 Copyright (c) 2009 The Regents of the University of California
-Copyright (c) 2009 Google Inc.
+Copyright (c) 2009-2010 Google Inc.
 All rights reserved.
 
 Authors: Luca de Alfaro
@@ -52,6 +52,10 @@ open Mysql
 open Sexplib.Conv
 open Sexplib.Sexp
 open Sexplib
+
+(* Max age of a chunk, in seconds. *)
+let max_chunk_age_time = 3600. *. 24. *. 10.;;
+let max_chunk_age_revisions = 25;;
 
 (* This is the function that sexplib uses to convert floats *)
 Sexplib.Conv.default_string_of_float := (fun n -> Printf.sprintf "%.3f" n);;
@@ -108,6 +112,10 @@ object(self)
     val mutable chunks_author_a : string array array = [| [| |] |]
       (* This array keeps track of the author sigs *)
     val mutable chunks_sig_a : Author_sig.packed_author_signature_t array array = [| [| |] |]
+      (* Chunk ages, in n. of revisions *)
+    val mutable chunks_age_revisions_a : int array = [| |]
+      (* Chunk ages, in time *)
+    val mutable chunks_age_time_a :  float array = [| |]
       (* Writer for blobs *)
     val blob_writer = new Revision_writer.writer 
       page_id None (Some colored_base_path) None false
@@ -135,27 +143,13 @@ object(self)
       let user_id = ml2int r#get_user_id in
       let username = ml2str r#get_user_name in
       let is_minor = ml2int (if r#get_is_minor then 1 else 0) in 
+      let r_blob_id = ml2int r#get_blob_id in
       (* Quality parameters *)
-      (* I do field-by-field initialization, rather than copying the whole
-	 structure, because otherwise we get two references to the SAME
-	 structure, unfortunately. *)
-      let trust_a = r#get_word_trust in
-      let quality_info : qual_info_t = {
-	n_edit_judges = quality_info_default.n_edit_judges;
-	total_edit_quality = quality_info_default.total_edit_quality;
-	min_edit_quality = quality_info_default.min_edit_quality;
-	nix_bit = quality_info_default.nix_bit;
-	delta = quality_info_default.delta;
-	reputation_gain = quality_info_default.reputation_gain;
-	overall_trust = Compute_robust_trust.compute_overall_trust trust_a;
-	word_trust_histogram = 
-	  Compute_robust_trust.compute_trust_histogram trust_a;
-      } in
+      let quality_info : qual_info_t = r#get_quality_info in
       (* Prepares these parameters. *)
       let db_qual_info = ml2str 
 	(string_of__of__sexp_of sexp_of_qual_info_t quality_info) in 
-      let q2 =  ml2float quality_info.reputation_gain in 
-      let aq2 = if (q2 = "inf") then (ml2float infinity) else q2 in
+      let rep_gain =  ml2float quality_info.reputation_gain in 
       let db_overall_trust = ml2float quality_info.overall_trust in
       let db_overall_quality = ml2float 0.0 in
       (* Db write access *)
@@ -170,9 +164,9 @@ object(self)
       end;
       (* Writes the SQL for the revision. *)
       Printf.fprintf sql_file 
-	"(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+	"(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)\n"
 	rev_id page_id text_id time_string user_id username is_minor 
-	db_qual_info (ml2int blob_id) aq2 db_overall_trust db_overall_quality
+	db_qual_info r_blob_id rep_gain db_overall_trust db_overall_quality
 	
 
     (** Computes the distances between the newest revision and all previous ones. *)
@@ -183,6 +177,9 @@ object(self)
       (* gets text etc of last version *) 
       let rev2_t = rev2#get_words in 
       let rev2_l = Array.length (rev2_t) in 
+      (* If this is the first revision ever, sets the delta. *)
+      if rev2_idx = 0 && offset = 0 then 
+	rev2#set_delta (float_of_int (Array.length rev2_t));
 
       (* Loop over some preceding revisions *)
       for rev1_idx = rev2_idx - 1 downto 0 do begin
@@ -199,6 +196,7 @@ object(self)
           let d      = Editlist.edit_distance edits (max rev1_l rev2_l) in 
           rev1#set_distance (Vec.setappend 0.0 d i rev1#get_distance);
           rev1#set_editlist (Vec.setappend [] edits i rev1#get_editlist);
+	  rev2#set_delta d
 	end
 	else begin 
 	  (* Computes the distance between rev2 and rev1.  The 
@@ -261,13 +259,109 @@ object(self)
       end done (* loop over preceding revisions *)
 
 
+    (** This method computes the quality of revisions, using the classical
+	revision-triangle formula. *)
+    method private compute_quality : unit =
+      (* A revision triangle is formed as follows: 
+	 rev2: most recent, not a robot. 
+	 rev1: judged: author different from rev2
+	 rev0: reference.  Closest revision to rev2 before rev1. *)
+      (* The Qual function (see paper) *)
+      let qual d01 d12 d02 = begin 
+	let qq = if d01 > 0. then (d02 -. d12) /. d01 else 1.
+	in max (-1.) (min 1. qq)
+      end in 
+      let last_rev_idx = (Vec.length revs) - 1 in
+      if last_rev_idx > 1 then begin
+	let rev2 = Vec.get last_rev_idx revs in 
+	let rev2_uid = rev2#get_id in
+	let rev2_uname = rev2#get_user_name in 
+	(* If the judge revision is a robot, we do not do anything. *)
+	if not (is_user_a_bot robots rev2_uname) then begin
+	  (* Loops over suitable rev1 to be judged. *)
+	  for rev1_idx = 1 to last_rev_idx - 1 do begin
+	    let rev1 = Vec.get rev1_idx revs in
+	    let rev1_uid = rev1#get_id in
+	    (* rev1 must have a different username from rev2, else
+	       we do not judge rev1. *)
+	    if rev2_uid <> rev1_uid then begin
+	      (* Now I must find the revision before rev1 that is
+		 closest to rev2. *)
+	      let rev0 = Vec.get 0 revs in
+	      let closest_d = ref (Vec.get last_rev_idx rev0#get_distance) in
+	      let closest_idx = ref 0 in
+	      for i = 1 to rev1_idx - 1 do begin
+		let revi = Vec.get i revs in
+		let d = Vec.get (last_rev_idx - i) revi#get_distance in
+		if d <= !closest_d then begin
+		  closest_d := d;
+		  closest_idx := i
+		end
+	      end done; (* looks for closer revision *)
+	      let rev_c2_idx = !closest_idx in
+	      let d_c2_2 = !closest_d in
+	      let rev_c2 = Vec.get rev_c2_idx revs in
+	      (* Gets the distances to form the triangle *)
+	      let d12 = Vec.get (last_rev_idx - rev1_idx) rev1#get_distance in
+	      let d_c2_1 = Vec.get (rev1_idx - rev_c2_idx) rev_c2#get_distance in
+	      (* Computes the quality *)
+	      let q = qual d_c2_1 d12 d_c2_2 in
+	      let d_ratio = (min d_c2_2 d12) /. (1. +. d_c2_1) in
+	      let rev2_weight = rep_histories#get_precise_weight rev2_uid in
+	      let judge_weight = rev2_weight *. exp (0. -. d_ratio /. 3.) in
+	      (* Adds the feedback to the revision. *)
+	      rev1#add_judgement judge_weight q
+	    end (* if rev1 and rev2 have different authors *)
+	  end done (* for rev1 *)
+	end (* if rev2 is not a robot *)
+      end (* if there are at least 3 revisions *)
+
+
+    (** Updates the age of deleted chunks.  We keep track of the age, to
+	avoid keeping chunks that are too old: it would make the analysis of pages
+	with a long revision history rather inefficient. 
+        The function returns the computed ages as a pair of arrays, the first array
+        describing the age of the chunks in n. of past revisions, the second describing
+        the age of the chunks in number of seconds. *)
+    method private compute_chunk_age 
+      (new_chunks_a: word array array) 
+      (medit_l: Editlist.medit list) : (int array * float array) =
+      (* First produces the empty age arrays.  Note that the initialization for
+         element 0, which is not changed in the following, is the correct one. *)
+      let l = Array.length new_chunks_a in
+      let age_revisions_a = Array.make l 0 in
+      let age_time_a = Array.make l 0. in
+      (* If we are at the first revisions, then the ages are all 0. *)
+      let rev_idx = (Vec.length revs) - 1 in 
+      if rev_idx > 0 then begin
+	(* If we are at a subsequent revision, then first figures out the length
+	   of time since the previous revision. *)
+	let rev = Vec.get rev_idx revs in 
+	let rev_time = rev#get_time in 
+	let prev_rev = Vec.get (rev_idx - 1) revs in
+	let prev_time = prev_rev#get_time in
+	let delta_time = max 0. (rev_time -. prev_time) in
+	(* Updates the ages of the chunks, using medit_l *)
+	let update_revision_age : Editlist.medit -> unit = function
+	    Editlist.Mins (_, _) -> ()
+	  | Editlist.Mdel (_, _, _) -> ()
+	  | Editlist.Mmov (_, src_idx, _, dst_idx, _) -> begin 
+            (* if the destination is a dead chunk *)
+              if dst_idx > 0 then begin 
+		age_revisions_a.(dst_idx) <- 1 + chunks_age_revisions_a.(src_idx);
+		age_time_a.(dst_idx) <- delta_time +. chunks_age_time_a.(src_idx)
+	      end
+	    end
+	in 
+	List.iter update_revision_age medit_l;
+      end;
+      (* All done! *)
+      (age_revisions_a, age_time_a)
+
+
     (** Processes a new revision, computing trust, author, and origin, 
-	and outputting:
-	- The colored revision text, compressed, in the filesystem, if 
-	  requested.
-	- The sql code for the online system metadata.
-	- The colored revisions in an xml file. *)
-    method private eval_newest : unit = 
+	and outputting the annotated text. *)
+    method private eval_trust : unit = 
       let rev_idx = (Vec.length revs) - 1 in 
       let rev = Vec.get rev_idx revs in 
       let uid = rev#get_user_id in 
@@ -317,6 +411,11 @@ object(self)
 	  trust_coeff_cut_rep_radius read_all read_part 
 	  trust_coeff_local_decay 
       in
+      (* Computes the age of the new deleted chunks.  We can do this now, since
+         it is the chunks that derive from the comparison with the preceding page
+         that will be kept. *)
+      let (new_chunks_age_revisions_a, new_chunks_age_time_a) =
+	self#compute_chunk_age new_chunks_10_a medit_10_l in
       (* We check if there is some recent revision closer than the 
 	 immediately preceding one. *)
       let closest_idx = ref (rev_idx - 1) in
@@ -369,6 +468,7 @@ object(self)
         (* Analyzes this different chunk setup *)
         let (new_chunks_20_a, medit_20_l) = 
 	  Chdiff.text_tracking chunks_dual_a new_wl in 
+
 	(* Computes origin *)
 	let (new_origin_20_a, new_author_20_a) = 
 	  Compute_robust_trust.compute_origin 
@@ -389,7 +489,7 @@ object(self)
         in
         (* The trust of each word is the max of the trust under both edits;
 	   the signature is the signature of the max. *)
-        for i = 0 to Array.length (new_trust_10_a.(0)) - 1 do
+        for i = 0 to (Array.length (new_trust_10_a.(0))) - 1 do
 	  if new_trust_20_a.(0).(i) > new_trust_10_a.(0).(i) then begin 
 	    new_trust_10_a.(0).(i) <- new_trust_20_a.(0).(i); 
 	    new_sigs_10_a.(0).(i)  <- new_sigs_20_a.(0).(i)
@@ -401,23 +501,98 @@ object(self)
 	   _10 variables that contain the correct values of trust and author 
 	   signatures. *)
 
-      (* Replaces the chunks for the next iteration *)
-      chunks_trust_a  <- new_trust_10_a;
-      chunks_origin_a <- new_origin_10_a; 
-      chunks_author_a <- new_author_10_a;
-      chunks_sig_a    <- new_sigs_10_a;
-      chunks_a        <- new_chunks_10_a;
-      (* Also notes in the revision the reputations and the origins,
+      (* Notes in the revision the reputations and the origins,
 	 as well as the author_sigs. *)
-      rev#set_word_trust  chunks_trust_a.(0);
-      rev#set_word_origin chunks_origin_a.(0);
-      rev#set_word_author chunks_author_a.(0);
-      rev#set_word_sig    chunks_sig_a.(0);
+      rev#set_word_trust  new_trust_10_a.(0);
+      rev#set_word_origin new_origin_10_a.(0);
+      rev#set_word_author new_author_10_a.(0);
+      rev#set_word_sig    new_sigs_10_a.(0);
+      (* Sets the word trust histogram. *)
+      let trust_histogram = 
+	  Compute_robust_trust.compute_trust_histogram new_trust_10_a.(0) in
+      rev#set_trust_histogram trust_histogram;
+      let overall_t = Compute_robust_trust.compute_overall_trust trust_histogram in
+      rev#set_overall_trust overall_t;
 
-      (* Outputs the colored text to the blob. *)
+      (* Outputs the colored text to the blob... *)
       blob_id <- blob_writer#write_revision rev#get_id rev#get_colored_text;
-      (* Now we have to write the metadata for sql. *)
-      self#write_wikitrust_revision_sql rev
+      (* ... and sets the blob_id. *)
+      rev#set_blob_id blob_id;
+
+      (* Replaces the chunks for the next iteration, filtering away those that
+         are too old.  To this end, we first create destination lists. *)
+      let chunks_trust_l         = ref [] in
+      let chunks_origin_l        = ref [] in
+      let chunks_author_l        = ref [] in
+      let chunks_sig_l           = ref [] in
+      let chunks_l               = ref [] in
+      let chunks_age_revisions_l = ref [] in
+      let chunks_age_time_l      = ref [] in
+      (* The function young_enough tells us whether chunk i is young enough *)
+      let young_enough (i: int) : bool =
+	(* The live chunk is always included. *)
+	(i = 0) || 
+	  (new_chunks_age_revisions_a.(i) <= max_chunk_age_revisions) ||
+	  (new_chunks_age_time_a.(i) <= max_chunk_age_time) 
+      in
+      for i = 0 to (Array.length new_chunks_10_a) - 1 do begin
+	if (young_enough i) then begin
+	  chunks_trust_l         := new_trust_10_a.(i)  :: !chunks_trust_l;
+	  chunks_origin_l        := new_origin_10_a.(i) :: !chunks_origin_l;
+	  chunks_author_l        := new_author_10_a.(i) :: !chunks_author_l;
+	  chunks_sig_l           := new_sigs_10_a.(i)   :: !chunks_sig_l;
+	  chunks_l               := new_chunks_10_a.(i) :: !chunks_l;
+	  chunks_age_revisions_l := new_chunks_age_revisions_a.(i) :: !chunks_age_revisions_l;
+	  chunks_age_time_l      := new_chunks_age_time_a.(i)      :: !chunks_age_time_l;
+	end
+      end done;
+
+      (* Converts the lists to arrays, reversing them. *)
+      chunks_trust_a     <- Array.of_list (List.rev !chunks_trust_l);
+      chunks_origin_a    <- Array.of_list (List.rev !chunks_origin_l);
+      chunks_author_a    <- Array.of_list (List.rev !chunks_author_l);
+      chunks_sig_a       <- Array.of_list (List.rev !chunks_sig_l);
+      chunks_a           <- Array.of_list (List.rev !chunks_l);
+      chunks_age_revisions_a <- Array.of_list (List.rev !chunks_age_revisions_l);
+      chunks_age_time_a <- Array.of_list (List.rev !chunks_age_time_l);
+      
+
+    (** Updates the trust histograms of older revisions. *)
+    method private percolate_back_trust : unit = 
+      let last_rev_idx = (Vec.length revs) - 1 in
+      let rev0 = Vec.get last_rev_idx revs in 
+      let rev0_uname = rev0#get_user_name in 
+      let rev0_trust = rev0#get_word_trust in
+      (* We do something only if the revision is not by a robot. 
+	 There are so many robotic revisions that this is a valuable speed-up. *)
+      if not (is_user_a_bot robots rev0_uname) then begin
+	for old_rev_idx = 0 to last_rev_idx - 1 do begin
+	  let rev1 = Vec.get old_rev_idx revs in 
+	  (* We need to percolate the trust of rev0 back to rev1. *)
+	  (* We get the edit list from rev1 to rev0. *)
+	  let i = last_rev_idx - old_rev_idx in
+	  let rev1_trust = rev1#get_word_trust in
+	  let elist = Vec.get i rev1#get_editlist in
+	  let percolate = function 
+	      Editlist.Ins (_, _) -> ()
+	    | Editlist.Del (_, _) -> ()
+	    | Editlist.Mov (i, j, l) -> begin
+		(* l words are moved from i to j.  So we take the trust from the
+		   destination, and we apply it to the source via max. *)
+		for k = 0 to l - 1 do
+		  rev1_trust.(i + k) <- max rev1_trust.(i + k) rev0_trust.(j + k)
+		done
+	      end
+	  in List.iter percolate elist;
+	  (* Sets the new trust values. *)
+	  rev1#set_word_trust rev1_trust;
+	  (* Computes and sets the new histogram. *)
+	  let th = Compute_robust_trust.compute_trust_histogram rev1_trust in
+	  rev1#set_trust_histogram th;
+	  let t = Compute_robust_trust.compute_overall_trust th in
+	  rev1#set_overall_trust t
+	end done
+      end (* Not by anonymous. *)
 
 
     (** This method is called to add a new revision to be evaluated
@@ -450,15 +625,18 @@ object(self)
       (* Computes all the distances from this new revision to the
 	 previous ones. *)
       self#compute_distances;
-      (* Evaluates the newest version *)
-      self#eval_newest; 
-      (* If the buffer is full, evaluates the oldest version and kicks
-	 it out *)
+      (* Computes quality parameters of previous revisions. *)
+      self#compute_quality;
+      (* Computes the trust of the new revision. *)
+      self#eval_trust; 
+      (* Updates the trust histograms of the older revisions. *)
+      self#percolate_back_trust;
+      (* If the buffer is full, removes the oldest revisions, and writes
+	 the sql out. *)
       if (Vec.length revs) > n_sigs then begin 
-	(* The parameter 0 is the index of what is considered to be
-           the oldest.  It is used, since in no_more_revisions it may
-           be a larger number *)
-	revs <- Vec.remove 0 revs;
+	let (r, revs') = Vec.pop 0 revs in
+	revs <- revs';
+	self#write_wikitrust_revision_sql r;
 	(* increments the offset of the oldest version *)
 	offset <- offset + 1;
       end; (* if *)
@@ -521,6 +699,7 @@ object(self)
 	We need to produce the sql that contains the page information. *)
     method eval: unit = 
       (* Finishes writing the SQL for the wikitrust_revision table *)
+      Vec.iter self#write_wikitrust_revision_sql revs;
       if written_initial_sql then begin
 	Printf.fprintf sql_file ";\n"
       end;
