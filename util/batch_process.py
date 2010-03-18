@@ -344,7 +344,7 @@ def main():
                     break
                 files.sort()
                 # Accumulates the files in chunks
-                accumulator = AccumulateFiles(5 * history_size, 20)
+                accumulator = AccumulateFiles(5 * history_size, 50)
                 for source_file in files:
                     full_source_file = source_dir + "/" + source_file
                     accumulator.add_file(full_source_file)
