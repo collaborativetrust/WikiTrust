@@ -4,7 +4,7 @@
 Copyright (c) 2010 Google Inc.
 All rights reserved.
 
-Authors: Ian Pye, Luca de Alfaro
+Authors: Luca de Alfaro
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -73,7 +73,7 @@ row_idx = 0
 for row in csv_f:
   row_idx += 1
   if row_idx == 1:
-    print 'Title,Revision,N.Judges,Quality,Min Quality,Delta,h[0],h[1],h[2],h[3],Histogram,Revision,N.Judges,Quality,Min Quality,Delta,h[0],h[1],h[2],h[3],Histogram'
+    print 'Title,Revision,N.Judges,Judge Confidence,Quality,Min Quality,Delta,h[0],h[1],h[2],h[3],Histogram,Revision,N.Judges,Judge Confidence,Quality,Min Quality,Delta,h[0],h[1],h[2],h[3],Histogram'
   else:
     print '"' + row[0] + '",',
     for rev_spec in row[1:]:
@@ -88,6 +88,10 @@ for row in csv_f:
         i = s.find("n_edit_judges ") + len("n_edit_judges ")
         j = s[i:].find(")")
         n_edit_judges = int (s[i:i+j])
+        # Judge confidence
+        i = s.find("judge_weight ") + len("judge_weight ")
+        j = s[i:].find(")")
+        judge_weight = float (s[i:i+j])
         # Total edit quality
         i = s.find("total_edit_quality ") + len("total_edit_quality ")
         j = s[i:].find(")")
@@ -105,9 +109,9 @@ for row in csv_f:
         j = s[i:].find(")")
         hist = s[i:i+j].split(" ")
         # produce output
-        print '"', n_edit_judges, '","', 
-        if n_edit_judges > 0:
-          print total_quality / (1.0 * n_edit_judges), '","',
+        print '"', n_edit_judges, '","', judge_weight, '","', 
+        if judge_weight > 0.01:
+          print total_quality / judge_weight, '","',
         else: 
           print '0","',
         print min_quality, '","', delta, '","',

@@ -77,6 +77,7 @@ class revision
        separate table from standard revision data. *)
     val mutable quality_info : qual_info_t = {
       n_edit_judges = 0;
+      judge_weight = 0.;
       total_edit_quality = 0.;
       min_edit_quality = 0.;
       nix_bit = false;
@@ -99,6 +100,7 @@ class revision
 	  (* If the revision object has been created with a known quality info,
 	     then takes this data and the blob_id from the initializer. *)
 	  quality_info.n_edit_judges <- q.n_edit_judges;
+	  quality_info.judge_weight <- q.judge_weight;
 	  quality_info.total_edit_quality <- q.total_edit_quality;
 	  quality_info.min_edit_quality <- q.min_edit_quality;
 	  quality_info.nix_bit <- q.nix_bit;
@@ -356,25 +358,29 @@ class revision
     method set_sigs (s: Author_sig.packed_author_signature_t array) = sigs <- s
 
     (** Adds edit quality information *)
-    method add_edit_quality_info (delta: float) (new_q: float) (rep_gain: float) 
-      : unit = 
+    method add_edit_quality_info 
+      (delta: float) (jw: float) (new_q: float) : unit = 
       (* If there are no judges yet, sets the information for the first time. *)
       if quality_info.n_edit_judges = 0 then begin
 	(* Sets the quality info for the first time. *)
 	quality_info.delta <- delta;
-	quality_info.total_edit_quality <- new_q; 
+	quality_info.judge_weight <- jw;
+	quality_info.total_edit_quality <- new_q *. jw; 
 	quality_info.min_edit_quality <- new_q;
 	quality_info.n_edit_judges <- 1; 
-	quality_info.reputation_gain <- rep_gain;
       end else begin
 	(* Updates the quality info. *)
 	quality_info.delta <- min quality_info.delta delta;
-	quality_info.total_edit_quality <- quality_info.total_edit_quality +. new_q; 
+	quality_info.judge_weight <- quality_info.judge_weight +. jw;
+	quality_info.total_edit_quality <- quality_info.total_edit_quality +. new_q *. jw; 
 	quality_info.min_edit_quality <- min new_q quality_info.min_edit_quality;
 	quality_info.n_edit_judges <- quality_info.n_edit_judges + 1; 
-	quality_info.reputation_gain <- quality_info.reputation_gain +. rep_gain;
       end;
       (* flags the change *)
+      modified_quality_info <- true
+
+    method note_reputation_inc (rep_gain: float) : unit =
+      quality_info.reputation_gain <- quality_info.reputation_gain +. rep_gain;
       modified_quality_info <- true
 
     method set_overall_trust (t: float) : unit = 

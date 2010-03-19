@@ -1,7 +1,7 @@
 (*
 
 Copyright (c) 2009 The Regents of the University of California
-Copyright (c) 2009 Google Inc.
+Copyright (c) 2009-2010 Google Inc.
 All rights reserved.
 
 Authors: Luca de Alfaro
@@ -149,8 +149,7 @@ object(self)
       (* Prepares these parameters. *)
       let db_qual_info = ml2str 
 	(string_of__of__sexp_of sexp_of_qual_info_t quality_info) in 
-      let q2 =  ml2float quality_info.reputation_gain in 
-      let aq2 = if (q2 = "inf") then (ml2float infinity) else q2 in
+      let rep_gain =  ml2float quality_info.reputation_gain in 
       let db_overall_trust = ml2float quality_info.overall_trust in
       let db_overall_quality = ml2float 0.0 in
       (* Db write access *)
@@ -167,7 +166,7 @@ object(self)
       Printf.fprintf sql_file 
 	"(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)\n"
 	rev_id page_id text_id time_string user_id username is_minor 
-	db_qual_info r_blob_id aq2 db_overall_trust db_overall_quality
+	db_qual_info r_blob_id rep_gain db_overall_trust db_overall_quality
 	
 
     (** Computes the distances between the newest revision and all previous ones. *)
@@ -178,6 +177,9 @@ object(self)
       (* gets text etc of last version *) 
       let rev2_t = rev2#get_words in 
       let rev2_l = Array.length (rev2_t) in 
+      (* If this is the first revision ever, sets the delta. *)
+      if rev2_idx = 0 && offset = 0 then 
+	rev2#set_delta (float_of_int (Array.length rev2_t));
 
       (* Loop over some preceding revisions *)
       for rev1_idx = rev2_idx - 1 downto 0 do begin
@@ -194,6 +196,7 @@ object(self)
           let d      = Editlist.edit_distance edits (max rev1_l rev2_l) in 
           rev1#set_distance (Vec.setappend 0.0 d i rev1#get_distance);
           rev1#set_editlist (Vec.setappend [] edits i rev1#get_editlist);
+	  rev2#set_delta d
 	end
 	else begin 
 	  (* Computes the distance between rev2 and rev1.  The 
@@ -254,6 +257,64 @@ object(self)
 	end (* if the distance is not being computed wrt the previous 
 	       revision *)
       end done (* loop over preceding revisions *)
+
+
+    (** This method computes the quality of revisions, using the classical
+	revision-triangle formula. *)
+    method private compute_quality : unit =
+      (* A revision triangle is formed as follows: 
+	 rev2: most recent, not a robot. 
+	 rev1: judged: author different from rev2
+	 rev0: reference.  Closest revision to rev2 before rev1. *)
+      (* The Qual function (see paper) *)
+      let qual d01 d12 d02 = begin 
+	let qq = if d01 > 0. then (d02 -. d12) /. d01 else 1.
+	in max (-1.) (min 1. qq)
+      end in 
+      let last_rev_idx = (Vec.length revs) - 1 in
+      if last_rev_idx > 1 then begin
+	let rev2 = Vec.get last_rev_idx revs in 
+	let rev2_uid = rev2#get_id in
+	let rev2_uname = rev2#get_user_name in 
+	(* If the judge revision is a robot, we do not do anything. *)
+	if not (is_user_a_bot robots rev2_uname) then begin
+	  (* Loops over suitable rev1 to be judged. *)
+	  for rev1_idx = 1 to last_rev_idx - 1 do begin
+	    let rev1 = Vec.get rev1_idx revs in
+	    let rev1_uid = rev1#get_id in
+	    (* rev1 must have a different username from rev2, else
+	       we do not judge rev1. *)
+	    if rev2_uid <> rev1_uid then begin
+	      (* Now I must find the revision before rev1 that is
+		 closest to rev2. *)
+	      let rev0 = Vec.get 0 revs in
+	      let closest_d = ref (Vec.get last_rev_idx rev0#get_distance) in
+	      let closest_idx = ref 0 in
+	      for i = 1 to rev1_idx - 1 do begin
+		let revi = Vec.get i revs in
+		let d = Vec.get (last_rev_idx - i) revi#get_distance in
+		if d <= !closest_d then begin
+		  closest_d := d;
+		  closest_idx := i
+		end
+	      end done; (* looks for closer revision *)
+	      let rev_c2_idx = !closest_idx in
+	      let d_c2_2 = !closest_d in
+	      let rev_c2 = Vec.get rev_c2_idx revs in
+	      (* Gets the distances to form the triangle *)
+	      let d12 = Vec.get (last_rev_idx - rev1_idx) rev1#get_distance in
+	      let d_c2_1 = Vec.get (rev1_idx - rev_c2_idx) rev_c2#get_distance in
+	      (* Computes the quality *)
+	      let q = qual d_c2_1 d12 d_c2_2 in
+	      let d_ratio = (min d_c2_2 d12) /. (1. +. d_c2_1) in
+	      let rev2_weight = rep_histories#get_precise_weight rev2_uid in
+	      let judge_weight = rev2_weight *. exp (0. -. d_ratio /. 3.) in
+	      (* Adds the feedback to the revision. *)
+	      rev1#add_judgement judge_weight q
+	    end (* if rev1 and rev2 have different authors *)
+	  end done (* for rev1 *)
+	end (* if rev2 is not a robot *)
+      end (* if there are at least 3 revisions *)
 
 
     (** Updates the age of deleted chunks.  We keep track of the age, to
@@ -447,9 +508,11 @@ object(self)
       rev#set_word_author new_author_10_a.(0);
       rev#set_word_sig    new_sigs_10_a.(0);
       (* Sets the word trust histogram. *)
-      let word_trust_histogram = 
+      let trust_histogram = 
 	  Compute_robust_trust.compute_trust_histogram new_trust_10_a.(0) in
-      rev#set_trust_histogram word_trust_histogram;
+      rev#set_trust_histogram trust_histogram;
+      let overall_t = Compute_robust_trust.compute_overall_trust trust_histogram in
+      rev#set_overall_trust overall_t;
 
       (* Outputs the colored text to the blob... *)
       blob_id <- blob_writer#write_revision rev#get_id rev#get_colored_text;
@@ -525,7 +588,9 @@ object(self)
 	  rev1#set_word_trust rev1_trust;
 	  (* Computes and sets the new histogram. *)
 	  let th = Compute_robust_trust.compute_trust_histogram rev1_trust in
-	  rev1#set_trust_histogram th
+	  rev1#set_trust_histogram th;
+	  let t = Compute_robust_trust.compute_overall_trust th in
+	  rev1#set_overall_trust t
 	end done
       end (* Not by anonymous. *)
 
@@ -560,6 +625,8 @@ object(self)
       (* Computes all the distances from this new revision to the
 	 previous ones. *)
       self#compute_distances;
+      (* Computes quality parameters of previous revisions. *)
+      self#compute_quality;
       (* Computes the trust of the new revision. *)
       self#eval_trust; 
       (* Updates the trust histograms of the older revisions. *)

@@ -485,20 +485,20 @@ let compute_origin
   (new_chunks_origin_a, new_chunks_author_a)
 
 
-(** [compute_overall_trust t] computes the overall trust of a revision
-    where the word trust is given by array [t]. *)
-let compute_overall_trust (trust_a: float array) : float = 
-  (* Computes the sum of the square trust of a revision *)
-  let f (tot: float) (tr: float) : float = 
-    let norm_tr = tr /. (float_of_int max_rep_val) in 
-    tot +. (norm_tr *. norm_tr)
-  in 
-  let tot_sq_tr = Array.fold_left f 0. trust_a in 
-  let m = Array.length trust_a in 
-  let n = float_of_int m in 
-  (* The overall trust is the total of the square trust, multiplied by the 
-     average of the square trust. *)
-  if m = 0 then 0. else tot_sq_tr *. tot_sq_tr /. n 
+(** [compute_overall_trust th] computes the overall trust of a revision
+    where the word trust has a histogram [th]. *)
+let compute_overall_trust (th: int array) : float = 
+  (* First, computes the quality content of a revision. *)
+  let qual_content = ref 0. in
+  let f i x = qual_content := !qual_content +. (float_of_int (x * i)) in
+  Array.iteri f th;
+  (* Then, computes a reduction factor due to low-quality words. *)
+  let total_reduction = ref 0. in
+  let f i x = total_reduction := !total_reduction +. 
+    (float_of_int x) /. (2. ** (float_of_int i)) in
+  Array.iteri f th;
+  (* Puts the two together *)
+  !qual_content *. exp (0. -. Online_types.coeff_spam_reduction *. !total_reduction)
 
 
 (** [compute_trust_histogram trust_a] computes the trust histogram of a page

@@ -80,6 +80,7 @@ let global_db_port = ref 3306
 let set_global_db_port d = global_db_port := d
 let global_db_prefix = ref ""
 let set_global_db_prefix d = global_db_prefix := d
+let keep_cached_text = ref false
 
 (* Debugging *)
 let min_rev_id = ref None
@@ -130,7 +131,7 @@ let global_dbh = match !global_db_name with
 in 
 let db = Online_db.create_db !use_exec_api !db_prefix mediawiki_dbh 
   global_dbh !mw_db_name !wt_db_rev_base_path !wt_db_blob_base_path 
-  !dump_db_calls in
+  !dump_db_calls !keep_cached_text in
 let logger = !Online_log.online_logger in
 let trust_coeff = Online_types.get_default_coeff in
 
@@ -176,7 +177,7 @@ let process_page (page_id: int) (page_title: string) =
   in 
   let child_db = Online_db.create_db !use_exec_api !db_prefix child_dbh
     child_global_dbh !mw_db_name !wt_db_rev_base_path 
-    !wt_db_blob_base_path !dump_db_calls 
+    !wt_db_blob_base_path !dump_db_calls !keep_cached_text
   in
   let pages_downloaded = ref 0 in
   let processed_well = ref false in

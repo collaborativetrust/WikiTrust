@@ -1,6 +1,7 @@
 (*
 
 Copyright (c) 2007-2009 The Regents of the University of California
+Copyright (c) 2010 Google Inc.
 All rights reserved.
 
 Authors: Luca de Alfaro, B. Thomas Adler, Ian Pye
@@ -402,6 +403,7 @@ class trust_revision
     val mutable sep_word_idx : int array =  [| |]
     val mutable quality_info : qual_info_t = {
       n_edit_judges = 0;
+      judge_weight = 0.;
       total_edit_quality = 0.;
       min_edit_quality = 0.;
       nix_bit = false;
@@ -451,11 +453,30 @@ class trust_revision
     method set_blob_id (n: int) : unit = blob_id <- n
     method get_blob_id : int = blob_id
 
+    method get_quality_info = quality_info
+
     method set_trust_histogram (a: int array) : unit =
       quality_info.word_trust_histogram <- a
 
-    method get_trust_histogram : int array = quality_info.word_trust_histogram
-    method get_quality_info = quality_info
+    method set_overall_trust (t: float) : unit =
+      quality_info.overall_trust <- t
+
+    method set_delta (d: float) : unit =
+      quality_info.delta <- d
+
+    method add_judgement (judge_weight: float) (q: float) : unit =
+      if quality_info.n_edit_judges = 0 then begin
+	quality_info.n_edit_judges <- 1;
+	quality_info.judge_weight <- judge_weight;
+	quality_info.min_edit_quality <- q;
+	quality_info.total_edit_quality <- q *. judge_weight
+      end else begin
+	quality_info.n_edit_judges <- quality_info.n_edit_judges + 1;
+	quality_info.judge_weight <- quality_info.judge_weight +. judge_weight;
+	quality_info.min_edit_quality <- min quality_info.min_edit_quality q;
+	quality_info.total_edit_quality <- 
+	  quality_info.total_edit_quality +. q *. judge_weight
+      end
 
     method print_words_and_seps : unit = begin 
       Text.print_words_and_seps words seps;
