@@ -1,8 +1,5 @@
 dispatcher
-dispatcheropt
 downloadwp
-downloadwpopt
+downloadwp2xml
 read_rev_text
-read_rev_textopt
 fetch_all_revs_after
-fetch_all_revs_afteropt

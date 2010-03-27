@@ -1,0 +1,11 @@
+This is an example -- it needs to be modified for your host.
+
+If you're using munin, you can install this plugin
+to track the number of pages in the queue.
+The plugin uses the filename to determine part of
+the hostname, as in
+    wikitrust_de
+to identify the 'de' language.  The url is hard-coded
+into the script, but you can change this for your own site.
+
+-thumper! 26-Mar-2010

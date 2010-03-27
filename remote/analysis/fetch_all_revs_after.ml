@@ -36,7 +36,6 @@ POSSIBILITY OF SUCH DAMAGE.
 open Online_command_line
 open Online_types
 
-(* Every batch corresponds to 50 revisions, so this will do 1000 at most. *)
 let page_id = ref 0
 let last_rev = ref 0
 let custom_line_format = [

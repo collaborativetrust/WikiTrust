@@ -44,11 +44,11 @@ type selector_t =
 (* 19700201000000 *) 
 val default_timestamp : string
 
-(** [get_user_id user_name] returns the user_id of user with name [user_name]. 
+(** [get_remote_user_id user_name] returns the user_id of user with name [user_name]. 
     This involves querying the toolserver, which is usaually heavily loaded,
     resulting in long response times.
  *)
-(* val get_user_id : string -> Online_db.db -> int *)
+val get_remote_user_id : string -> int
 
 (** Downloads all revisions of a page, given the page_id, and sticks them into the db, returning the number of revs downloaded. *)
 val download_page_from_id : ?sid:int option -> Online_db.db -> int -> int

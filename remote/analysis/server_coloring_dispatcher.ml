@@ -59,8 +59,6 @@ POSSIBILITY OF SUCH DAMAGE.
 open Online_command_line
 open Online_types
 
-let child_timeout_sec = 60 * 60 * 4 (* Stop trying to process a page after 4 hours. *) 
-
 (* evry batch corresponds to 50 revisions, so this will do 1000 at most. *)
 let max_batches_to_do = 20
 let max_concurrent_procs = ref 1
@@ -217,6 +215,8 @@ let process_page (page_id: int) (page_title: string) =
       end
     );
   done;
+  if !times_tried >= !times_to_retry_trans
+    then Printf.eprintf "Giving up on %d %s\n" page_id page_title;
   (* Marks the page as processed. *)
   child_db#mark_page_as_processed page_id page_title !pages_downloaded;
   child_db#close; (* Release any locks still held. *)
