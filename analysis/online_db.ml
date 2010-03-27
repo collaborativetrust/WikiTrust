@@ -1015,6 +1015,12 @@ object(self)
     ignore (self#db_exec mediawiki_dbh s4)
 
 
+  method init_queue (really : bool) : unit =
+    let s1 = Printf.sprintf
+      "DELETE FROM %swikitrust_queue" db_prefix
+    in
+    ignore (self#db_exec mediawiki_dbh s1);
+
   (* ================================================================ *)
   (* Inter-Wiki Coordination. *)
       

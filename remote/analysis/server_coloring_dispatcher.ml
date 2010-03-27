@@ -284,4 +284,5 @@ let main_loop () =
   done 
 in
 
+db#init_queue true;
 main_loop ()
