@@ -36,7 +36,6 @@ POSSIBILITY OF SUCH DAMAGE.
 open Online_command_line
 open Online_types
 
-(* Every batch corresponds to 50 revisions, so this will do 1000 at most. *)
 let rev_id = ref 0
 let custom_line_format = [
 	("-rev_id", Arg.Set_int rev_id, "Revision to download text for.")

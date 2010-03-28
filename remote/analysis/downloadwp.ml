@@ -38,10 +38,6 @@ open Online_types
 
 exception Bad_Line of string
 
-(* Every batch corresponds to 50 revisions, so this will do 1000 at most. *)
-let max_batches_to_do = 20
-let max_concurrent_procs = 10
-let sleep_time_sec = 1
 let custom_line_format = [] @ command_line_format
 
 let _ = Arg.parse custom_line_format noop "Usage: downloadwp [options]";;

@@ -405,6 +405,9 @@ class db :
     (** Delete only the articles for 1 page -- THIS IS INTENDED ONLY FOR UNIT
 	TESTING *)
     method delete_revs_for_page : int -> unit
+	
+    (* removed old items from the q. *)
+    method init_queue : bool -> unit
 
   (* ================================================================ *)
   (* Inter-Wiki Coordination. *)
