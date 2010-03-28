@@ -75,24 +75,33 @@ OCAMLOPT_FLAGS=$(INCLUDES) $(PROFILE)
 
 universe: all allopt
 
-all: downloadwp dispatcher read_rev_text fetch_all_revs_after bot_reader \
+all: downloadwp downloadwp2xml \
+	dispatcher read_rev_text fetch_all_revs_after bot_reader \
 	read_revision
 
-allopt: downloadwpopt dispatcheropt read_rev_textopt fetch_all_revs_afteropt \
+allopt: downloadwpopt downloadwp2xmlopt \
+	dispatcheropt read_rev_textopt fetch_all_revs_afteropt \
 	bot_readeropt read_revisionopt
 
 # Here are the objects that we want to build. 
 # We need two lines of these, one for the debugging compilation,
 # one for the optimizing compilation. 
-OUR_ONLINE_OBJS = tmpfile.cmo wikipedia_api.cmo memcached.cmo renderer.cmo
+OUR_ONLINE_OBJS = tmpfile.cmo wikipedia_api.cmo renderer.cmo
 
-OUR_OPT_ONLINE_OBJS = tmpfile.cmx wikipedia_api.cmx memcached.cmx renderer.cmx
+OUR_OPT_ONLINE_OBJS = tmpfile.cmx wikipedia_api.cmx renderer.cmx
 
 downloadwp: $(OUR_ONLINE_OBJS) downloadwp.ml
 	$(OCAMLC) -linkpkg -o downloadwp $(OCAML_CFLAGS) $(OUR_LIBS) $(OUR_ONLINE_OBJS) downloadwp.ml 
 
 downloadwpopt: $(OUR_OPT_ONLINE_OBJS) downloadwp.ml
 	$(OCAMLOPT) -linkpkg -o downloadwp $(OCAMLOPT_FLAGS) $(OUR_LIBS_OPT) $(OUR_OPT_ONLINE_OBJS) downloadwp.ml
+
+downloadwp2xml: $(OUR_ONLINE_OBJS) downloadwp2xml.ml
+	$(OCAMLC) -linkpkg -o downloadwp2xml $(OCAML_CFLAGS) $(OUR_LIBS) $(OUR_ONLINE_OBJS) downloadwp2xml.ml 
+
+downloadwp2xmlopt: $(OUR_OPT_ONLINE_OBJS) downloadwp2xml.ml
+	$(OCAMLOPT) -linkpkg -o downloadwp2xml $(OCAMLOPT_FLAGS) $(OUR_LIBS_OPT) $(OUR_OPT_ONLINE_OBJS) downloadwp2xml.ml
+
 
 read_rev_text: $(OUR_ONLINE_OBJS) read_rev_text.ml
 	$(OCAMLC) -linkpkg -o read_rev_text $(OCAML_CFLAGS) $(OUR_LIBS) $(OUR_ONLINE_OBJS) read_rev_text.ml 
@@ -106,7 +115,7 @@ fetch_all_revs_after: $(OUR_ONLINE_OBJS) fetch_all_revs_after.ml
 fetch_all_revs_afteropt: $(OUR_OPT_ONLINE_OBJS) fetch_all_revs_after.ml
 	$(OCAMLOPT) -linkpkg -o fetch_all_revs_after $(OCAMLOPT_FLAGS) $(OUR_LIBS_OPT) $(OUR_OPT_ONLINE_OBJS) fetch_all_revs_after.ml
 
-dispatcher: $(OUR_ONLINE_OBJS) 	
+dispatcher: $(OUR_ONLINE_OBJS) server_coloring_dispatcher.ml
 	$(OCAMLC) -linkpkg -o dispatcher $(OCAML_CFLAGS) $(OUR_LIBS) $(OUR_ONLINE_OBJS) server_coloring_dispatcher.ml 
 
 dispatcheropt: $(OUR_OPT_ONLINE_OBJS)
