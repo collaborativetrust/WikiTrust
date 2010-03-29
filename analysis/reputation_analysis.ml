@@ -46,7 +46,7 @@ open Eval_defs
 class page 
   (id: int)
   (title: string)
-  (out_file: out_channel)
+  (stats_file: Gzip.out_channel option)
   (eval_zip_error: bool)
   (be_precise: bool) 
   (n_text_judging: int)
@@ -83,9 +83,20 @@ class page
          Useful only if eval_zip_error has been selected. *)
     val max_zip_error : float = 30.0 
 
+    method private writeout_string (s: string) : unit =
+      match stats_file with 
+	None -> begin
+	  print_string s;
+	  flush stdout
+	end
+      | Some f -> begin
+	  let n = String.length s in
+	  if n > 0 then Gzip.output f s 0 n 
+	end
+
     method print_id_title = 
-      Printf.fprintf out_file "\nPage: %i Title: %S" id title; 
-      flush out_file
+      let s = Printf.sprintf "\nPage: %i Title: %S" id title in
+      self#writeout_string s
 
     (** This method evaluates the text contribution of the newest page, 
         giving credit to the old authors for the text they inserted. *)
@@ -187,13 +198,15 @@ class page
             other#inc_total_life_text seen_text; 
             other#inc_n_text_judge_revisions;
             (* prints out the credit line *)
-            if not eval_zip_error then 
-              Printf.fprintf out_file "\nTextInc %10.0f PageId: %d rev0: %d uid0: %d uname0: %S rev1: %d uid1: %d uname1: %S text: %d left: %d n01: %d t01: %d"
-                new_time id
-                other#get_id other_uid other_uname rid uid uname
-                other#get_created_text seen_text
-		(* Difference in n. of revisions and intervening time *)
-		(i + 1) (int_of_float (new_time -. other_time))
+            if not eval_zip_error then
+	      let s = 
+		Printf.sprintf "\nTextInc %10.0f PageId: %d rev0: %d uid0: %d uname0: %S rev1: %d uid1: %d uname1: %S text: %d left: %d n01: %d t01: %d"
+                  new_time id
+                  other#get_id other_uid other_uname rid uid uname
+                  other#get_created_text seen_text
+		  (* Difference in n. of revisions and intervening time *)
+		  (i + 1) (int_of_float (new_time -. other_time)) 
+	      in self#writeout_string s
           end
       end done; (* for i *)
       
@@ -212,8 +225,11 @@ class page
         in the cached version of the algorithm. *)
     method private online_eval_oldest_text = 
       let oldest_r = Vec.get 0 revs in 
-      if not eval_zip_error then 
-        oldest_r#print_text_life out_file
+      if not eval_zip_error then begin
+        match oldest_r#print_text_life with
+	  None -> ()
+	| Some s -> self#writeout_string s
+      end
 
     (** Computes and prints EditInc and EditLife information.
 
@@ -367,17 +383,19 @@ class page
 		  None -> ()
 		| Some delta -> begin 
                     if not eval_zip_error then 
-                      Printf.fprintf out_file "\nEditInc %10.0f PageId: %d Delta: %7.2f rev0: %d uid0: %d uname0: %S rev1: %d uid1: %d uname1: %S rev2: %d uid2: %d uname2: %S d01: %7.2f d02: %7.2f d12: %7.2f dp2: %7.2f n01: %d n12: %d t01: %d t12: %d"
-			(* time and page id *)
-			time2 id delta
-			(* revision and user ids *)
-			rid0 uid0 uname0 rid1 uid1 uname1 rid2 uid2 uname2
-			(* word distances *)
-			d01 d02 d12 dp2
-			(* distances between revisions in n. of revisions *)
-			rev1_idx (rev2_idx - rev1_idx)
-			(* distances between revisions in seconds *)
-			(int_of_float (time1 -. time0)) (int_of_float (time2 -. time1))
+		      let s = 
+			Printf.sprintf "\nEditInc %10.0f PageId: %d Delta: %7.2f rev0: %d uid0: %d uname0: %S rev1: %d uid1: %d uname1: %S rev2: %d uid2: %d uname2: %S d01: %7.2f d02: %7.2f d12: %7.2f dp2: %7.2f n01: %d n12: %d t01: %d t12: %d"
+			  (* time and page id *)
+			  time2 id delta
+			  (* revision and user ids *)
+			  rid0 uid0 uname0 rid1 uid1 uname1 rid2 uid2 uname2
+			  (* word distances *)
+			  d01 d02 d12 dp2
+			  (* distances between revisions in n. of revisions *)
+			  rev1_idx (rev2_idx - rev1_idx)
+			  (* distances between revisions in seconds *)
+			  (int_of_float (time1 -. time0)) (int_of_float (time2 -. time1))
+		      in self#writeout_string s
 		  end;
                 (* If revisions 0 and 1 are consecutive, computes the 
                    contribution to the longevity of revision 1 *)
@@ -392,8 +410,10 @@ class page
             if 1 = rev1_idx && !n_judges_1 > 0 then begin 
               let avg_qual = !tot_qual_1 /. (float_of_int !n_judges_1) in 
               if not eval_zip_error then 
-                Printf.fprintf out_file "\nEditLife %10.0f PageId: %d rev0: %d uid0: %d uname0: %S NJudges: %d Delta: %7.2f AvgSpecQ: %6.5f"
-                  time1 id rid1 uid1 uname1 !n_judges_1 d01 avg_qual
+		let s = 
+                  Printf.sprintf "\nEditLife %10.0f PageId: %d rev0: %d uid0: %d uname0: %S NJudges: %d Delta: %7.2f AvgSpecQ: %6.5f"
+                    time1 id rid1 uid1 uname1 !n_judges_1 d01 avg_qual
+		in self#writeout_string s
             end
           end
         end

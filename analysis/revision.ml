@@ -216,10 +216,10 @@ class reputation_revision
     method set_delta (d: float) = delta <- Some d
     method get_delta : float option = delta
     (* Output method *)
-    method print_text_life out_file =
+    method print_text_life : string option =
       let n_judges = self#get_n_text_judge_revisions in 
-      if n_judges > 0 then 
-        Printf.fprintf out_file "\nTextLife %10.0f PageId: %d rev0: %d uid0: %d uname0: %S NJudges: %d NewText: %d Life: %d"
+      if n_judges > 0 then Some (
+        Printf.sprintf "\nTextLife %10.0f PageId: %d rev0: %d uid0: %d uname0: %S NJudges: %d NewText: %d Life: %d"
           self#get_time
           self#get_page_id
           self#get_id
@@ -227,7 +227,9 @@ class reputation_revision
           self#get_user_name
           n_judges
           self#get_created_text
-          self#get_total_life_text
+          self#get_total_life_text)
+      else None
+
   end (* reputation_revision *)
 
 
