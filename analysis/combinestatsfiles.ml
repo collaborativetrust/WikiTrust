@@ -37,7 +37,7 @@ POSSIBILITY OF SUCH DAMAGE.
 (* Combine stats files uses bucket sort to combine all of the statistics files in a specified directory.
  * It writes its output to a specified file. *)
 
-let usage_message = "Usage: combinestats [<directory>]\nAll *.stats files in <directory> will be sorted\n"
+let usage_message = "Usage: combinestats"
 
 let input_dir = ref ""
 let bucket_dir = ref ""
@@ -83,7 +83,7 @@ let tempbuckets = Hashtbl.create 20000
 if !do_bucketing then begin
   ignore (Unix.system ("mkdir " ^ !bucket_dir));
   (* Gets the list of files to bucketize *)
-  let file_list_f = Unix.open_process_in ("find " ^ !input_dir ^ " -name *" ^ ".stats") in 
+  let file_list_f = Unix.open_process_in ("find " ^ !input_dir ^ " -name *" ^ ".stats*") in 
   (* Waits a bit before reading from the pipe *)
   Unix.sleep 3;
 
@@ -131,7 +131,13 @@ if !do_bucketing then begin
     let filename = input_line file_list_f in
     (* Opens the file *)
     print_string ("Processing: " ^ filename ^ "\n"); flush stdout; 
-    let infile = open_in (filename) in
+    let use_compression = 
+    (String.length filename > 3 && (Str.last_chars filename 3 = ".gz")) in
+    let infile = 
+      if use_compression
+      then Filesystem_store.open_compressed_file filename "gunzip -c"
+      else open_in filename
+    in 
     let file_todo = ref true in 
     while !file_todo do begin 
       let line = try 
@@ -161,7 +167,11 @@ if !do_bucketing then begin
 	with Not_found | Invalid_argument _ | Failure _ -> ()
       end 
     end done; (* while loop over lines of file *)
-    close_in infile
+    begin
+      if use_compression
+      then Filesystem_store.close_compressed_file infile
+      else close_in infile
+    end
   in 
   (* Bucketizes all files *)
   try

@@ -82,31 +82,6 @@ let print_vec v =
 (* It is a silly idea to read a line without the final \n! *)
 let input_line_cr fp = (input_line fp) ^ "\n"
 
-(* This function opens a file using a decompression algorithm. *)
-let open_compressed_file (file_name: string) (unzip_cmd: string)
-    : in_channel =
-  let forked = ref false in
-  let in_f = ref stdin in
-  while not !forked do begin 
-    forked := begin 
-      try 
-	in_f := Unix.open_process_in (unzip_cmd ^ " " ^ file_name); 
-	true
-      with Unix.Unix_error (Unix.EAGAIN, _, _) -> false 
-    end
-  end done; (* while *)
-  (* Waits a bit before reading from the pipe *)
-  Unix.sleep 1;
-  !in_f
-
-(* This function closes a compressed file. *)
-let close_compressed_file (f: in_channel) =
-  begin
-    try ignore (Unix.close_process_in f) 
-    with Unix.Unix_error (Unix.ECHILD, _, _) -> ()
-  end
-
-
 (* This function opens a compressed dump update file. *)
 let open_dump_update (dump_update_path: string) (page_id: int) 
     : in_channel option =
@@ -121,7 +96,7 @@ let open_dump_update (dump_update_path: string) (page_id: int)
   begin try
     Unix.access full_file_name [Unix.F_OK; Unix.R_OK];
    (* Opens the file decompressing it, and returns the file handle. *)
-    Some (open_compressed_file full_file_name "gunzip -c")
+    Some (Filesystem_store.open_compressed_file full_file_name "gunzip -c")
   with Unix.Unix_error (_, _, _) -> None
   end
 
@@ -359,7 +334,7 @@ let do_eval
 			    read_revisions update_file p !page_id dump_end_time);
 			  (* Closes the file containing the additional
 			     revisions. *)
-			  close_compressed_file update_file
+			  Filesystem_store.close_compressed_file update_file
 			end
 		      | None -> ()
 		    end
@@ -418,7 +393,7 @@ let do_multi_eval
 	  if Str.last_chars in_file 4 <> ".xml" then begin 
 	    (* We need to uncompress the file *)
 	    use_decomp := true;
-	    in_f := open_compressed_file in_file unzip_cmd;
+	    in_f := Filesystem_store.open_compressed_file in_file unzip_cmd;
 	  end else in_f := open_in in_file
 	end else in_f := open_in in_file; 
 	(* Both in and out files are open.  Does the evaluation *)
@@ -426,7 +401,7 @@ let do_multi_eval
 	(* Closes the files *)
 	factory#close_out_files; 
 	if !use_decomp
-	then close_compressed_file !in_f
+	then Filesystem_store.close_compressed_file !in_f
 	else close_in !in_f 
       end
     with x -> begin 
