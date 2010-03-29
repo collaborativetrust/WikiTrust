@@ -35,6 +35,30 @@ POSSIBILITY OF SUCH DAMAGE.
 
 TYPE_CONV_PATH "UCSC_WIKI_RESEARCH"
 
+(** This function opens a file using a decompression algorithm. *)
+let open_compressed_file (file_name: string) (unzip_cmd: string)
+    : in_channel =
+  let forked = ref false in
+  let in_f = ref stdin in
+  while not !forked do begin 
+    forked := begin 
+      try 
+	in_f := Unix.open_process_in (unzip_cmd ^ " " ^ file_name); 
+	true
+      with Unix.Unix_error (Unix.EAGAIN, _, _) -> false 
+    end
+  end done; (* while *)
+  (* Waits a bit before reading from the pipe *)
+  Unix.sleep 1;
+  !in_f
+
+(** This function closes a compressed file. *)
+let close_compressed_file (f: in_channel) =
+  begin
+    try ignore (Unix.close_process_in f) 
+    with Unix.Unix_error (Unix.ECHILD, _, _) -> ()
+  end
+
 (** [read_gzipped_file file_name] returns as a string the uncompressed 
     contents of file [file_name]. *)
 let read_gzipped_file (file_name: string) : string option = 

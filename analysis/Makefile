@@ -207,11 +207,11 @@ editlist:	$(EDITLIST_OBJS)
 
 # combinestats is used to combine several sorted statistics files into a single one
 
-combinestats: combinestatsfiles.ml
-	$(OCAMLC) -linkpkg -o combinestats $(OCAML_CFLAGS) combinestatsfiles.ml
+combinestats: filesystem_store.ml combinestatsfiles.ml
+	$(OCAMLC) -linkpkg -o combinestats $(OCAML_CFLAGS) filesystem_store.ml combinestatsfiles.ml
 
-combinestatsopt: combinestatsfiles.ml
-	$(OCAMLOPT) -linkpkg -o combinestats $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) combinestatsfiles.ml
+combinestatsopt: filesystem_store.ml combinestatsfiles.ml
+	$(OCAMLOPT) -linkpkg -o combinestats $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) filesystem_store.ml combinestatsfiles.ml
 
 # timeconv is used for time conversion, and this is used to test it. 
 
