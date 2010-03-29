@@ -66,12 +66,14 @@ let set_single_out s = begin
   use_stdin := true; 
   single_out := s
 end
+let stdout_mode = ref false
 
 let factory = new Page_factory.page_factory 
 
 let command_line_format = 
   [("-d", Arg.String set_working_dir, "<dir>: Directory where to put output file (default: /tmp)");
    ("-si", Arg.String set_single_out, "<file>: Uses stdin as input, and directs the output to the single file named <file>.  The [input_files] arguments are discarded");
+   ("-stdin_stdout", Arg.Set stdout_mode, "Uses stdin as input and stdout as output");
    ("-unzip", Arg.String set_unzip_cmd, "<cmd>: Command to unzip the input wiki xml files (default: gunzip -c)");
    ("-continue", Arg.Set continue, "do not stop for errors on single input files");
    ("-dump_update_path", Arg.String set_dump_update_path, "<dir>: Path to the root directory of a tree of revisions to be analyzed, after the revisions in the main dump are analyzed.  The tree of revisions muse be in this form: for page xxxyyyzzzuuu, we can find in file <dir>/xxx/yyy/zzz/xxxyyyzzzuuu.gz any additional revisions, each enclosed in <revision> ... </revision> tags.");
@@ -82,12 +84,12 @@ let _ = Arg.parse command_line_format set_input_files "Usage: evalwiki [input_fi
 
 (* Does all the work *)
 
-if !use_stdin then begin 
+if !stdout_mode then Do_eval.do_single_eval factory stdin !dump_update_path stdout
+else if !use_stdin then begin 
   let f_out = open_out !single_out in 
   Do_eval.do_single_eval factory stdin !dump_update_path f_out;
   close_out f_out
-end
-else Do_eval.do_multi_eval factory !input_files !dump_update_path !working_dir 
-  !unzip_cmd !continue;;
+end else 
+  Do_eval.do_multi_eval factory !input_files !dump_update_path !working_dir !unzip_cmd !continue;;
  
 
