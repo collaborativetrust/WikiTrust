@@ -1,6 +1,7 @@
 (*
 
 Copyright (c) 2007-2009 The Regents of the University of California
+Copyright (c) 2010 Google Inc.
 All rights reserved.
 
 Authors: Luca de Alfaro, B. Thomas Adler, Vishwanath Raman, Ian Pye
@@ -188,6 +189,7 @@ class page_factory
     val mutable xml_file : out_channel = stderr
     val mutable sql_file : out_channel = stderr
     val mutable words_file : out_channel = stderr
+    val mutable stats_file : Gzip.out_channel option = None
 
     method print_mode = 
       match mode with 
@@ -301,7 +303,7 @@ class page_factory
       | WordFequency -> new Word_frequency.page id title out_file
  	  !equate_anons
 	
-      | Reputation_analysis -> new Reputation_analysis.page id title out_file 
+      | Reputation_analysis -> new Reputation_analysis.page id title stats_file 
 	  eval_zip_error be_precise
 	  n_text_judging n_edit_judging !equate_anons !do_text
       | Contribution_analysis -> new Contribution_analysis.page id title 
@@ -362,16 +364,17 @@ class page_factory
       let default_name = base_name ^ ".out" in 
       let xml_name     = base_name ^ ".xml" in 
       let sql_name     = base_name ^ ".sql" in 
-      let stats_name   = base_name ^ ".stats" in 
+      let stats_name   = base_name ^ ".stats.gz" in 
       (* We init this to stderr so we notice if someone writes where
 	 he is not supposed to *)
       out_file <- stderr;
+      stats_file <- None;
       xml_file <- stderr;
       sql_file <- stderr;
       words_file <- stderr;
       begin 
 	match mode with 
-	  Reputation_analysis -> out_file <- open_out stats_name
+	  Reputation_analysis -> stats_file <- Some (Gzip.open_out stats_name)
 	| Revcount_analysis | Intertime_analysis | Contribution_analysis 
 	    -> out_file <- open_out default_name
 	| Trust_color | Trust_syntactregion_color | Trust_and_origin
@@ -387,7 +390,8 @@ class page_factory
       out_file <- f_out; 
       xml_file <- f_out; 
       sql_file <- f_out; 
-      words_file <- f_out
+      words_file <- f_out;
+      stats_file <- None;
 
     (* This method closes the output files *)
     method close_out_files : unit = 
@@ -398,7 +402,10 @@ class page_factory
       if sql_file <> stderr then 
 	begin close_out sql_file; sql_file <- stderr end;
       if words_file <> stderr then 
-	begin close_out words_file; words_file <- stderr end 
+	begin close_out words_file; words_file <- stderr end;
+      match stats_file with 
+	None -> ()
+      | Some f -> Gzip.close_out f
 
     (* Writes the output preamble if needed *)
     method output_preamble (s : string) : unit = 

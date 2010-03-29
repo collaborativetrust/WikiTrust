@@ -2,6 +2,7 @@
 
 """
 Copyright (c) 2009 Luca de Alfaro
+Copyright (c) 2010 Google Inc.
 All rights reserved.
 
 Authors: Luca de Alfaro
@@ -96,7 +97,7 @@ def compute_stats(descr):
     for f in in_file_list:
         in_file_str += f + " "
     cmd = (opt["nice"] + opt["cmd_dir"] + 
-           "/evalwiki -compute_stats " + opt["dump_update_path"] +
+           "/evalwiki -compute_stats -n_edit_judging 6 -n_text_judging 6 " + opt["dump_update_path"] +
            " -d " + dest_dir + in_file_str)
     dodo(cmd)
 
