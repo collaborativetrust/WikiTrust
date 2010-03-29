@@ -468,7 +468,10 @@ if (0) {
     $colored_text = preg_replace("/&gt;/", ">", $colored_text, -1);
 }
   }
-			
+
+  static function color_shareHTML($html, $rev_id)
+  {
+  }
 
   public static function ucscArticleSaveComplete(&$article, 
 			      &$user, $text, $summary,
