@@ -382,6 +382,7 @@ let do_single_eval
     (dump_update_path: string option)
     (f_out: out_channel) = 
   factory#set_single_file f_out; 
+  factory#print_mode; (* debug *)
   do_eval factory dump_update_path f_in;
   factory#close_out_files
 
