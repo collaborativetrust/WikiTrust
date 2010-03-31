@@ -235,7 +235,7 @@ def main():
             options["nice"] = "nice "
         elif o == "--dump_update_path":
             options["dump_update_path"] = " -dump_update_path " + a
-        elif o == "--hours_per_bucket:":
+        elif o == "--hours_per_bucket":
             options["hours_per_bucket"] = " -hours_per_bucket " + a
         elif o == "--max_n_stats_in_memory":
             options["max_n_stats_in_memory"] = " -cache_lines " + a
