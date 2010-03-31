@@ -106,7 +106,8 @@ def sort_stats(opt):
     commands.getoutput("rm -rf " + opt["bucket_dir"])
     cmd = (opt["nice"] + opt["cmd_dir"] + "/combinestats -bucket_dir " +
            opt["bucket_dir"] + " -input_dir " + opt["stats_dir"] +
-           " -n_digits 5 -use_subdirs -remove_unsorted")
+           opt["hours_per_bucket"] + opt["max_n_stats_in_memory"] +
+           " -use_subdirs -remove_unsorted")
     dodo(cmd)
 
 # Computes the user reputations.
@@ -145,6 +146,10 @@ def usage():
     print "--nice: nice the long-running processes"
     print "--dump_update_path <dir>: directory where a tree of revision"
     print "                          updates is rooted."
+    print "--hours_per_bucket <int>: number of hours in each stat bucket"
+    print "                            (default: 24)"
+    print "--max_n_stats_in_memory <int>: max n. of statistics lines kept"
+    print "                     in memory between flushes (default: 1000000)"
     print "--cleanup: remove results once they are used. This is used only"
     print "           if none of the do_... options below is specified."
     print "    If some of the following options are specified,"
@@ -166,6 +171,8 @@ def main():
                                     "robots=",
                                     "n_cores=",
                                     "dump_update_path=",
+                                    "hours_per_bucket=",
+                                    "max_n_stats_in_memory=",
                                     "nice",
                                     "cleanup",
                                     "do_split",
@@ -189,6 +196,8 @@ def main():
     # Some options are init to empty, and filled in only if present.
     options["robots"] = ""
     options["dump_update_path"] = ""
+    options["hours_per_bucket"] = ""
+    options["max_n_stats_in_memory"] = ""
     # Options on which parts to do.
     do_split = False
     do_compute_stats = False
@@ -226,6 +235,10 @@ def main():
             options["nice"] = "nice "
         elif o == "--dump_update_path":
             options["dump_update_path"] = " -dump_update_path " + a
+        elif o == "--hours_per_bucket:":
+            options["hours_per_bucket"] = " -hours_per_bucket " + a
+        elif o == "--max_n_stats_in_memory":
+            options["max_n_stats_in_memory"] = " -cache_lines " + a
         else:
             usage()
             sys.exit(2)

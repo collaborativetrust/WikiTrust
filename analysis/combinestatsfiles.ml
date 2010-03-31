@@ -41,7 +41,7 @@ let usage_message = "Usage: combinestats"
 
 let input_dir = ref ""
 let bucket_dir = ref ""
-let digits_per_bucket = ref 5
+let hours_per_bucket = ref 24.
 let max_lines_in_mem = ref 1000000
 let do_bucketing = ref false
 let do_sorting = ref false
@@ -55,8 +55,8 @@ let command_line_format = [
   "directory where the input files are");
   ("-bucket_dir", Arg.Set_string bucket_dir,
   "directory where the unsorted and sorted buckets are");
-  ("-n_digits", Arg.Set_int digits_per_bucket,
-  "number of digits that go into the same bucket (default: 5, or about a day)");
+  ("-hours_per_bucket", Arg.Set_float hours_per_bucket,
+  "number of hours of data that go into the same bucket (default: 24)");
   ("-use_subdirs", Arg.Set use_dirs, 
   "Uses subdirectory structure for files to sort (default: false)");
   ("-skip_bucketing", Arg.Set do_bucketing,
@@ -152,9 +152,9 @@ if !do_bucketing then begin
 	  let idx1 = String.index line ' ' in
 	  if (String.sub line 0 idx1) <> "Page:" then begin
 	    let idx2 = String.index_from line (idx1 + 1) ' ' in
-	    let k = idx2 - idx1 - !digits_per_bucket in
-	    let time_piece = String.sub line (idx1 + 1) (k - 1) in
-	    let bucketnum = int_of_string time_piece in
+	    let time_piece = String.sub line (idx1 + 1) (idx2 - idx1 - 1) in
+	    let time = float_of_string time_piece in
+	    let bucketnum = int_of_float (time /. !hours_per_bucket) in
 	    if Hashtbl.mem tempbuckets bucketnum then begin
 	      let l = Hashtbl.find tempbuckets bucketnum in
 	      Hashtbl.remove tempbuckets bucketnum;
