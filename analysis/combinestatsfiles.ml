@@ -154,7 +154,7 @@ if !do_bucketing then begin
 	    let idx2 = String.index_from line (idx1 + 1) ' ' in
 	    let time_piece = String.sub line (idx1 + 1) (idx2 - idx1 - 1) in
 	    let time = float_of_string time_piece in
-	    let bucketnum = int_of_float (time /. !hours_per_bucket) in
+	    let bucketnum = int_of_float (time /. (!hours_per_bucket *. 3600.)) in
 	    if Hashtbl.mem tempbuckets bucketnum then begin
 	      let l = Hashtbl.find tempbuckets bucketnum in
 	      Hashtbl.remove tempbuckets bucketnum;
