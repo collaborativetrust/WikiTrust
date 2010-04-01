@@ -110,6 +110,7 @@ def sort_stats(opt):
 
 # Computes the user reputations.
 def compute_reps(opt):
+    commands.getoutput("touch " + opt["rep_file"])
     cmd = (opt["nice"] + opt["cmd_dir"] + "/generate_reputation -u " + 
            opt["rep_file"] + " -buckets " + opt["bucket_dir"] + 
            "/ -write_final_reps" + opt["robots"])
