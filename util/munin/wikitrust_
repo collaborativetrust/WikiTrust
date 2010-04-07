@@ -18,7 +18,7 @@
 use LWP::Simple;
 use File::Basename;
 
-use constant URL => ".collaborativetrust.com/WikiTrust/RemoteAPI?method=stats";
+use constant URL => ".collaborativetrust.com:81/WikiTrust/RemoteAPI?method=stats";
 use constant SITES => qw( de fr it nl pl pt );
 
 my $cmd = shift @ARGV;
@@ -34,7 +34,7 @@ if ($cmd eq "config") {
     print <<_EOT_;
 graph_title WikiTrust Queue Size ($lang)
 graph_args --base 1000 -r --lower-limit 0
-graph_vlabel pages'
+graph_vlabel pages
 graph_scale yes'
 graph_info This graph shows how many pages are to be processed
 graph_period minute
@@ -53,7 +53,8 @@ sub getRows {
     my $lang = shift @_;
     my $url = 'http://' . $lang . URL;
     my $content = get $url;
-
+#warn "url =[$url]\n";
+#warn "CONTENT = [$content]\n";
     if ($content =~ m/\((\d+) rows\)/) {
 	return $1;
     } else {

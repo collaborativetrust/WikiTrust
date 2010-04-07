@@ -283,6 +283,14 @@ sub handle_gettext {
 
 sub handle_wikiorhtml {
   my ($dbh, $cgi, $r) = @_;
+  if (exists $ENV{WT_MESSAGE}) {
+    # send a message to users
+    $r->headers_out->{'Cache-Control'} = "max-age=" . 10*60;
+    $r->content_type('text/plain; charset=utf-8');
+    $r->print('M');
+    $r->print($ENV{WT_MESSAGE});
+    return Apache2::Const::OK;
+  }
   my ($rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
   my $cache = util_getCache();
   my $data = $cache->get($rev);
@@ -309,6 +317,7 @@ sub handle_wikiorhtml {
 sub handle_stats {
   my ($dbh, $cgi, $r) = @_;
 
+  $r->headers_out->{'Cache-Control'} = "max-age=" . 30;		# no caching!
   $r->content_type('text/plain; charset=utf-8');
 
   my $sth = $dbh->prepare ("SELECT * FROM wikitrust_queue") || die $dbh->errstr;
