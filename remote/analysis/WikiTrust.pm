@@ -113,9 +113,9 @@ sub mark_for_coloring {
 
   my $sth = $dbh->prepare(
     "INSERT INTO wikitrust_queue (page_id, page_title, priority) VALUES (?, ?, ?)"
-	." ON DUPLICATE KEY UPDATE requested_on = now()"
+	." ON DUPLICATE KEY UPDATE requested_on = now(), priority=? "
   ) || die $dbh->errstr;
-  $sth->execute($page, $page_title, QUEUE_PRIORITY) || die $dbh->errstr;
+  $sth->execute($page, $page_title, QUEUE_PRIORITY, QUEUE_PRIORITY) || die $dbh->errstr;
 }
 
 sub handle_vote {
