@@ -287,7 +287,7 @@ sub handle_wikiorhtml {
     # send a message to users
     $r->headers_out->{'Cache-Control'} = "max-age=" . 10*60;
     $r->content_type('text/plain; charset=utf-8');
-    $r->print('M');
+    $r->print('E');
     $r->print($ENV{WT_MESSAGE});
     return Apache2::Const::OK;
   }
