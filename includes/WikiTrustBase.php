@@ -322,14 +322,14 @@ if (1) {
     } else {
 
       // fix trust tags around links
-      $colored_text = preg_replace_callback("/\{\{#t:(\d+),(\d+),([^}]+)\}\}\s*\[\[([^\]]+)\]\]\s*(?=\{\{#t:|$)/D",
+      $colored_text = preg_replace_callback("/\{\{#t:(\d+),(\d+),([^}]+)\}\}(\s*)\[\[([^\]]+)\]\](\s*)(?=\{\{#t:|$)/D",
 				"WikiTrust::regex_fixBracketTrust",
 				$colored_text,
 				-1,
 				$count);
       // fix trust tags around semicolon lines
-      $colored_text = preg_replace_callback("/^;\s*\{\{#t:(\d+),(\d+),([^}]+)\}\}(\s*[^\{<]*?)(?=\{|<|$)/m",
-                                "WikiTrust::regex_fixTextTrust",
+      $colored_text = preg_replace_callback("/^(;\s*)\{\{#t:(\d+),(\d+),([^}]+)\}\}(\s*[^\{<]*?)(?=\{|<|$)/m",
+                                "WikiTrust::regex_fixSemicolonTrust",
                                 $colored_text,
                                 -1,
                                 $count);
@@ -396,10 +396,10 @@ if (1) {
     //print_r($matches);
     global $wgWikiTrustShowMouseOrigin;
 
-    $normalized_value = min(self::MAX_TRUST_VALUE, 
-			    max(self::MIN_TRUST_VALUE, 
-				(($matches[1] + .5) * 
-				 self::TRUST_MULTIPLIER) 
+    $normalized_value = min(self::MAX_TRUST_VALUE,
+			    max(self::MIN_TRUST_VALUE,
+				(($matches[1] + .5) *
+				 self::TRUST_MULTIPLIER)
 				/ self::$median));
     $class = self::$COLORS[$normalized_value];
     
@@ -424,31 +424,64 @@ if (1) {
     return $output;
   }
 
+  static function regex_fixSemicolonTrust($matches){
+
+    //print_r($matches);
+    global $wgWikiTrustShowMouseOrigin;
+
+    $normalized_value = min(self::MAX_TRUST_VALUE,
+			    max(self::MIN_TRUST_VALUE,
+				(($matches[2] + .5) *
+				 self::TRUST_MULTIPLIER)
+				/ self::$median));
+    $class = self::$COLORS[$normalized_value];
+    
+    $output = $matches[1] + $matches[5];
+    if ($wgWikiTrustShowMouseOrigin){
+      # Need to escape single quotes
+      $matches[4]= str_replace("'", "\\'",$matches[4]);
+      $matches[4]= str_replace("&apos;", "\\'",$matches[4]);
+      $matches[4]= str_replace("&#39;", "\\'",$matches[4]);
+      $output = $matches[1] + "<span class=\"$class\"" 
+        . " onmouseover=\"Tip('".$matches[4]
+        ."')\" onmouseout=\"UnTip()\""
+        . " onclick=\"showOrigin(" 
+        . $matches[3] . ")\">" . $matches[5]
+        . "</span>";
+    } else {
+      $output = $matches[1] + "<span class=\"$class\"" 
+        . " onclick=\"showOrigin(" 
+        . $matches[3] . ")\">" . $matches[5]
+        . "</span>";
+    }
+    return $output;
+  }
+
   static function regex_fixBracketTrust($matches){
     global $wgWikiTrustShowMouseOrigin;
-    $normalized_value = min(self::MAX_TRUST_VALUE, 
-			    max(self::MIN_TRUST_VALUE, 
-				(($matches[1] + .5) * 
-				 self::TRUST_MULTIPLIER) 
+    $normalized_value = min(self::MAX_TRUST_VALUE,
+			    max(self::MIN_TRUST_VALUE,
+				(($matches[1] + .5) *
+				 self::TRUST_MULTIPLIER)
 				/ self::$median));
     $class = self::$COLORS[$normalized_value];
     
     $output = "";
     
     if ($wgWikiTrustShowMouseOrigin){
-      $output = "<span class=\"$class\"" 
+      $output = $matches[4] + "<span class=\"$class\"" 
         . " onmouseover=\"Tip('".str_replace("&#39;","\\'",$matches[3])
         ."')\" onmouseout=\"UnTip()\""
         . " onclick=\"showOrigin(" 
         . $matches[2] . ")\">"
-        . "[[" . $matches[4] . "]]"
-        . "</span>";
+        . "[[" . $matches[5] . "]]"
+        . "</span>" + $matches[6];
     } else {
-      $output = "<span class=\"$class\"" 
+      $output = $matches[3] + "<span class=\"$class\"" 
         . " onclick=\"showOrigin(" 
         . $matches[2] . ")\">"
-        . "[[" . $matches[4] . "]]"
-        . "</span>";
+        . "[[" . $matches[5] . "]]"
+        . "</span>" + $matches[6];
     }
     return $output;
   }
