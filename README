@@ -1,10 +1,10 @@
 WikiTrust is an open-source MediaWiki extension that computes the
 origin and author of every word of a wiki, as well as a measure of
-text trust that indicates the extent with which text has been revised.
+text trust that indicates the extent to which text has been revised.
 To use WikiTrust, you click on a special wiktrust tab added by the
 extension.  In the resulting view, the portions of a page that changed
-recently appear with orange background; the orange color is the more
-intense, the less the change has been revised.  By clicking on any
+recently appear with orange background; the more intense the orange
+color is, the less the change has been revised.  By clicking on any
 word, you can determine who inserted the word, and you can examine the
 precise context in which the word was inserted. 
 
@@ -182,7 +182,7 @@ ini_set( 'memory_limit', '40M' );
 
    You can look in WikiTrust.php (located at WikiTrust/WikiTrust.php) 
    for a list of all the configurable variables.  The defaults should
-   be correct for most installation, but you can override
+   be correct for most installations, but you can override
    values by placing assignments in your LocalSettings.php
    before the require_once() call for the WikiTrust extension.
 
