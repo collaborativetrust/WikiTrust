@@ -1,18 +1,18 @@
 WikiTrust is an open-source MediaWiki extension that computes the
 origin and author of every word of a wiki, as well as a measure of
-text trust that indicates the extent with which text has been revised.
+text trust that indicates the extent to which text has been revised.
 To use WikiTrust, you click on a special wiktrust tab added by the
 extension.  In the resulting view, the portions of a page that changed
-recently appear with orange background; the orange color is the more
-intense, the less the change has been revised.  By clicking on any
+recently appear with orange background; the more intense the orange
+color is, the less the change has been revised.  By clicking on any
 word, you can determine who inserted the word, and you can examine the
-precise context in which the word was inserted. 
+precise context in which the word was inserted.
 
-There are three main ways of using WikiTrust: 
+There are three main ways of using WikiTrust:
 
 U1) As a MediaWiki extension, which analyzes the text of a wiki in
 real-time, as edits are made.   This is what is described in this
-README file. 
+README file.
 
 U2) As a Mediawiki extension, where the Mediawiki code, and the
 WikiTrust code, are installed on separate servers, for scalability and
@@ -24,7 +24,7 @@ most likely not the mode of use that suits your needs.
 U3) As a batch tool for analyzing large Wikipedia dumps, for extracting
 statistical information, or to prepare for use U1) by analyzing in an
 efficient way the past history of a Wikipedia.  This use is described
-in more detail in README-batch. 
+in more detail in README-batch.
 
 
 When used as a Mediawiki extension, WikiTrust can be added to an
@@ -58,7 +58,7 @@ We describe in this README file the use of WikiTrust as a MediaWiki
 extension.  For other uses of WikiTrust, see the other README files.
 
 
-PREREQUISITES: 
+PREREQUISITES:
 
 1) This step is not necessary to compile WikiTrust per se, or for uses
    U2), U3) above, but it is necessary if you want to use WikiTrust as a
@@ -66,7 +66,7 @@ PREREQUISITES:
    revisions.
 
 Install mysql and mediawiki.  In Ubuntu / Debian, you can install
-   the packages: 
+   the packages:
 
      mediawiki
      php5-cli
@@ -75,7 +75,7 @@ Install mysql and mediawiki.  In Ubuntu / Debian, you can install
      tidy
 
    In other distributions, follow the instructions at
-   www.mediawiki.org. 
+   www.mediawiki.org.
 
 
 ================================================================
@@ -87,14 +87,14 @@ Install mysql and mediawiki.  In Ubuntu / Debian, you can install
    development library for mysql.   On Ubuntu, this is package
    libmysqlclient16-dev
 
-2a) You need to install some packages for Ocaml.  There are two ways. 
+2a) You need to install some packages for Ocaml.  There are two ways.
 
    2a1) The best way is to use godi (http://godi.camlcity.org), as this
         provides a simple way to get all the packages you need, and it
 	enables you to build everything in userspace.
 
         Get godi from http://godi.camlcity.org/godi/index.html and
-        download godi. Follow the instructions to install it.  
+        download godi. Follow the instructions to install it.
 
 	IMPORTANT: Remember to set the path correctly as instructed in
 	the godi instructions, and remember to have it set correctly
@@ -129,7 +129,7 @@ Install mysql and mediawiki.  In Ubuntu / Debian, you can install
           libextlib-ocaml-dev
           python-mysqldb
 	  libxml-light-ocaml-dev
-	  libzip-ocaml	
+	  libzip-ocaml
 	  libzip-ocaml-dev
 	  libpcre-ocaml-dev
 
@@ -141,7 +141,7 @@ Install mysql and mediawiki.  In Ubuntu / Debian, you can install
         Which are available from
         http://www.janestcapital.com/ocaml/index.html .
 
-2b) You need to obtain OcamlLdaLibs.  You can get it from 
+2b) You need to obtain OcamlLdaLibs.  You can get it from
     http://github.com/collaborativetrust/OcamlLdaLibs
     First, do:
 
@@ -152,14 +152,14 @@ Install mysql and mediawiki.  In Ubuntu / Debian, you can install
     - If you used godi:
         $ make all
 
-    - If you can install Ocaml libraries without sudo rights: 
+    - If you can install Ocaml libraries without sudo rights:
         $ make all
 
     - If you did not use godi, and you need sudo to install Ocaml libraries:
         $ make all-sudo
 
 2c) Go in the extensions directory of MediaWiki, and get the WikiTrust
-    code (as a tarball, or via git) from 
+    code (as a tarball, or via git) from
     http://github.com/collaborativetrust/WikiTrust
     You can compile the code with:
 
@@ -173,16 +173,16 @@ Install mysql and mediawiki.  In Ubuntu / Debian, you can install
 
 3) You should activate the extension by editing the file
    LocalSettings.php (part of the MediaWiki installation), adding the
-   following lines: 
+   following lines:
 
 $wgUseTidy = true;       // Enable Tidy
 $wgUseAjax = true;       // Enable Ajax (needed for voting)
 require_once( $IP . "/extensions/WikiTrust/WikiTrust.php" );
 ini_set( 'memory_limit', '40M' );
 
-   You can look in WikiTrust.php (located at WikiTrust/WikiTrust.php) 
+   You can look in WikiTrust.php (located at WikiTrust/WikiTrust.php)
    for a list of all the configurable variables.  The defaults should
-   be correct for most installation, but you can override
+   be correct for most installations, but you can override
    values by placing assignments in your LocalSettings.php
    before the require_once() call for the WikiTrust extension.
 
@@ -191,14 +191,14 @@ ini_set( 'memory_limit', '40M' );
      $wgWikiTrustGadget = "gadget-WikiTrust";
    By default the trust tab is always visible.
    Set this as above to make it visible only to users opting in.
-   
+
      $wgWikiTrustShowVoteButton = false;
    The default is to always show a "vote" button; disable this
    feature by setting it to false.
 
      $wgWikiTrustLog = "/tmp/{$wgDBname}-trust.log";
    This creates a log of the analysis of how useful each contribution to
-   the wiki is, as well as a log of all user reputation changes. 
+   the wiki is, as well as a log of all user reputation changes.
    We advise you to create such a log: it contains very useful
    information, and it is likely that we will develop a variety of tools
    to extract the information present.  You don't want to miss out.  Note
@@ -216,7 +216,7 @@ $wgWikiTrustShowVoteButton = false;
 require_once( $IP . "/extensions/WikiTrust/WikiTrust.php" );
 
 
-4) You need to make the installation readable from the web server. 
+4) You need to make the installation readable from the web server.
 
      $ chmod a+rX /var/lib/mediawiki/extensions/WikiTrust/*.php
      $ chmod -R a+rX /var/lib/mediawiki/extensions/WikiTrust/includes
@@ -232,7 +232,7 @@ require_once( $IP . "/extensions/WikiTrust/WikiTrust.php" );
    extension will use.  Assuming that the mediawiki database is called
    "wikidb" (this is the default name: you give a name to the database
    when you create the wiki instance during the MediaWiki installation
-   process), proceed as follows: 
+   process), proceed as follows:
 
      $ cd sql
      $ ./create_db.php "path_to_mediawiki" "mysql_root_user_name"
@@ -267,29 +267,29 @@ require_once( $IP . "/extensions/WikiTrust/WikiTrust.php" );
    You can then give the command many times, until all the wiki is
    analyzed.  You can also slow down the processing via the
    -throttle_delay option, if you wish to limit the CPU or database
-   load; for instance 
+   load; for instance
 
       -throttle_delay 0.2
 
    will insert a 0.2-second delay between the analysis of revisions.
    eval_online_wiki has many options, of which only some are
-   documented here. 
+   documented here.
    Typical values for database username and password are:
 
      username: wikiuser
      db_name: wikidb
 
    If you wish to redo the analysis from scratch, throwing away the
-   results of previous analyses, you can use the option '-delete_all': 
+   results of previous analyses, you can use the option '-delete_all':
 
      $ ./eval_online_wiki -delete_all -db_user <username> -db_pass <pwd>  -db_name <db_name>
 
    Warning: the analysis can take a long time on very large wikis, so
-   do not use the option '-delete_all' lightly! 
+   do not use the option '-delete_all' lightly!
 
 7) You should now see a trust tab.  Click on it, or edit a revision, and
    the trust of all revision text, and the reputation of all authors,
-   will be computed.  
+   will be computed.
 
    The trust coloring is updated automatically whenever a user edits
    an article, or requests to view the trust informaton for a
