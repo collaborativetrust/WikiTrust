@@ -69,11 +69,14 @@ class AccumulateFiles:
 
 # So we disregard errors if the directory exists.
 def make_directory(d):
-    commands.getoutput("mkdir " + d)
+    (status, output) = commands.getstatusoutput("mkdir " + d)
 
 def dodo(x):
     print x
-    print commands.getoutput (x)
+    (status, output) = commands.getstatusoutput (x)
+    print output
+    if status != 0:
+        raise Exception (status, x, output)
 
 def print_banner(s):
     print "****************************************************************"
