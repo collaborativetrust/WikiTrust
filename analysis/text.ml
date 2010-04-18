@@ -1132,7 +1132,7 @@ end;;
 (* **************************************************************** *)
 (* This code can be used to test the text splitting on very large
    pieces of text, to figure out where it breaks. *)
-if true then begin 
+if false then begin 
   let f = open_in "../test-data/polish.txt" in 
   let buf = ref (Textbuf.empty) in 
   let read_more = ref true in 
