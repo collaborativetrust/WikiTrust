@@ -1,3 +1,4 @@
+
 (*
 
 Copyright (c) 2007-2009 The Regents of the University of California
@@ -619,7 +620,7 @@ let separate_line_tags (v: piece_t DynArray.t) : piece_t DynArray.t =
   w
 
 (* This processes table elements. The flow is as follows.  First, it
-   locates the starts of the rows, via start_row.  Note that caption
+   locates the starts of the rows, via new_row.  Note that caption
    lines logically should be handled here, but in practice, we have
    included them in the above code instead.  After the row starts are
    located, there are one or more cells on the row.  These are divided
@@ -628,7 +629,7 @@ let separate_line_tags (v: piece_t DynArray.t) : piece_t DynArray.t =
 
 let new_cell_line = "\\(\n[|!]\\)"
 let new_cell_cont = "\\(\\(||\\)\\|\\(!!\\)\\)"
-let format_mod    = "\\([^|\n]+|[^|]\\)"
+let format_mod    = "\\([^|\n]+|\\)"
 let new_cell_r    = Str.regexp (new_cell_line ^ "\\|" ^ new_cell_cont)
 let format_mod_r  = Str.regexp format_mod
 
@@ -657,30 +658,38 @@ let separate_table_tags (v: piece_t DynArray.t) : piece_t DynArray.t =
 	  | Some i -> begin 
 	      (* There is a cell beginning. *)
 	      (* First, puts the previous stuff in the results vector *)
-	      let j = Str.match_beginning () in 
-	      let j' = Str.match_end () in 
-	      if j > !start_pos then begin 
-		DynArray.add w (TXT_splittable (String.sub s !start_pos (j - !start_pos)));
-		start_pos := j
+	      let cell_beginning = Str.match_beginning () in 
+	      let cell_tag_end   = ref (Str.match_end ()) in 
+	      if cell_beginning > !start_pos then begin 
+		DynArray.add w (TXT_splittable (String.sub s !start_pos (cell_beginning - !start_pos)));
+		start_pos := cell_beginning
 	      end; 
-	      (* A cell can either begin via a simple || or \n| or
-		 \n!.  The cell start portion goes on till a single |
-		 , if any: such a single | marks the end of the cell
-		 format field. After the single |, if any, or after
-		 the ||, \n|, \n!, begins the cell proper. *)
-	      if Str.string_match format_mod_r s j' then begin 
-		(* Yes, found a modifier *)
-		(* Finds the end of the match.  The -1 is to
-		   compensate for the regexp. *)
-		let k = (Str.match_end ()) - 1 in 
-		(* Adds the cell tag, and moves on *)
-		DynArray.add w (WS_table_cell (String.sub s j (k - j))); 
-		start_pos := k
-	      end else begin 
-		(* There is no modifier. Adds the cell tag, and moves on *)
-		DynArray.add w (WS_table_cell (String.sub s j (j' - j)));
-		start_pos := j'
-	      end (* Search for the end of the cell declaration *)
+	      (* The cell start portion goes on for some number of |;
+		 each time we meet a single |, we put the preceding text in
+		 the table tag.  A double || instead signifies that the previous
+		 portion is real content immediately. *)
+	      let look_for_modifiers = ref true in
+	      while !look_for_modifiers do begin
+		(* Searches for a | *)
+		if Str.string_match format_mod_r s !cell_tag_end then begin 
+		  (* Found a |; we must check whether it is single. *)
+		  let found_pipe_end = Str.match_end() in
+		  if String.length s = found_pipe_end || s.[found_pipe_end] <> '|' then begin
+		    (* The | is isolated; puts the previous text into the tag. *)
+		    cell_tag_end := found_pipe_end
+		  end else begin
+		    (* Not isolated: is a ||, so keep the previous cell tag end,
+		       and stop searching forward. *)
+		    look_for_modifiers := false;
+		  end
+		end else begin
+		  (* No | is found. *)
+		  look_for_modifiers := false;
+		end
+	      end done; (* while searching to increase the tag size *)
+	      (* Now, all from cell_beginning to !cell_tag_end is a cell tag. *)
+	      DynArray.add w (WS_table_cell (String.sub s cell_beginning (!cell_tag_end - cell_beginning)));
+	      start_pos := !cell_tag_end;
 	    end (* There was a match for a next cell beginning *)
 	end done (* while loop *)
       end (* TXT_splittable *)
@@ -1087,8 +1096,9 @@ if false then begin
   let s20 = "Quando vado, a\n[[storia]]\ndi amore\nnon so cosa fare.\n" in 
   let s21 = "In ebraico tiberiano '''&amp;#1488;&amp;#1502;&amp;#1503;''' '''&amp;rsquo;&amp;#256;m&amp;#275;n''', in ebraico standard  '''&amp;#1488;&amp;#1502;&amp;#1503;''' '''Amen''', in [[lingua araba|arabo]] '''&amp;#1570;&amp;#1605;&amp;#1610;&amp;#1606; &amp;rsquo;&amp;#256;m&amp;#299;n'''): è una dichiarazione di affermazione che si trova nell'[[ebraico biblico]] e nel [[Corano]]. È sempre stata usata nel [[giudaismo]], e da lì è stata adottata nella [[liturgia]] [[cristianesimo|cristiana]] come formula conclusiva per [[preghiera|preghiere]] e [[inno|inni]]. Nell'[[Islam]] è la chiosa comune delle [[sura|sure]] [[al-Fatiha]]." in
   let s22 = "\nBello ''[[link]]'' '''con''' [http://www.pizza.com] e [https:blah.com|blah.ecco.com] {{stub}} e [[link]] e {{stub}} <a href=8>Mangio</a>" in 
+  let s23 = "\n| modif1 |{{atag}}| modif2 || content1\n| modif3 | modif4 || content2\n" in
 
-  let l = [s0; s1; s2; s3; s4; s5; s6; s7; s8; s9; s10; s11; s12; s13; s14; s15; s16; s17; s18; s19; s20; s21; s22] in
+  let l = [s0; s1; s2; s3; s4; s5; s6; s7; s8; s9; s10; s11; s12; s13; s14; s15; s16; s17; s18; s19; s20; s21; s22; s23] in
 
   let f x = 
     Printf.printf "Original:\n%S\n" x;
@@ -1122,16 +1132,20 @@ end;;
 (* **************************************************************** *)
 (* This code can be used to test the text splitting on very large
    pieces of text, to figure out where it breaks. *)
-if false then begin 
-  let f = open_in "../../debug/big-revision.txt" in 
+if true then begin 
+  let f = open_in "../test-data/polish.txt" in 
   let buf = ref (Textbuf.empty) in 
   let read_more = ref true in 
   while !read_more do begin 
-    try 
-      buf := Textbuf.add (input_line f) !buf 
+    try begin
+      buf := Textbuf.add (input_line f) !buf;
+      buf := Textbuf.add "\n" !buf;
+    end
     with End_of_file -> read_more := false
   end done;
   let text = Textbuf.get !buf in 
-  let (word_v, _, _, _, _, _) = split_into_words_seps_and_info false false text in
-  Printf.printf "Found %d words.\n" (Array.length word_v)
+  let (word_v, trust_v, orig_v, auth_v, _, sep_v) = split_into_words_seps_and_info true false text in 
+  Printf.printf "Found %d words.\n" (Array.length word_v);
+  print_seps sep_v
+
 end;;
