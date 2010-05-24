@@ -1,6 +1,16 @@
-var ctrlState = false;
 function showOrigin(revnum) {
   document.location.href = wgScriptPath + "/index.php?title=" + encodeURIComponent(wgPageName) + "&diff=" + encodeURIComponent(revnum);
+}
+
+function showOrg2(ev, revnum) {
+  if(!ev.ctrlKey || !ev.altKey) return true;
+  document.location.href = wgScriptPath + "/index.php?title=" + encodeURIComponent(wgPageName) + "&diff=" + encodeURIComponent(revnum);
+  return false;
+}
+
+function ahref(ev) {
+  if(ev.ctrlKey && ev.altKey) return false;
+  return true;
 }
 
 // The Vote functionality
