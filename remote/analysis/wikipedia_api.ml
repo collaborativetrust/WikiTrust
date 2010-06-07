@@ -136,12 +136,12 @@ let get_url (url: string) : string =
 		Tmpfile.remove_tmp_file tmp_file;
 		match decoded_body with
 		    Some str -> str
-		  | None -> raise (API_error "get_url: no body")
+		  | None -> raise (API_error ("get_url: no body for " ^ url))
 	      end
-	    | _ -> raise (API_error "get_url: unknown encoding")
+	    | _ -> raise (API_error ("get_url: unknown encoding for " ^ url))
 	with Not_found -> call#response_body#value
       end
-    | _ -> raise (API_error "get_url: bad result from url")
+    | _ -> raise (API_error ("get_url: bad result from url " ^ url))
 
 
 type result_tree =
@@ -309,7 +309,7 @@ let fetch_page_and_revs_after_json (selector : string) : result_tree =
       )
   ) with
   | Failure e -> (
-      Printf.eprintf "JSON Error: %s\nOn%s\nExc%s\n" e url
+      Printf.eprintf "JSON Error: %s\nOn %s\nExc %s\n" e url
 	(Printexc.to_string (Failure e));
       raise (API_error_noretry e) 
     )
@@ -413,7 +413,7 @@ let rec get_revs_from_api
     | API_error_noretry msg -> raise (API_error msg)
     | API_error msg -> begin
 	if rev_lim < 2 then
-	  raise (API_error "get_revs_from_api: no good rev_lim available")
+	  raise (API_error ("get_revs_from_api: no good rev_lim available:" ^ msg))
 	else
 	  None
       end

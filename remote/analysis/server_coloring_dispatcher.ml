@@ -205,12 +205,13 @@ let process_page (page_id: int) (page_title: string) =
 	processed_well := true
       ) () with
     | Wikipedia_api.API_error e -> (
-	Printf.eprintf "Wikipedia_api Error: %s\nOn %d %s\nExp%s\n" 
+	Printf.eprintf "Wikipedia_api Error: %s\nOn %d %s\nExc %s\n" 
 	  e page_id page_title (Printexc.to_string (Wikipedia_api.API_error 
 	  e));
       )
-    | _ -> begin  (* Handle everything else generically here. *)
-	Printf.eprintf "Other Error: On %d %s\n" page_id page_title;
+    | e -> begin  (* Handle everything else generically here. *)
+	Printf.eprintf "Other Error: On %d %s\nExc %s\n"
+	  page_id page_title (Printexc.to_string e);
 	child_db#delete_revs_for_page page_id;
       end
     );
