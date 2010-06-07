@@ -207,8 +207,12 @@ let get_property (node: result_tree) (key: string) (defval: string option): stri
 
 
 let get_text (node: result_tree) : string =
+  let texthidden = (get_property node "texthidden" (Some "TEXT")) in
   match node with
-    | JSON jnode -> (get_property node "*" None)
+    | JSON jnode ->
+	if texthidden = "TEXT" then (get_property node "*" None)
+	else ""
+
 
 
 (** [process_rev rev] takes as input a xml tag [rev], and returns
