@@ -12,7 +12,7 @@ class WikiTrustBase {
   const MAX_TRUST_VALUE = 9;
   const MIN_TRUST_VALUE = 0;
   const TRUST_MULTIPLIER = 10;
-  
+
   ## Server forms
   const NOT_FOUND_TEXT_TOKEN = "TEXT_NOT_FOUND";
 
@@ -36,7 +36,7 @@ class WikiTrustBase {
 
   ## Has the colored text been loaded?
   static $colored_text_loaded = false;
-    
+
   ## map trust values to html color codes
   static $COLORS = array(
 		  "trust0",
@@ -57,7 +57,7 @@ class WikiTrustBase {
    Records the vote.
    Called via ajax, so this must be static.
   */
-  static function ajax_recordVote($user_name_raw, $page_id_raw = 0, 
+  static function ajax_recordVote($user_name_raw, $page_id_raw = 0,
 			     $rev_id_raw = 0, $page_title_raw = "")
   {
 
@@ -65,7 +65,7 @@ class WikiTrustBase {
     wfWikiTrustDebug(__FILE__.":".__LINE__
         . ": Handling vote from $user_name_raw $page_title_raw");
     $dbr =& wfGetDB( DB_SLAVE );
-    
+
     $userName = $dbr->strencode($user_name_raw, $dbr);
     $page_id = $dbr->strencode($page_id_raw, $dbr);
     $rev_id = $dbr->strencode($rev_id_raw, $dbr);
@@ -89,7 +89,7 @@ class WikiTrustBase {
 
   static function vote_recordVote(&$dbr, $userName, $page_id, $rev_id, $pageTitle)
   {
-    // Now see if this user has not already voted, 
+    // Now see if this user has not already voted,
     // and count the vote if its the first time though.
     $res = $dbr->select(self::util_getDbTable('wikitrust_vote'),
 		array('revision_id'),
@@ -118,19 +118,19 @@ class WikiTrustBase {
     $dbw =& wfGetDB( DB_MASTER );
     if ($dbw->insert( self::util_getDbTable('wikitrust_vote'), $insert_vals)) {
       $dbw->commit();
-      self::runEvalEdit(self::TRUST_EVAL_VOTE, $rev_id, $page_id, $userName); 
+      self::runEvalEdit(self::TRUST_EVAL_VOTE, $rev_id, $page_id, $userName);
       return new AjaxResponse(implode  ( ",", $insert_vals));
     } else {
       return new AjaxResponse("0");
     }
   }
-  
+
   static function ucscOutputBeforeHTML(&$out, &$text){
     # We are done if the trust tab isn't selected
     global $wgRequest;
-    $use_trust = $wgRequest->getVal('trust'); 
-    if (!isset($use_trust) || 
-        (($wgRequest->getVal('action') && 
+    $use_trust = $wgRequest->getVal('trust');
+    if (!isset($use_trust) ||
+        (($wgRequest->getVal('action') &&
           ($wgRequest->getVal('action') != 'purge'))))
 	return true;
 
@@ -152,8 +152,8 @@ class WikiTrustBase {
       // text not found.
       global $wgUser, $wgParser, $wgTitle;
       $options = ParserOptions::newFromUser($wgUser);
-      $msg = $wgParser->parse(wfMsgNoTrans("wgNoTrustExplanation"), 
-				$wgTitle, 
+      $msg = $wgParser->parse(wfMsgNoTrans("wgNoTrustExplanation"),
+				$wgTitle,
 				$options);
       $text = $msg->getText() . $text;
     } else {
@@ -187,7 +187,7 @@ class WikiTrustBase {
 		.$wgScriptPath
 		."/extensions/WikiTrust/js/trust.js\"></script>");
     $out->addScript("<link rel=\"stylesheet\" type=\"text/css\" href=\""
-		.$wgScriptPath."/extensions/WikiTrust/css/trust.css\">"); 
+		.$wgScriptPath."/extensions/WikiTrust/css/trust.css\">");
   }
 
   static function vote_showButton(&$text)
@@ -196,10 +196,10 @@ class WikiTrustBase {
 
     if ($wgWikiTrustShowVoteButton && $wgUseAjax){
       $text = "<div id='vote-button'><input id='wt-vote-button' type='button' name='vote' "
-		. "value='" 
+		. "value='"
 		. wfMsgNoTrans("wgTrustVote")
 		. "' onclick='startVote()' /></div><div id='vote-button-done'>"
-		. wfMsgNoTrans("wgTrustVoteDone") 
+		. wfMsgNoTrans("wgTrustVoteDone")
 		. "</div>"
 		. $text;
     }
@@ -210,7 +210,7 @@ class WikiTrustBase {
     $voteToProcess = false;
     $dbr =& wfGetDB( DB_SLAVE );
     $res = $dbr->select(self::util_getDbTable('wikitrust_vote'), 'processed',
-			array( 'revision_id' => $rev_id ), 
+			array( 'revision_id' => $rev_id ),
       array());
     if ($res && $dbr->numRows($res) > 0) {
       $row = $dbr->fetchRow($res);
@@ -218,7 +218,7 @@ class WikiTrustBase {
         $voteToProcess = true;
       }
     }
-    $dbr->freeResult( $res ); 
+    $dbr->freeResult( $res );
     return $voteToProcess;
   }
 
@@ -229,7 +229,7 @@ class WikiTrustBase {
     if (!$rev_id)
       return '';
 
-    if (!$page_id) 
+    if (!$page_id)
       return '';
 
     $colored_text = "";
@@ -240,7 +240,7 @@ class WikiTrustBase {
     wfWikiTrustDebug(__FILE__.":".__LINE__ . ": Looks in the database.");
     $res = $dbr->select(self::util_getDbTable('wikitrust_revision'),
 		'blob_id',
-		array( 'revision_id' => $rev_id ), 
+		array( 'revision_id' => $rev_id ),
 		array());
     if (!$res || $dbr->numRows($res) == 0) {
 	    wfWikiTrustDebug(__FILE__.":".__LINE__ . ": Calls the evaluation.");
@@ -256,7 +256,7 @@ class WikiTrustBase {
       wfWikiTrustDebug(__FILE__.":".__LINE__ . ": fetching content from wikitrust_blob, blob_id = " . $new_blob_id);
       $res = $dbr->select(self::util_getDbTable('wikitrust_blob'),
 			'blob_content',
-			array( 'blob_id' => $new_blob_id ), 
+			array( 'blob_id' => $new_blob_id ),
 			array());
       if (!$res || $dbr->numRows($res) == 0) {
 	      wfWikiTrustDebug(__FILE__.":".__LINE__ . ": Calls the evaluation.");
@@ -266,7 +266,7 @@ class WikiTrustBase {
       $row = $dbr->fetchRow($res);
       $blob_content = gzinflate(substr($row[0], 10));
       $colored_text = self::util_extractFromBlob($rev_id, $blob_content);
-      $dbr->freeResult( $res ); 
+      $dbr->freeResult( $res );
     } else {
       $file = self::util_getRevFilename($page_id, $blob_id);
       wfWikiTrustDebug(__FILE__.":".__LINE__ . ": Fetching from disk; file=[$file]");
@@ -300,7 +300,7 @@ if (1) {
 	self::$median = self::TRUST_DEFAULT_MEDIAN;
       }
     }
-    $dbr->freeResult( $res ); 
+    $dbr->freeResult( $res );
 
     return $colored_text;
   }
@@ -338,14 +338,14 @@ if (1) {
       $options = ParserOptions::newFromUser($wgUser);
       $text = WikiTrust::color_parseWiki($colored_text, $rev_id, $options);
 
-      // Fix broken dt tags -- caused by ; 
+      // Fix broken dt tags -- caused by ;
       $text = preg_replace("/<dt>\{\{#t<\/dt>\n<dd>(.*?)<\/dd>/",
           "<dt>{{#t:$1</dt>",
 	  $text,
           -1,
 	  $count);
-    
-      // Fix edit section links    
+
+      // Fix edit section links
       $text = preg_replace_callback(
           "/<span class=\"editsection\"([^>]*?)>(.*?) title=\"(.*?)\">/",
           "WikiTrust::regex_fixSectionEdit",
@@ -373,8 +373,8 @@ if (1) {
 	      .$wgScriptPath
 	      .'/extensions/WikiTrust/js/wz_tooltip.js"></script>' . $text;
 
-      $msg = $wgParser->parse(wfMsgNoTrans("wgTrustExplanation"), 
-			      $wgTitle, 
+      $msg = $wgParser->parse(wfMsgNoTrans("wgTrustExplanation"),
+			      $wgTitle,
 			      $options);
       $text .= $msg->getText();
       WikiTrust::color_shareHTML($text, $rev_id);
@@ -402,22 +402,22 @@ if (1) {
 				 self::TRUST_MULTIPLIER)
 				/ self::$median));
     $class = self::$COLORS[$normalized_value];
-    
+
     $output = "";
     if ($wgWikiTrustShowMouseOrigin){
       # Need to escape single quotes
       $matches[3]= str_replace("'", "\\'",$matches[3]);
       $matches[3]= str_replace("&apos;", "\\'",$matches[3]);
       $matches[3]= str_replace("&#39;", "\\'",$matches[3]);
-      $output = "<span class=\"$class\"" 
+      $output = "<span class=\"$class\""
         . " onmouseover=\"Tip('".$matches[3]
         ."')\" onmouseout=\"UnTip()\""
-        . " onclick=\"showOrigin(" 
+        . " onclick=\"showOrigin("
         . $matches[2] . ")\">" . $matches[4]
         . "</span>";
     } else {
-      $output = "<span class=\"$class\"" 
-        . " onclick=\"showOrigin(" 
+      $output = "<span class=\"$class\""
+        . " onclick=\"showOrigin("
         . $matches[2] . ")\">" . $matches[4]
         . "</span>";
     }
@@ -435,22 +435,22 @@ if (1) {
 				 self::TRUST_MULTIPLIER)
 				/ self::$median));
     $class = self::$COLORS[$normalized_value];
-    
+
     $output = $matches[1] + $matches[5];
     if ($wgWikiTrustShowMouseOrigin){
       # Need to escape single quotes
       $matches[4]= str_replace("'", "\\'",$matches[4]);
       $matches[4]= str_replace("&apos;", "\\'",$matches[4]);
       $matches[4]= str_replace("&#39;", "\\'",$matches[4]);
-      $output = $matches[1] + "<span class=\"$class\"" 
+      $output = $matches[1] + "<span class=\"$class\""
         . " onmouseover=\"Tip('".$matches[4]
         ."')\" onmouseout=\"UnTip()\""
-        . " onclick=\"showOrigin(" 
+        . " onclick=\"showOrigin("
         . $matches[3] . ")\">" . $matches[5]
         . "</span>";
     } else {
-      $output = $matches[1] + "<span class=\"$class\"" 
-        . " onclick=\"showOrigin(" 
+      $output = $matches[1] + "<span class=\"$class\""
+        . " onclick=\"showOrigin("
         . $matches[3] . ")\">" . $matches[5]
         . "</span>";
     }
@@ -465,20 +465,20 @@ if (1) {
 				 self::TRUST_MULTIPLIER)
 				/ self::$median));
     $class = self::$COLORS[$normalized_value];
-    
+
     $output = "";
-    
+
     if ($wgWikiTrustShowMouseOrigin){
-      $output = $matches[4] + "<span class=\"$class\"" 
+      $output = $matches[4] + "<span class=\"$class\""
         . " onmouseover=\"Tip('".str_replace("&#39;","\\'",$matches[3])
         ."')\" onmouseout=\"UnTip()\""
-        . " onclick=\"showOrigin(" 
+        . " onclick=\"showOrigin("
         . $matches[2] . ")\">"
         . "[[" . $matches[5] . "]]"
         . "</span>" + $matches[6];
     } else {
-      $output = $matches[3] + "<span class=\"$class\"" 
-        . " onclick=\"showOrigin(" 
+      $output = $matches[3] + "<span class=\"$class\""
+        . " onclick=\"showOrigin("
         . $matches[2] . ")\">"
         . "[[" . $matches[5] . "]]"
         . "</span>" + $matches[6];
@@ -495,7 +495,7 @@ if (1) {
 if (0) {
     // TODO: I think these replacements are from broken XML parser?
 	// Still needed?  (Luca working on fixing unpacking...) -Bo
-    $colored_text = preg_replace("/&apos;/", "'", $colored_text, -1);      
+    $colored_text = preg_replace("/&apos;/", "'", $colored_text, -1);
     $colored_text = preg_replace("/&amp;/", "&", $colored_text, -1);
     $colored_text = preg_replace("/&lt;/", "<", $colored_text, -1);
     $colored_text = preg_replace("/&gt;/", ">", $colored_text, -1);
@@ -506,18 +506,18 @@ if (0) {
   {
   }
 
-  public static function ucscArticleSaveComplete(&$article, 
+  public static function ucscArticleSaveComplete(&$article,
 			      &$user, $text, $summary,
 			      &$minoredit, $watchthis,
-			      $sectionanchor, &$flags, 
+			      $sectionanchor, &$flags,
 			      $revision, &$status, $baseRevId)
   {
     $page_id = $article->getTitle()->getArticleID();
     $rev_id = $revision->getID();
     $user_id = $user->getID();
 		
-    if (self::runEvalEdit(self::TRUST_EVAL_EDIT, 
-			$rev_id, 
+    if (self::runEvalEdit(self::TRUST_EVAL_EDIT,
+			$rev_id,
 			$page_id,
 			$user_id) >= 0) {
 	return true;
@@ -525,27 +525,27 @@ if (0) {
     return false;
   }
 
-  // Cache control -- invalidate the cache if someone voted on the 
+  // Cache control -- invalidate the cache if someone voted on the
   // page recently, or if the colored page is invalid.
   // This function does this by making the sure the last
-  // modified time of the page is set to now() if we don't want 
+  // modified time of the page is set to now() if we don't want
   // output cached.
   public static function ucscOutputModified(&$modified_times)
   {
     # We are done if the trust tab isn't selected
     global $wgRequest;
-    $use_trust = $wgRequest->getVal('trust'); 
-    if (!isset($use_trust) || 
-        (($wgRequest->getVal('action') && 
+    $use_trust = $wgRequest->getVal('trust');
+    if (!isset($use_trust) ||
+        (($wgRequest->getVal('action') &&
           ($wgRequest->getVal('action') != 'purge'))))
 	return true;
     wfWikiTrustDebug(__FILE__.":".__LINE__
                      .": ".print_r($modified_times, true));
-    
+
     // Load the colored text if the text is available.
     // We do it here because this is the first hook to be fired as a page
     // is rendered.
-    // We don't need to check if colored_text is already present, because 
+    // We don't need to check if colored_text is already present, because
     // of this hook ordering.
     // We need to know if the colored text is missing or not, and just getting
     // it seems like the easiest way to figure this out.
@@ -555,10 +555,10 @@ if (0) {
     self::color_fixup($colored_text);
     self::$colored_text = $colored_text;
     self::$colored_text_loaded = true;
-    
+
     // Update the cache with the current time if we need to invalide it
     //   for this page.
-    // Reasons for this are missing text or a vote which needs to be 
+    // Reasons for this are missing text or a vote which needs to be
     //   processed still.
     if (!self::$colored_text || WikiTrust::voteToProcess($rev_id)){
       $modified_times['page'] = wfTimestampNow();
@@ -589,8 +589,8 @@ if (0) {
 				    'text' => wfMsgNoTrans("wgTrustTabText"),
 				    'href' => $url
 				);
-    
-    $use_trust = $wgRequest->getVal('trust'); 
+
+    $use_trust = $wgRequest->getVal('trust');
     if (isset($use_trust)){
       $content_actions['trust']['class'] = 'selected';
       $content_actions['nstab-main']['class'] = '';
@@ -603,11 +603,11 @@ if (0) {
 
 	/**
    Returns colored markup.
-	 
+	
    @return colored markup.
   */
   static function ajax_getColoredText($page_title,
-				 $page_id = 0, 
+				 $page_id = 0,
 				 $rev_id = 0)
   {
     global $wgTitle, $wgMemc;
@@ -620,7 +620,7 @@ if (0) {
 
     wfWikiTrustDebug(__FILE__.":".__LINE__ . ": computed=($page_title, $page_id, $rev_id)");
 
-    // See if we have a cached version of the colored text, or if 
+    // See if we have a cached version of the colored text, or if
     // we need to generate new text.
     $memcKey = wfMemcKey( 'revisiontext', 'revid', $rev_id);
     $cached_text = $wgMemc->get($memcKey);
@@ -650,8 +650,8 @@ if (0) {
       // text not found.
       global $wgUser, $wgParser, $wgTitle;
       $options = ParserOptions::newFromUser($wgUser);
-      $msg = $wgParser->parse(wfMsgNoTrans("wgNoTrustExplanation"), 
-				$wgTitle, 
+      $msg = $wgParser->parse(wfMsgNoTrans("wgNoTrustExplanation"),
+				$wgTitle,
 				$options);
       $text = $msg->getText() . $text;
     } else {
@@ -666,9 +666,9 @@ if (0) {
     return new AjaxResponse($text);
   }
 
-  /** 
+  /**
    * Actually run the eval edit program.
-   * Returns -1 on error, the process id of the launched eval process 
+   * Returns -1 on error, the process id of the launched eval process
    * otherwise.
    */
   private static function runEvalEdit($eval_type = self::TRUST_EVAL_EDIT,
@@ -684,15 +684,15 @@ if (0) {
     if ($wgWikiTrustRobots){
       $wgWikiTrustCmdExtraArgs .= " -robots " . $wgWikiTrustRobots;
     }
-      
+
     $process = -1;
     $command = "";
     // Get the db.
     $dbr =& wfGetDB( DB_SLAVE );
-	  
+
     // Do we use a DB prefix?
     $prefix = ($wgDBprefix)? "-db_prefix " . $dbr->strencode($wgDBprefix): "";
-	  
+
     switch ($eval_type) {
 	  case self::TRUST_EVAL_EDIT:
       $command = escapeshellcmd("$wgWikiTrustCmd -rep_speed $wgWikiTrustRepSpeed -log_file $wgWikiTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix $wgWikiTrustCmdExtraArgs") . " &";
@@ -703,7 +703,7 @@ if (0) {
       $command = escapeshellcmd("$wgWikiTrustCmd -eval_vote -rev_id " . $dbr->strencode($rev_id) . " -voter_name " . $dbr->strencode($voter_name) . " -page_id " . $dbr->strencode($page_id) . " -rep_speed $wgWikiTrustRepSpeed -log_file $wgWikiTrustLog -db_host $wgDBserver -db_user $wgDBuser -db_pass $wgDBpassword -db_name $wgDBname $prefix $wgWikiTrustCmdExtraArgs") . " &";
       break;
     }
-	  
+
     $descriptorspec = array(
       0 => array("pipe", "r"),
       1 => array("file", escapeshellcmd($wgWikiTrustDebugLog), "a"),
@@ -716,7 +716,7 @@ if (0) {
         . ": runEvalEdit: " . $command);
     $process = proc_open($command, $descriptorspec, $pipes, $cwd, $env);
 
-    return $process; 
+    return $process;
   }
 
 
@@ -725,7 +725,7 @@ if (0) {
     if (preg_match("/^\d+\.\d+\.\d+\.\d+$/", $userName))
 	return 0;		// IP addrs are anonymous
 
-    $res = $dbr->select('user', array('user_id'), 
+    $res = $dbr->select('user', array('user_id'),
 		    array('user_name' => $userName), array());
     if ($res && $dbr->numRows($res) > 0){
       $row = $dbr->fetchRow($res);
@@ -733,7 +733,7 @@ if (0) {
       if (!$user_id)
 	$user_id = 0;
     }
-    $dbr->freeResult( $res ); 
+    $dbr->freeResult( $res );
 
     return $user_id;
   }
@@ -768,8 +768,8 @@ if (0) {
     return array($page_title, $page_id, $rev_id);
   }
 
-      
-  /* Utility function which returns the revid of the revision which is 
+
+  /* Utility function which returns the revid of the revision which is
    * currently being displayed.
    * It tries to do this using the global wgArticle object, and if this fails
    * queries the DB directly.
@@ -789,13 +789,13 @@ if (0) {
       $rev_id = 0;
       $page_id = $wgTitle->getArticleID();
       $dbr =& wfGetDB( DB_SLAVE );
-      $res = $dbr->select('page', array('page_latest'), 
+      $res = $dbr->select('page', array('page_latest'),
                           array('page_id' => $page_id), array());
       if ($res && $dbr->numRows($res) > 0) {
         $row = $dbr->fetchRow($res);
         $rev_id = $row['page_latest'];
       }
-      $dbr->freeResult( $res ); 
+      $dbr->freeResult( $res );
     }
     return $rev_id;
   }
@@ -825,7 +825,7 @@ if (0) {
     if (!$rev_id) {
       $rev_id = self::util_getRevFArticle();
     }
-    
+
     return $rev_id;
   }
 
@@ -834,7 +834,7 @@ if (0) {
     $parts = explode(":", $blob_content, 2);
     $headers = array();
     preg_match_all("/\((\d+) (\d+) (\d+)\)/", $parts[0], $headers, PREG_SET_ORDER);
-    
+
     $offset = 0;
     $size = 0;
     for ($i=0; $i<count($headers); $i++){
@@ -843,7 +843,7 @@ if (0) {
         $size = $headers[$i][3];
       }
     }
-    
+
     return substr($parts[1], $offset, $size);
   }
 
@@ -874,8 +874,8 @@ if (0) {
   {
     global $wgWikiTrustDebugLog, $wgWikiTrustDebugVerbosity;
 
-    if ($level >= $wgWikiTrustDebugVerbosity) 
-      file_put_contents($wgWikiTrustDebugLog, 
+    if ($level >= $wgWikiTrustDebugVerbosity)
+      file_put_contents($wgWikiTrustDebugLog,
                         $msg . PHP_EOL,
                         FILE_APPEND|LOCK_EX);
   }
