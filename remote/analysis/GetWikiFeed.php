@@ -30,11 +30,13 @@ if ($row = mysql_fetch_assoc($result)) {
 }
 mysql_free_result($result);
 
-//$last_rev="344402323";
+#$last_rev="364566985";
+echo "$last_rev\n";
 
 // And now get all of the revs since then
 $json_raw = file_get_contents($SERVER."db=$mwdb&n=$last_rev");
 $json_parsed = json_decode($json_raw, TRUE);
+
 
 // And finally put them into the db
 foreach ($json_parsed as $key => $value){
