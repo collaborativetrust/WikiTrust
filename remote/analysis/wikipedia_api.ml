@@ -213,6 +213,13 @@ let get_text (node: result_tree) : string =
 	if texthidden = "TEXT" then (get_property node "*" None)
 	else ""
 
+let get_user (node: result_tree) : string =
+  let userhidden = (get_property node "userhidden" (Some "USER")) in
+  match node with
+    | JSON jnode ->
+	if userhidden = "USER" then (get_property node "user" None)
+	else "0.0.0.0"
+
 
 
 (** [process_rev rev] takes as input a xml tag [rev], and returns
@@ -226,7 +233,7 @@ let process_rev ((key, rev) : (string * result_tree)) : wiki_revision_t =
     revision_text_id = revid;
     revision_comment = get_property rev "comment" (Some "");
     revision_user = -1;
-    revision_user_text = get_property rev "user" None;
+    revision_user_text = get_user rev;
     revision_timestamp = api_ts2mw_ts (get_property rev "timestamp" None);
     revision_minor_edit = if minor_attr = "" then false else raise (API_error "process_rev: minor edit has value");
     revision_deleted = false;
