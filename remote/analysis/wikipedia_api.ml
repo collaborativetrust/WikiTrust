@@ -428,7 +428,6 @@ let rec get_revs_from_api
       !logger#log (Printf.sprintf "Getting revs from api for page '%s'\n" error_page_ident);
       Some (fetch_page_and_revs_after sel)
     with
-    | API_error_noretry msg -> raise (API_error msg)
     | API_error msg -> begin
 	if rev_lim < 2 then
 	  raise (API_error ("get_revs_from_api: no good rev_lim available:" ^ msg))

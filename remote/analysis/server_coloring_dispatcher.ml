@@ -204,13 +204,19 @@ let process_page (page_id: int) (page_title: string) =
 	processor#update_page_fast page_id;
 	processed_well := true
       ) () with
+    | Wikipedia_api.API_error_noretry e -> begin
+	Printf.eprintf "Wikipedia_api Error: %s\n   On %d %s\n   Exc %s\n" 
+	  e page_id page_title (Printexc.to_string (Wikipedia_api.API_error_noretry 
+	  e));
+	times_tried := !times_to_retry_trans;
+      end
     | Wikipedia_api.API_error e -> (
-	Printf.eprintf "Wikipedia_api Error: %s\nOn %d %s\nExc %s\n" 
+	Printf.eprintf "Wikipedia_api Error: %s\n   On %d %s\n   Exc %s\n" 
 	  e page_id page_title (Printexc.to_string (Wikipedia_api.API_error 
 	  e));
       )
     | e -> begin  (* Handle everything else generically here. *)
-	Printf.eprintf "Other Error: On %d %s\nExc %s\n"
+	Printf.eprintf "Other Error: On %d %s\n   Exc %s\n"
 	  page_id page_title (Printexc.to_string e);
 	child_db#delete_revs_for_page page_id;
       end
