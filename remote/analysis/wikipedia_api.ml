@@ -256,7 +256,14 @@ let process_page ((key, page): (string * result_tree))
   let spaces2underscores str = Str.global_replace (Str.regexp " ") "_" str in
   let redirect_attr = get_property page "redirect" (Some "") in
   let api_pageid = int_of_string (get_property page "pageid" None) in
-  let api_title = spaces2underscores (get_property page "title" None) in
+  let get_title () =
+    let missing = get_property page "missing" (Some "EXISTS") in
+    if missing = "EXISTS" then
+	get_property page "title" None
+    else
+	raise (API_error_noretry "No such page")
+  in
+  let api_title = spaces2underscores (get_title ()) in
   let w_page = {
     page_id = api_pageid;
     page_namespace = int_of_string (get_property page "ns" None);
