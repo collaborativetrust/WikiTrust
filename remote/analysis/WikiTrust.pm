@@ -15,6 +15,7 @@ use IO::Zlib;
 use Compress::Zlib;
 use Cache::Memcached;
 use Data::Dumper;
+use File::Path qw(rmtree);	# on newer perls, this is remove_tree
 #use Time::HiRes qw(gettimeofday tv_interval);
 
 use constant QUEUE_PRIORITY => 10; # wikitrust_queue is now a priority queue.
@@ -165,20 +166,28 @@ sub get_median {
   return $median;
 }
 
-sub util_getRevFilename {
-  my ($pageid, $blobid) = @_;
+sub util_getPageDirname {
+  my ($pageid) = @_;
   my $path = $ENV{WT_BLOB_PATH};
   return undef if !defined $path;
-
   my $page_str = sprintf("%012d", $pageid);
-  my $blob_str = sprintf("%09d", $blobid);
-
   for (my $i = 0; $i <= 3; $i++){
     $path .= "/" . substr($page_str, $i*3, 3);
   }
+  return $path;
+}
+
+sub util_getRevFilename {
+  my ($pageid, $blobid) = @_;
+  my $path = util_getPageDirname($pageid);
+  return undef if !defined $path;
+
+  my $blob_str = sprintf("%09d", $blobid);
+
   if ($blobid >= 1000){
     $path .= "/" . sprintf("%06d", $blobid);
   }
+  my $page_str = sprintf("%012d", $pageid);
   $path .= "/" . $page_str . "_" . $blob_str . ".gz";
   return $path;
 }
@@ -398,15 +407,34 @@ sub handle_deletepage {
       $sth = $dbh->prepare ("DELETE FROM wikitrust_revision WHERE page_id = ?") 
 	|| die $dbh->errstr;
       $sth->execute($page) || die $dbh->errstr;
+
+      $sth = $dbh->prepare ("DELETE FROM revision WHERE rev_page = ?") 
+	|| die $dbh->errstr;
+      $sth->execute($page) || die $dbh->errstr;
+
+      # And delete the page
+      $sth = $dbh->prepare ("DELETE FROM wikitrust_page WHERE page_id = ?") 
+	|| die $dbh->errstr;
+      $sth->execute($page) || die $dbh->errstr;
  
-      # Delete the revisions.
+      $sth = $dbh->prepare ("DELETE FROM page WHERE page_id = ?") 
+	|| die $dbh->errstr;
+      $sth->execute($page) || die $dbh->errstr;
+ 
+      # Clean up the queue
       $sth = $dbh->prepare ("DELETE FROM wikitrust_queue WHERE page_id = ?")
 	|| die $dbh->errstr;
       $sth->execute($page) || die $dbh->errstr;
 
-      mark_for_coloring($page, $page_title, $dbh);
+      my $page_path = util_getPageDirname($page);
+      rmtree($page_path) || die "unable to delete $page_path: $!";
+
 
       $dbh->commit() || die $dbh->errstr;
+
+
+      mark_for_coloring($page, $page_title, $dbh);
+
       $r->print("$page_title is being re-colored.");
     } otherwise {
       $dbh->rollback();
