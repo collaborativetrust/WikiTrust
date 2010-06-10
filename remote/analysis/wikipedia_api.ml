@@ -179,65 +179,78 @@ let rec get_descendant (node: result_tree) (tag_list: string list) : result_tree
       | Some n -> get_descendant n tl
     end
 
+let err_get_property (key: string) (msg: string) =
+  let errmsg = Printf.sprintf "get_property: key=[%s], %s" key msg in
+  raise (API_error errmsg)
 
-let get_property (node: result_tree) (key: string) (defval: string option): string =
-  let api_errmsg msg = Printf.sprintf "get_property: key=[%s], %s" key msg in
-  let default () : string =
-    match defval with
-	None -> raise (API_error (api_errmsg "property not found"))
-      | Some str -> str
-  in
+let get_property (node: result_tree) (key: string) (defvalfunc): string =
   match node with
     | JSON jnode -> begin
 	match jnode with
 	  | Object proplist ->
 	      let rec find_first = function
-		  [] -> default ()
+		  [] -> defvalfunc key "property not found"
 		| (k, v) :: rest -> begin
 		    if k = key then
 		      match v with
 			| Int i -> string_of_int i
 			| String s -> s
-			| _ -> raise (API_error (api_errmsg "unknown base type"))
+			| _ -> err_get_property key "unknown base type"
 		    else find_first rest
 		  end
 	      in find_first proplist
-	  | _ -> raise (API_error (api_errmsg "unknown type"))
+	  | _ -> err_get_property key "unknown type"
       end
 
 
+(** [get_text node] looks up the text from the result tree.
+    If the text is not found, we check to see if the text was hidden.
+    If so, the empty string will be returned; otherwise, an error is raised. *)
 let get_text (node: result_tree) : string =
-  let texthidden = (get_property node "texthidden" (Some "TEXT")) in
+  let check_hidden key msg = get_property node "texthidden" err_get_property in
   match node with
-    | JSON jnode ->
-	if texthidden = "TEXT" then (get_property node "*" None)
-	else ""
+    | JSON jnode -> (get_property node "*" check_hidden)
+    | _ -> raise (API_error_noretry "Don't know how to get text")
 
+(** [get_user node] looks up the username from the result tree.
+    If the user is not found, we check to see if the user was hidden.
+    If so, "0.0.0.0" will be returned; otherwise, an error is raised.
+    This works because the 'userhidden' property returns the empty string.  *)
 let get_user (node: result_tree) : string =
-  let userhidden = (get_property node "userhidden" (Some "USER")) in
-  match node with
-    | JSON jnode ->
-	if userhidden = "USER" then (get_property node "user" None)
-	else "0.0.0.0"
+  let user_hidden () = get_property node "userhidden" err_get_property in
+  let check_hidden key msg = "0.0.0.0" ^ (user_hidden ()) in
+  get_property node "user" check_hidden
 
-
+(** [get_title node] looks up the title from the result tree.
+    We expect the title to always be there.
+    If the title is not there, let us see if the WpAPI tells us that
+    the page is missing.  If WpAPI doesn't say missing, let's allow retry. *)
+let get_title (node: result_tree) : string =
+  let missing () = get_property node "missing" err_get_property in
+  let check_missing key msg =
+    if missing () = "" then raise (API_error_noretry "No such page")
+    else raise (API_error "Unexpected result")
+  in
+  get_property node "title" check_missing
 
 (** [process_rev rev] takes as input a xml tag [rev], and returns
      wiki_revision_t stucture. *)
 let process_rev ((key, rev) : (string * result_tree)) : wiki_revision_t =
-  let revid = int_of_string (get_property rev "revid" None) in
-  let minor_attr = get_property rev "minor" (Some "") in
+  let empty_string key msg = "" in
+  let zero key msg = "0" in
+  let revid = int_of_string (get_property rev "revid" err_get_property) in
+  let minor_attr = get_property rev "minor" empty_string in
   let r = {
     revision_id = revid;
     revision_page = 0;
     revision_text_id = revid;
-    revision_comment = get_property rev "comment" (Some "");
+    revision_comment = get_property rev "comment" empty_string;
     revision_user = -1;
     revision_user_text = get_user rev;
-    revision_timestamp = api_ts2mw_ts (get_property rev "timestamp" None);
-    revision_minor_edit = if minor_attr = "" then false else raise (API_error "process_rev: minor edit has value");
+    revision_timestamp = api_ts2mw_ts (get_property rev "timestamp" err_get_property);
+    revision_minor_edit = if minor_attr = "" then false else raise (API_error_noretry "process_rev: minor edit has value");
     revision_deleted = false;
-    revision_len = int_of_string (get_property rev "size" (Some "0"));
+    revision_len = int_of_string (get_property rev "size" zero);
     revision_parent_id = 0;
     revision_content = get_text rev;
   }
@@ -254,30 +267,24 @@ let check_for_download_error ((key, page): (string * result_tree)) =
 let process_page ((key, page): (string * result_tree))
 	: (wiki_page_t * wiki_revision_t list) =
   let spaces2underscores str = Str.global_replace (Str.regexp " ") "_" str in
-  let redirect_attr = get_property page "redirect" (Some "") in
-  let api_pageid = int_of_string (get_property page "pageid" None) in
-  let get_title () =
-    let missing = get_property page "missing" (Some "EXISTS") in
-    if missing = "EXISTS" then
-	get_property page "title" None
-    else
-	raise (API_error_noretry "No such page")
-  in
-  let api_title = spaces2underscores (get_title ()) in
+  let empty_string key msg = "" in
+  let redirect_attr = get_property page "redirect" empty_string in
+  let api_pageid = int_of_string (get_property page "pageid" err_get_property) in
+  let api_title = spaces2underscores (get_title page) in
   let w_page = {
     page_id = api_pageid;
-    page_namespace = int_of_string (get_property page "ns" None);
+    page_namespace = int_of_string (get_property page "ns" err_get_property);
     page_title = api_title;
     page_restrictions = "";
-    page_counter = int_of_string (get_property page "counter" None);
+    page_counter = int_of_string (get_property page "counter" err_get_property);
     page_is_redirect = if redirect_attr = "" then false
                        else true;
     page_is_new = false;
     (* For random page extraction.  The idea is just broken, of course. *)
     page_random = (Random.float 1.0);
-    page_touched = api_ts2mw_ts (get_property page "touched" None);
-    page_latest = int_of_string (get_property page "lastrevid" None);
-    page_len = int_of_string (get_property page "length" None)
+    page_touched = api_ts2mw_ts (get_property page "touched" err_get_property);
+    page_latest = int_of_string (get_property page "lastrevid" err_get_property);
+    page_len = int_of_string (get_property page "length" err_get_property)
   } in
   let rev_container = get_child page "revisions" in
   match rev_container with
@@ -359,7 +366,7 @@ let fetch_page_and_revs_after (selector : string)
       let nextrevopt = match nextrevprop with
 	| None -> None
 	| Some rev_cont ->
-	    let next_rev_id = int_of_string (get_property rev_cont "rvstartid" None) in
+	    let next_rev_id = int_of_string (get_property rev_cont "rvstartid" err_get_property) in
 	    Some next_rev_id
       in (page_info, rev_info, nextrevopt)
     end
