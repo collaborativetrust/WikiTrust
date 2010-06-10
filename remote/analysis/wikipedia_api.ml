@@ -208,9 +208,7 @@ let get_property (node: result_tree) (key: string) (defvalfunc): string =
     If so, the empty string will be returned; otherwise, an error is raised. *)
 let get_text (node: result_tree) : string =
   let check_hidden key msg = get_property node "texthidden" err_get_property in
-  match node with
-    | JSON jnode -> (get_property node "*" check_hidden)
-    | _ -> raise (API_error_noretry "Don't know how to get text")
+  get_property node "*" check_hidden
 
 (** [get_user node] looks up the username from the result tree.
     If the user is not found, we check to see if the user was hidden.
