@@ -983,7 +983,7 @@ CREATE TABLE `wikitrust_queue` (
   `requested_on` timestamp NOT NULL default CURRENT_TIMESTAMP,
   `processed` enum('unprocessed','processing','processed') NOT NULL default 'unprocessed',
   `priority` int(10) unsigned default '0',
-  PRIMARY KEY  (`page_title`),
+  PRIMARY KEY  (`page_id`),
   KEY `wikitrust_queue_idx` (`processed`,`requested_on`)
 ) ENGINE=InnoDB DEFAULT CHARSET=binary;
 SET character_set_client = @saved_cs_client;
