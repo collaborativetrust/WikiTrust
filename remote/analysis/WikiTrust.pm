@@ -326,7 +326,7 @@ sub handle_wikiorhtml {
 sub handle_stats {
   my ($dbh, $cgi, $r) = @_;
 
-  $r->headers_out->{'Cache-Control'} = "max-age=" . 30;		# no caching!
+  $r->no_cache(1);
   $r->content_type('text/plain; charset=utf-8');
 
   my $sth = $dbh->prepare ("SELECT * FROM wikitrust_queue") || die $dbh->errstr;
@@ -377,7 +377,6 @@ sub handle_deletepage {
   my ($rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
   $r->no_cache(1);
   $r->content_type('text/plain; charset=utf-8');
-  $page_title = "";
  
   # Get the page_title.
   # We need to make sure we get the actual page title, as this is currently the only
@@ -386,7 +385,7 @@ sub handle_deletepage {
     || die $dbh->errstr;
   $sth->execute($page) || die $dbh->errstr;
   if (my $title = $sth->fetchrow_hashref()){
-    $page_title = $title->{page_title};
+    $page_title = $title->{page_title} if $title->{page_title} ne '';
   }
 
   # Get the title from the q, if its not in the wikitrust_page table
@@ -395,12 +394,12 @@ sub handle_deletepage {
       || die $dbh->errstr;
     $sth->execute($page) || die $dbh->errstr;
     if (my $title = $sth->fetchrow_hashref()){
-      $page_title = $title->{page_title};
+      $page_title = $title->{page_title} if $title->{page_title} ne '';
     }
   }
 
   # If the right password and page_title are set.
-  if($page_title && secret_okay($cgi)){
+  if(secret_okay($cgi)){
     $dbh->begin_work() || die $dbh->errstr;
     try {
       # Delete the revisions.
@@ -427,7 +426,9 @@ sub handle_deletepage {
       $sth->execute($page) || die $dbh->errstr;
 
       my $page_path = util_getPageDirname($page);
-      rmtree($page_path) || die "unable to delete $page_path: $!";
+      if (-e $page_path) {
+	rmtree($page_path) || die "unable to delete $page_path: $!";
+      }
 
 
       $dbh->commit() || die $dbh->errstr;
