@@ -16,7 +16,7 @@ use Compress::Zlib;
 use Cache::Memcached;
 use Data::Dumper;
 use File::Path qw(rmtree);	# on newer perls, this is remove_tree
-#use Time::HiRes qw(gettimeofday tv_interval);
+use Time::HiRes qw(gettimeofday tv_interval);
 
 use constant QUEUE_PRIORITY => 10; # wikitrust_queue is now a priority queue.
 use constant SLEEP_TIME => 3;
@@ -29,6 +29,7 @@ our %methods = (
 	'wikiorhtml' => \&handle_wikiorhtml,
 	'sharehtml' => \&handle_sharehtml,
 	'stats' => \&handle_stats,
+	'status' => \&handle_status,
 	'miccheck' => \&handle_miccheck,
 	'delete' => \&handle_deletepage,
     );
@@ -364,6 +365,33 @@ sub handle_miccheck {
   $r->headers_out->{'Cache-Control'} = "max-age=" . 30*24*60*60;
   $r->content_type('text/plain; charset=utf-8');
   $r->print("OK");
+  return Apache2::Const::OK;
+}
+
+sub handle_status {
+  my ($dbh, $cgi, $r) = @_;
+
+  my $start = [ gettimeofday ];
+  $r->no_cache(1);
+  $r->content_type('text/plain; charset=utf-8');
+
+  my $cache = util_getCache();
+  throw Error::Simple("Memcache failure") if !defined $cache;
+  my $stats = $cache->stats();
+  throw Error::Simple("Memcache stats failure") if !defined $stats;
+  throw Error::Simple("DBI failure") if !defined $dbh;
+  my $sth = $dbh->prepare("SELECT COUNT(*) FROM wikitrust_queue")
+      || throw Error::Simple($dbh->errstr);
+  $sth->execute() || throw Error::Simple($dbh->errstr);
+  if (my $ref = $sth->fetchrow_arrayref()) {
+    my $pages = $ref->[0];
+    $r->print("pages.value ".$pages."\n");
+  } else {
+    throw Error::Simple("No result from DBI query");
+  }
+
+  my $elapsed = tv_interval($start);
+  $r->print("elapsed.value ".$elapsed."\n");
   return Apache2::Const::OK;
 }
 
