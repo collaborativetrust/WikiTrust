@@ -390,7 +390,7 @@ sub handle_status {
     throw Error::Simple("No result from DBI query");
   }
 
-  my $elapsed = tv_interval($start);
+  my $elapsed = tv_interval($start) * 1000000;
   $r->print("elapsed.value ".$elapsed."\n");
   return Apache2::Const::OK;
 }
