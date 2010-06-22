@@ -4,7 +4,7 @@ function showOrigin(revnum) {
 
 function showOrg2(ev, revnum) {
   if(!ev.ctrlKey || !ev.altKey) return true;
-  document.location.href = wgScriptPath + "/index.php?title=" + encodeURIComponent(wgPageName) + "&diff=" + encodeURIComponent(revnum);
+  document.location.href = wgScriptPath + "/index.php?title=" + encodeURIComponent(wgPageName) + "&diff=" + encodeURIComponent(revnum) + "&trust;
   return false;
 }
 
