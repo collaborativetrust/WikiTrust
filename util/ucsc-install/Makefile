@@ -1,0 +1,32 @@
+
+WWW_DIR=/var/www/WikiTrust
+WIKITRUST_DIR=/home/wikitrust
+
+TOP:=../..
+
+.PHONY: install www api munin dispatcher
+
+install: www munin api dispatcher
+
+
+www:
+	mkdir -p $(WWW_DIR)
+	cp -ar $(TOP)/js $(WWW_DIR)/
+	cp -ar $(TOP)/css $(WWW_DIR)/
+
+munin:
+	mkdir -p $(WIKITRUST_DIR)/bin
+	cp -a $(TOP)/util/munin/wikitrust_ $(WIKITRUST_DIR)/bin/
+
+api:
+	mkdir -p $(WIKITRUST_DIR)/perl
+	cp -a $(TOP)/remote/analysis/WikiTrust.pm $(WIKITRUST_DIR)/perl/
+	/etc/init.d/apache2 restart
+
+dispatcher:
+	mkdir -p $(WIKITRUST_DIR)/bin
+	cp -a $(TOP)/remote/analysis/dispatcher $(WIKITRUST_DIR)/bin/
+	mkdir -p $(WIKITRUST_DIR)/WikiTrust/remote/analysis
+	cp -a $(TOP)/remote/analysis/read_rev_text $(WIKITRUST_DIR)/WikiTrust/remote/analysis/
+
+
