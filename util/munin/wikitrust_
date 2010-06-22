@@ -18,7 +18,7 @@
 use LWP::Simple;
 use File::Basename;
 
-use constant URL => ".collaborativetrust.com:81/WikiTrust/RemoteAPI?method=stats";
+use constant URL => ".collaborativetrust.com:81/WikiTrust/RemoteAPI?method=status";
 use constant SITES => qw( de fr it nl pl pt );
 
 my $cmd = shift @ARGV;
@@ -41,23 +41,17 @@ graph_period minute
 graph_category wikitrust
 _EOT_
     print "pages.label $lang\n";
+    print "elapsed.label $lang\n";
     exit(0);
 }
 
-my $val = getRows($lang);
-print "pages.value $val\n";
+getData($lang);
 exit(0);
 
-sub getRows {
+sub getData {
     use LWP::Simple;
     my $lang = shift @_;
     my $url = 'http://' . $lang . URL;
     my $content = get $url;
-#warn "url =[$url]\n";
-#warn "CONTENT = [$content]\n";
-    if ($content =~ m/\((\d+) rows\)/) {
-	return $1;
-    } else {
-	return 0;
-    }
+    print $content;
 }
