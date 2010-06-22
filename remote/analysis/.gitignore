@@ -3,3 +3,5 @@ downloadwp
 downloadwp2xml
 read_rev_text
 fetch_all_revs_after
+bot_reader
+read_revision
