@@ -16,7 +16,6 @@ use Compress::Zlib;
 use Cache::Memcached;
 use Data::Dumper;
 use File::Path qw(rmtree);	# on newer perls, this is remove_tree
-use Time::HiRes qw(gettimeofday tv_interval);
 
 use constant QUEUE_PRIORITY => 10; # wikitrust_queue is now a priority queue.
 use constant SLEEP_TIME => 3;
@@ -371,7 +370,6 @@ sub handle_miccheck {
 sub handle_status {
   my ($dbh, $cgi, $r) = @_;
 
-  my $start = [ gettimeofday ];
   $r->no_cache(1);
   $r->content_type('text/plain; charset=utf-8');
 
@@ -390,8 +388,6 @@ sub handle_status {
     throw Error::Simple("No result from DBI query");
   }
 
-  my $elapsed = tv_interval($start) * 1000000;
-  $r->print("elapsed.value ".$elapsed."\n");
   return Apache2::Const::OK;
 }
 
