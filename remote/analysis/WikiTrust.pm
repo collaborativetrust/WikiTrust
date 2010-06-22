@@ -67,7 +67,7 @@ sub handler {
     print STDERR $E;
     $r->no_cache(1);
     $r->content_type('text/plain; charset=utf-8');
-    $r->print('ERROR detected.');
+    $r->print('EERROR detected.  Try again in a moment, or report an error on the WikiTrust bug tracker.');
   };
   return $result;
 }
