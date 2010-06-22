@@ -41,7 +41,7 @@ graph_period minute
 graph_category wikitrust
 _EOT_
     print "pages.label $lang\n";
-    print "elapsed.label $lang\n";
+    print "elapsed.label $lang-time\n";
     exit(0);
 }
 
