@@ -31,6 +31,7 @@ our %methods = (
 	'status' => \&handle_status,
 	'miccheck' => \&handle_miccheck,
 	'delete' => \&handle_deletepage,
+	'quality' => \&handle_quality,
     );
 
 our $cache = undef;	# will get initialized when needed
@@ -524,6 +525,125 @@ warn "Received share from $remoteip (proxy = $proxyip)";
     $r->content_type('text/plain');
     $r->print('Thanks.');
     return Apache2::Const::OK;
+}
+
+sub handle_quality {
+    my ($dbh, $cgi, $r) = @_;
+
+    my $revid = $cgi->param('revid') || 0;
+    if ($revid <= 0) {
+      $r->content_type('text/plain');
+      $r->print('Need to specify a revid.');
+      return Apache2::Const::OK;
+    }
+
+    my ($total, $min_quality, $L_delta_hist0, $Avg_quality);
+    my ($reputation, $prev_same_author, $P_prev_hist5, $L_delta_hist2);
+    my ($logtime_next, $delta);
+    $total = 0.0;
+    if ($min_quality < -0.0662) {
+	$total += 0.891;
+	if ($L_delta_hist0 < 0.347) {
+	    $total += -0.974;
+	} else {
+	    $total += 0.151;
+	}
+	if ($Avg_quality < -0.117) {
+	    $total += -0.002;
+	} else {
+	    $total += -0.695;
+	}
+    } else {
+	$total += -1.203;
+    }
+    if ($reputation < 0.049) {
+	$total += 0.3358;
+	if ($P_prev_hist5 < 0.01) {
+	    $total += 0.519;
+	} else {
+	    $total += -0.298;
+	    if ($L_delta_hist2 < 0.347) {
+		$total += -1.125;
+	    } else {
+		$total += 1.113;
+	    }
+	    if ($Avg_quality < 0.156) {
+		$total += 0.531;
+	    } else {
+		$total += -2.379;
+	    }
+	}
+    }
+    if ($logtime_next < 2.97) {
+	$total += 1.025;
+    } else {
+	$total += 0.035;
+	if ($delta < 3.741) {
+	    $total += -0.232;
+	} else {
+	    $total += 0.212;
+	}
+    }
+
+    $r->content_type('text/plain');
+    my $prob = 1/(1+exp(-$total));
+    $r->print($prob);
+    return Apache2::Const::OK;
+}
+
+sub getSubfield {
+    my ($info, $name) = @_;
+    my $i = index($info, $name);
+    confess "Missing field '$name'" if $i < 0;
+    $i += length($name) + 1;
+    my $j = index($info, ")", $i);
+    return substr($info, $i, $j-$i+1);
+}
+
+
+sub getQualityData {
+    my ($page_title, $page_id,$rev_id, $dbh) = @_;
+
+    my @fields = qw( page_id time_string user_id username
+		quality_info overall_trust );
+
+    my $sth = $dbh->prepare ("SELECT ".join(', ', @fields)." FROM "
+      . "wikitrust_revision WHERE "
+      . "revision_id = ?") || die $dbh->errstr;
+    $sth->execute($rev_id) || die $dbh->errstr;
+    if ($sth->rows() == 0 && defined $page_id && $page_id != 0) {
+	# let's try to color, and then try again...
+	mark_for_coloring($page_id, $page_title, $dbh);
+	sleep(SLEEP_TIME);
+	$sth->execute($rev_id) || die $dbh->errstr;
+    }
+
+    my $ans = $sth->fetchrow_hashref();
+    die "No info on revision $rev_id\n" if !defined $ans;
+    $ans->{n_judges} = getSubfield($ans->{quality_info}, "n_edit_judges"});
+    $ans->{judge_weight} = getSubfield($ans->{quality_info}, "judge_weight"});
+    $ans->{total_quality} = getSubfield($ans->{quality_info}, "total_edit_quality"});
+    if ($ans->{judge_weight} > 0.0) {
+	$ans->{avg_quality} = $ans->{total_quality} / $ans->{judge_weight};
+    } else {
+	$ans->{avg_quality} = 0.0;
+    }
+    $ans->{min_quality} = getSubfield($ans->{quality_info}, "min_edit_quality");
+    $ans->{delta} = getSubfield($ans->{quality_info}, "delta");
+    my @hist = split(" ", getSubfield($ans->{quality_info}, "word_trust_histogram"));
+    # TODO: parse histogram data
+
+}
+
+sub main {
+  my $dbh = DBI->connect(
+    'enwikidb',
+    'wikiuser', 'wikiword',
+    { RaiseError => 1, AutoCommit => 1 }
+  );
+    
+  my $q = getQualityData(undef, undef, 239210217, $dbh);
+  print Dumper($q);
 }
 
 1;
