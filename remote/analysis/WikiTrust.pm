@@ -15,6 +15,8 @@ use IO::Zlib;
 use Compress::Zlib;
 use Cache::Memcached;
 use Data::Dumper;
+use Date::Manip;
+use POSIX qw(strftime);
 use File::Path qw(rmtree);	# on newer perls, this is remove_tree
 
 use constant QUEUE_PRIORITY => 10; # wikitrust_queue is now a priority queue.
@@ -529,26 +531,25 @@ warn "Received share from $remoteip (proxy = $proxyip)";
 
 sub handle_quality {
     my ($dbh, $cgi, $r) = @_;
+    my ($rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
 
-    my $revid = $cgi->param('revid') || 0;
-    if ($revid <= 0) {
+    if ($rev <= 0) {
       $r->content_type('text/plain');
       $r->print('Need to specify a revid.');
       return Apache2::Const::OK;
     }
 
-    my ($total, $min_quality, $L_delta_hist0, $Avg_quality);
-    my ($reputation, $prev_same_author, $P_prev_hist5, $L_delta_hist2);
-    my ($logtime_next, $delta);
+    my ($total);
+    my $q = getQualityData($page_title, $page, $rev, $dbh);
     $total = 0.0;
-    if ($min_quality < -0.0662) {
+    if ($q->{min_quality} < -0.0662) {
 	$total += 0.891;
-	if ($L_delta_hist0 < 0.347) {
+	if ($q->{L_delta_hist0} < 0.347) {
 	    $total += -0.974;
 	} else {
 	    $total += 0.151;
 	}
-	if ($Avg_quality < -0.117) {
+	if ($q->{avg_quality} < -0.117) {
 	    $total += -0.002;
 	} else {
 	    $total += -0.695;
@@ -556,29 +557,29 @@ sub handle_quality {
     } else {
 	$total += -1.203;
     }
-    if ($reputation < 0.049) {
+    if ($q->{reputation} < 0.049) {
 	$total += 0.3358;
-	if ($P_prev_hist5 < 0.01) {
+	if ($q->{P_prev_hist5} < 0.01) {
 	    $total += 0.519;
 	} else {
 	    $total += -0.298;
-	    if ($L_delta_hist2 < 0.347) {
+	    if ($q->{L_delta_hist2} < 0.347) {
 		$total += -1.125;
 	    } else {
 		$total += 1.113;
 	    }
-	    if ($Avg_quality < 0.156) {
+	    if ($q->{avg_quality} < 0.156) {
 		$total += 0.531;
 	    } else {
 		$total += -2.379;
 	    }
 	}
     }
-    if ($logtime_next < 2.97) {
+    if ($q->{logtime_next} < 2.97) {
 	$total += 1.025;
     } else {
 	$total += 0.035;
-	if ($delta < 3.741) {
+	if ($q->{delta} < 3.741) {
 	    $total += -0.232;
 	} else {
 	    $total += 0.212;
@@ -597,7 +598,7 @@ sub getSubfield {
     confess "Missing field '$name'" if $i < 0;
     $i += length($name) + 1;
     my $j = index($info, ")", $i);
-    return substr($info, $i, $j-$i+1);
+    return substr($info, $i, $j-$i);
 }
 
 
@@ -620,9 +621,9 @@ sub getQualityData {
 
     my $ans = $sth->fetchrow_hashref();
     die "No info on revision $rev_id\n" if !defined $ans;
-    $ans->{n_judges} = getSubfield($ans->{quality_info}, "n_edit_judges"});
-    $ans->{judge_weight} = getSubfield($ans->{quality_info}, "judge_weight"});
-    $ans->{total_quality} = getSubfield($ans->{quality_info}, "total_edit_quality"});
+    $ans->{n_judges} = getSubfield($ans->{quality_info}, "n_edit_judges");
+    $ans->{judge_weight} = getSubfield($ans->{quality_info}, "judge_weight");
+    $ans->{total_quality} = getSubfield($ans->{quality_info}, "total_edit_quality");
     if ($ans->{judge_weight} > 0.0) {
 	$ans->{avg_quality} = $ans->{total_quality} / $ans->{judge_weight};
     } else {
@@ -631,19 +632,67 @@ sub getQualityData {
     $ans->{min_quality} = getSubfield($ans->{quality_info}, "min_edit_quality");
     $ans->{delta} = getSubfield($ans->{quality_info}, "delta");
     my @hist = split(" ", getSubfield($ans->{quality_info}, "word_trust_histogram"));
-    # TODO: parse histogram data
+    for (my $i = 0; $i < @hist; $i++) {
+	$ans->{"Hist$i"} = $hist[$i];
+    }
 
-}
+    @fields = qw( time_string user_id username quality_info );
+    $sth = $dbh->prepare ("SELECT ".join(', ', @fields)." FROM "
+      . "wikitrust_revision WHERE "
+      . "page_id = ? AND time_string < ? "
+      . "ORDER BY time_string DESC LIMIT 1") || die $dbh->errstr;
+    $sth->execute($ans->{page_id}, $ans->{time_string}) || die $dbh->errstr;
+    my $prev = $sth->fetchrow_hashref();
+    $prev = { 'quality_info' => '(word_trust_histogram(0 0 0 0 0 0 0 0 0 0))' } if !defined $prev;
+    $ans->{prev_user_id} = $prev->{user_id} || 0;
+    $ans->{prev_username} = $prev->{user_name} || '';
+    $ans->{prev_timestamp} = $prev->{time_string} || $ans->{time_string};
+    @hist = split(" ", getSubfield($prev->{quality_info}, "word_trust_histogram"));
+    for (my $i = 0; $i < @hist; $i++) {
+	$ans->{"Prev_hist$i"} = $hist[$i];
+    }
 
-sub main {
-  my $dbh = DBI->connect(
-    'enwikidb',
-    'wikiuser', 'wikiword',
-    { RaiseError => 1, AutoCommit => 1 }
-  );
-    
-  my $q = getQualityData(undef, undef, 239210217, $dbh);
-  print Dumper($q);
+    @fields = qw( time_string user_id username );
+    $sth = $dbh->prepare ("SELECT ".join(', ', @fields)." FROM "
+      . "wikitrust_revision WHERE "
+      . "page_id = ? AND time_string > ? "
+      . "ORDER BY time_string ASC LIMIT 1") || die $dbh->errstr;
+    $sth->execute($ans->{page_id}, $ans->{time_string}) || die $dbh->errstr;
+    my $next = $sth->fetchrow_hashref();
+    $next = { } if !defined $next;
+    $ans->{next_user_id} = $next->{user_id} || 0;
+    $ans->{next_username} = $next->{user_name} || '';
+    $ans->{next_timestamp} = $next->{time_string} || strftime("%Y%m%d%H%M%S", gmtime());
+
+    $sth = $dbh->prepare ("SELECT user_rep FROM "
+      . "wikitrust_user WHERE "
+      . "user_id = ?") || die $dbh->errstr;
+    $sth->execute($ans->{user_id}) || die $dbh->errstr;
+    my $u = $sth->fetchrow_hashref();
+    $u = { } if !defined $u;
+    $ans->{reputation} = $u->{user_rep} || 0;
+
+    # Now build the composite signals
+    my $prev_time = UnixDate(ParseDate($ans->{prev_timestamp}), "%s");
+    my $cur_time = UnixDate(ParseDate($ans->{time_string}), "%s");
+    my $next_time = UnixDate(ParseDate($ans->{next_timestamp}), "%s");
+    $ans->{Logtime_next} = log(1+abs($cur_time-$next_time));
+    my $prev_length = 0;
+    my $cur_length = 0;
+    for (my $i = 0; $i < 10; $i++) {
+	$prev_length += $ans->{"Prev_hist$i"};
+	$cur_length += $ans->{"Hist$i"};
+    }
+    for (my $i = 0; $i < 10; $i++) {
+	$ans->{"P_prev_hist$i"} = $ans->{"Prev_hist$i"} / (1 + $prev_length);
+	$ans->{"L_delta_hist$i"} = $ans->{"Hist$i"} - $ans->{"Prev_hist$i"};
+	my $d = $ans->{"Hist$i"} - $ans->{"Prev_hist$i"};
+	my $log_d = 0.0;
+	if ($d > 0) { $log_d = log(1 + $d); }
+	if ($d < 0) { $log_d = -log(1 - $d); }
+	$ans->{"L_delta_hist$i"} = $log_d;
+    }
+    return $ans;
 }
 
 1;
