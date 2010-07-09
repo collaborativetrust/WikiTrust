@@ -575,7 +575,7 @@ sub handle_quality {
 	    }
 	}
     }
-    if ($q->{logtime_next} < 2.97) {
+    if ($q->{Logtime_next} < 2.97) {
 	$total += 1.025;
     } else {
 	$total += 0.035;
