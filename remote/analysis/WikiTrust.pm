@@ -606,6 +606,7 @@ sub handle_quality {
     }
 
     $r->content_type('text/plain');
+    $r->header_out('Cache-Control', "max-age=" . 5*60);
     my $prob = 1/(1+exp(-$total));
     $r->print($prob);
     return Apache2::Const::OK;
@@ -725,7 +726,6 @@ sub getQualityData {
 	$ans->{"L_delta_hist$i"} = $log_d;
     }
 
-
     $ans->{Anon} = ($ans->{user_id} == 0);
     $ans->{Next_anon} = ($ans->{next_userid} == 0);
 warn "next_userid = ".$ans->{next_userid};
@@ -747,6 +747,12 @@ warn "next_anon = ".$ans->{Next_anon};
     # with quality -1, if everybody else voted with +1.
     $ans->{Max_revert} = ($ans->{judge_weight} - $ans->{total_quality}) / 2.0;
 
+    foreach qw(username next_username prev_username
+	quality_info
+	time_string next_timestamp prev_timestamp)
+    {
+	delete $ans->{$_};
+    }
     return $ans;
 }
 
