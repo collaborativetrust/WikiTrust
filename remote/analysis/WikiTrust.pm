@@ -647,21 +647,23 @@ sub getQualityData {
 
     my $ans = $sth->fetchrow_hashref();
     die "No info on revision $rev_id\n" if !defined $ans;
-    $ans->{n_judges} = getSubfield($ans->{quality_info}, "n_edit_judges");
-    $ans->{judge_weight} = getSubfield($ans->{quality_info}, "judge_weight");
-    $ans->{total_quality} = getSubfield($ans->{quality_info}, "total_edit_quality");
+    $ans->{n_judges} = getSubfield($ans->{quality_info}, "n_edit_judges")+0;
+    $ans->{judge_weight} = getSubfield($ans->{quality_info}, "judge_weight")+0;
+    $ans->{total_quality} = getSubfield($ans->{quality_info}, "total_edit_quality")+0;
+    $ans->{overall_trust} += 0;
     if ($ans->{judge_weight} > 0.0) {
 	$ans->{avg_quality} = $ans->{total_quality} / $ans->{judge_weight};
     } else {
 	$ans->{avg_quality} = 0.0;
     }
-    $ans->{min_quality} = getSubfield($ans->{quality_info}, "min_edit_quality");
-    $ans->{delta} = getSubfield($ans->{quality_info}, "delta");
+    $ans->{min_quality} = getSubfield($ans->{quality_info}, "min_edit_quality")+0;
+    $ans->{delta} = getSubfield($ans->{quality_info}, "delta")+0;
     my @hist = split(" ", getSubfield($ans->{quality_info}, "word_trust_histogram"));
     for (my $i = 0; $i < @hist; $i++) {
-	$ans->{"Hist$i"} = $hist[$i];
+	$ans->{"Hist$i"} = $hist[$i]+0;
     }
     delete $ans->{quality_info};
+    $ans->{user_id} += 0;
 
     @fields = qw( time_string user_id username quality_info );
     $sth = $dbh->prepare ("SELECT ".join(', ', @fields)." FROM "
@@ -681,7 +683,7 @@ sub getQualityData {
     $ans->{prev_timestamp} = $prev->{time_string};
     @hist = split(" ", getSubfield($prev->{quality_info}, "word_trust_histogram"));
     for (my $i = 0; $i < @hist; $i++) {
-	$ans->{"Prev_hist$i"} = $hist[$i];
+	$ans->{"Prev_hist$i"} = $hist[$i]+0;
     }
 
     @fields = qw( time_string user_id username );
@@ -692,7 +694,8 @@ sub getQualityData {
     $sth->execute($ans->{page_id}, $ans->{time_string}) || die $dbh->errstr;
     my $next = $sth->fetchrow_hashref();
     $next = { } if !defined $next;
-    $ans->{next_userid} = ($next->{user_id}+0) || 0;
+    $ans->{next_userid} = $next->{user_id} || 0;
+    $ans->{next_userid} += 0;
     $ans->{next_username} = $next->{username} || '';
     $ans->{next_timestamp} = $next->{time_string} || strftime("%Y%m%d%H%M%S", gmtime());
 
@@ -726,10 +729,8 @@ sub getQualityData {
 	$ans->{"L_delta_hist$i"} = $log_d;
     }
 
-    $ans->{Anon} = ($ans->{user_id} == 0);
-    $ans->{Next_anon} = ($ans->{next_userid} == 0);
-warn "next_userid = ".$ans->{next_userid};
-warn "next_anon = ".$ans->{Next_anon};
+    $ans->{Anon} = ($ans->{user_id} == 0)+0;
+    $ans->{Next_anon} = ($ans->{next_userid} == 0)+0;
     $ans->{Next_same_author} = are_users_the_same($ans->{user_id}, $ans->{next_userid},
 		$ans->{username}, $ans->{next_username});
     $ans->{Prev_same_author} = are_users_the_same($ans->{user_id}, $ans->{prev_userid},
@@ -747,9 +748,9 @@ warn "next_anon = ".$ans->{Next_anon};
     # with quality -1, if everybody else voted with +1.
     $ans->{Max_revert} = ($ans->{judge_weight} - $ans->{total_quality}) / 2.0;
 
-    foreach qw(username next_username prev_username
-	quality_info
-	time_string next_timestamp prev_timestamp)
+    foreach (qw(username next_username prev_username
+	quality_info page_id
+	time_string next_timestamp prev_timestamp))
     {
 	delete $ans->{$_};
     }
