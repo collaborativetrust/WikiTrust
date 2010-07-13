@@ -15,6 +15,7 @@ use IO::Zlib;
 use Compress::Zlib;
 use Cache::Memcached;
 use Data::Dumper;
+use JSON;
 use Date::Manip;
 use POSIX qw(strftime);
 use File::Path qw(rmtree);	# on newer perls, this is remove_tree
@@ -34,6 +35,7 @@ our %methods = (
 	'miccheck' => \&handle_miccheck,
 	'delete' => \&handle_deletepage,
 	'quality' => \&handle_quality,
+	'rawquality' => \&handle_rawquality,
     );
 
 our $cache = undef;	# will get initialized when needed
@@ -529,6 +531,22 @@ warn "Received share from $remoteip (proxy = $proxyip)";
     return Apache2::Const::OK;
 }
 
+sub handle_rawquality {
+    my ($dbh, $cgi, $r) = @_;
+    my ($rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
+
+    if ($rev <= 0) {
+      $r->content_type('text/plain');
+      $r->print('Need to specify a revid.');
+      return Apache2::Const::OK;
+    }
+
+    my $q = getQualityData($page_title, $page, $rev, $dbh);
+    $r->content_type('text/plain');
+    $r->print(encode_json($q));
+    return Apache2::Const::OK;
+}
+
 sub handle_quality {
     my ($dbh, $cgi, $r) = @_;
     my ($rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
@@ -541,6 +559,7 @@ sub handle_quality {
 
     my ($total);
     my $q = getQualityData($page_title, $page, $rev, $dbh);
+    $total = 0.0;
     $total = 0.0;
     if ($q->{min_quality} < -0.0662) {
 	$total += 0.891;
@@ -601,6 +620,12 @@ sub getSubfield {
     return substr($info, $i, $j-$i);
 }
 
+sub are_users_the_same {
+    my ($uid1, $uid2, $un1, $un2) = @_;
+    return 1 if ($uid1 > 0 && $uid2 > 0 && ($un1 eq $un2));
+    return 1 if ($uid1 == 0 && $uid2 == 0 && ($un1 eq $un2));
+    return 0;
+}
 
 sub getQualityData {
     my ($page_title, $page_id,$rev_id, $dbh) = @_;
@@ -635,6 +660,7 @@ sub getQualityData {
     for (my $i = 0; $i < @hist; $i++) {
 	$ans->{"Hist$i"} = $hist[$i];
     }
+    delete $ans->{quality_info};
 
     @fields = qw( time_string user_id username quality_info );
     $sth = $dbh->prepare ("SELECT ".join(', ', @fields)." FROM "
@@ -643,10 +669,15 @@ sub getQualityData {
       . "ORDER BY time_string DESC LIMIT 1") || die $dbh->errstr;
     $sth->execute($ans->{page_id}, $ans->{time_string}) || die $dbh->errstr;
     my $prev = $sth->fetchrow_hashref();
-    $prev = { 'quality_info' => '(word_trust_histogram(0 0 0 0 0 0 0 0 0 0))' } if !defined $prev;
-    $ans->{prev_user_id} = $prev->{user_id} || 0;
-    $ans->{prev_username} = $prev->{user_name} || '';
-    $ans->{prev_timestamp} = $prev->{time_string} || $ans->{time_string};
+    $prev = {
+	'user_id' => 0,
+	'username' => '',
+	'time_string' => $ans->{time_string},
+	'quality_info' => '(word_trust_histogram(0 0 0 0 0 0 0 0 0 0))'
+    } if !defined $prev;
+    $ans->{prev_userid} = $prev->{user_id}+0;
+    $ans->{prev_username} = $prev->{username};
+    $ans->{prev_timestamp} = $prev->{time_string};
     @hist = split(" ", getSubfield($prev->{quality_info}, "word_trust_histogram"));
     for (my $i = 0; $i < @hist; $i++) {
 	$ans->{"Prev_hist$i"} = $hist[$i];
@@ -660,8 +691,8 @@ sub getQualityData {
     $sth->execute($ans->{page_id}, $ans->{time_string}) || die $dbh->errstr;
     my $next = $sth->fetchrow_hashref();
     $next = { } if !defined $next;
-    $ans->{next_user_id} = $next->{user_id} || 0;
-    $ans->{next_username} = $next->{user_name} || '';
+    $ans->{next_userid} = ($next->{user_id}+0) || 0;
+    $ans->{next_username} = $next->{username} || '';
     $ans->{next_timestamp} = $next->{time_string} || strftime("%Y%m%d%H%M%S", gmtime());
 
     $sth = $dbh->prepare ("SELECT user_rep FROM "
@@ -676,7 +707,8 @@ sub getQualityData {
     my $prev_time = UnixDate(ParseDate($ans->{prev_timestamp}), "%s");
     my $cur_time = UnixDate(ParseDate($ans->{time_string}), "%s");
     my $next_time = UnixDate(ParseDate($ans->{next_timestamp}), "%s");
-    $ans->{Logtime_next} = log(1+abs($cur_time-$next_time));
+    $ans->{Logtime_next} = log(1+abs($next_time - $cur_time));
+    $ans->{Logtime_prev} = log(1+abs($cur_time-$prev_time));
     my $prev_length = 0;
     my $cur_length = 0;
     for (my $i = 0; $i < 10; $i++) {
@@ -692,6 +724,29 @@ sub getQualityData {
 	if ($d < 0) { $log_d = -log(1 - $d); }
 	$ans->{"L_delta_hist$i"} = $log_d;
     }
+
+
+    $ans->{Anon} = ($ans->{user_id} == 0);
+    $ans->{Next_anon} = ($ans->{next_userid} == 0);
+warn "next_userid = ".$ans->{next_userid};
+warn "next_anon = ".$ans->{Next_anon};
+    $ans->{Next_same_author} = are_users_the_same($ans->{user_id}, $ans->{next_userid},
+		$ans->{username}, $ans->{next_username});
+    $ans->{Prev_same_author} = are_users_the_same($ans->{user_id}, $ans->{prev_userid},
+		$ans->{username}, $ans->{prev_username});
+
+    # Max_dissent is the maximum amount of editors who could have voted
+    # with min_quality, if everybody else voted with +1.
+    my $max_dissent = 0.0;
+    if ($ans->{min_quality} < 1.0) {
+	$max_dissent = ($ans->{judge_weight} - $ans->{total_quality}) /
+		(1 - $ans->{min_quality});
+    }
+    $ans->{Max_dissent} = $max_dissent;
+    # Max_revert is the max amount of editors who could have voted
+    # with quality -1, if everybody else voted with +1.
+    $ans->{Max_revert} = ($ans->{judge_weight} - $ans->{total_quality}) / 2.0;
+
     return $ans;
 }
 
