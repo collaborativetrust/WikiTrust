@@ -542,7 +542,7 @@ sub handle_rawquality {
     }
 
     my $q = getQualityData($page_title, $page, $rev, $dbh);
-    $r->content_type('text/plain');
+    $r->content_type('application/json');
     $r->headers_out->{'Cache-Control'} = "max-age=" . 10*60;
     $r->print(encode_json($q));
     return Apache2::Const::OK;
