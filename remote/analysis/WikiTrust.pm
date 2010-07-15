@@ -543,6 +543,7 @@ sub handle_rawquality {
 
     my $q = getQualityData($page_title, $page, $rev, $dbh);
     $r->content_type('text/plain');
+    $r->headers_out->{'Cache-Control'} = "max-age=" . 10*60;
     $r->print(encode_json($q));
     return Apache2::Const::OK;
 }
@@ -606,7 +607,7 @@ sub handle_quality {
     }
 
     $r->content_type('text/plain');
-    $r->header_out('Cache-Control', "max-age=" . 5*60);
+    $r->headers_out->{'Cache-Control'} = "max-age=" . 3*60;
     my $prob = 1/(1+exp(-$total));
     $r->print($prob);
     return Apache2::Const::OK;
