@@ -732,6 +732,7 @@ sub getQualityData {
 
     $ans->{Anon} = ($ans->{user_id} == 0)+0;
     $ans->{Next_anon} = ($ans->{next_userid} == 0)+0;
+    $ans->{Prev_anon} = ($ans->{prev_userid} == 0)+0;
     $ans->{Next_same_author} = are_users_the_same($ans->{user_id}, $ans->{next_userid},
 		$ans->{username}, $ans->{next_username});
     $ans->{Prev_same_author} = are_users_the_same($ans->{user_id}, $ans->{prev_userid},
@@ -750,6 +751,7 @@ sub getQualityData {
     $ans->{Max_revert} = ($ans->{judge_weight} - $ans->{total_quality}) / 2.0;
 
     foreach (qw(username next_username prev_username
+	user_id next_userid prev_userid
 	quality_info page_id
 	time_string next_timestamp prev_timestamp))
     {
