@@ -599,7 +599,7 @@ sub handle_quality {
 	$total += 1.025;
     } else {
 	$total += 0.035;
-	if ($q->{delta} < 3.741) {
+	if ($q->{Delta} < 3.741) {
 	    $total += -0.232;
 	} else {
 	    $total += 0.212;
@@ -746,6 +746,7 @@ sub getQualityData {
     $ans->{Anon} = ($ans->{user_id} == 0 ? JSON::true : JSON::false);
     $ans->{Next_anon} = ($ans->{next_userid} == 0 ? JSON::true : JSON::false);
     $ans->{Prev_anon} = ($ans->{prev_userid} == 0 ? JSON::true : JSON::false);
+
     $ans->{Next_same_author} = are_users_the_same($ans->{user_id}, $ans->{next_userid},
 		$ans->{username}, $ans->{next_username});
     $ans->{Prev_same_author} = are_users_the_same($ans->{user_id}, $ans->{prev_userid},
