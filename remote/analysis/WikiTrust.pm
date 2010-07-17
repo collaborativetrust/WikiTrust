@@ -562,14 +562,14 @@ sub handle_quality {
     my $q = getQualityData($page_title, $page, $rev, $dbh);
     $total = 0.0;
     $total = 0.0;
-    if ($q->{min_quality} < -0.0662) {
+    if ($q->{Min_quality} < -0.0662) {
 	$total += 0.891;
 	if ($q->{L_delta_hist0} < 0.347) {
 	    $total += -0.974;
 	} else {
 	    $total += 0.151;
 	}
-	if ($q->{avg_quality} < -0.117) {
+	if ($q->{Avg_quality} < -0.117) {
 	    $total += -0.002;
 	} else {
 	    $total += -0.695;
@@ -577,7 +577,7 @@ sub handle_quality {
     } else {
 	$total += -1.203;
     }
-    if ($q->{reputation} < 0.049) {
+    if ($q->{Reputation} < 0.049) {
 	$total += 0.3358;
 	if ($q->{P_prev_hist5} < 0.01) {
 	    $total += 0.519;
@@ -588,7 +588,7 @@ sub handle_quality {
 	    } else {
 		$total += 1.113;
 	    }
-	    if ($q->{avg_quality} < 0.156) {
+	    if ($q->{Avg_quality} < 0.156) {
 		$total += 0.531;
 	    } else {
 		$total += -2.379;
@@ -624,9 +624,17 @@ sub getSubfield {
 
 sub are_users_the_same {
     my ($uid1, $uid2, $un1, $un2) = @_;
-    return 1 if ($uid1 > 0 && $uid2 > 0 && ($un1 eq $un2));
-    return 1 if ($uid1 == 0 && $uid2 == 0 && ($un1 eq $un2));
-    return 0;
+    return JSON::true if ($uid1 > 0 && $uid2 > 0 && ($un1 eq $un2));
+    return JSON::true if ($uid1 == 0 && $uid2 == 0 && ($un1 eq $un2));
+    return JSON::false;
+}
+
+sub get_hours {
+    my ($t) = @_;
+    my $h = substr($t, 8, 2) + 0;
+    my $m = substr($t, 10, 2) + 0;
+    my $s = substr($t, 12, 2) + 0;
+    return ($h + ($m / 60) + ($s / 3600));
 }
 
 sub getQualityData {
@@ -648,17 +656,17 @@ sub getQualityData {
 
     my $ans = $sth->fetchrow_hashref();
     die "No info on revision $rev_id\n" if !defined $ans;
-    $ans->{n_judges} = getSubfield($ans->{quality_info}, "n_edit_judges")+0;
-    $ans->{judge_weight} = getSubfield($ans->{quality_info}, "judge_weight")+0;
-    $ans->{total_quality} = getSubfield($ans->{quality_info}, "total_edit_quality")+0;
-    $ans->{overall_trust} += 0;
-    if ($ans->{judge_weight} > 0.0) {
-	$ans->{avg_quality} = $ans->{total_quality} / $ans->{judge_weight};
+    $ans->{N_judges} = getSubfield($ans->{quality_info}, "n_edit_judges")+0;
+    $ans->{Judge_weight} = getSubfield($ans->{quality_info}, "judge_weight")+0;
+    $ans->{Total_quality} = getSubfield($ans->{quality_info}, "total_edit_quality")+0;
+    $ans->{Overall_trust} += 0;
+    if ($ans->{Judge_weight} > 0.0) {
+	$ans->{Avg_quality} = $ans->{Total_quality} / $ans->{Judge_weight};
     } else {
-	$ans->{avg_quality} = 0.0;
+	$ans->{Avg_quality} = 0.0;
     }
-    $ans->{min_quality} = getSubfield($ans->{quality_info}, "min_edit_quality")+0;
-    $ans->{delta} = getSubfield($ans->{quality_info}, "delta")+0;
+    $ans->{Min_quality} = getSubfield($ans->{quality_info}, "min_edit_quality")+0;
+    $ans->{Delta} = getSubfield($ans->{quality_info}, "delta")+0;
     my @hist = split(" ", getSubfield($ans->{quality_info}, "word_trust_histogram"));
     for (my $i = 0; $i < @hist; $i++) {
 	$ans->{"Hist$i"} = $hist[$i]+0;
@@ -705,8 +713,8 @@ sub getQualityData {
       . "user_id = ?") || die $dbh->errstr;
     $sth->execute($ans->{user_id}) || die $dbh->errstr;
     my $u = $sth->fetchrow_hashref();
-    $u = { } if !defined $u;
-    $ans->{reputation} = $u->{user_rep} || 0;
+    $u = { user_rep => 0 } if !defined $u;
+    $ans->{Reputation} = $u->{user_rep}+0;
 
     # Now build the composite signals
     my $prev_time = UnixDate(ParseDate($ans->{prev_timestamp}), "%s");
@@ -714,12 +722,17 @@ sub getQualityData {
     my $next_time = UnixDate(ParseDate($ans->{next_timestamp}), "%s");
     $ans->{Logtime_next} = log(1+abs($next_time - $cur_time));
     $ans->{Logtime_prev} = log(1+abs($cur_time-$prev_time));
+    $ans->{Hour_of_day} = get_hours($ans->{time_string});
+
     my $prev_length = 0;
     my $cur_length = 0;
     for (my $i = 0; $i < 10; $i++) {
 	$prev_length += $ans->{"Prev_hist$i"};
 	$cur_length += $ans->{"Hist$i"};
     }
+    $ans->{Log_prev_length} = log(1 + $prev_length);
+    $ans->{Log_length} = log(1 + $cur_length);
+
     for (my $i = 0; $i < 10; $i++) {
 	$ans->{"P_prev_hist$i"} = $ans->{"Prev_hist$i"} / (1 + $prev_length);
 	$ans->{"L_delta_hist$i"} = $ans->{"Hist$i"} - $ans->{"Prev_hist$i"};
@@ -730,9 +743,9 @@ sub getQualityData {
 	$ans->{"L_delta_hist$i"} = $log_d;
     }
 
-    $ans->{Anon} = ($ans->{user_id} == 0)+0;
-    $ans->{Next_anon} = ($ans->{next_userid} == 0)+0;
-    $ans->{Prev_anon} = ($ans->{prev_userid} == 0)+0;
+    $ans->{Anon} = ($ans->{user_id} == 0 ? JSON::true : JSON::false);
+    $ans->{Next_anon} = ($ans->{next_userid} == 0 ? JSON::true : JSON::false);
+    $ans->{Prev_anon} = ($ans->{prev_userid} == 0 ? JSON::true : JSON::false);
     $ans->{Next_same_author} = are_users_the_same($ans->{user_id}, $ans->{next_userid},
 		$ans->{username}, $ans->{next_username});
     $ans->{Prev_same_author} = are_users_the_same($ans->{user_id}, $ans->{prev_userid},
@@ -741,14 +754,14 @@ sub getQualityData {
     # Max_dissent is the maximum amount of editors who could have voted
     # with min_quality, if everybody else voted with +1.
     my $max_dissent = 0.0;
-    if ($ans->{min_quality} < 1.0) {
-	$max_dissent = ($ans->{judge_weight} - $ans->{total_quality}) /
-		(1 - $ans->{min_quality});
+    if ($ans->{Min_quality} < 1.0) {
+	$max_dissent = ($ans->{Judge_weight} - $ans->{Total_quality}) /
+		(1 - $ans->{Min_quality});
     }
     $ans->{Max_dissent} = $max_dissent;
     # Max_revert is the max amount of editors who could have voted
     # with quality -1, if everybody else voted with +1.
-    $ans->{Max_revert} = ($ans->{judge_weight} - $ans->{total_quality}) / 2.0;
+    $ans->{Max_revert} = ($ans->{Judge_weight} - $ans->{Total_quality}) / 2.0;
 
     foreach (qw(username next_username prev_username
 	user_id next_userid prev_userid
