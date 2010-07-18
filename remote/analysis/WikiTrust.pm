@@ -548,20 +548,12 @@ sub handle_rawquality {
     return Apache2::Const::OK;
 }
 
-sub handle_quality {
-    my ($dbh, $cgi, $r) = @_;
-    my ($rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
-
-    if ($rev <= 0) {
-      $r->content_type('text/plain');
-      $r->print('Need to specify a revid.');
-      return Apache2::Const::OK;
-    }
-
-    my ($total);
+# Returns the probability that a revision is vandalism.
+# > 50% = vandalism, < 50% = regular
+sub vandalismModel {
+    my ($page_title, $page, $rev, $dbh) = @_;
     my $q = getQualityData($page_title, $page, $rev, $dbh);
-    $total = 0.0;
-    $total = 0.0;
+    my $total = 0.0;
     if ($q->{Min_quality} < -0.0662) {
 	$total += 0.891;
 	if ($q->{L_delta_hist0} < 0.347) {
@@ -605,10 +597,24 @@ sub handle_quality {
 	    $total += 0.212;
 	}
     }
+    my $prob = 1/(1+exp(-$total));
+    return $prob;
+}
+
+sub handle_quality {
+    my ($dbh, $cgi, $r) = @_;
+    my ($rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
+
+    if ($rev <= 0) {
+      $r->content_type('text/plain');
+      $r->print('Need to specify a revid.');
+      return Apache2::Const::OK;
+    }
+
+    my $prob = vandalismModel($page_title, $page, $rev, $dbh);
 
     $r->content_type('text/plain');
     $r->headers_out->{'Cache-Control'} = "max-age=" . 3*60;
-    my $prob = 1/(1+exp(-$total));
     $r->print($prob);
     return Apache2::Const::OK;
 }
