@@ -13,3 +13,11 @@
 
 	$ zcat release.20081213.gz | ./extract-wp0.7-articles.pl | ./preload_dispatcher_queue.pl
 
+3. Select the best revision for each article
+
+   Select relatively recent revisions (or the latest, if there
+   are none), and find the one with the lowest vandalism score.
+
+	$ zcat release.20081213.gz | ./extract-wp0.7-articles.pl | ./select_revisions.pl > selection.20081213.csv
+
+

@@ -542,6 +542,15 @@ sub handle_rawquality {
     }
 
     my $q = getQualityData($page_title, $page, $rev, $dbh);
+    # Remove fields that aren't helpful in machine learning
+    foreach (qw(username next_username prev_username
+	user_id next_userid prev_userid
+	quality_info page_id
+	time_string next_timestamp prev_timestamp))
+    {
+	delete $q->{$_};
+    }
+
     $r->content_type('application/json');
     $r->headers_out->{'Cache-Control'} = "max-age=" . 10*60;
     $r->print(encode_json($q));
@@ -550,9 +559,9 @@ sub handle_rawquality {
 
 # Returns the probability that a revision is vandalism.
 # > 50% = vandalism, < 50% = regular
+# Input is the quality data for a revision.
 sub vandalismModel {
-    my ($page_title, $page, $rev, $dbh) = @_;
-    my $q = getQualityData($page_title, $page, $rev, $dbh);
+    my $q = shift @_;
     my $total = 0.0;
     if ($q->{Min_quality} < -0.0662) {
 	$total += 0.891;
@@ -611,7 +620,8 @@ sub handle_quality {
       return Apache2::Const::OK;
     }
 
-    my $prob = vandalismModel($page_title, $page, $rev, $dbh);
+    my $q = getQualityData($page_title, $page, $rev, $dbh);
+    my $prob = vandalismModel($q);
 
     $r->content_type('text/plain');
     $r->headers_out->{'Cache-Control'} = "max-age=" . 3*60;
@@ -770,13 +780,6 @@ sub getQualityData {
     # with quality -1, if everybody else voted with +1.
     $ans->{Max_revert} = ($ans->{Judge_weight} - $ans->{Total_quality}) / 2.0;
 
-    foreach (qw(username next_username prev_username
-	user_id next_userid prev_userid
-	quality_info page_id
-	time_string next_timestamp prev_timestamp))
-    {
-	delete $ans->{$_};
-    }
     return $ans;
 }
 
