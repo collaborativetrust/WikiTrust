@@ -1,0 +1,15 @@
+1. Download revisions.
+
+   Martin Walker says in an email from 24-April-2009, that there are
+   two ways to get the list of titles being included in Wikipedia-0.7:
+	http://toolserver.org/~cbm/release-data/release.20081213.gz
+	http://en.wikipedia.org/wiki/User:SelectionBot/0.7alpha
+
+2. Ensure that we have latest revisions.
+
+   Given a list of page titles, we first need to make sure that
+   the latest revisions of each page have been downloaded by
+   our system.
+
+	$ zcat release.20081213.gz | ./extract-wp0.7-articles.pl | ./preload_dispatcher_queue.pl
+
