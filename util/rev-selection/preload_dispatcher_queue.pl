@@ -75,6 +75,10 @@ while (my $title = <>) {
     if (!defined $pageid || $pageid == 0) {
 	die "No pageid for \"$title\"";
     }
+    if ($pageid == -1) {
+	warn "Page \"$title\" no longer exists.\n";
+	next;
+    }
     $sth_rid->execute($pageid, $oldtime);
     next if $sth_rid->rows() > 0;
     warn "Coloring pageid $pageid, \"$title\"\n";

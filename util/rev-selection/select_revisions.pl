@@ -76,8 +76,15 @@ while (my $title = <>) {
     if (!defined $pageid || $pageid == 0) {
 	die "No pageid for \"$title\"";
     }
+    if ($pageid < 0) {
+	warn "Page '$title' no longer exists.\n";
+	next;
+    }
     my @revs = getRevsFPageid($pageid);
-    die "Bad revs for pageid $pageid" if @revs == 0;
+    if (@revs == 0) {
+	warn "No revs for pageid $pageid, title=$title\n";
+	next;
+    }
     my $rev = getBestRev(@revs);
     $title =~ s/"/\\"/g;
     $title = '"'.$title.'"';
