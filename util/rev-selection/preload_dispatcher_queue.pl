@@ -62,7 +62,7 @@ my $dbh = DBI->connect($dbname, $db{user}, $db{pass},
 
 my $sth_pid1 = $dbh->prepare('SELECT page_id FROM wikitrust_page WHERE page_title = ?');
 my $sth_pid2 = $dbh->prepare('SELECT page_id FROM page WHERE page_title = ?');
-my $sth_rid = $dbh->prepare('SELECT revision_id FROM wikitrust_revision WHERE page_id = ? and time_string > ? LIMIT 1');
+my $sth_rid = $dbh->prepare('SELECT revision_id,time_string FROM wikitrust_revision WHERE page_id = ? ORDER BY time_string DESC LIMIT 1');
 
 my $oldtime = getOldTimestamp();
 
@@ -75,20 +75,27 @@ while (my $title = <>) {
     $title =~ s/ /_/g;
     $pageid ||= getPageidFDb($sth_pid1, $title);
     $pageid ||= getPageidFDb($sth_pid2, $title);
-    my $wp_pageid = getPageidFWpapi($title);
-    if (!defined $pageid || $pageid == 0) {
+    my ($wp_pageid, $wp_revid) = getPageidFWpapi($title);
+    if (!defined $wp_pageid || $wp_pageid == 0) {
 	die "No pageid for \"$title\"";
     }
-    if ($pageid == -1) {
+    if ($wp_pageid == -1) {
 	warn "Page \"$title\" no longer exists.\n";
 	next;
     }
     warn "No WpPageid for $title\n" if !defined $wp_pageid || $wp_pageid eq '';
     next if !defined $wp_pageid || $wp_pageid eq '';
-    next if $pageid == $wp_pageid;
-    $sth_rid->execute($pageid, $oldtime);
-    next if $sth_rid->rows() > 0 && $pageid == $wp_pageid;
-    #warn "Coloring pageid $pageid, \"$title\"\n";
+    #next if $pageid == $wp_pageid;
+    $sth_rid->execute($wp_pageid);
+    my $lastrev = 0;
+    if ($sth_rid->rows() > 0) {
+	my @data = $sth_rid->fetchrow_array();
+	$lastrev = $data[0];
+	next if $pageid == $wp_pageid && $lastrev == $wp_revid;
+    } else {
+	die "No revs for pageid $pageid ($wp_pageid), \"$title\"\n";
+    }
+    warn "Coloring pageid $pageid ($wp_pageid), \"$title\":: lastrev= $lastrev ($wp_revid)\n";
     COLOR_PAGE && WikiTrust::mark_for_coloring($wp_pageid, $title, $dbh);
 }
 exit(0);
@@ -112,6 +119,7 @@ sub getPageidFWpapi {
     my $title = shift @_;
 #warn "Unknown page '$title'; looking up on web.\n";
     my $url = 'http://en.wikipedia.org/w/api.php?action=query&format=json'
+		.'&prop=revisions&rvprop=ids'
 		.'&titles='.uri_escape_utf8($title);
     my $ua = LWP::UserAgent->new;
     $ua->agent('Mozilla/4.0 (compatible; MSIE 5.0; Windows 95)');
@@ -122,7 +130,10 @@ sub getPageidFWpapi {
 		# don't need decoded_content, since decode_json will decode
     die "no data" if !defined $answer;
     my @pages = keys %{$answer->{query}->{pages}};
-    return shift @pages;
+    die "too many pages" if @pages > 1;
+    my $pageid = shift @pages;
+    my $lastrevid = $answer->{query}->{pages}->{$pageid}->{revisions}->[0]->{revid};
+    return ($pageid, $lastrevid);
 }
 
 sub getPageidFDb {
