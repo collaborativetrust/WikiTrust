@@ -66,6 +66,8 @@ my $sth_rid2 = $dbh->prepare('SELECT revision_id FROM wikitrust_revision WHERE p
 
 my $oldtime = getOldTimestamp();
 
+my $vandals = 0;
+
 print "Pageid,Title,BestScore,Timestamp,BestRevid\n";
 while (my $title = <>) {
     chomp($title);
@@ -95,7 +97,11 @@ while (my $title = <>) {
     print join(',', $pageid, $title,
 		sprintf("%0.5f", $rev->{Vandalism}),
 		$rev->{time_string}, $rev->{revid}), "\n";
+    $vandals++ if $rev->{Vandalism} > 0.5;
+    #warn "Check revs for: $title\n" if ($rev->{Vandalism} > 0.5) && (@revs == 1);
+    warn "Unexpected vandal: $title\n" if ($rev->{Vandalism} > 0.5) && (@revs > 1);
 }
+warn "Selected $vandals revisions with potential vandalism.\n";
 exit(0);
 
 sub readINI {
@@ -134,6 +140,7 @@ sub getPageidFDb {
     my $sth = shift @_;
     my $title = shift @_;
     $sth->execute($title) || die "Couldn't execute: ".$sth->errstr;
+    die "Multiple page ids: $title" if $sth->rows() > 1;
     my @data = $sth->fetchrow_array();
     return $data[0] if @data > 0;
     return undef;
