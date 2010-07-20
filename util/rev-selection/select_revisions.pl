@@ -70,6 +70,10 @@ print "Pageid,Title,BestScore,Timestamp,BestRevid\n";
 while (my $title = <>) {
     chomp($title);
     my $pageid = 0;;
+    $title =~ s/_/ /g;
+    $pageid ||= getPageidFDb($sth_pid1, $title);
+    $pageid ||= getPageidFDb($sth_pid2, $title);
+    $title =~ s/ /_/g;
     $pageid ||= getPageidFDb($sth_pid1, $title);
     $pageid ||= getPageidFDb($sth_pid2, $title);
     $pageid ||= getPageidFWpapi($title);
@@ -88,8 +92,9 @@ while (my $title = <>) {
     my $rev = getBestRev(@revs);
     $title =~ s/"/\\"/g;
     $title = '"'.$title.'"';
-    print join(',', $pageid, $title, $rev->{Vandalism}, $rev->{time_string},
-		$rev->{revid}), "\n";
+    print join(',', $pageid, $title,
+		sprintf("%0.5f", $rev->{Vandalism}),
+		$rev->{time_string}, $rev->{revid}), "\n";
 }
 exit(0);
 

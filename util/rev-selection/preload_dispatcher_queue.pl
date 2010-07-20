@@ -62,13 +62,17 @@ my $dbh = DBI->connect($dbname, $db{user}, $db{pass},
 
 my $sth_pid1 = $dbh->prepare('SELECT page_id FROM wikitrust_page WHERE page_title = ?');
 my $sth_pid2 = $dbh->prepare('SELECT page_id FROM page WHERE page_title = ?');
-my $sth_rid = $dbh->prepare('SELECT revision_id FROM wikitrust_revision WHERE page_id = ? and time_string > ?');
+my $sth_rid = $dbh->prepare('SELECT revision_id FROM wikitrust_revision WHERE page_id = ? and time_string > ? LIMIT 1');
 
 my $oldtime = getOldTimestamp();
 
 while (my $title = <>) {
     chomp($title);
     my $pageid = 0;;
+    $title =~ s/_/ /g;
+    $pageid ||= getPageidFDb($sth_pid1, $title);
+    $pageid ||= getPageidFDb($sth_pid2, $title);
+    $title =~ s/ /_/g;
     $pageid ||= getPageidFDb($sth_pid1, $title);
     $pageid ||= getPageidFDb($sth_pid2, $title);
     $pageid ||= getPageidFWpapi($title);
@@ -81,7 +85,7 @@ while (my $title = <>) {
     }
     $sth_rid->execute($pageid, $oldtime);
     next if $sth_rid->rows() > 0;
-    warn "Coloring pageid $pageid, \"$title\"\n";
+    #warn "Coloring pageid $pageid, \"$title\"\n";
     COLOR_PAGE && WikiTrust::mark_for_coloring($pageid, $title, $dbh);
 }
 exit(0);
@@ -128,7 +132,8 @@ sub getPageidFDb {
 }
 
 sub getOldTimestamp {
-    my $weekago = ParseDate("last month");
+    my $weekago = ParseDate("6 months ago");
     my $timestamp = UnixDate($weekago, "%Y%m%d000000");
+    die "Bad time: '$timestamp'" if !defined $timestamp || $timestamp eq '';
     return $timestamp;
 }
