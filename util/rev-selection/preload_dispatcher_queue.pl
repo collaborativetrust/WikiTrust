@@ -75,7 +75,7 @@ while (my $title = <>) {
     $title =~ s/ /_/g;
     $pageid ||= getPageidFDb($sth_pid1, $title);
     $pageid ||= getPageidFDb($sth_pid2, $title);
-    $pageid ||= getPageidFWpapi($title);
+    my $wp_pageid = getPageidFWpapi($title);
     if (!defined $pageid || $pageid == 0) {
 	die "No pageid for \"$title\"";
     }
@@ -83,10 +83,13 @@ while (my $title = <>) {
 	warn "Page \"$title\" no longer exists.\n";
 	next;
     }
+    warn "No WpPageid for $title\n" if !defined $wp_pageid || $wp_pageid eq '';
+    next if !defined $wp_pageid || $wp_pageid eq '';
+    next if $pageid == $wp_pageid;
     $sth_rid->execute($pageid, $oldtime);
-    next if $sth_rid->rows() > 0;
+    next if $sth_rid->rows() > 0 && $pageid == $wp_pageid;
     #warn "Coloring pageid $pageid, \"$title\"\n";
-    COLOR_PAGE && WikiTrust::mark_for_coloring($pageid, $title, $dbh);
+    COLOR_PAGE && WikiTrust::mark_for_coloring($wp_pageid, $title, $dbh);
 }
 exit(0);
 
@@ -107,7 +110,7 @@ sub readINI {
 
 sub getPageidFWpapi {
     my $title = shift @_;
-warn "Unknown page '$title'; looking up on web.\n";
+#warn "Unknown page '$title'; looking up on web.\n";
     my $url = 'http://en.wikipedia.org/w/api.php?action=query&format=json'
 		.'&titles='.uri_escape_utf8($title);
     my $ua = LWP::UserAgent->new;
@@ -132,7 +135,7 @@ sub getPageidFDb {
 }
 
 sub getOldTimestamp {
-    my $weekago = ParseDate("6 months ago");
+    my $weekago = ParseDate("1 months ago");
     my $timestamp = UnixDate($weekago, "%Y%m%d000000");
     die "Bad time: '$timestamp'" if !defined $timestamp || $timestamp eq '';
     return $timestamp;
