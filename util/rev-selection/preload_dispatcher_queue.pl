@@ -66,9 +66,9 @@ my $sth_rid = $dbh->prepare('SELECT revision_id,time_string FROM wikitrust_revis
 
 my $oldtime = getOldTimestamp();
 
-while (my $title = <>) {
-    chomp($title);
-    my $pageid = 0;;
+while (my $line = <>) {
+    chomp($line);
+    my ($title, $pageid) = split(/\t/, $line, 2);
     $title =~ s/_/ /g;
     $pageid ||= getPageidFDb($sth_pid1, $title);
     $pageid ||= getPageidFDb($sth_pid2, $title);
@@ -93,7 +93,7 @@ while (my $title = <>) {
 	$lastrev = $data[0];
 	next if $pageid == $wp_pageid && $lastrev == $wp_revid;
     } else {
-	die "No revs for pageid $pageid ($wp_pageid), \"$title\"\n";
+	warn "No revs for pageid $pageid ($wp_pageid), \"$title\"\n";
     }
     warn "Coloring pageid $pageid ($wp_pageid), \"$title\":: lastrev= $lastrev ($wp_revid)\n";
     COLOR_PAGE && WikiTrust::mark_for_coloring($wp_pageid, $title, $dbh);
