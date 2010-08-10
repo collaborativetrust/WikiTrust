@@ -13,6 +13,10 @@
 
 	$ zcat release.20081213.gz | ./extract-wp0.7-articles.pl | ./preload_dispatcher_queue.pl
 
+   If you are using CBM's latest selection of articles, then it the command
+   will be:
+	$ curl http://toolserver.org/~enwp10/release-data/Selected_0.8_latest.txt.gz | ./preload_dispatcher_queue.pl
+
 3. Select the best revision for each article
 
    Select relatively recent revisions (or the latest, if there
