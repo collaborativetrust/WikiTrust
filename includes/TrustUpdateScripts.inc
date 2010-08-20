@@ -109,8 +109,6 @@ CREATE INDEX " . $wgDBprefix . "wikitrust_text_cache ON "
                . $wgDBprefix . "wikitrust_text_cache (revision_id, time_string, page_id)
 ");
 
-$create_index_scripts[$wgDBprefix . "revision"]['wt_revision_id_timestamp_idx'] = "CREATE INDEX wt_revision_id_timestamp_idx ON " . $wgDBprefix . "revision (rev_id, rev_timestamp)";
-
 $remove_scripts[$wgDBprefix.'wikitrust_vote'] = array("DROP TABLE ".$wgDBprefix."wikitrust_vote");
 $remove_scripts[$wgDBprefix.'wikitrust_global'] = array("DROP TABLE ".$wgDBprefix."wikitrust_global");
 $remove_scripts[$wgDBprefix.'wikitrust_page'] = array("DROP TABLE ".$wgDBprefix."wikitrust_page");
@@ -119,7 +117,5 @@ $remove_scripts[$wgDBprefix.'wikitrust_blob'] = array("DROP TABLE ".$wgDBprefix.
 $remove_scripts[$wgDBprefix.'wikitrust_user'] = array("DROP TABLE ".$wgDBprefix."wikitrust_user");
 $remove_scripts[$wgDBprefix.'wikitrust_queue'] = array("DROP TABLE ".$wgDBprefix."wikitrust_queue");
 $remove_scripts[$wgDBprefix.'wikitrust_text_cache'] = array("DROP TABLE ".$wgDBprefix."wikitrust_text_cache");
-
-$remove_index_scripts[$wgDBprefix . "revision"]['wt_revision_id_timestamp_idx'] = "DROP INDEX wt_revision_id_timestamp_idx ON ".$wgDBprefix."revision";
 
 ?>

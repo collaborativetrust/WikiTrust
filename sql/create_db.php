@@ -73,17 +73,10 @@ if (array_key_exists(4, $argv) && is_file($argv[4])){
 // Load all of the MW files.
 include($mw_root."/maintenance/commandLine.inc");
 
-global $wgDBserver, $wgDBname, $wgDBuser, $wgDBprefix, $wgCreateRevisionIndex;
+global $wgDBserver, $wgDBname, $wgDBuser, $wgDBprefix;
 
 // Source the update scripts
 require($mw_root."/extensions/WikiTrust/includes/TrustUpdateScripts.inc");
-
-// If this is set, create an index on the revision table.
-if ($wgCreateRevisionIndex){
-  $db_indexes[$wgDBprefix . 'revision'] = array(); 
- } else {
-  $db_indexes[$wgDBprefix . 'revision']['revision_id_timestamp_idx'] = True; 
- }
 
 // Create the needed tables, if neccesary.
 $dbr =& wfGetDB( DB_SLAVE );
