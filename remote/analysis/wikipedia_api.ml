@@ -409,7 +409,9 @@ let get_remote_user_id (user_name: string) : int =
    [get_revs_from_api page_title last_id db 0] reads
    a group of revisions of the given page (usually something like
    50 revisions, see the Wikimedia API) from the Wikimedia API,
-   stores them to disk, and returns:
+   and returns:
+   - the page structure 
+   - a list of revision structures
    - an optional id of the next revision to read.  Is None, then
      all revisions of the page have been read.
    Raises API_error if the API is unreachable.
