@@ -264,7 +264,8 @@ let check_for_download_error ((key, page): (string * result_tree)) =
    *)
 let process_page ((key, page): (string * result_tree))
 	: (wiki_page_t * wiki_revision_t list) =
-  let spaces2underscores str = Str.global_replace (Str.regexp " ") "_" str in
+  let spaces2underscores str = ExtString.String.map
+      (fun c -> if c = ' ' then '_' else c) str in
   let empty_string key msg = "" in
   let redirect_attr = get_property page "redirect" empty_string in
   let api_pageid = int_of_string (get_property page "pageid" err_get_property) in
