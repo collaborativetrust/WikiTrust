@@ -62,35 +62,45 @@ let close_compressed_file (f: in_channel) =
 (** [read_gzipped_file file_name] returns as a string the uncompressed 
     contents of file [file_name]. *)
 let read_gzipped_file (file_name: string) : string option = 
-  let str_len = 8192 in 
-  let s = String.create str_len in
-  let buf = Buffer.create 8192 in 
-  let fopt = try
-    Some (Gzip.open_in file_name)
+  (* First, opens the file in regular mode. *)
+  let file_opt = try Some (open_in file_name)
   with Sys_error _ -> None in
-  match fopt with
-    Some f -> begin
-      let read_more = ref true in 
-      while !read_more do begin
-	let n_read = Gzip.input f s 0 str_len in 
-	if n_read = 0 
-	then read_more := false
-	else Buffer.add_string buf (String.sub s 0 n_read)
-      end done;
-      Gzip.close_in f;
-      Some (Buffer.contents buf)
-    end
-  | None -> None
+  begin
+    match file_opt with
+      None -> None
+    | Some in_file -> begin
+	(* Checks the file length: if zero, then we return an empty string. *)
+	if (in_channel_length in_file) = 0 then Some ""
+	else begin
+	  let f = Gzip.open_in_chan in_file in
+	  let str_len = 8192 in 
+	  let str = String.create str_len in
+	  let buf = Buffer.create 8192 in 
+	  let read_more = ref true in 
+	  while !read_more do begin
+	    let n_read = Gzip.input f str 0 str_len in 
+	    if n_read = 0 then read_more := false
+	    else Buffer.add_string buf (String.sub str 0 n_read)
+	  end done;
+	  Gzip.close_in f;
+	  Some (Buffer.contents buf)
+	end
+      end
+  end
 
 (** [write_gzipped_file file_name l s] writes to the file [file_name] 
-    the gzipped contents of string [s], with compression level [l]. *)
+    the gzipped contents of string [s]. *)
 let write_gzipped_file (file_name: string) (s: string) : unit =
-  (* TODO: does not work with empty strings! *)
-  let f = Gzip.open_out file_name in
   let n = String.length s in 
-  if n > 0 then
+  if n > 0 then begin
+    let f = Gzip.open_out file_name in
     Gzip.output f s 0 n;
-  Gzip.close_out f
+    Gzip.close_out f
+  end else begin
+    (* Zero length string: we write a zero length file. *)
+    let f = open_out file_name in
+    close_out f
+  end
 
 (** [get_filename base_path page_id rev_id] computes the filename where
     a compressed revision is stored, given a base path for the file system, 
@@ -129,13 +139,12 @@ let get_filename (base_path: string) (page_id: int) (rev_id: int option)
     )
   | None -> (!file_name, !list_dirs)
    
- 
- 
 
 (** [write_revision base_name page_id rev_id s] writes to disk the
-    revision text [s], in compressed format, belonging to the revision
-    [rev_id] of page [page_id], given the directory path [base_name].
-    Directories are created if they do not already exist. *)
+    revision text [s], individually, in compressed format, belonging
+    to the revision [rev_id] of page [page_id], given the directory
+    path [base_name].  Directories are created if they do not already
+    exist. *)
 let write_revision (base_name: string) (page_id: int) (rev_id: int) (s: string) : unit =
   let (f_name, dir_l) = get_filename base_name page_id (Some rev_id) in 
   (* Makes the directories *)
@@ -148,7 +157,8 @@ let write_revision (base_name: string) (page_id: int) (rev_id: int) (s: string) 
   write_gzipped_file f_name s
 
 (** [read_revision base_name page_id rev_id] returns the text of revision
-    [rev_id] of page [page_id]. *)
+    [rev_id] of page [page_id], read individually from its own compressed
+    file. *)
 let read_revision (base_name: string) (page_id: int) (rev_id: int) 
     : string option =
   let (f_name, _) = get_filename base_name page_id (Some rev_id) in 

@@ -76,8 +76,8 @@ OCAMLOPT_FLAGS=$(INCLUDES) $(PROFILE)
 OUR_LIB_OBJS = textbuf.cmo text.cmo prioq.cmo filesystem_store.cmo \
 	coda.cmo editlist.cmo chdiff.cmo compute_edlist.cmo timeconv.cmo \
 	read_robots.cmo eval_defs.cmo author_sig.cmo online_types.cmo \
-	revision_store.cmo online_log.cmo online_command_line.cmo online_db.cmo \
-	revision_writer.cmo \
+	revision_store.cmo online_log.cmo online_command_line.cmo \
+	online_db.cmo revision_writer.cmo \
 	rephist.cmo revision.cmo prune_analysis.cmo reputation_analysis.cmo \
 	compute_trust.cmo compute_robust_trust.cmo trust_analysis.cmo \
 	trust_local_color_analysis.cmo author_text_analysis.cmo \

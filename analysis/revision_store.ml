@@ -1,6 +1,6 @@
 (*
 
-Copyright (c) 2009 Luca de Alfaro
+Copyright (c) 2009-2010 Luca de Alfaro
 All rights reserved.
 
 Authors: Luca de Alfaro
@@ -61,40 +61,6 @@ let compress_prefix = "wikitrust_"
 exception Invalid_blob_format
 exception Compression_error
 
-(* **************************************************************** *)
-(* Basic filesystem access functions. *)
-
-(** [read_gzipped_file file_name] returns as a string the uncompressed 
-    contents of file [file_name]. *)
-let read_gzipped_file (file_name: string) : string option = 
-  let str_len = 8192 in 
-  let str = String.create str_len in
-  let buf = Buffer.create 8192 in 
-  let fopt = try Some (Gzip.open_in file_name)
-  with Sys_error _ -> None in
-  match fopt with
-    Some f -> begin
-      let read_more = ref true in 
-      while !read_more do begin
-	let n_read = Gzip.input f str 0 str_len in 
-	if n_read = 0 then read_more := false
-	else Buffer.add_string buf (String.sub str 0 n_read)
-      end done;
-      Gzip.close_in f;
-      Some (Buffer.contents buf)
-    end
-  | None -> None
-
-(** [write_gzipped_file file_name l s] writes to the file [file_name] 
-    the gzipped contents of string [s]. *)
-let write_gzipped_file (file_name: string) (s: string) : unit =
-  (* TODO: does not work with empty strings! *)
-  let f = Gzip.open_out file_name in
-  let n = String.length s in 
-  if n > 0 then
-    Gzip.output f s 0 n;
-  Gzip.close_out f
-
 (** [get_filename base_path page_id blob_id] computes the filename where
     the compressed blob [blob_id] of page [page_id] is stored.
     It returns a triple, consisting of:
@@ -146,7 +112,7 @@ let write_blob (base_path: string) (page_id: int) (blob_id: int)
   let (f_name, temp_name, dir_l) = get_filename base_path page_id blob_id in 
   (* Writes the file directly, hoping that the directories exist. *)
   begin 
-    try write_gzipped_file temp_name s
+    try Filesystem_store.write_gzipped_file temp_name s
     with Sys_error _ -> begin
       (* Makes the directories *)
       let make_dir (d: string) = 
@@ -156,7 +122,7 @@ let write_blob (base_path: string) (page_id: int) (blob_id: int)
 	end
       in List.iter make_dir dir_l;
       (* Tries again to write the blob *)
-      write_gzipped_file temp_name s
+      Filesystem_store.write_gzipped_file temp_name s
     end
   end;
   (* Now renames the blob to the final place, which is an atomic operation. *)
@@ -167,7 +133,7 @@ let write_blob (base_path: string) (page_id: int) (blob_id: int)
 let read_blob (base_path: string) (page_id: int) (blob_id: int) 
     : string option =
   let (f_name, _, _) = get_filename base_path page_id blob_id in 
-  read_gzipped_file f_name;;
+  Filesystem_store.read_gzipped_file f_name;;
 
 (** [delete_blob base_path page_id blob_id] deletes the blob
     [blob_id] of page [page_id]. *)
@@ -263,7 +229,7 @@ let read_revision_from_blob (rev_id: int) (blob_content: string) : string =
 (** [compress s] compresses the string [s]. *)
 let compress (s: string) : string = 
   let file_name = Filename.temp_file compress_prefix "_temp" in
-  write_gzipped_file file_name s;
+  Filesystem_store.write_gzipped_file file_name s;
   let f = open_in file_name in
   (* Read the whole file. *)
   let buf = Buffer.create 100000 in
@@ -286,7 +252,7 @@ let uncompress (s: string) : string =
   let f = open_out file_name in
   output_string f s;
   close_out f;
-  let r = match read_gzipped_file file_name with 
+  let r = match Filesystem_store.read_gzipped_file file_name with 
       None -> raise Compression_error
     | Some str -> str
   in 
