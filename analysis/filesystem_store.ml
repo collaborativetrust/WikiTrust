@@ -200,4 +200,11 @@ if false then begin
   delete_revision "/tmp/alpha" 43 (Some 54);
   print_string (not_null (read_revision "/tmp/alpha" 43 54));
   write_revision "/tmp/alpha" 43 54 "Ho voglia di sushi";
+  
+  write_gzipped_file "/tmp/beta" "hello there";
+  print_string (not_null (read_gzipped_file "/tmp/beta"));
+  write_gzipped_file "/tmp/gamma" "";
+  print_string (not_null (read_gzipped_file "/tmp/gamma"));
+  print_int (String.length (not_null (read_gzipped_file "/tmp/gamma")));
+
 end
