@@ -452,12 +452,13 @@ object(self)
 
   (** [clear_old_info_if_pid_changed page_id page_title]
       Deletes all of the page and revision info from the db if there exists 
-      such info for the given title under a different page_id *)
+      such info for the given title under a different page_id.
+      The page_title specified must be exact -- no wildcard chars.
+    *)
   method clear_old_info_if_pid_changed (page_id : int) (page_title : string)
     : unit =
-    let new_pt = ExtString.String.map (fun c -> if c = ' ' then '_' else c) page_title in
-    let s = Printf.sprintf "SELECT page_id FROM %swikitrust_page WHERE page_title LIKE %s AND page_id <> %s"
-      db_prefix (ml2str new_pt) (ml2int page_id) in
+    let s = Printf.sprintf "SELECT page_id FROM %swikitrust_page WHERE page_title = %s AND page_id <> %s"
+      db_prefix (ml2str page_title) (ml2int page_id) in
     let result = self#db_exec mediawiki_dbh s in 
       match Mysql.fetch result with 
 	| None -> ()
