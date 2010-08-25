@@ -62,45 +62,49 @@ let close_compressed_file (f: in_channel) =
 (** [read_gzipped_file file_name] returns as a string the uncompressed 
     contents of file [file_name]. *)
 let read_gzipped_file (file_name: string) : string option = 
-  (* First, opens the file in regular mode. *)
-  let file_opt = try Some (open_in file_name)
-  with Sys_error _ -> None in
-  begin
-    match file_opt with
-      None -> None
-    | Some in_file -> begin
-	(* Checks the file length: if zero, then we return an empty string. *)
-	if (in_channel_length in_file) = 0 then Some ""
-	else begin
-	  let f = Gzip.open_in_chan in_file in
-	  let str_len = 8192 in 
-	  let str = String.create str_len in
-	  let buf = Buffer.create 8192 in 
-	  let read_more = ref true in 
-	  while !read_more do begin
-	    let n_read = Gzip.input f str 0 str_len in 
-	    if n_read = 0 then read_more := false
-	    else Buffer.add_string buf (String.sub str 0 n_read)
-	  end done;
-	  Gzip.close_in f;
-	  Some (Buffer.contents buf)
+  try 
+    (* First, opens the file in regular mode. *)
+    let file_opt = try Some (open_in file_name)
+    with Sys_error _ -> None in
+    begin
+      match file_opt with
+	None -> None
+      | Some in_file -> begin
+	  (* Checks the file length: if zero, then we return an empty string. *)
+	  if (in_channel_length in_file) = 0 then Some ""
+	  else begin
+	    let f = Gzip.open_in_chan in_file in
+	    let str_len = 8192 in 
+	    let str = String.create str_len in
+	    let buf = Buffer.create 8192 in 
+	    let read_more = ref true in 
+	    while !read_more do begin
+	      let n_read = Gzip.input f str 0 str_len in 
+	      if n_read = 0 then read_more := false
+	      else Buffer.add_string buf (String.sub str 0 n_read)
+	    end done;
+	    Gzip.close_in f;
+	    Some (Buffer.contents buf)
+	  end
 	end
-      end
-  end
+    end
+  with Gzip.Error s -> raise (Gzip.Error (s ^ " reading file: " ^ file_name))
 
 (** [write_gzipped_file file_name l s] writes to the file [file_name] 
     the gzipped contents of string [s]. *)
 let write_gzipped_file (file_name: string) (s: string) : unit =
-  let n = String.length s in 
-  if n > 0 then begin
-    let f = Gzip.open_out file_name in
-    Gzip.output f s 0 n;
-    Gzip.close_out f
-  end else begin
-    (* Zero length string: we write a zero length file. *)
-    let f = open_out file_name in
-    close_out f
-  end
+  try
+    let n = String.length s in 
+    if n > 0 then begin
+      let f = Gzip.open_out file_name in
+      Gzip.output f s 0 n;
+      Gzip.close_out f
+    end else begin
+      (* Zero length string: we write a zero length file. *)
+      let f = open_out file_name in
+      close_out f
+    end
+  with Gzip.Error s -> raise (Gzip.Error (s ^ " writing file: " ^ file_name))
 
 (** [get_filename base_path page_id rev_id] computes the filename where
     a compressed revision is stored, given a base path for the file system, 
@@ -194,17 +198,29 @@ if false then begin
     | Some x -> x
   in 
   write_revision "/tmp/alpha" 43 54 "Ho voglia di sushi";
+  (* This works *)
   print_string (not_null (read_revision "/tmp/alpha" 43 54));
+  (* This fails: revision not found *)
   print_string (not_null (read_revision "/tmp/alpha" 43 55));
+  (* This works *)
   print_string (not_null (read_revision "/tmp/alpha" 43 54));
   delete_revision "/tmp/alpha" 43 (Some 54);
+  (* This fails, as it has been deleted. *)
   print_string (not_null (read_revision "/tmp/alpha" 43 54));
+  (* This works. *)
   write_revision "/tmp/alpha" 43 54 "Ho voglia di sushi";
   
+  (* This works, first printing hello there, then printing nothing,
+     then a 0. *)
   write_gzipped_file "/tmp/beta" "hello there";
   print_string (not_null (read_gzipped_file "/tmp/beta"));
   write_gzipped_file "/tmp/gamma" "";
   print_string (not_null (read_gzipped_file "/tmp/gamma"));
   print_int (String.length (not_null (read_gzipped_file "/tmp/gamma")));
 
+  (* This will fail and raise an exception *)
+  let f = open_out "/tmp/delta" in
+  output_string f "bah";
+  close_out f;
+  print_string (not_null (read_gzipped_file "/tmp/delta"));
 end
