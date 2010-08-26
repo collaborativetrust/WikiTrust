@@ -439,14 +439,13 @@ object(self)
 	(of_string__of__of_sexp page_info_t_of_sexp (not_null str2ml x.(0)),
 	not_null int2ml x.(1))
 
-  (** [fetch_col_revs page_id timestamp rev_id fetch_limit] returns
-      a cursor that points to at most [fetch_limit] revisions of
-      page [page_id] with time prior or equal to [timestamp], and
-      revision id at most [rev_id].  The ordering goes backward in time. 
-      This function is used to read the colored revisions that precede a 
-      given one. *)
+  (** [fetch_col_revs page_id timestamp rev_id fetch_limit] returns a
+      cursor that points to at most [fetch_limit] revisions of page
+      [page_id] with time prior or equal to [timestamp].  The ordering
+      goes backward in time.  This function is used to read the
+      colored revisions that precede a given one. *)
   method fetch_col_revs (page_id : int) (timestamp: timestamp_t) (rev_id: int) (fetch_limit: int): Mysql.result =
-    let s = Printf.sprintf "SELECT revision_id, page_id, text_id, time_string, user_id, username, is_minor FROM %swikitrust_revision WHERE page_id = %s AND (time_string, revision_id) < (%s, %s) ORDER BY time_string DESC, revision_id DESC LIMIT %s" db_prefix (ml2int page_id) (ml2timestamp timestamp) (ml2int rev_id) (ml2int fetch_limit) in 
+    let s = Printf.sprintf "SELECT revision_id, page_id, text_id, time_string, user_id, username, is_minor FROM %swikitrust_revision WHERE page_id = %s AND time_string < %s ORDER BY time_string DESC, revision_id DESC LIMIT %s" db_prefix (ml2int page_id) (ml2timestamp timestamp) (ml2int fetch_limit) in 
     self#db_exec mediawiki_dbh s
 
 
@@ -456,7 +455,7 @@ object(self)
   method clear_old_info_if_pid_changed (page_id : int) (page_title : string)
     : unit =
     let new_pt = ExtString.String.map (fun c -> if c = ' ' then '_' else c) page_title in
-    let s = Printf.sprintf "SELECT page_id FROM %swikitrust_page WHERE page_title LIKE %s AND page_id <> %s"
+    let s = Printf.sprintf "SELECT page_id FROM %swikitrust_page WHERE page_title = %s AND page_id <> %s"
       db_prefix (ml2str new_pt) (ml2int page_id) in
     let result = self#db_exec mediawiki_dbh s in 
       match Mysql.fetch result with 
