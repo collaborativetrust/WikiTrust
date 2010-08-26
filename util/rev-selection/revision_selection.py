@@ -46,9 +46,7 @@ INI_FILE = BASE_DIR + "db_access_data.ini"
 
 NUM_REVISION_DISCOUNT = 100
 REVISION_AGE_DISCOUNT = 365.0 * 24.0 * 3600.0
-NUM_WINNERS_TO_RETURN = 10
 AGE_REVISION_CONVERSION = 7.0 * 24.0 * 3600.0
-INV_DISCOUNT_BASE = 200.0
 
 ## parse the ini file
 ini_config = ConfigParser.ConfigParser()
@@ -325,21 +323,16 @@ if False:
   print classify(354988943)
 
 # How much to discount an old revision
-def discount_inv(num_past_revisions, revision_age):
-  return (1.0 / (INV_DISCOUNT_BASE + num_past_revisions + (1.0 * revision_age) / AGE_REVISION_CONVERSION))
-
-def discount_exp(num_past_revisions, revision_age):
-  return (math.exp(- (num_past_revisions / NUM_REVISION_DISCOUNT)
-                   - (revision_age / REVISION_AGE_DISCOUNT)))
-
-def compute_discount(num_past_revisions, revision_age):
-  return (discount_inv(num_past_revisions, revision_age))
+def compute_discount(inv_discount_base, num_past_revisions, revision_age):
+  d = (inv_discount_base * 1.0) / (inv_discount_base + num_past_revisions + (1.0 * revision_age) / AGE_REVISION_CONVERSION)
+  # print "Discount: n=", num_past_revisions, "age=", revision_age, "discount=", d
+  return d
 
 # Selects the best revision of a page.
 # Returns a list of tuples, in decreasing order of quality, with:
 # page_id, revision_id, discounted_quality, quality, risk, revision_date,
 # revision_age, number_of_revisions_ago.
-def select_best_revisions(page_id, num_winners_to_return):
+def select_best_revisions(page_id, num_winners_to_return, inv_discount_base):
   # Reads the set of past revisions.  We read at most 100 of them.
   curs.execute("select revision_id from " +
                ini_config.get('db', 'prefix') + 
@@ -356,14 +349,13 @@ def select_best_revisions(page_id, num_winners_to_return):
     revision_age = current_time - time_of_date(d["Timestamp"])
     quality = d["Quality"]
     risk = d["Risk"] 
-    discount = compute_discount(num_past_revisions, revision_age)
-    # Adds to the risk the discount risk.
+    discount = compute_discount(inv_discount_base, num_past_revisions, revision_age)
+    # The Forced is the difference in discounts
     prev_revision_age = current_time - time_of_date(d["Prev_timestamp"])
-    prev_discount = compute_discount(num_past_revisions + 1, prev_revision_age)
-    risk += (discount - prev_discount)
-    risk *= 100.0
-    real_quality = quality * discount
-    selection.append((real_quality, 1.0 - risk, rev_id, d["Timestamp"], quality, risk,
+    prev_discount = compute_discount(inv_discount_base, num_past_revisions + 1, prev_revision_age)
+    forced = (discount - prev_discount)
+    discounted_quality = quality * discount
+    selection.append((discounted_quality, 1.0 - risk, rev_id, d["Timestamp"], quality, risk, forced, discount,
                       revision_age / (24.0 * 3600.0), int(num_past_revisions)))
     selection.sort(reverse=True)
     # If there is no hope of entering the top-N, stops.
@@ -373,13 +365,13 @@ def select_best_revisions(page_id, num_winners_to_return):
         break
   # Ok, now we have a good selection. Returns the top 10.
   short_list = selection[:num_winners_to_return]
-  result = [(page_id, rev_id, dq, q, r, t, a, m)
-            for (dq, _, rev_id, t, q, r, a, m) in short_list]
+  result = [(page_id, rev_id, dq, q, r, f, t, d, a, m)
+            for (dq, _, rev_id, t, q, r, f, d, a, m) in short_list]
   return result
 
 # Unit test
 if False:
-  short_list = select_best_revisions(1010, 10) # (16965534)
+  short_list = select_best_revisions(1010, 10, 200) # (16965534)
   for (page_id, rev_id, dq, q, r, t, a, m) in short_list:
     print "%d %d %5.4f %5.4f %5.4f %s %5.2f %2d" % (page_id, rev_id, dq, q, r, t, a, m)
 

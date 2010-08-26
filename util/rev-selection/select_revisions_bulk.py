@@ -36,17 +36,19 @@ import csv
 from revision_selection import select_best_revisions
 
 def usage():
-    print "cat <datafile> | ./select_revisions_bulk.py 3 > outfile.csv"
+    print "cat <datafile> | ./select_revisions_bulk.py 3 200> outfile.csv"
     print "where '3' is the number of revisions to print for each page_id"
+    print "and where '200' is the discount base for recent preference."
 
-if len(sys.argv) != 2:
+if len(sys.argv) != 3:
     usage()
     sys.exit(2)
 
 num_winners = int(sys.argv[1])
+inv_discount_base = float(sys.argv[2])
 
 ## csv file initialization
-fieldnames = ("Page_id", "Revision_id", "Quality", "Risk",
+fieldnames = ("Page_id", "Revision_id", "Quality", "Risk", "Forced",
               "Date", "Days ago", "Revisions Ago", "Rank", "Url")
 
 writer = csv.DictWriter(sys.stdout, fieldnames=fieldnames,
@@ -60,20 +62,26 @@ def write_row(out):
         row[f] = out[f]
     writer.writerow(row)
 
+def truncate(x, n):
+    k = 10 ** n
+    return float(int(x * k)) / float(k)
+
 for l in sys.stdin:
     try:
         page_id = int(l.split()[-1])
-        revision_list = select_best_revisions(page_id, num_winners)
+        revision_list = select_best_revisions(page_id, num_winners, inv_discount_base)
         rank = 0;
         out = {}
-        for (page_id, rev_id, disc_q, q, r, d, a, n) in revision_list:
+        for (page_id, rev_id, disc_q, q, r, f, d, disc, a, n) in revision_list:
             rank += 1
             out["Page_id"] = page_id
             out["Revision_id"] = rev_id
-            out["Quality"] = q
-            out["Risk"] = r
+            out["Quality"] = truncate (q, 3)
+            out["Discount"] = truncate (disc, 3)
+            out["Risk"] = truncate (r, 4)
+            out["Forced"] = truncate (f, 4)
             out["Date"] = d
-            out["Days ago"] = a
+            out["Days ago"] = truncate (a, 2)
             out["Revisions Ago"] = n
             out["Rank"] = rank
             out["Url"] = ("http://en.wikipedia.org/w/index.php?oldid=" +
