@@ -210,10 +210,14 @@ class db :
         [timestamp], and [rev_id]. *)
     method fetch_col_revs : int -> timestamp_t -> int -> int -> Mysql.result
 
-    (** [clear_old_info_if_pid_changed page_id page_title]
-    Deletes all of the page and revision info from the db if there exists 
-    such info for the given title under a different page_id *)
-    method clear_old_info_if_pid_changed : int -> string -> unit
+    (** [get_mwpage_title page_id]
+	Returns the (list) of titles associated with page_id
+	in the MediaWiki tables *)
+    method get_mwpage_title (page_id : int) : string list =
+    (** [get_mwpage_id page_title]
+	Returns the (list) of page_ids associated with page_title
+	in the MediaWiki tables *)
+    method get_mwpage_id (page_title : int) : int list =
 
     (* Chunk methods *)
 

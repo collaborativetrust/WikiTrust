@@ -189,16 +189,6 @@ let process_page (page_id: int) (page_title: string) =
 	Wikipedia_api.download_page_from_id ~sid:!min_rev_id child_db page_id else 0
       ;
   
-      (* TODO: we should not use the page_title that comes from the
-       * dispatcher queue.  Instead, this check should happen as
-       * data is being placed into the database. -thumper! 8/24/2010
-       *)
-      (* If pages have been downloaded, AND if the new_page_id doesn't 
-	 match the old_page_id, remove all of the old info from the db 
-	 and re-process with the new info. *)
-      if !pages_downloaded > 0 then child_db#clear_old_info_if_pid_changed 
-	page_id page_title;
-  
       (* Creates a new updater. *)
       let processor = new Updater.updater child_db
 	trust_coeff !times_to_retry_trans each_event_delay every_n_events_delay 

@@ -451,12 +451,14 @@ let rec get_revs_from_api
     end
 
 let store_wiki_revs  (db: Online_db.db) (wiki_page: wiki_page_t) (wiki_revs: wiki_revision_t list) : unit =
+    (* we standardize on using space chars instead of underscores. *)
     let the_page_title = ExtString.String.map (fun c -> if c = '_' then ' ' else c) wiki_page.page_title in
     let update_and_write_rev rev =
       rev.revision_page <- wiki_page.page_id;
       rev.revision_user <- (get_user_id rev.revision_user_text db);
       !logger#log (Printf.sprintf "Writing to db revision %d.\n" rev.revision_id);
       db#write_revision rev
+    in
     let delete_oldpage page_id =
       let got_it = db#get_page_lock page_id Online_command_line.lock_timeout in
       begin
@@ -472,16 +474,52 @@ let store_wiki_revs  (db: Online_db.db) (wiki_page: wiki_page_t) (wiki_revs: wik
 	end
       end
     in
-    let check_bad_namespace () =
-      if wiki_page.page_namespace <> 0 then begin
+    let check_bad_namespace wpage =
+      if wpage.page_namespace <> 0 then begin
         !logger#log (Printf.sprintf "Page '%s' in wrong namespace.\n"
-                       the_page_title);
+                       wpage.page_title);
         (* we don't want wrong-namespace pages on our system *)
-	delete_oldpage wiki_page.page_id;
+	delete_oldpage wpage.page_id;
         raise (API_error_noretry "store_wiki_revs: wrong namespace");
       end
+    in
+    let check_change_title wpage =
+	let old_titles = db#get_mwpage_title wpage.page_id in
+	let same_title t =
+	  if t <> wpage.page_title then begin
+	    !logger#log (Printf.sprintf "Page %d changed title: '%s' -> '%s'.\n"
+		   wpage.page_id t wpage.page_title);
+	    delete_oldpage wpage.page_id;
+	    (* We need to throw an exception here, because we need to
+	     * re-download the revisions of this page from the begining. *)
+	    raise (API_error_retry "store_wiki_revs: title changed");
+	  end
+	in
+	List.iter same_title old_titles
+    in
+    let check_change_pageid wpage =
+	let old_pageids = db#get_mwpage_id wpage.page_title in
+	let same_id i =
+	  if i <> wpage.page_id then begin
+	    !logger#log (Printf.sprintf "Page '%s' changed id: %d -> %d.\n"
+		   wpage.page_title i wpage.page_id);
+	    (* delete both the old and the new id, so we can start fresh *)
+	    delete_oldpage i;
+	    delete_oldpage wpage.page_id;;
+	    (* We need to throw an exception here, because we need to
+	     * re-download the revisions of this page from the begining. *)
+	    raise (API_error_retry "store_wiki_revs: title changed");
+	  end
+	in
+	List.iter same_title old_titles
     in begin
-      check_bad_namespace ();
+      wiki_page.page_title <- the_page_title;
+      (* check for all the things that might go wrong.
+       * Changed pageids first, since this lets us fix the most
+       * broken records, then namespace, then title. *)
+      check_changed_pageid wiki_page;
+      check_bad_namespace wiki_page;
+      check_changed_title wiki_page;
       (* Write the updated or new page info to the page table. *)
       !logger#log (Printf.sprintf "Got page titled %s\n" the_page_title);
       (* Write the new page to the page table. *)

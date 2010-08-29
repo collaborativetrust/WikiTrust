@@ -450,29 +450,24 @@ object(self)
     self#db_exec mediawiki_dbh s
 
 
-  (** [clear_old_info_if_pid_changed page_id page_title]
-      Deletes all of the page and revision info from the db if there exists 
-      such info for the given title under a different page_id.
-      The page_title specified must be exact -- no wildcard chars.
-    *)
-  method clear_old_info_if_pid_changed (page_id : int) (page_title : string)
-    : unit =
-    (* TODO: use delete_revs_for_page instead *)
-    let s = Printf.sprintf "SELECT page_id FROM %swikitrust_page WHERE page_title = %s AND page_id <> %s"
-      db_prefix (ml2str page_title) (ml2int page_id) in
-    let result = self#db_exec mediawiki_dbh s in 
-      match Mysql.fetch result with 
-	| None -> ()
-	| Some x -> (
-	    let rev_del = Printf.sprintf
-	      "DELETE FROM %swikitrust_revision WHERE page_id = %s"
-	      db_prefix (ml2int (not_null int2ml x.(0))) in
-	    let page_del = Printf.sprintf 
-	      "DELETE FROM %swikitrust_page WHERE page_id = %s"
-	      db_prefix (ml2int (not_null int2ml x.(0))) in
-	      ignore(self#db_exec mediawiki_dbh rev_del);
-	      ignore(self#db_exec mediawiki_dbh page_del)
-	  )
+  (** [get_mwpage_title page_id]
+      Returns the (list) of titles associated with page_id
+      in the MediaWiki tables *)
+  method get_mwpage_title (page_id : int) : string list =
+    let getstr row = (not_null str2ml row.(0)) in 
+    let s = Printf.sprintf "SELECT page_title FROM %spage WHERE page_id = %s"
+	db_prefix (ml2int page_id) in 
+    Mysql.map (self#db_exec mediawiki_dbh s) getstr
+
+  (** [get_mwpage_id page_title]
+      Returns the (list) of page_ids associated with page_title
+      in the MediaWiki tables *)
+  method get_mwpage_id (page_title : int) : int list =
+    let getint row = (not_null int2ml row.(0)) in 
+    let s = Printf.sprintf "SELECT page_id FROM %spage WHERE page_title = %s"
+	db_prefix (ml2str page_id) in 
+    Mysql.map (self#db_exec mediawiki_dbh s) getint
+
 
   (* Chunk methods *)
 
