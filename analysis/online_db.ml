@@ -457,6 +457,7 @@ object(self)
     *)
   method clear_old_info_if_pid_changed (page_id : int) (page_title : string)
     : unit =
+    (* TODO: use delete_revs_for_page instead *)
     let s = Printf.sprintf "SELECT page_id FROM %swikitrust_page WHERE page_title = %s AND page_id <> %s"
       db_prefix (ml2str page_title) (ml2int page_id) in
     let result = self#db_exec mediawiki_dbh s in 
@@ -1014,6 +1015,7 @@ object(self)
     ignore (self#db_exec mediawiki_dbh s2);
     ignore (self#db_exec mediawiki_dbh s3);
     ignore (self#db_exec mediawiki_dbh s4)
+    (* TODO: what about the wikitrust_blob table? *)
 
 
   method init_queue (really : bool) : unit =
