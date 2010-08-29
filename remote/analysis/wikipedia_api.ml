@@ -457,26 +457,31 @@ let store_wiki_revs  (db: Online_db.db) (wiki_page: wiki_page_t) (wiki_revs: wik
       rev.revision_user <- (get_user_id rev.revision_user_text db);
       !logger#log (Printf.sprintf "Writing to db revision %d.\n" rev.revision_id);
       db#write_revision rev
-    in begin
+    let delete_oldpage page_id =
+      let got_it = db#get_page_lock page_id Online_command_line.lock_timeout in
+      begin
+        if got_it = false then
+          raise (API_error_retry "store_wiki_revs: DB lock failed");
+	try
+	  db#erase_cached_rev_text page_id;
+	  db#delete_revs_for_page page_id;
+	  db#release_page_lock page_id
+	with e -> begin
+	  db#release_page_lock page_id;
+	  raise e
+	end
+      end
+    in
+    let check_bad_namespace () =
       if wiki_page.page_namespace <> 0 then begin
         !logger#log (Printf.sprintf "Page '%s' in wrong namespace.\n"
                        the_page_title);
         (* we don't want wrong-namespace pages on our system *)
-        let got_it = db#get_page_lock page_id Online_command_line.lock_timeout in
-        if got_it then begin
-          try
-            db#erase_cached_rev_text wikipage.page_id;
-            db#delete_revs_for_page wikipage.page_id;
-            db#commit;
-            db#release_page_lock page_id
-          with e -> begin
-            db#release_page_lock page_id;
-            raise e
-          end
-        end else
-          raise (API_error_retry "store_wiki_revs: DB lock failed");
+	delete_oldpage wiki_page.page_id;
         raise (API_error_noretry "store_wiki_revs: wrong namespace");
       end
+    in begin
+      check_bad_namespace ();
       (* Write the updated or new page info to the page table. *)
       !logger#log (Printf.sprintf "Got page titled %s\n" the_page_title);
       (* Write the new page to the page table. *)
