@@ -823,15 +823,13 @@ object(self)
     ignore (self#db_exec mediawiki_dbh s)
 
   (** [mark_page_as_processed page_id] marks that a page has been processed. *)
-  method mark_page_as_processed (page_id : int) (page_title : string) 
-    (num_downloaded : int) : unit =
+  method mark_page_as_processed (page_id : int) : unit =
     let s = Printf.sprintf "DELETE FROM %swikitrust_queue WHERE page_id = %s" db_prefix (ml2int page_id) in
     ignore (self#db_exec mediawiki_dbh s);
     (* Mark that we are done with this processing unit. *)
     self#release_reservation db_name;
-    (* Update the title name for the page, if we need to. *)
-    if num_downloaded > 0 then 
-      self#write_wikitrust_page_title page_id page_title
+    (* TODO: make sure that a processed page has its title
+     * updated correctly. *)
 
   (** [mark_page_as_unprocessed page_id] marks that a page has not
       been fully processed. *)

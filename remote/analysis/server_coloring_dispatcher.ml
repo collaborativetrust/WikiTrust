@@ -240,7 +240,7 @@ let process_page (page_id: int) (page_title: string) =
   if !times_tried >= !times_to_retry_trans
     then Printf.eprintf "Giving up on %d %s\n" page_id page_title;
   (* Marks the page as processed. *)
-  child_db#mark_page_as_processed page_id page_title !pages_downloaded;
+  child_db#mark_page_as_processed page_id;
   child_db#close; (* Release any locks still held. *)
   (* End of page processing. *)
   Printf.printf "Done with %s.\n" page_title; flush_all ();
