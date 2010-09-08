@@ -59,5 +59,5 @@ for l in sys.stdin:
   title = ll[0]
   if True:
     curs.execute("insert ignore into " + ini_config.get('db', 'prefix') + 
-                 "wikitrust_queue (title, page_id) values (%s, %s)", ("", page_id, ))
+                 "wikitrust_queue (page_title, page_id) values (%s, %s)", ("", page_id, ))
     curs.execute("commit")

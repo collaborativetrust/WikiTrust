@@ -299,7 +299,7 @@ def classify(rev_id):
   if d["Reputation"] < 0.049: score += 0.358
   else:
     score += -1.012
-    if d["P_prev_hist5"] < 0.01: score == 0.482
+    if d["P_prev_hist5"] < 0.01: score += 0.482
     else:
       score += -0.376
       if d["Avg_quality"] < 0.156: score += 0.5
