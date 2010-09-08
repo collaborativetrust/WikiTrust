@@ -62,17 +62,17 @@ let close_compressed_file (f: in_channel) =
 (** [read_gzipped_file file_name] returns as a string the uncompressed 
     contents of file [file_name]. *)
 let read_gzipped_file (file_name: string) : string option = 
-  try 
-    (* First, opens the file in regular mode. *)
-    let file_opt = try Some (open_in file_name)
-    with Sys_error _ -> None in
-    begin
-      match file_opt with
-	None -> None
-      | Some in_file -> begin
-	  (* Checks the file length: if zero, then we return an empty string. *)
-	  if (in_channel_length in_file) = 0 then Some ""
-	  else begin
+  (* First, opens the file in regular mode. *)
+  let file_opt = try Some (open_in file_name)
+  with Sys_error _ -> None in
+  begin
+    match file_opt with
+      None -> None
+    | Some in_file -> begin
+	(* Checks the file length: if zero, then we return an empty string. *)
+	if (in_channel_length in_file) = 0 then Some ""
+	else begin
+	  try begin
 	    let f = Gzip.open_in_chan in_file in
 	    let str_len = 8192 in 
 	    let str = String.create str_len in
@@ -86,9 +86,19 @@ let read_gzipped_file (file_name: string) : string option =
 	    Gzip.close_in f;
 	    Some (Buffer.contents buf)
 	  end
+	  with Gzip.Error s -> begin
+	    begin
+	      (* We try to close in_file, to save a file descriptor,
+		 but we do not want to mask the original Gzip error. *)
+	      try
+		close_in in_file
+	      with _ -> ()
+	    end;
+	    raise (Gzip.Error (s ^ " reading file: " ^ file_name))
+	  end
 	end
-    end
-  with Gzip.Error s -> raise (Gzip.Error (s ^ " reading file: " ^ file_name))
+      end
+  end
 
 (** [write_gzipped_file file_name l s] writes to the file [file_name] 
     the gzipped contents of string [s]. *)
