@@ -63,7 +63,7 @@ let close_compressed_file (f: in_channel) =
     contents of file [file_name]. *)
 let read_gzipped_file (file_name: string) : string option = 
   (* First, opens the file in regular mode. *)
-  let file_opt = try Some (open_in file_name)
+  let file_opt = try Some (open_in_bin file_name)
   with Sys_error _ -> None in
   begin
     match file_opt with

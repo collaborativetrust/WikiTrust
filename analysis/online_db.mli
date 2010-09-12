@@ -215,6 +215,11 @@ class db :
     such info for the given title under a different page_id *)
     method clear_old_info_if_pid_changed : int -> string -> unit
 
+    (** [delete_page page_id] deletes all the information related to page_id
+	in the system. *)
+    method delete_page : int -> unit
+
+
     (* Chunk methods *)
 
     (** [write_page_chunks page_id chunk_list] writes that the page

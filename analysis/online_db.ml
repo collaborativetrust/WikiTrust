@@ -98,7 +98,7 @@ type vote_t = {
 type page_sig_t = page_sig_disk_t
 let empty_page_sigs = []
 
-(* Produces the key for a signature *)
+(* Produces the key for storing a blob in the database *)
 let make_blob_key (page_id: int) (blob_id: int) : string =
   Printf.sprintf "%012d%012d" page_id blob_id
 
@@ -470,6 +470,43 @@ object(self)
 	      ignore(self#db_exec mediawiki_dbh rev_del);
 	      ignore(self#db_exec mediawiki_dbh page_del)
 	  )
+
+  (** [delete_page page_id] deletes all the information related to page_id
+      in the system. *)
+  method delete_page (page_id: int) = 
+    (* First, deletes the information in the db. *)
+    let s = Printf.sprintf
+      "DELETE FROM %swikitrust_revision WHERE page_id = %s"
+      db_prefix (ml2int page_id) in
+    ignore(self#db_exec mediawiki_dbh s);
+    let s = Printf.sprintf 
+      "DELETE FROM %swikitrust_page WHERE page_id = %s"
+      db_prefix (ml2int page_id) in
+    ignore(self#db_exec mediawiki_dbh s);
+    (* Then, deletes the information, if any, in the blob pages. *)
+    begin
+      match rev_base_path with
+	Some b -> Filesystem_store.delete_revision b page_id None
+      | None -> ()
+    end;
+    begin
+      match colored_base_path with
+	None -> begin
+	  (* The blobs are stored in the db. *)
+	  (* TODO: this is a hack!  It would be much better to
+	     store also the page_id in the wikitrust_blob table! *)
+	  let p0 = make_blob_key page_id 0 in
+	  let p1 = make_blob_key (page_id + 1) 0 in
+	  let s = Printf.sprintf
+	    "DELETE FROM %swikitrust_blob WHERE blob_id >= %s and blob_id < %s"
+	    db_prefix (ml2decimal p0) (ml2decimal p1) in
+	  ignore(self#db_exec mediawiki_dbh s)
+	end
+      | Some b -> begin
+	  (* The blobs are stored in the filesystem. *)
+	  ignore(Revision_store.delete_all_page_blobs b page_id)
+	end
+    end
 
   (* Chunk methods *)
 

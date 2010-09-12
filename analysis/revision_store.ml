@@ -63,10 +63,11 @@ exception Compression_error
 
 (** [get_filename base_path page_id blob_id] computes the filename where
     the compressed blob [blob_id] of page [page_id] is stored.
-    It returns a triple, consisting of:
+    It returns a tuple, consisting of:
     - The full filename of the revision.
     - The full filename of a temp file that can be used to ensure atomic write.
-    - the list of directories that may need to be made.
+    - The list of directories that may need to be made.
+    - The base directory where all the blobs for the page are stored.
 
     We divide the tree so that the page tree has branching factor of
     at most 1000.  
@@ -76,7 +77,7 @@ exception Compression_error
     based on digits 345 of the blob id, for the pages that have very
     many revisions. *)
 let get_filename (base_path: string) (page_id: int) (blob_id: int) 
-    : (string * string * string list) =   
+    : (string * string * string list * string) =   
   let page_str = Printf.sprintf "%012d" page_id in 
   let blob_str  = Printf.sprintf "%09d" blob_id  in 
   let list_dirs = ref [base_path] in
@@ -87,7 +88,9 @@ let get_filename (base_path: string) (page_id: int) (blob_id: int)
     path_name := !path_name ^ "/" ^ s;
     list_dirs := !list_dirs @ [!path_name]
   end done;
-  (* Then, the blob directory *)
+  (* We keep track of the base directory for the page. *)
+  let page_dir = !path_name in
+  (* Then, we add the blob directory *)
   if blob_id > 999 then begin
     let s = String.sub blob_str 0 6 in 
     path_name := !path_name ^ "/" ^ s;
@@ -97,8 +100,15 @@ let get_filename (base_path: string) (page_id: int) (blob_id: int)
   path_name := !path_name ^ "/" ^ page_str ^ "_" ^ blob_str;
   let file_name = !path_name ^ ".gz"; in
   let temp_name = !path_name ^ ".tmp.gz" in
-  (file_name, temp_name, !list_dirs)
+  (file_name, temp_name, !list_dirs, page_dir)
 
+(** [delete_all_page_blobs base_path page_id] removes all the blobs
+    of a given page, including the sig blobs.  This can be useful
+    to restart the analysis of a page from scratch. *)
+let delete_all_page_blobs (base_path: string) (page_id: int) : 
+    Unix.process_status =
+  let (_, _, _, base_dir) = get_filename base_path page_id 0 in
+  Unix.system ("rm -rf " ^ base_dir)
 
 (* **************************************************************** *)
 (* Filesystem blob access. *)
@@ -109,7 +119,7 @@ let get_filename (base_path: string) (page_id: int) (blob_id: int)
     Directories are created if they do not already exist. *)
 let write_blob (base_path: string) (page_id: int) (blob_id: int) 
     (s: string) : unit =
-  let (f_name, temp_name, dir_l) = get_filename base_path page_id blob_id in 
+  let (f_name, temp_name, dir_l, _) = get_filename base_path page_id blob_id in 
   (* Writes the file directly, hoping that the directories exist. *)
   begin 
     try Filesystem_store.write_gzipped_file temp_name s
@@ -132,13 +142,13 @@ let write_blob (base_path: string) (page_id: int) (blob_id: int)
     [blob_id] of page [page_id]. *)
 let read_blob (base_path: string) (page_id: int) (blob_id: int) 
     : string option =
-  let (f_name, _, _) = get_filename base_path page_id blob_id in 
+  let (f_name, _, _, _) = get_filename base_path page_id blob_id in 
   Filesystem_store.read_gzipped_file f_name;;
 
 (** [delete_blob base_path page_id blob_id] deletes the blob
     [blob_id] of page [page_id]. *)
 let delete_blob (base_path: string) (page_id: int) (blob_id: int) =
-  let (f_name, _, _) = get_filename base_path page_id blob_id in 
+  let (f_name, _, _, _) = get_filename base_path page_id blob_id in 
   try
     Unix.unlink f_name
   with Unix.Unix_error (Unix.ENOENT, _, _) -> ()
