@@ -26,7 +26,6 @@ statistical information, or to prepare for use U1) by analyzing in an
 efficient way the past history of a Wikipedia.  This use is described
 in more detail in README-batch. 
 
-
 When used as a Mediawiki extension, WikiTrust can be added to an
 existing wiki, or to a new one.  If the extension is added to a new
 wiki, it will start computing reputations and trusts as soon as
@@ -58,7 +57,7 @@ We describe in this README file the use of WikiTrust as a MediaWiki
 extension.  For other uses of WikiTrust, see the other README files.
 
 
-PREREQUISITES: 
+PREREQUISITES:
 
 1) This step is not necessary to compile WikiTrust per se, or for uses
    U2), U3) above, but it is necessary if you want to use WikiTrust as a
@@ -66,7 +65,7 @@ PREREQUISITES:
    revisions.
 
 Install mysql and mediawiki.  In Ubuntu / Debian, you can install
-   the packages: 
+the packages: 
 
      mediawiki
      php5-cli
@@ -75,7 +74,7 @@ Install mysql and mediawiki.  In Ubuntu / Debian, you can install
      tidy
 
    In other distributions, follow the instructions at
-   www.mediawiki.org. 
+   www.mediawiki.org.
 
 
 ================================================================
@@ -173,14 +172,14 @@ Install mysql and mediawiki.  In Ubuntu / Debian, you can install
 
 3) You should activate the extension by editing the file
    LocalSettings.php (part of the MediaWiki installation), adding the
-   following lines: 
+   following lines:
 
 $wgUseTidy = true;       // Enable Tidy
 $wgUseAjax = true;       // Enable Ajax (needed for voting)
 require_once( $IP . "/extensions/WikiTrust/WikiTrust.php" );
 ini_set( 'memory_limit', '40M' );
 
-   You can look in WikiTrust.php (located at WikiTrust/WikiTrust.php) 
+   You can look in WikiTrust.php (located at WikiTrust/WikiTrust.php)
    for a list of all the configurable variables.  The defaults should
    be correct for most installations, but you can override
    values by placing assignments in your LocalSettings.php
@@ -191,14 +190,14 @@ ini_set( 'memory_limit', '40M' );
      $wgWikiTrustGadget = "gadget-WikiTrust";
    By default the trust tab is always visible.
    Set this as above to make it visible only to users opting in.
-   
+
      $wgWikiTrustShowVoteButton = false;
    The default is to always show a "vote" button; disable this
    feature by setting it to false.
 
      $wgWikiTrustLog = "/tmp/{$wgDBname}-trust.log";
    This creates a log of the analysis of how useful each contribution to
-   the wiki is, as well as a log of all user reputation changes. 
+   the wiki is, as well as a log of all user reputation changes.
    We advise you to create such a log: it contains very useful
    information, and it is likely that we will develop a variety of tools
    to extract the information present.  You don't want to miss out.  Note
@@ -232,7 +231,7 @@ require_once( $IP . "/extensions/WikiTrust/WikiTrust.php" );
    extension will use.  Assuming that the mediawiki database is called
    "wikidb" (this is the default name: you give a name to the database
    when you create the wiki instance during the MediaWiki installation
-   process), proceed as follows: 
+   process), proceed as follows:
 
      $ cd sql
      $ ./create_db.php "path_to_mediawiki" "mysql_root_user_name"
@@ -267,29 +266,29 @@ require_once( $IP . "/extensions/WikiTrust/WikiTrust.php" );
    You can then give the command many times, until all the wiki is
    analyzed.  You can also slow down the processing via the
    -throttle_delay option, if you wish to limit the CPU or database
-   load; for instance 
+   load; for instance
 
       -throttle_delay 0.2
 
    will insert a 0.2-second delay between the analysis of revisions.
    eval_online_wiki has many options, of which only some are
-   documented here. 
+   documented here.
    Typical values for database username and password are:
 
      username: wikiuser
      db_name: wikidb
 
    If you wish to redo the analysis from scratch, throwing away the
-   results of previous analyses, you can use the option '-delete_all': 
+   results of previous analyses, you can use the option '-delete_all':
 
      $ ./eval_online_wiki -delete_all -db_user <username> -db_pass <pwd>  -db_name <db_name>
 
    Warning: the analysis can take a long time on very large wikis, so
-   do not use the option '-delete_all' lightly! 
+   do not use the option '-delete_all' lightly!
 
 7) You should now see a trust tab.  Click on it, or edit a revision, and
    the trust of all revision text, and the reputation of all authors,
-   will be computed.  
+   will be computed.
 
    The trust coloring is updated automatically whenever a user edits
    an article, or requests to view the trust informaton for a
