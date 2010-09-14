@@ -455,21 +455,14 @@ object(self)
   method clear_old_info_if_pid_changed (page_id : int) (page_title : string)
     : unit =
     let new_pt = ExtString.String.map (fun c -> if c = ' ' then '_' else c) page_title in
-    let s = Printf.sprintf "SELECT page_id FROM %swikitrust_page WHERE page_title = %s AND page_id <> %s"
+    let s = Printf.sprintf "SELECT page_id FROM %swikitrust_page WHERE page_title LIKE %s AND page_id <> %s"
       db_prefix (ml2str new_pt) (ml2int page_id) in
     let result = self#db_exec mediawiki_dbh s in 
+    begin
       match Mysql.fetch result with 
 	| None -> ()
-	| Some x -> (
-	    let rev_del = Printf.sprintf
-	      "DELETE FROM %swikitrust_revision WHERE page_id = %s"
-	      db_prefix (ml2int (not_null int2ml x.(0))) in
-	    let page_del = Printf.sprintf 
-	      "DELETE FROM %swikitrust_page WHERE page_id = %s"
-	      db_prefix (ml2int (not_null int2ml x.(0))) in
-	      ignore(self#db_exec mediawiki_dbh rev_del);
-	      ignore(self#db_exec mediawiki_dbh page_del)
-	  )
+	| Some x -> self#delete_page page_id
+    end
 
   (** [delete_page page_id] deletes all the information related to page_id
       in the system. *)
@@ -483,7 +476,16 @@ object(self)
       "DELETE FROM %swikitrust_page WHERE page_id = %s"
       db_prefix (ml2int page_id) in
     ignore(self#db_exec mediawiki_dbh s);
-    (* Then, deletes the information, if any, in the blob pages. *)
+    let s = Printf.sprintf 
+      "DELETE FROM %spage WHERE page_id = %s" 
+      db_prefix (ml2int page_id) in
+    ignore(self#db_exec mediawiki_dbh s);
+    let s = Printf.sprintf 
+      "DELETE FROM %srevision WHERE rev_page = %s" 
+      db_prefix (ml2int page_id) in
+    ignore(self#db_exec mediawiki_dbh s);
+    (* Then, deletes the information, if any, in the blob pages and 
+       in the disk cache. *)
     begin
       match rev_base_path with
 	Some b -> Filesystem_store.delete_revision b page_id None
@@ -1030,26 +1032,6 @@ object(self)
 	end
       end
     | false -> ignore (self#db_exec mediawiki_dbh "COMMIT")
-
-  (** Delete only the articles for 1 page, along with any cached content *)
-  method delete_revs_for_page (page_id : int) : unit =
-    let s1 = Printf.sprintf 
-      "DELETE FROM %swikitrust_revision WHERE page_id = %s" db_prefix (ml2int page_id) 
-    in
-    let s2 = Printf.sprintf
-      "DELETE FROM %swikitrust_page WHERE page_id = %s" db_prefix (ml2int page_id) 
-    in
-    let s3 = Printf.sprintf 
-      "DELETE FROM %spage WHERE page_id = %s" db_prefix (ml2int page_id) 
-    in
-    let s4 = Printf.sprintf 
-      "DELETE FROM %srevision WHERE rev_page = %s" db_prefix (ml2int page_id) 
-    in
-    ignore (self#db_exec mediawiki_dbh s1);
-    ignore (self#db_exec mediawiki_dbh s2);
-    ignore (self#db_exec mediawiki_dbh s3);
-    ignore (self#db_exec mediawiki_dbh s4)
-
 
   method init_queue (really : bool) : unit =
     let s1 = Printf.sprintf
