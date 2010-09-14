@@ -1,21 +1,40 @@
-WikiTrust is a MediaWiki extension that computes in real time the
-reputation of wiki authors, and the trust of wiki text.  Text trust is
-displayed via different colors for the text background, from dark
-orange (low trust) to white (maximum trust).  The colors can be easily
-changed by changing a skin file.  WikiTrust also computes, for each
-word of text, the author of the word, and the revision where the word
-was first inserted.  When clicking on a word, the user is sent to the
-revision diff where the word was added.  When hovering with the mouse
-over a word, a pop-up displays the name of the word's author.
+WikiTrust is an open-source MediaWiki extension that computes the
+origin and author of every word of a wiki, as well as a measure of
+text trust that indicates the extent to which text has been revised.
+To use WikiTrust, you click on a special wiktrust tab added by the
+extension.  In the resulting view, the portions of a page that changed
+recently appear with orange background; the more intense the orange
+color is, the less the change has been revised.  By clicking on any
+word, you can determine who inserted the word, and you can examine the
+precise context in which the word was inserted. 
 
-The WikiTrust extension can be added to an existing wiki, or to a new
-one.  If the extension is added to a new wiki, it will start computing
-reputations and trusts as soon as someone makes an edit, or requests
-to view a trust-colored revision.  The reputation and trust
-computation takes some time, after which the coloring is available.
-If you switch the extension off, then on, the extension will compute
-the missing reputation and trust values in a self-healing,
-fault-tolerant fashion.
+There are three main ways of using WikiTrust: 
+
+U1) As a MediaWiki extension, which analyzes the text of a wiki in
+real-time, as edits are made.   This is what is described in this
+README file. 
+
+U2) As a Mediawiki extension, where the Mediawiki code, and the
+WikiTrust code, are installed on separate servers, for scalability and
+separation of concerns.  This is an advanced installation type; you
+can find some instructions on README-WMF, but we are still working on
+the documentation.  If you have just downloaded WikiTrust, this is
+most likely not the mode of use that suits your needs.
+
+U3) As a batch tool for analyzing large Wikipedia dumps, for extracting
+statistical information, or to prepare for use U1) by analyzing in an
+efficient way the past history of a Wikipedia.  This use is described
+in more detail in README-batch. 
+
+
+When used as a Mediawiki extension, WikiTrust can be added to an
+existing wiki, or to a new one.  If the extension is added to a new
+wiki, it will start computing reputations and trusts as soon as
+someone makes an edit, or requests to view a trust-colored revision.
+The reputation and trust computation takes some time, after which the
+coloring is available.  If you switch the extension off, then on, the
+extension will compute the missing reputation and trust values in a
+self-healing, fault-tolerant fashion.
 
 
 AUTHORS:
@@ -36,13 +55,17 @@ We also acknowledge the contributions of:
 INSTALLATION PROCEDURE:
 
 We describe in this README file the use of WikiTrust as a MediaWiki
-extension.  
-Installation instructions for the MWF are given in README-WMF.
+extension.  For other uses of WikiTrust, see the other README files.
 
 
 PREREQUISITES: 
 
-1) Install mysql and mediawiki.  In Ubuntu / Debian, you can install
+1) This step is not necessary to compile WikiTrust per se, or for uses
+   U2), U3) above, but it is necessary if you want to use WikiTrust as a
+   MediaWiki extension (use U1), and display the text trust coloring of
+   revisions.
+
+Install mysql and mediawiki.  In Ubuntu / Debian, you can install
    the packages: 
 
      mediawiki
@@ -57,32 +80,98 @@ PREREQUISITES:
 
 ================================================================
 
-THE FAST WAY: 
+2) This step involves compiling WikiTrust from source code, and is of
+   course always needed, for all usage modes U1), U2), and U3).
 
-We provide a statically-linked executable, which is built under
-Ubuntu, but should work under many versions of linux. 
-If you are happy using it, then you can use these abbreaviated
-instructions.  Otherwise, see at the bottom of this file for an
-alternative to step 2) below, which involves compiling
-eval_online_wiki from source. 
+   First, use the package manager of linux to install the
+   development library for mysql.   On Ubuntu, this is package
+   libmysqlclient16-dev
 
-2) Take a deep breath. 
+2a) You need to install some packages for Ocaml.  There are two ways. 
 
-3) Next, you need to unpack and install the trust coloring extension in
-   mediawiki.  If you have downloaded a tarball, you can do: 
+   2a1) The best way is to use godi (http://godi.camlcity.org), as this
+        provides a simple way to get all the packages you need, and it
+	enables you to build everything in userspace.
 
-     $ cp wikitrust-xyz.tgz /var/lib/mediawiki/extensions
-     $ cd /var/lib/mediawiki/extensions
-     $ tar xfvz wikitrust-xyz.tgz
+        Get godi from http://godi.camlcity.org/godi/index.html and
+        download godi. Follow the instructions to install it.  
 
-   where xyz is the version information for the tarball.
-   You should also move the executables to the 
-   /var/lib/mediawiki/extensions directory.
+	IMPORTANT: Remember to set the path correctly as instructed in
+	the godi instructions, and remember to have it set correctly
+	_before_ you install any additional Ocaml packages.
+	Otherwise, the packages might get installed in the wrong places.
 
-   If you use git, then you should really be compiling WikiTrust
-   from scratch; otherwise, what's the point? 
+        Then, install the following Ocaml packages from godi (use
+        godi_console to install them):
 
-4) You should activate the extension by editing the file
+          godi-extlib
+          godi-findlib
+	  godi-json-static
+	  godi-json-wheel
+          godi-ocaml-mysql
+	  godi-ocamlnet
+	  godi-pcre
+	  godi-sexplib
+	  godi-type-conv
+	  godi-xml-light
+	  godi-zip
+
+   2a2) If you do not wish to use godi, you can get the above packages
+        either from their source, or from the linux distribution you
+        are using.  For Ubuntu, you can use the following packages:
+
+          ocaml (version 3.10.0 or greater)
+          ocaml-base
+          ocaml-native-compilers
+          ocaml-findlib
+          libmysql-ocaml
+          libmysql-ocaml-dev
+          libextlib-ocaml-dev
+          python-mysqldb
+	  libxml-light-ocaml-dev
+	  libzip-ocaml	
+	  libzip-ocaml-dev
+	  libpcre-ocaml-dev
+
+        You also need to install these two packages:
+
+          type-conv
+	  sexplib
+
+        Which are available from
+        http://www.janestcapital.com/ocaml/index.html .
+
+2b) You need to obtain OcamlLdaLibs.  You can get it from 
+    http://github.com/collaborativetrust/OcamlLdaLibs
+    First, do:
+
+        $ cd OcamlLdaLibs
+
+    Then, there are various cases:
+
+    - If you used godi:
+        $ make all
+
+    - If you can install Ocaml libraries without sudo rights: 
+        $ make all
+
+    - If you did not use godi, and you need sudo to install Ocaml libraries:
+        $ make all-sudo
+
+2c) Go in the extensions directory of MediaWiki, and get the WikiTrust
+    code (as a tarball, or via git) from 
+    http://github.com/collaborativetrust/WikiTrust
+    You can compile the code with:
+
+      $ cd WikiTrust
+      $ make clean ; make all ; make allopt
+
+    This creates an eval_online_wiki executable, which is what
+    computes text trust and origin, and author reputation, in a wiki.
+    The executable is called whenever someone edit the wiki, or wishes
+    to see a trust-colored version of a page.
+
+3) You should activate the extension by editing the file
    LocalSettings.php (part of the MediaWiki installation), adding the
    following lines: 
 
@@ -93,7 +182,7 @@ ini_set( 'memory_limit', '40M' );
 
    You can look in WikiTrust.php (located at WikiTrust/WikiTrust.php) 
    for a list of all the configurable variables.  The defaults should
-   be correct for most installation, but you can override
+   be correct for most installations, but you can override
    values by placing assignments in your LocalSettings.php
    before the require_once() call for the WikiTrust extension.
 
@@ -127,7 +216,7 @@ $wgWikiTrustShowVoteButton = false;
 require_once( $IP . "/extensions/WikiTrust/WikiTrust.php" );
 
 
-5) You need to make the installation readable from the web server. 
+4) You need to make the installation readable from the web server. 
 
      $ chmod a+rX /var/lib/mediawiki/extensions/WikiTrust/*.php
      $ chmod -R a+rX /var/lib/mediawiki/extensions/WikiTrust/includes
@@ -139,7 +228,7 @@ require_once( $IP . "/extensions/WikiTrust/WikiTrust.php" );
    instance, your web server having access to the .git directory (if
    you got wikitrust via git).
 
-6) You need to create the database tables that the trust coloring
+5) You need to create the database tables that the trust coloring
    extension will use.  Assuming that the mediawiki database is called
    "wikidb" (this is the default name: you give a name to the database
    when you create the wiki instance during the MediaWiki installation
@@ -158,7 +247,7 @@ require_once( $IP . "/extensions/WikiTrust/WikiTrust.php" );
      $ ./create_db.php "path_to_mediawiki" "mysql_root_user_name" remove
      $ ./create_db.php "path_to_mediawiki" "mysql_root_user_name"
 
-7) If there are already revisions in the wiki, you should first
+6) If there are already revisions in the wiki, you should first
    analyze their trust, via (from the main WikiTrust directory):
 
      $ analysis/eval_online_wiki -db_user <username> -db_pass <pwd> -db_name <db_name>
@@ -198,7 +287,7 @@ require_once( $IP . "/extensions/WikiTrust/WikiTrust.php" );
    Warning: the analysis can take a long time on very large wikis, so
    do not use the option '-delete_all' lightly! 
 
-8) You should now see a trust tab.  Click on it, or edit a revision, and
+7) You should now see a trust tab.  Click on it, or edit a revision, and
    the trust of all revision text, and the reputation of all authors,
    will be computed.  
 
@@ -209,111 +298,5 @@ require_once( $IP . "/extensions/WikiTrust/WikiTrust.php" );
    trust coloring not only for the newest revision, but for all past
    revisions of all wiki articles that have not been colored yet.
 
-9) If you wish to upload pages to the wiki from a dump file, go to the
-   test-scripts directory, and follow the instructions in the README
-   file there. 
 
-================================================================
-
-COMPILING FROM SOURCE
-
-If you like, you can also build the packages from source. 
-Follow these instructions in place of step 2) above. 
-
-2a) You need to install some packages for Ocaml.  There are two ways. 
-
-   2a1) The best way is to use godi (http://godi.camlcity.org), as this
-        provides a simple way to get all the packages you need, and it
-	enables you to build everything in userspace.
-
-        Get godi from http://godi.camlcity.org/godi/index.html and
-        download godi. Follow the instructions to install it.  
-
-	First, use the package manager of linux to install the
-	following packages:
-
-	* The mysql client library.  On Ubuntu, this is package
-	  libmysqlclient16-dev
-
-	* The ocaml bindings for PCRE.  On Ubuntu, this is the package
-	  libpcre-ocaml-dev
-
-        Then, install the following Ocaml packages from godi (use
-        godi_console to install them):
-
-          godi-extlib
-          godi-findlib
-	  godi-json-static
-	  godi-json-wheel
-          godi-ocaml-mysql
-	  godi-ocamlnet
-	  godi-pcre
-	  godi-sexplib
-	  godi-type-conv
-	  godi-xml-light
-	  godi-zip
-
-   2a2) If you do not wish to use godi, you can get the above packages
-        either from their source, or from the linux distribution you
-        are using.  For Ubuntu, you can use the following packages:
-
-          ocaml (version 3.10.0 or greater)
-          ocaml-base
-          ocaml-native-compilers
-          ocaml-findlib
-          libmysql-ocaml
-          libmysql-ocaml-dev
-          libextlib-ocaml-dev
-          python-mysqldb
-	  libxml-light-ocaml-dev
-	  libzip-ocaml	
-	  libzip-ocaml-dev
-	  libpcre-ocaml-dev
-
-        You also need:
-
-          type-conv
-	  sexplib
-
-        Which are available from
-        http://www.janestcapital.com/ocaml/index.html .
-
-2b) You need to obtain OcamlLdaLibs.  You can get it from 
-    http://github.com/collaborativetrust/OcamlLdaLibs
-    First, do:
-
-        $ cd OcamlLdaLibs
-
-    Then, there are various cases:
-
-    - If you used godi:
-        $ make all-godi
-
-    - If you can install Ocaml libraries without sudo rights: 
-        $ make all
-
-    - If you did not use godi, and you need sudo to install Ocaml libraries:
-        $ make all-sudo
-
-2c) Go in the extensions directory of MediaWiki, and get the WikiTrust
-    code (as a tarball, or via git) from 
-    http://github.com/collaborativetrust/WikiTrust
-    You can compile the code with:
-
-      $ cd WikiTrust
-      $ make clean ; make all ; make allopt
-
-    This creates an eval_online_wiki executable, which is what
-    computes text trust and origin, and author reputation, in a wiki.
-    The executable is called whenever someone edit the wiki, or wishes
-    to see a trust-colored version of a page.
-
-================================================================
-
-BATCH MODE:
-
-The tool has also a batch mode, useful for analyzing the history of a
-wiki, including the history of author contributions, page reversions,
-quarrels, and more.  Please see the README-batch file for more
-information.
 
