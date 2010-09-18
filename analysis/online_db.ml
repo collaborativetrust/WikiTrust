@@ -307,9 +307,9 @@ object(self)
       | None -> ""
       | Some r_id -> Printf.sprintf "rev_id = %s OR" (ml2int r_id)
     in
-    let s = Printf. sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit FROM %srevision WHERE %s (rev_timestamp, rev_id) > (%s, %s) %s ORDER BY rev_timestamp ASC, rev_id ASC LIMIT %s" 
+    let s = Printf. sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit FROM %srevision WHERE %s rev_timestamp > %s %s ORDER BY rev_timestamp ASC, rev_id ASC LIMIT %s" 
       db_prefix
-      rr (ml2str timestamp) (ml2int rev_id) wr (ml2int max_revs_to_return) in
+      rr (ml2str timestamp) wr (ml2int max_revs_to_return) in
     Mysql.map (self#db_exec mediawiki_dbh s) rev_row2revision_t
       
 
@@ -468,8 +468,9 @@ object(self)
     Mysql.map (self#db_exec mediawiki_dbh s) getint
 
   (** [delete_page page_id] deletes all the information related to page_id
-      in the system. *)
-  method delete_page (page_id: int) = 
+      in the system.  With an option, we can specify whether to delete also
+      the information in the regular Mediawiki tables. *)
+  method delete_page (page_id: int) (delete_also_mediawiki: bool) = 
     (* First, deletes the information in the db. *)
     let s = Printf.sprintf
       "DELETE FROM %swikitrust_revision WHERE page_id = %s"
@@ -479,14 +480,18 @@ object(self)
       "DELETE FROM %swikitrust_page WHERE page_id = %s"
       db_prefix (ml2int page_id) in
     ignore(self#db_exec mediawiki_dbh s);
-    let s = Printf.sprintf 
-      "DELETE FROM %spage WHERE page_id = %s" 
-      db_prefix (ml2int page_id) in
-    ignore(self#db_exec mediawiki_dbh s);
-    let s = Printf.sprintf 
-      "DELETE FROM %srevision WHERE rev_page = %s" 
-      db_prefix (ml2int page_id) in
-    ignore(self#db_exec mediawiki_dbh s);
+    if delete_also_mediawiki then begin
+      let s = Printf.sprintf 
+	"DELETE FROM %spage WHERE page_id = %s" 
+	db_prefix (ml2int page_id) in
+      ignore(self#db_exec mediawiki_dbh s);
+      let s = Printf.sprintf 
+	"DELETE FROM %srevision WHERE rev_page = %s" 
+	db_prefix (ml2int page_id) in
+      ignore(self#db_exec mediawiki_dbh s)
+    end;
+    (* Deletes the cached revisions for the page. *)
+    erase_cached_rev_text page_id;
     (* Then, deletes the information, if any, in the blob pages and 
        in the disk cache. *)
     begin

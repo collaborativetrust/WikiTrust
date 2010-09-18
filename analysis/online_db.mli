@@ -219,9 +219,10 @@ class db :
 	in the MediaWiki tables *)
     method get_mwpage_id (page_title : int) : int list =
 
-    (** [delete_page page_id] deletes all the information related to page_id
-	in the system. *)
-    method delete_page : int -> unit
+    (** [delete_page page_id delete_also_mediawiki] deletes all the information related to [page_id]
+	in the system.  If [delete_also_mediawiki] is true, deletes also the info on the page
+        in the normal Mediawiki tables. *)
+    method delete_page : int -> bool -> unit
 
 
     (* Chunk methods *)

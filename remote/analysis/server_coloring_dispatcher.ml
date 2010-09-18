@@ -215,8 +215,7 @@ let process_page (page_id: int) (page_title: string) =
         let got_it = child_db#get_page_lock page_id Online_command_line.lock_timeout in
         if got_it then begin
           try
-            child_db#erase_cached_rev_text page_id;
-            child_db#delete_revs_for_page page_id;
+            child_db#delete_page page_id true;
             db#commit;
             db#release_page_lock page_id
           with e -> begin
