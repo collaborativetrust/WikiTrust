@@ -225,7 +225,7 @@ object(self)
   (** [get_histogram] Returns a histogram showing the number of users 
       at each reputation level, and the median. *)
   method get_histogram : float array * float =
-    let s = Printf.sprintf "SELECT * FROM %swikitrust_global" db_prefix in
+    let s = Printf.sprintf "SELECT median, rep_0, rep_1, rep_2, rep_3, rep_4, rep_5, rep_6, rep_7, rep_8, rep_9 FROM %swikitrust_global" db_prefix in
     match fetch (self#db_exec mediawiki_dbh s) with
       None -> begin
 	(* No histogram is found.  It creates a default one, and returns it. *)
