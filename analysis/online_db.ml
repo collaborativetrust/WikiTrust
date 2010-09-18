@@ -98,7 +98,7 @@ type vote_t = {
 type page_sig_t = page_sig_disk_t
 let empty_page_sigs = []
 
-(* Produces the key for a signature *)
+(* Produces the key for storing a blob in the database *)
 let make_blob_key (page_id: int) (blob_id: int) : string =
   Printf.sprintf "%012d%012d" page_id blob_id
 
@@ -439,14 +439,13 @@ object(self)
 	(of_string__of__of_sexp page_info_t_of_sexp (not_null str2ml x.(0)),
 	not_null int2ml x.(1))
 
-  (** [fetch_col_revs page_id timestamp rev_id fetch_limit] returns
-      a cursor that points to at most [fetch_limit] revisions of
-      page [page_id] with time prior or equal to [timestamp], and
-      revision id at most [rev_id].  The ordering goes backward in time. 
-      This function is used to read the colored revisions that precede a 
-      given one. *)
+  (** [fetch_col_revs page_id timestamp rev_id fetch_limit] returns a
+      cursor that points to at most [fetch_limit] revisions of page
+      [page_id] with time prior or equal to [timestamp].  The ordering
+      goes backward in time.  This function is used to read the
+      colored revisions that precede a given one. *)
   method fetch_col_revs (page_id : int) (timestamp: timestamp_t) (rev_id: int) (fetch_limit: int): Mysql.result =
-    let s = Printf.sprintf "SELECT revision_id, page_id, text_id, time_string, user_id, username, is_minor FROM %swikitrust_revision WHERE page_id = %s AND (time_string, revision_id) < (%s, %s) ORDER BY time_string DESC, revision_id DESC LIMIT %s" db_prefix (ml2int page_id) (ml2timestamp timestamp) (ml2int rev_id) (ml2int fetch_limit) in 
+    let s = Printf.sprintf "SELECT revision_id, page_id, text_id, time_string, user_id, username, is_minor FROM %swikitrust_revision WHERE page_id = %s AND time_string < %s ORDER BY time_string DESC, revision_id DESC LIMIT %s" db_prefix (ml2int page_id) (ml2timestamp timestamp) (ml2int fetch_limit) in 
     self#db_exec mediawiki_dbh s
 
 
@@ -468,6 +467,51 @@ object(self)
 	db_prefix (ml2str page_id) in 
     Mysql.map (self#db_exec mediawiki_dbh s) getint
 
+  (** [delete_page page_id] deletes all the information related to page_id
+      in the system. *)
+  method delete_page (page_id: int) = 
+    (* First, deletes the information in the db. *)
+    let s = Printf.sprintf
+      "DELETE FROM %swikitrust_revision WHERE page_id = %s"
+      db_prefix (ml2int page_id) in
+    ignore(self#db_exec mediawiki_dbh s);
+    let s = Printf.sprintf 
+      "DELETE FROM %swikitrust_page WHERE page_id = %s"
+      db_prefix (ml2int page_id) in
+    ignore(self#db_exec mediawiki_dbh s);
+    let s = Printf.sprintf 
+      "DELETE FROM %spage WHERE page_id = %s" 
+      db_prefix (ml2int page_id) in
+    ignore(self#db_exec mediawiki_dbh s);
+    let s = Printf.sprintf 
+      "DELETE FROM %srevision WHERE rev_page = %s" 
+      db_prefix (ml2int page_id) in
+    ignore(self#db_exec mediawiki_dbh s);
+    (* Then, deletes the information, if any, in the blob pages and 
+       in the disk cache. *)
+    begin
+      match rev_base_path with
+	Some b -> Filesystem_store.delete_revision b page_id None
+      | None -> ()
+    end;
+    begin
+      match colored_base_path with
+	None -> begin
+	  (* The blobs are stored in the db. *)
+	  (* TODO: this is a hack!  It would be much better to
+	     store also the page_id in the wikitrust_blob table! *)
+	  let p0 = make_blob_key page_id 0 in
+	  let p1 = make_blob_key (page_id + 1) 0 in
+	  let s = Printf.sprintf
+	    "DELETE FROM %swikitrust_blob WHERE blob_id >= %s and blob_id < %s"
+	    db_prefix (ml2decimal p0) (ml2decimal p1) in
+	  ignore(self#db_exec mediawiki_dbh s)
+	end
+      | Some b -> begin
+	  (* The blobs are stored in the filesystem. *)
+	  ignore(Revision_store.delete_all_page_blobs b page_id)
+	end
+    end
 
   (* Chunk methods *)
 
@@ -989,27 +1033,6 @@ object(self)
 	end
       end
     | false -> ignore (self#db_exec mediawiki_dbh "COMMIT")
-
-  (** Delete only the articles for 1 page, along with any cached content *)
-  method delete_revs_for_page (page_id : int) : unit =
-    let s1 = Printf.sprintf 
-      "DELETE FROM %swikitrust_revision WHERE page_id = %s" db_prefix (ml2int page_id) 
-    in
-    let s2 = Printf.sprintf
-      "DELETE FROM %swikitrust_page WHERE page_id = %s" db_prefix (ml2int page_id) 
-    in
-    let s3 = Printf.sprintf 
-      "DELETE FROM %spage WHERE page_id = %s" db_prefix (ml2int page_id) 
-    in
-    let s4 = Printf.sprintf 
-      "DELETE FROM %srevision WHERE rev_page = %s" db_prefix (ml2int page_id) 
-    in
-    ignore (self#db_exec mediawiki_dbh s1);
-    ignore (self#db_exec mediawiki_dbh s2);
-    ignore (self#db_exec mediawiki_dbh s3);
-    ignore (self#db_exec mediawiki_dbh s4)
-    (* TODO: what about the wikitrust_blob table? *)
-
 
   method init_queue (really : bool) : unit =
     let s1 = Printf.sprintf

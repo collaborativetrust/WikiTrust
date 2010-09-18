@@ -219,6 +219,11 @@ class db :
 	in the MediaWiki tables *)
     method get_mwpage_id (page_title : int) : int list =
 
+    (** [delete_page page_id] deletes all the information related to page_id
+	in the system. *)
+    method delete_page : int -> unit
+
+
     (* Chunk methods *)
 
     (** [write_page_chunks page_id chunk_list] writes that the page
@@ -406,10 +411,6 @@ class db :
 	TESTING *)
     method delete_all : bool -> unit
 
-    (** Delete only the articles for 1 page -- THIS IS INTENDED ONLY FOR UNIT
-	TESTING *)
-    method delete_revs_for_page : int -> unit
-	
     (* removed old items from the q. *)
     method init_queue : bool -> unit
 

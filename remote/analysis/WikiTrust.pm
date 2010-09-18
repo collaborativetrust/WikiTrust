@@ -19,10 +19,12 @@ use JSON;
 use Date::Manip;
 use POSIX qw(strftime);
 use File::Path qw(rmtree);	# on newer perls, this is remove_tree
+use List::Util qw(max);
 
 use constant QUEUE_PRIORITY => 10; # wikitrust_queue is now a priority queue.
 use constant SLEEP_TIME => 3;
 use constant NOT_FOUND_TEXT_TOKEN => "TEXT_NOT_FOUND";
+use constant AGE_REVISION_CONVERSION => 7 * 24 * 3600;
 
 our %methods = (
 	'edit' => \&handle_edit,
@@ -34,8 +36,11 @@ our %methods = (
 	'status' => \&handle_status,
 	'miccheck' => \&handle_miccheck,
 	'delete' => \&handle_deletepage,
-	'quality' => \&handle_quality,
-	'rawquality' => \&handle_rawquality,
+	'vandalism' => \&handle_vandalism,
+	'rawvandalism' => \&handle_rawvandalism,
+	'quality' => \&handle_vandalism,
+	'rawquality' => \&handle_rawvandalism,
+	'select' => \&handle_selection,
     );
 
 our $cache = undef;	# will get initialized when needed
@@ -115,6 +120,7 @@ sub secret_okay {
 sub mark_for_coloring {
   my ($page, $page_title, $dbh) = @_;
 
+  die "Illegal page_id for '$page_title'" if $page <= 0 && $page_title eq '';
   confess "Illegal page_id for '$page_title'" if $page <= 0;
 
   my $sth = $dbh->prepare(
@@ -531,7 +537,7 @@ warn "Received share from $remoteip (proxy = $proxyip)";
     return Apache2::Const::OK;
 }
 
-sub handle_rawquality {
+sub handle_rawvandalism {
     my ($dbh, $cgi, $r) = @_;
     my ($rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
 
@@ -610,7 +616,8 @@ sub vandalismModel {
     return $prob;
 }
 
-sub handle_quality {
+
+sub handle_vandalism {
     my ($dbh, $cgi, $r) = @_;
     my ($rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
 
@@ -733,21 +740,32 @@ sub getQualityData {
     $ans->{Reputation} = $u->{user_rep}+0;
 
     # Now build the composite signals
-    my $prev_time = UnixDate(ParseDate($ans->{prev_timestamp}), "%s");
-    my $cur_time = UnixDate(ParseDate($ans->{time_string}), "%s");
-    my $next_time = UnixDate(ParseDate($ans->{next_timestamp}), "%s");
+    my $prev_time = UnixDate(ParseDate($ans->{prev_timestamp}." UTC"), "%s");
+    my $cur_time = UnixDate(ParseDate($ans->{time_string}." UTC"), "%s");
+    my $next_time = UnixDate(ParseDate($ans->{next_timestamp}." UTC"), "%s");
     $ans->{Logtime_next} = log(1+abs($next_time - $cur_time));
     $ans->{Logtime_prev} = log(1+abs($cur_time-$prev_time));
     $ans->{Hour_of_day} = get_hours($ans->{time_string});
+    $ans->{curtime_gmt} = $cur_time;
+    $ans->{prevtime_gmt} = $prev_time;
 
     my $prev_length = 0;
-    my $cur_length = 0;
+    my $curr_length = 0;
     for (my $i = 0; $i < 10; $i++) {
 	$prev_length += $ans->{"Prev_hist$i"};
-	$cur_length += $ans->{"Hist$i"};
+	$curr_length += $ans->{"Hist$i"};
     }
+    $ans->{Prev_length} = $prev_length;
+    $ans->{Curr_length} = $curr_length;
     $ans->{Log_prev_length} = log(1 + $prev_length);
-    $ans->{Log_length} = log(1 + $cur_length);
+    $ans->{Log_length} = log(1 + $curr_length);
+
+    if (($curr_length == 0) || ($prev_length == 0)) {
+	$ans->{Risk} = 1.0;
+    } else {
+	$ans->{Risk} = max( $ans->{Delta}, abs($curr_length - $prev_length) ) /
+	    ( 1.0 * max($curr_length, $prev_length) );
+    }
 
     for (my $i = 0; $i < 10; $i++) {
 	$ans->{"P_prev_hist$i"} = $ans->{"Prev_hist$i"} / (1 + $prev_length);
@@ -782,5 +800,167 @@ sub getQualityData {
 
     return $ans;
 }
+
+sub handle_selection {
+    my ($dbh, $cgi, $r) = @_;
+    my ($rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
+
+    my $num_winners_to_return = $cgi->param('winners') || 3;
+    my $inv_discount_base = $cgi->param('invDiscountBase') || 200;
+
+
+    if ($rev > 0) {
+      $r->content_type('text/plain');
+      $r->print('No revid allowed.');
+      return Apache2::Const::OK;
+    }
+
+    my $sth = $dbh->prepare ("SELECT revision_id FROM " .
+	    "wikitrust_revision WHERE " .
+	    "page_id = ?" .
+	    "ORDER BY time_string DESC LIMIT 100") || die $dbh->errstr;
+    $sth->execute($page) || die $dbh->errstr;
+    my @revids = ();
+    while (my $ref = $sth->fetchrow_arrayref()) {
+	push @revids, $ref->[0];
+    }
+
+    my @selection = ();
+    my $num_past_revisions = 0;
+
+    # use convoluted parsing of time, because OSX uses 1-Jan-1904
+    # for the epoch time.  Using this construct should give us units
+    # that matched how the time_string was parsed for each revision.
+    my $current_time = UnixDate(ParseDate(
+		scalar(localtime(time()))
+	), "%s");;
+    foreach my $rev (@revids) {
+	$num_past_revisions++;
+	my $q = getQualityData($page_title, $page, $rev, $dbh);
+	my $quality = selectionModel($q);
+	my $revision_age = $current_time - $q->{curtime_gmt};
+	my $risk = $q->{Risk};
+	my $discount = selection_compute_discount( $inv_discount_base,
+		$num_past_revisions, $revision_age );
+	# The Forced is the difference in discounts
+	my $prev_revision_age = $current_time - $q->{prevtime_gmt};
+	my $prev_discount = selection_compute_discount($inv_discount_base,
+		$num_past_revisions+1, $prev_revision_age);
+	my $forced = $discount - $prev_discount;
+	my $discounted_quality = $quality * $discount;
+	push @selection, [ $discounted_quality, 1-$risk, $rev,
+	     $q->{time_string}, $quality, $risk, $forced, $discount,
+	     $revision_age / (24 * 3600.0), $num_past_revisions ];
+	@selection = sort selection_arraySort @selection;
+	# If there is no hope of entering the top-N, stops.
+	if (@selection >= $num_winners_to_return) {
+	   my $threshold = $selection[-1]->[0];
+	   last if $discount < $threshold;
+	}
+    }
+    $#selection = $num_winners_to_return-1 if @selection > $num_winners_to_return;
+    my @result = ();
+    for (my $rank = 0; $rank < @selection; $rank++) {
+	my $s = $selection[$rank];
+	push @result, {
+		'Page_id' => $page+0,
+		'Revision_id' => $s->[2]+0,
+		'Date' => $s->[3],
+		'Quality' => $s->[4],
+		'Risk' => $s->[5],
+		'Forced' => $s->[6],
+		'Discount' => $s->[7],
+		'Days_ago' => $s->[8],
+		'Revisions_ago' => $s->[9],
+		'Rank' => $rank+1,
+		'Url' => "http://en.wikipedia.org/w/index.php?oldid=" .
+			$s->[2] . "&trust",
+	};
+    }
+
+    $r->content_type('application/json');
+    $r->headers_out->{'Cache-Control'} = "max-age=" . 30*60;
+    $r->print(encode_json(\@result));
+    return Apache2::Const::OK;
+}
+
+# Returns the probability that a revision is not vandalism.
+# < 50% = vandalism, > 50% = regular
+# Input is the quality data for a revision.
+sub selectionModel {
+    my $q = shift @_;
+    my $total = 0.134;
+    if ($q->{Min_quality} < -0.0662) {
+	$total += 0.891;
+	if ($q->{L_delta_hist0} < 0.347) {
+	    $total += -0.974;
+	} else {
+	    $total += 0.151;
+	}
+	if ($q->{Max_dissent} < -0.171) {
+	    $total += -1.329;
+	} else {
+	    $total += 0.086;
+if (0) {		# DEAD CODE: we don't have comment lengths
+	    if ($q->{Next_comment_len} < 110.5) {
+		$total += -0.288;
+	    } else {
+		$total += 0.169;
+	    }
+}
+	}
+    } else {
+	$total += -1.203;
+    }
+    if ($q->{Reputation} < 0.049) {
+	$total += 0.358;
+    } else {
+	$total += -1.012;
+	if ($q->{P_prev_hist5} < 0.01) {
+	    $total += 0.482;
+	} else {
+	    $total += -0.376;
+	    if ($q->{Avg_quality} < 0.156) {
+		$total += 0.5;
+	    } else {
+		$total += -2.625;
+	    }
+	    if ($q->{L_delta_hist2} > 0.347) {
+		$total += -0.757;
+	    } else {
+		$total += 1.193;
+	    }
+	}
+    }
+    if ($q->{Logtime_next} < 2.74) {
+	$total += 1.188;
+    } else {
+	$total += 0.045;
+	if ($q->{Delta} < 3.741) {
+	    $total += -0.255;
+	} else {
+	    $total += 0.168;
+	}
+    }
+    my $prob = 1/(1+exp($total));
+    return $prob;
+}
+
+sub selection_compute_discount {
+    my ($inv_discount_base, $num_past_revisions, $revision_age) = @_;
+    my $d = $inv_discount_base / ( $inv_discount_base + $num_past_revisions +
+	($revision_age / AGE_REVISION_CONVERSION));
+    return $d;
+}
+
+# specialized routine for sorting an array of tuples
+sub selection_arraySort {
+    for (my $i = 0; $i < @{$a}; $i++) {
+	my $order = ($b->[$i] <=> $a->[$i]);
+	return $order if $order != 0;
+    }
+    return 0;
+}
+
 
 1;
