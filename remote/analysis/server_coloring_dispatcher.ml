@@ -218,7 +218,7 @@ let process_page (page_id: int) (page_title: string) =
     | e -> begin  (* Handle everything else generically here. *)
 	Printf.eprintf "Other Error: On %d %s\n   Exc %s\n"
 	  page_id page_title (Printexc.to_string e);
-	child_db#delete_revs_for_page page_id;
+	child_db#delete_page page_id;
       end
     );
   done;
