@@ -461,10 +461,10 @@ object(self)
   (** [get_mwpage_id page_title]
       Returns the (list) of page_ids associated with page_title
       in the MediaWiki tables *)
-  method get_mwpage_id (page_title : int) : int list =
+  method get_mwpage_id (page_title : string) : int list =
     let getint row = (not_null int2ml row.(0)) in 
     let s = Printf.sprintf "SELECT page_id FROM %spage WHERE page_title = %s"
-	db_prefix (ml2str page_id) in 
+	db_prefix (ml2str page_title) in 
     Mysql.map (self#db_exec mediawiki_dbh s) getint
 
   (** [delete_page page_id] deletes all the information related to page_id
@@ -491,7 +491,7 @@ object(self)
       ignore(self#db_exec mediawiki_dbh s)
     end;
     (* Deletes the cached revisions for the page. *)
-    erase_cached_rev_text page_id;
+    self#erase_cached_rev_text page_id;
     (* Then, deletes the information, if any, in the blob pages and 
        in the disk cache. *)
     begin

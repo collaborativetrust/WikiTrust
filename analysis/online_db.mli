@@ -213,11 +213,11 @@ class db :
     (** [get_mwpage_title page_id]
 	Returns the (list) of titles associated with page_id
 	in the MediaWiki tables *)
-    method get_mwpage_title (page_id : int) : string list =
+    method get_mwpage_title : int -> string list
     (** [get_mwpage_id page_title]
 	Returns the (list) of page_ids associated with page_title
 	in the MediaWiki tables *)
-    method get_mwpage_id (page_title : int) : int list =
+    method get_mwpage_id : string -> int list
 
     (** [delete_page page_id delete_also_mediawiki] deletes all the information related to [page_id]
 	in the system.  If [delete_also_mediawiki] is true, deletes also the info on the page
