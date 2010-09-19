@@ -491,6 +491,7 @@ object(self)
 	Some b -> Filesystem_store.delete_revision b page_id None
       | None -> ()
     end;
+    self#erase_cached_rev_text page_id;
     begin
       match colored_base_path with
 	None -> begin
