@@ -33,7 +33,29 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
-(* Using the wikipedia API, retrieves information about pages and revisions. *)
+(* Using the wikipedia API, retrieves information about pages and revisions.
+ * In order for the whole system to work easily, we had to make some
+ * decisions that Mediawiki seems to put off.
+ * 1. we use page_id to definitively identify a page.
+ * 2. page_title should be "human readable", so spaces instead of underscores
+ *
+ * From our point of view, it seems that Mediawiki uses page_title
+ * and page_id to be interchangeable -- which isn't inappropriate since
+ * they are both unique in the system.  The problem comes from the fact
+ * that neither page_title nor page_id are immutable, and when they change
+ * there is often a change in revisions (such as merging two articles).
+ * For us to have a faithful copy of the system, we need to be defensive
+ * about detecting these changes and then tossing away our old data so
+ * we can be sure to properly handle merged articles.
+ *
+ * The problem with page_titles is that we have seen both underscores
+ * and spaces used to separate words.  They probably come from different
+ * APIs, but our system was previously always overwriting titles, so
+ * that our database became a mish-mash of styles and only a 'LIKE'
+ * search could find matching titles.  But our timing showed that our
+ * LIKE query was a bit slow, so that we decided that we needed to
+ * be definitive in the format here.
+ *)
 
 open Online_types;;
 open Json_type;;
