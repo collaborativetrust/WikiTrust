@@ -264,12 +264,12 @@ let check_for_download_error ((key, page): (string * result_tree)) =
    *)
 let process_page ((key, page): (string * result_tree))
 	: (wiki_page_t * wiki_revision_t list) =
-  let spaces2underscores str = ExtString.String.map
-      (fun c -> if c = ' ' then '_' else c) str in
+  let underscores2spaces str = ExtString.String.map
+      (fun c -> if c = '_' then ' ' else c) str in
   let empty_string key msg = "" in
   let redirect_attr = get_property page "redirect" empty_string in
   let api_pageid = int_of_string (get_property page "pageid" err_get_property) in
-  let api_title = spaces2underscores (get_title page) in
+  let api_title = underscores2spaces (get_title page) in
   let w_page = {
     page_id = api_pageid;
     page_namespace = int_of_string (get_property page "ns" err_get_property);
@@ -452,7 +452,6 @@ let rec get_revs_from_api
 
 let store_wiki_revs  (db: Online_db.db) (wiki_page: wiki_page_t) (wiki_revs: wiki_revision_t list) : unit =
     (* we standardize on using space chars instead of underscores. *)
-    let the_page_title = ExtString.String.map (fun c -> if c = '_' then ' ' else c) wiki_page.page_title in
     let update_and_write_rev rev =
       rev.revision_page <- wiki_page.page_id;
       rev.revision_user <- (get_user_id rev.revision_user_text db);
@@ -463,7 +462,7 @@ let store_wiki_revs  (db: Online_db.db) (wiki_page: wiki_page_t) (wiki_revs: wik
       let got_it = db#get_page_lock page_id Online_command_line.lock_timeout in
       begin
         if got_it = false then
-          raise (API_error_retry "store_wiki_revs: DB lock failed");
+          raise (API_error "store_wiki_revs: DB lock failed");
 	try
 	  db#delete_page page_id true;
 	  db#release_page_lock page_id
@@ -482,7 +481,7 @@ let store_wiki_revs  (db: Online_db.db) (wiki_page: wiki_page_t) (wiki_revs: wik
         raise (API_error_noretry "store_wiki_revs: wrong namespace");
       end
     in
-    let check_change_title wpage =
+    let check_changed_title wpage =
 	let old_titles = db#get_mwpage_title wpage.page_id in
 	let same_title t =
 	  if t <> wpage.page_title then begin
@@ -491,12 +490,12 @@ let store_wiki_revs  (db: Online_db.db) (wiki_page: wiki_page_t) (wiki_revs: wik
 	    delete_oldpage wpage.page_id;
 	    (* We need to throw an exception here, because we need to
 	     * re-download the revisions of this page from the begining. *)
-	    raise (API_error_retry "store_wiki_revs: title changed");
+	    raise (API_error "store_wiki_revs: title changed");
 	  end
 	in
 	List.iter same_title old_titles
     in
-    let check_change_pageid wpage =
+    let check_changed_pageid wpage =
 	let old_pageids = db#get_mwpage_id wpage.page_title in
 	let same_id i =
 	  if i <> wpage.page_id then begin
@@ -504,15 +503,16 @@ let store_wiki_revs  (db: Online_db.db) (wiki_page: wiki_page_t) (wiki_revs: wik
 		   wpage.page_title i wpage.page_id);
 	    (* delete both the old and the new id, so we can start fresh *)
 	    delete_oldpage i;
-	    delete_oldpage wpage.page_id;;
+	    delete_oldpage wpage.page_id;
 	    (* We need to throw an exception here, because we need to
 	     * re-download the revisions of this page from the begining. *)
-	    raise (API_error_retry "store_wiki_revs: title changed");
+	    raise (API_error "store_wiki_revs: title changed");
 	  end
 	in
-	List.iter same_title old_titles
+	List.iter same_id old_pageids
     in begin
-      wiki_page.page_title <- the_page_title;
+      (* ASSERT: wiki_page.page_title uses spaces (' ') instead of
+       * underscores, for a human readable title *)
       (* check for all the things that might go wrong.
        * Changed pageids first, since this lets us fix the most
        * broken records, then namespace, then title. *)
@@ -520,7 +520,7 @@ let store_wiki_revs  (db: Online_db.db) (wiki_page: wiki_page_t) (wiki_revs: wik
       check_bad_namespace wiki_page;
       check_changed_title wiki_page;
       (* Write the updated or new page info to the page table. *)
-      !logger#log (Printf.sprintf "Got page titled %s\n" the_page_title);
+      !logger#log (Printf.sprintf "Got page titled %s\n" wiki_page.page_title);
       (* Write the new page to the page table. *)
       db#write_page wiki_page;
       (* Writes the revisions to the db. *)
