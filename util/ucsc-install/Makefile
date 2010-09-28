@@ -26,7 +26,11 @@ api:
 dispatcher:
 	mkdir -p $(WIKITRUST_DIR)/bin
 	cp -a $(TOP)/remote/analysis/dispatcher $(WIKITRUST_DIR)/bin/
+	cp -a $(TOP)/remote/admin/wikitrust $(WIKITRUST_DIR)/bin/
+	cp -a $(TOP)/remote/admin/wikitrustd $(WIKITRUST_DIR)/bin/
 	mkdir -p $(WIKITRUST_DIR)/WikiTrust/remote/analysis
 	cp -a $(TOP)/remote/analysis/read_rev_text $(WIKITRUST_DIR)/WikiTrust/remote/analysis/
-
+	ln -s -f $(WIKITRUST_DIR)/bin/wikitrust /etc/init.d/
+	ln -s -f $(WIKITRUST_DIR)/bin/wikitrustd /usr/bin/
+	update-rc.d wikitrust defaults
 
