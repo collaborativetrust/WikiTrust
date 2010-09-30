@@ -18,6 +18,7 @@ function readconf() {
 
 for wiki in `ls /etc/wikitrust/wikis_enabled.d`; do
   #log_daemon_msg "--> Launching $wiki"
+  echo -e "\t$wiki"
   config="/etc/wikitrust/wikis_enabled.d/$wiki"
   readconf $config
   DATE=`date +%Y%m%d`
@@ -31,6 +32,6 @@ for wiki in `ls /etc/wikitrust/wikis_enabled.d`; do
   touch $ERROR_FILE
   chmod a+w $LOG_FILE
   chmod a+w $ERROR_FILE
-  $USER "$DISPATCHER -db_user $DB_USER -db_name $DB_NAME -db_pass $DB_PASS -db_host $DB_HOST -log_file $LOG_FILE $OTHER_OPTIONS" >> $LOG_FILE 2>> $ERROR_FILE &
+  nohup $USER "$DISPATCHER -db_user $DB_USER -db_name $DB_NAME -db_pass $DB_PASS -db_host $DB_HOST -log_file $LOG_FILE $OTHER_OPTIONS" >> $LOG_FILE 2>> $ERROR_FILE < /dev/null &
 done
 

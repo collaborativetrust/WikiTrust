@@ -23,11 +23,11 @@ test -f /etc/default/rcS && . /etc/default/rcS
 start_dispatcherclean() {
     PID=$(pidof_dispatcher)
     if [ "${PID}" ]; then
-	log_daemon_msg "Already running"    
+	log_daemon_msg "Already running."
 	return 1
     else
-	$WIKITRUST_META_DISPATCHER &
-	log_daemon_msg ""    
+	$WIKITRUST_META_DISPATCHER
+	log_daemon_msg "Started."
 	return 0
     fi
 }
@@ -36,7 +36,7 @@ stop_dispatcherclean() {
     PID=$(pidof_dispatcher)
     if [ "${PID}" ]; then
 	killall $WIKITRUST_META_DISPATCHER  2> /dev/null ||
-	  killall $WIKITRUST_DISPATCHER 2> /dev/null || echo ...error    
+	  killall $WIKITRUST_DISPATCHER 2> /dev/null || echo ...error
 	return 0
     else
 	log_daemon_msg "Not running"
@@ -83,13 +83,13 @@ case $1 in
 	;;
 	restart)
 		log_daemon_msg "Stopping wikitrust dispatchers"
-	    
+
 		if ! stop_dispatcherclean; then
 		    log_daemon_msg "Dispatchers not running"
 		    log_end_msg 1 || true
 		else
 		  log_end_msg 0
-		fi    
+		fi
 		sleep 3
 		log_daemon_msg "Starting coloring dispatchers"
 		start_dispatcherclean || log_end_msg 1
