@@ -9,3 +9,12 @@ Scripts here for installing wikitrust as a deamon process.
 4) Add wikis to the wikis_available.d and wikis_enabed.d
      directories. A sample config file is itwiki
 5) Start the dispatcher running with /etc/init.d/wikitrust start
+
+
+====
+
+If you are working on a new installation and only want to start
+a single wiki, you can use the "testlaunch" script like so:
+    sudo ./testlaunch enwiki
+This will startup the dispatcher in the same way that wikitrustd does.
+
