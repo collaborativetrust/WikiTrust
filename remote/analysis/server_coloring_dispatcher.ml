@@ -59,11 +59,9 @@ POSSIBILITY OF SUCH DAMAGE.
 open Online_command_line
 open Online_types
 
-(* evry batch corresponds to 50 revisions, so this will do 1000 at most. *)
-let max_batches_to_do = 20
 let max_concurrent_procs = ref 1
 let set_max_concurrent_procs m = max_concurrent_procs := m 
-let sleep_time_sec = 1
+let sleep_time_sec = 2
 
 (* All-wiki DB *)
 let global_db_user = ref "wikiuser"
@@ -160,7 +158,11 @@ let check_subprocess_termination (page_id: int) ((process_id: int), (started_on:
         (* TODO(Luca): release the db lock! *)
       | (_, Unix.WEXITED s) 
       | (_, Unix.WSIGNALED s) 
-      | (_, Unix.WSTOPPED s) -> Hashtbl.remove working_children page_id
+      | (_, Unix.WSTOPPED s) -> begin
+          Printf.printf "Child %d finished.\n" process_id;
+          flush_all ();
+          Hashtbl.remove working_children page_id
+      end
     end
 in
 
@@ -252,8 +254,10 @@ let dispatch_page (pages : (int * string) list) =
       match new_pid with 
       | 0 -> begin
 	  logger#log (Printf.sprintf 
-            "I'm the child\n Running on page %s\n" page_title); 
+            "I'm the child: Running on page %s\n" page_title); 
 	  process_page page_id page_title;
+	  logger#log (Printf.sprintf 
+            "I'm the child: Finished on page %s\n" page_title); 
 	  exit 0;
 	end
       | _ -> begin
@@ -290,8 +294,8 @@ let main_loop () =
       in
       dispatch_page pages_to_process
     end;
-    Unix.sleep sleep_time_sec;
     if !synch_log then flush Pervasives.stdout;
+    Unix.sleep sleep_time_sec;
   done 
 in
 

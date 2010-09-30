@@ -45,6 +45,15 @@ our %methods = (
 
 our $cache = undef;	# will get initialized when needed
 
+sub cmdline {
+    my $cgi = CGI->new();
+    foreach my $arg (@ARGV) {
+	my ($var, $val) = split(/=/, $arg);
+	$cgi->param($var, $val);
+    }
+    handler($cgi);
+}
+
 sub handler {
   my $r = shift;
   my $cgi = CGI->new($r);
