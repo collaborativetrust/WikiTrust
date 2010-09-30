@@ -11,7 +11,7 @@
 # wikitrust		This init.d script is used to start wikitrust.
 # Copied and hacked from the script for apache2.
 
-ENV="env -i LANG=C PATH=/usr/local/bin:/usr/bin:/bin"
+ENV="env -i LANG=C PATH=/home/wikitrust/bin:/usr/local/bin:/usr/bin:/bin"
 
 WIKITRUST_META_DISPATCHER="wikitrustd"
 WIKITRUST_DISPATCHER="dispatcher"
@@ -26,7 +26,7 @@ start_dispatcherclean() {
 	log_daemon_msg "Already running."
 	return 1
     else
-	$WIKITRUST_META_DISPATCHER
+	$ENV $WIKITRUST_META_DISPATCHER
 	log_daemon_msg "Started."
 	return 0
     fi
