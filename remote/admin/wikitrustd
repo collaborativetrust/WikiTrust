@@ -20,6 +20,13 @@ for wiki in `ls /etc/wikitrust/wikis_enabled.d`; do
   #log_daemon_msg "--> Launching $wiki"
   config="/etc/wikitrust/wikis_enabled.d/$wiki"
   readconf $config
+  DATE=`date +%Y%m%d`
+  if [ -e $LOG_FILE ]; then
+      mv $LOG_FILE "$LOG_FILE-$DATE"
+  fi
+  if [ -e $ERROR_FILE ]; then
+      mv $ERROR_FILE "$ERROR_FILE-$DATE"
+  fi
   touch $LOG_FILE
   touch $ERROR_FILE
   chmod a+w $LOG_FILE
