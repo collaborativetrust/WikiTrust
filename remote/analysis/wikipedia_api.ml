@@ -217,6 +217,9 @@ let get_property (node: result_tree) (key: string) (defvalfunc): string =
 		      match v with
 			| Int i -> string_of_int i
 			| String s -> s
+			| Bool b ->
+                            if b then (err_get_property key "TRUE type")
+                            else ""
 			| _ -> err_get_property key "unknown base type"
 		    else find_first rest
 		  end
