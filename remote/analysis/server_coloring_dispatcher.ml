@@ -255,13 +255,16 @@ let dispatch_page (pages : (int * string) list) =
       | 0 -> begin
 	  logger#log (Printf.sprintf 
             "I'm the child: Running on page %s\n" page_title); 
+          if !synch_log then flush Pervasives.stdout;
 	  process_page page_id page_title;
 	  logger#log (Printf.sprintf 
             "I'm the child: Finished on page %s\n" page_title); 
+          if !synch_log then flush Pervasives.stdout;
 	  exit 0;
 	end
       | _ -> begin
 	  logger#log (Printf.sprintf "Parent of pid %d\n" new_pid);  
+          if !synch_log then flush Pervasives.stdout;
 	  Hashtbl.add working_children page_id ((new_pid), (Unix.time ()));
           Hashtbl.add working_pid2page_id new_pid (page_id, page_title) 
 	end
