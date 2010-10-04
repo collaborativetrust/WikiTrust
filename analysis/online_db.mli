@@ -432,6 +432,18 @@ class db :
 
   end
 
+class db_mediawiki_api : 
+  string ->           (* db prefix *)
+  Mysql.dbd ->        (* mediawiki db handle *)
+  Mysql.dbd option -> (* global (interwiki) db handle *)
+  string ->           (* database name *)
+  string option ->    (* revision base path *)
+  string option ->    (* colored revisions base path *)
+  bool ->             (* debug_mode *)
+  bool ->             (* keep text cache *)
+  object
+      inherit db
+  end
 
 (** [create_db use_exec_api db_prefix mediawiki_dbh db_name
     rev_base_path sig_base_path colored_base_path debug_mode] returns

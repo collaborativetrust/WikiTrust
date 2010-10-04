@@ -1228,6 +1228,25 @@ object(self)
 
 end (* class db_exec_api *)
 
+(** This class extends the classical db class by
+    expecting that revision information is loaded
+    via the 'dispatcher' using the mediawiki API.
+    Practically, this means that we have more latitude
+    to delete article and revision information that
+    might be loaded into the mediawiki tables. *)
+class db_mediawiki_api
+  (db_prefix : string)
+  (mediawiki_dbh : Mysql.dbd)
+  (global_dbh : Mysql.dbd option)
+  (db_name: string)
+  (rev_base_path: string option)
+  (colored_base_path: string option)
+  (debug_mode : bool) 
+  (keep_text_cache : bool) =
+object(self)
+  inherit db db_prefix mediawiki_dbh global_dbh db_name rev_base_path 
+    colored_base_path debug_mode keep_text_cache as super 
+end (* class db_mediawiki_api *)
 
 (** [create_db use_exec_api db_prefix mediawiki_dbh db_name
     rev_base_path sig_base_path colored_base_path debug_mode] returns
