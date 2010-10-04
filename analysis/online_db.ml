@@ -145,14 +145,14 @@ class db
 object(self)
 
   method private db_exec dbh s = 
-    if debug_mode then begin 
-      print_endline s;
-      flush stdout
+    if debug_mode then begin
+      !online_logger#log s;
+      !online_logger#log "\n";
     end;
     try 
       Mysql.exec dbh s
-    with Mysql.Error e -> if debug_mode then 
-      begin print_endline e; flush stdout end; 
+    with Mysql.Error e ->
+      !online_logger#log e;
       raise DB_TXN_Bad
 
   (* ================================================================ *)
@@ -206,14 +206,16 @@ object(self)
 
   (** rollback a transaction. *)
   method rollback_transaction : unit =
-    !online_logger#log "ROLLBACK\n";
     ignore (self#db_exec mediawiki_dbh "ROLLBACK")
       
   (* Commits any changes to the db *)
   method commit : unit =
-    ignore (self#db_exec mediawiki_dbh "COMMIT");
     match Mysql.status mediawiki_dbh with 
-    | StatusError err -> raise DB_TXN_Bad
+    | StatusError err ->
+        begin
+          !online_logger#log "COMMIT error encountered\n";
+          raise DB_TXN_Bad
+        end
     | _ -> ()
 	
 	
