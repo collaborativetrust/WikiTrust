@@ -1,9 +1,9 @@
 (*
 
-Copyright (c) 2007-2009 The Regents of the University of California
+Copyright (c) 2007-2010 The Regents of the University of California
 All rights reserved.
 
-Authors: Luca de Alfaro, Ian Pye
+Authors: Luca de Alfaro, Ian Pye, Bo Adler
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -83,6 +83,7 @@ let use_exec_api = ref false
 let use_wikimedia_api = ref false
 
 (* Logging *)
+let set_debug_level l = Online_log.debug_level := l
 let synch_log = ref false
 let set_log_name d = begin
   let f = open_out_gen [Open_wronly; Open_creat; Open_append; Open_text] 0o640 d in
@@ -139,6 +140,7 @@ let command_line_format =
    ("-blob_base_path", Arg.String set_wt_db_blob_base_path, "<string>: Filesystem base path for filesystem storage of blobs (default: blobs are stored in the db)");
    ("-rev_id",  Arg.Int set_requested_rev_id, "<int>: (optional) revision ID that we want to ensure it is colored");
    ("-sync_log", Arg.Set synch_log, ": Flush writes to the log immediately. This is very slow; use only for debugging.  This option must be used BEFORE the log_file option is used.");
+   ("-debug_level", Arg.Int set_debug_level, "<int>: Level of debug reporting (default: 0)");
    ("-log_file", Arg.String set_log_name, "<filename>: Logger output file (default: stdout)");
    ("-eval_vote", Arg.Unit set_vote, ": Just evaluate the given vote");
    ("-voter_name",  Arg.String set_requested_voter_name, "<string>: (optional) voter ID that we want to evaluate the vote of");

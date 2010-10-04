@@ -1,10 +1,10 @@
 
 (*
 
-Copyright (c) 2008 The Regents of the University of California
+Copyright (c) 2008, 2010 The Regents of the University of California
 All rights reserved.
 
-Authors: Luca de Alfaro, Ian Pye 
+Authors: Luca de Alfaro, Ian Pye, Bo Adler
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -34,6 +34,8 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
+val debug_level: int ref
+
 (** [new logger channel synch] creates an object of this class. 
     This class implements logging for the on-line implementation. 
     If [synch] is true, the logger synchs the file at every write. *)
@@ -53,6 +55,9 @@ class logger :
     (** [close] closes the log.  We would most likely never call
 	this during the on-line system. *)
     method close : unit 
+
+    (** [debug] a conditional print based on cmdline *)
+    method debug : int -> string -> unit
 
   end
 

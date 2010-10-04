@@ -1,9 +1,9 @@
 (*
 
-Copyright (c) 2008 The Regents of the University of California
+Copyright (c) 2008,2010 The Regents of the University of California
 All rights reserved.
 
-Authors: Luca de Alfaro
+Authors: Luca de Alfaro, Bo Adler
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -33,13 +33,15 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
+let debug_level = ref 0
+
 (** [new logger channel synch] creates an object of this class. 
     This class implements logging for the on-line implementation. 
     If [synch] is true, the logger synchs the file at every write. *)
 class logger 
   (f: out_channel) 
   (synch: bool) = 
-  object
+  object(self)
 
     (** [log s] logs the string [s]. *)
     method log (s: string) : unit = 
@@ -54,6 +56,10 @@ class logger
     (** [close] closes the log.  We would most likely never call
 	this during the on-line system. *)
     method close : unit = close_out f
+
+    (** [debug] is a conditional print based on the current debugging level *)
+    method debug (level: int) (s: string) : unit =
+      if level <= !debug_level then self#log s;
 
   end
 
