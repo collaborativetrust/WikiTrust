@@ -1,9 +1,9 @@
 (*
 
-Copyright (c) 2009 The Regents of the University of California
+Copyright (c) 2009-2010 The Regents of the University of California
 All rights reserved.
 
-Authors: Luca de Alfaro, Ian Pye
+Authors: Luca de Alfaro, Ian Pye, Bo Adler
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -56,8 +56,9 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
-open Online_command_line
-open Online_types
+open Online_command_line;;
+open Online_types;;
+open Online_log;;
 
 let max_concurrent_procs = ref 1
 let set_max_concurrent_procs m = max_concurrent_procs := m 
@@ -125,10 +126,6 @@ let global_dbh = match !global_db_name with
   | Some _ -> Some (Mysql.connect global_db) 
   | None -> None
 in 
-let db = Online_db.create_db !use_exec_api !db_prefix mediawiki_dbh 
-  global_dbh !mw_db_name !wt_db_rev_base_path !wt_db_blob_base_path 
-  !dump_db_calls !keep_cached_text in
-let logger = !Online_log.online_logger in
 let trust_coeff = Online_types.get_default_coeff in
 
 (* Delay throttling code.
@@ -159,7 +156,8 @@ let check_subprocess_termination (page_id: int) ((process_id: int), (started_on:
       | (_, Unix.WEXITED s) 
       | (_, Unix.WSIGNALED s) 
       | (_, Unix.WSTOPPED s) -> begin
-          Printf.printf "Child %d finished.\n" process_id;
+          !online_logger#debug 1
+            (Printf.sprintf "Child %d finished.\n" process_id);
           flush_all ();
           Hashtbl.remove working_children page_id
       end
@@ -187,9 +185,10 @@ let process_page (page_id: int) (page_title: string) =
     (* If I am using the WikiMedia API, I need to first download any new
        revisions of the page. *)
     (try Printexc.print (fun () -> 
-      pages_downloaded := if !use_wikimedia_api then 
-	Wikipedia_api.download_page_from_id ~sid:!min_rev_id child_db page_id else 0
-      ;
+      (* If I am using the WikiMedia API, I need to first download any new
+         revisions of the page. *)
+      if !use_wikimedia_api then 
+        ignore( Wikipedia_api.download_page_from_id ~sid:!min_rev_id child_db page_id);
   
       (* Creates a new updater. *)
       let processor = new Updater.updater child_db
@@ -201,40 +200,45 @@ let process_page (page_id: int) (page_title: string) =
 	processed_well := true
       ) () with
     | Wikipedia_api.API_error_noretry e -> begin
-	Printf.eprintf "Wikipedia_api Error: %s\n   On %d %s\n   Exc %s\n" 
-	  e page_id page_title (Printexc.to_string (Wikipedia_api.API_error_noretry 
-	  e));
+	!online_logger#log
+            (Printf.sprintf "Wikipedia_api Error: %s\n   On %d %s\n   Exc %s\n" 
+              e page_id page_title (Printexc.to_string (Wikipedia_api.API_error_noretry 
+              e)));
 	times_tried := !times_to_retry_trans;
       end
     | Wikipedia_api.API_error e -> (
-	Printf.eprintf "Wikipedia_api Error: %s\n   On %d %s\n   Exc %s\n" 
-	  e page_id page_title (Printexc.to_string (Wikipedia_api.API_error 
-	  e));
+	!online_logger#log
+            (Printf.sprintf "Wikipedia_api Error: %s\n   On %d %s\n   Exc %s\n" 
+              e page_id page_title (Printexc.to_string (Wikipedia_api.API_error 
+              e)));
       )
     | e -> begin  (* Handle everything else generically here. *)
-        Printf.eprintf "Other Error: On %d %s\n   Exc %s\n"
-                    page_id page_title (Printexc.to_string e);
+        !online_logger#log
+            (Printf.sprintf "Other Error: On %d %s\n   Exc %s\n"
+                    page_id page_title (Printexc.to_string e));
         let got_it = child_db#get_page_lock page_id Online_command_line.lock_timeout in
         if got_it then begin
           try
             child_db#delete_page page_id true;
-            db#commit;
-            db#release_page_lock page_id
+            child_db#commit;
+            child_db#release_page_lock page_id
           with e -> begin
-            db#release_page_lock page_id;
+            child_db#release_page_lock page_id;
             raise e
           end
         end
       end
     );
   done;
-  if !times_tried >= !times_to_retry_trans
-    then Printf.eprintf "Giving up on %d %s\n" page_id page_title;
+  if !times_tried >= !times_to_retry_trans then
+    !online_logger#log (Printf.sprintf "Giving up on %d %s\n"
+        page_id page_title);
   (* Marks the page as processed. *)
   child_db#mark_page_as_processed page_id;
   child_db#close; (* Release any locks still held. *)
   (* End of page processing. *)
-  Printf.printf "Done with %s.\n" page_title; flush_all ();
+  !online_logger#debug 1
+      (Printf.sprintf "Done with %s.\n" page_title);
 in
 
 
@@ -253,18 +257,16 @@ let dispatch_page (pages : (int * string) list) =
       let new_pid = Unix.fork () in
       match new_pid with 
       | 0 -> begin
-	  logger#log (Printf.sprintf 
+	  !online_logger#debug 1 (Printf.sprintf 
             "I'm the child: Running on page %s\n" page_title); 
-          if !synch_log then flush Pervasives.stdout;
 	  process_page page_id page_title;
-	  logger#log (Printf.sprintf 
+	  !online_logger#debug 1 (Printf.sprintf 
             "I'm the child: Finished on page %s\n" page_title); 
-          if !synch_log then flush Pervasives.stdout;
 	  exit 0;
 	end
       | _ -> begin
-	  logger#log (Printf.sprintf "Parent of pid %d\n" new_pid);  
-          if !synch_log then flush Pervasives.stdout;
+	  !online_logger#debug 1
+                 (Printf.sprintf "Parent of pid %d\n" new_pid);  
 	  Hashtbl.add working_children page_id ((new_pid), (Unix.time ()));
           Hashtbl.add working_pid2page_id new_pid (page_id, page_title) 
 	end
@@ -286,21 +288,25 @@ in
 
 *)
 let main_loop () =
-  while true do
-    if (Hashtbl.length working_children) >= !max_concurrent_procs then begin
-      (* Cleans up terminated children, if any *)
-      Hashtbl.iter check_subprocess_termination working_children
-    end else begin
-      let pages_to_process = db#fetch_work_from_queue
-	(max (!max_concurrent_procs - Hashtbl.length working_children) 0) 
-	!times_to_retry_trans !max_concurrent_procs
-      in
-      dispatch_page pages_to_process
-    end;
-    if !synch_log then flush Pervasives.stdout;
-    Unix.sleep sleep_time_sec;
-  done 
+  let db = Online_db.create_db !use_exec_api !db_prefix mediawiki_dbh 
+    global_dbh !mw_db_name !wt_db_rev_base_path !wt_db_blob_base_path 
+    !dump_db_calls !keep_cached_text in
+  begin
+    db#init_queue true;
+    while true do
+      if (Hashtbl.length working_children) >= !max_concurrent_procs then begin
+        (* Cleans up terminated children, if any *)
+        Hashtbl.iter check_subprocess_termination working_children
+      end else begin
+        let pages_to_process = db#fetch_work_from_queue
+          (max (!max_concurrent_procs - Hashtbl.length working_children) 0) 
+          !times_to_retry_trans !max_concurrent_procs
+        in
+        dispatch_page pages_to_process
+      end;
+      Unix.sleep sleep_time_sec;
+    done 
+  end
 in
 
-db#init_queue true;
 main_loop ()
