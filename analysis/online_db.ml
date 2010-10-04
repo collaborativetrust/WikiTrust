@@ -144,8 +144,6 @@ class db
   
 object(self)
 
-  val min_size_per_blob = 1000000
-
   method private db_exec dbh s = 
     if debug_mode then begin 
       print_endline s;
