@@ -1,6 +1,6 @@
 (*
 
-Copyright (c) 2008-09 The Regents of the University of California
+Copyright (c) 2008-2010 The Regents of the University of California
 All rights reserved.
 
 Authors: Luca de Alfaro, Ian Pye, B. Thomas Adler
@@ -1244,8 +1244,93 @@ class db_mediawiki_api
   (debug_mode : bool) 
   (keep_text_cache : bool) =
 object(self)
-  inherit db db_prefix mediawiki_dbh global_dbh db_name rev_base_path 
+  inherit db_exec_api db_prefix mediawiki_dbh global_dbh db_name rev_base_path 
     colored_base_path debug_mode keep_text_cache as super 
+
+  (** [delete_page page_id] deletes all the information related to page_id
+      in the system.  With an option, we can specify whether to delete also
+      the information in the regular Mediawiki tables. *)
+  method delete_page (page_id: int) (delete_also_mediawiki: bool) = 
+    (* First, deletes the information in the db. *)
+    let s = Printf.sprintf
+      "DELETE FROM %swikitrust_revision WHERE page_id = %s"
+      db_prefix (ml2int page_id) in
+    ignore(self#db_exec mediawiki_dbh s);
+    let s = Printf.sprintf 
+      "DELETE FROM %swikitrust_page WHERE page_id = %s"
+      db_prefix (ml2int page_id) in
+    ignore(self#db_exec mediawiki_dbh s);
+    if delete_also_mediawiki then begin
+      let s = Printf.sprintf 
+	"DELETE FROM %spage WHERE page_id = %s" 
+	db_prefix (ml2int page_id) in
+      ignore(self#db_exec mediawiki_dbh s);
+      let s = Printf.sprintf 
+	"DELETE FROM %stext WHERE old_id IN (SELECT rev_text_id FROM %srevision WHERE rev_page = %s)" 
+	db_prefix db_prefix (ml2int page_id) in
+      ignore(self#db_exec mediawiki_dbh s)
+      let s = Printf.sprintf 
+	"DELETE FROM %srevision WHERE rev_page = %s" 
+	db_prefix (ml2int page_id) in
+      ignore(self#db_exec mediawiki_dbh s)
+    end;
+    (* Deletes the cached revisions for the page. *)
+    self#erase_cached_rev_text page_id;
+    (* Then, deletes the information, if any, in the blob pages *)
+    begin
+      match colored_base_path with
+	None -> begin
+	  (* The blobs are stored in the db. *)
+	  (* TODO: this is a hack!  It would be much better to
+	     store also the page_id in the wikitrust_blob table! *)
+	  let p0 = make_blob_key page_id 0 in
+	  let p1 = make_blob_key (page_id + 1) 0 in
+	  let s = Printf.sprintf
+	    "DELETE FROM %swikitrust_blob WHERE blob_id >= %s and blob_id < %s"
+	    db_prefix (ml2decimal p0) (ml2decimal p1) in
+	  ignore(self#db_exec mediawiki_dbh s)
+	end
+      | Some b -> begin
+	  (* The blobs are stored in the filesystem. *)
+	  ignore(Revision_store.delete_all_page_blobs b page_id)
+	end
+    end
+
+  (** Deletes all WikiTrust data.  (Uncolored) revisions, pages, and
+      votes are not deleted.  This enables the recomputation from
+      scratch of all reputations and trust.  Careful!  The
+      recomputation may take a very long time for large wikis. *)
+  method delete_all (really : bool) =
+    let add_prefix cmd = Printf.sprintf cmd db_prefix in
+    match really with
+      true -> begin
+        ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_global"));
+        ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_page"));
+        ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_revision"));
+        ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_blob"));
+        ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_user")); 
+        ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_queue")); 
+	ignore (self#db_exec mediawiki_dbh (add_prefix "UPDATE %swikitrust_vote SET processed = FALSE")); 
+
+	(* We also delete the filesystem storage of signatures and
+	   colored revisions. *)
+	begin
+	  match colored_base_path with
+	    Some b -> ignore (Revision_store.delete_all b)
+	  | None -> ()
+        end;
+	(* And don't forget the revision cache. *)
+	begin
+	  match rev_base_path with
+	    Some b -> ignore (Filesystem_store.delete_all b)
+	  | None -> ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_text_cache")); 
+        end;
+
+        (* Note that we do NOT delete the votes!! *)
+        ignore (self#db_exec mediawiki_dbh "COMMIT");
+      end
+    | false -> ignore (self#db_exec mediawiki_dbh "COMMIT")
+
 end (* class db_mediawiki_api *)
 
 (** [create_db use_exec_api db_prefix mediawiki_dbh db_name
