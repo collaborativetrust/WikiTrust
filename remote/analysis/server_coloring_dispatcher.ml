@@ -79,7 +79,7 @@ let global_db_port = ref 3306
 let set_global_db_port d = global_db_port := d
 let global_db_prefix = ref ""
 let set_global_db_prefix d = global_db_prefix := d
-let keep_cached_text = ref false
+let keep_cached_text = ref true
 
 (* Debugging *)
 let min_rev_id = ref None
