@@ -306,6 +306,7 @@ let main_loop () =
   let db = create_db mediawiki_dbh global_dbh in
   begin
     db#init_queue true;
+    if !delete_all then db#delete_all true;
     while true do
       if (Hashtbl.length working_children) >= !max_concurrent_procs then begin
         (* Cleans up terminated children, if any *)
