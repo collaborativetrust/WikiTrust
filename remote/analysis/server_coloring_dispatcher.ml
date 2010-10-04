@@ -60,6 +60,8 @@ open Online_command_line;;
 open Online_types;;
 open Online_log;;
 
+exception Option_error of string;;
+
 let max_concurrent_procs = ref 1
 let set_max_concurrent_procs m = max_concurrent_procs := m 
 let sleep_time_sec = 2
@@ -138,7 +140,26 @@ let every_n_events_delay =
     then Some (max 1 (int_of_float (1. /. frac)))
     else None
 in
-  
+
+
+(** [create_db] figures out what mode we are in and creates an
+    online_db object of the right type *)
+
+let create_db mediawiki_dbh global_dbh =
+  if !use_wikimedia_api then
+    begin
+      if !use_exec_api then
+        raise (Option_error "ExecAPI and MediawikiAPI are illegal together");
+      new Online_db.db_mediawiki_api !db_prefix mediawiki_dbh 
+        global_dbh !mw_db_name !wt_db_rev_base_path !wt_db_blob_base_path 
+        !dump_db_calls !keep_cached_text;
+    end
+  else
+    Online_db.create_db !use_exec_api !db_prefix mediawiki_dbh 
+      global_dbh !mw_db_name !wt_db_rev_base_path !wt_db_blob_base_path 
+      !dump_db_calls !keep_cached_text
+in
+
 (**
    [check_subprocess_termination page_id process_id]
    Wait for the process to stop before accepting more.
@@ -173,17 +194,11 @@ let process_page (page_id: int) (page_title: string) =
     | Some _ -> Some (Mysql.connect global_db) 
     | None -> None
   in 
-  let child_db = Online_db.create_db !use_exec_api !db_prefix child_dbh
-    child_global_dbh !mw_db_name !wt_db_rev_base_path 
-    !wt_db_blob_base_path !dump_db_calls !keep_cached_text
-  in
-  let pages_downloaded = ref 0 in
+  let child_db = create_db child_dbh child_global_dbh in
   let processed_well = ref false in
   let times_tried = ref 0 in
   while (not !processed_well) && (!times_tried < !times_to_retry_trans) do
     times_tried := !times_tried + 1;
-    (* If I am using the WikiMedia API, I need to first download any new
-       revisions of the page. *)
     (try Printexc.print (fun () -> 
       (* If I am using the WikiMedia API, I need to first download any new
          revisions of the page. *)
@@ -288,9 +303,7 @@ in
 
 *)
 let main_loop () =
-  let db = Online_db.create_db !use_exec_api !db_prefix mediawiki_dbh 
-    global_dbh !mw_db_name !wt_db_rev_base_path !wt_db_blob_base_path 
-    !dump_db_calls !keep_cached_text in
+  let db = create_db mediawiki_dbh global_dbh in
   begin
     db#init_queue true;
     while true do
