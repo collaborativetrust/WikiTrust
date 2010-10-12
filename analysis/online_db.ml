@@ -1261,8 +1261,8 @@ object(self)
 
   (** [erase_cached_rev_text page_id] erases
       the cached text of all revisions of [page_id] *)
-  method erase_cached_rev_text (page_id: int) : unit =
-    if not keep_text_cache then begin
+  method private force_erase_cached_rev_text (page_id: int) : unit =
+    begin
       (match rev_base_path with
       | None -> begin
 	  let s = Printf.sprintf 
@@ -1276,6 +1276,10 @@ object(self)
 	db_prefix (ml2int page_id) in
       ignore (self#db_exec mediawiki_dbh s);
     end
+
+  method erase_cached_rev_text (page_id: int) : unit =
+    if not keep_text_cache then
+	self#force_erase_cached_rev_text page_id
 
   (** [delete_page page_id] deletes all the information related to page_id
       in the system.  With an option, we can specify whether to delete also
@@ -1293,14 +1297,15 @@ object(self)
       "DELETE FROM %swikitrust_page WHERE page_id = %s"
       db_prefix (ml2int page_id) in
     ignore(self#db_exec mediawiki_dbh s);
-    if keep_text_cache || delete_also_mediawiki then begin
-      let s = Printf.sprintf 
-	"DELETE FROM %spage WHERE page_id = %s" 
-	db_prefix (ml2int page_id) in
-      ignore(self#db_exec mediawiki_dbh s);
-    end;
-    (* Deletes the cached revisions for the page. *)
-    self#erase_cached_rev_text page_id;
+    (* in mediawiki API mode, we also control mediawiki tables... *)
+    let s = Printf.sprintf 
+      "DELETE FROM %spage WHERE page_id = %s" 
+      db_prefix (ml2int page_id) in
+    ignore(self#db_exec mediawiki_dbh s);
+    (* Deletes the cached revisions for the page; we only call
+	'delete_page' on error, so we really want to delete
+	the text cache as well. *)
+    self#force_erase_cached_rev_text page_id;
     (* Then, deletes the information, if any, in the blob pages *)
     begin
       match colored_base_path with
