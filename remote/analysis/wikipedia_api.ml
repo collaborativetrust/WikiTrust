@@ -345,7 +345,7 @@ let fetch_page_and_revs_after_json (selector : string) : result_tree =
     ^ "content&"
     (* ^ "rvexpandtemplates=1&"   -- even =0 triggers template expansion! *)
     ^ "&" ^ selector in
-  !logger#log (Printf.sprintf "getting url: %s\n" url);
+  !logger#debug 5 (Printf.sprintf "getting url: %s\n" url);
   let res = get_url url in
   try (
     (* Make sure res is properly encoded *)
@@ -428,7 +428,7 @@ let get_remote_user_id (user_name: string) : int =
   else begin
     let safe_name = Netencoding.Url.encode user_name in
     let url = !Online_command_line.user_id_server ^ "?n=" ^ safe_name in
-    !logger#log (Printf.sprintf "userId lookup: %s\n" url);
+    !logger#debug 9 (Printf.sprintf "userId lookup: %s\n" url);
     let uids = ExtString.String.nsplit (get_url url) "`" in
     let uid = List.nth uids 1 in
     try int_of_string uid with int_of_string -> 0
@@ -461,7 +461,7 @@ let rec get_revs_from_api
   let resultopt =
     try
       if rev_lim = 0 then raise (API_error_noretry "get_revs_from_api: illegal rev_lim of zero");
-      !logger#log (Printf.sprintf "Getting revs from api for page '%s'\n" error_page_ident);
+      !logger#debug 2 (Printf.sprintf "Getting revs from api for page '%s'\n" error_page_ident);
       Some (fetch_page_and_revs_after sel)
     with
     | API_error msg -> begin
@@ -483,7 +483,7 @@ let store_wiki_revs  (db: Online_db.db) (wiki_page: wiki_page_t) (wiki_revs: wik
     let update_and_write_rev rev =
       rev.revision_page <- wiki_page.page_id;
       rev.revision_user <- (get_user_id rev.revision_user_text db);
-      !logger#log (Printf.sprintf "Writing to db revision %d.\n" rev.revision_id);
+      !logger#debug 9 (Printf.sprintf "Writing to db revision %d.\n" rev.revision_id);
       db#write_revision rev
     in
     let delete_oldpage page_id =
@@ -548,7 +548,7 @@ let store_wiki_revs  (db: Online_db.db) (wiki_page: wiki_page_t) (wiki_revs: wik
       check_bad_namespace wiki_page;
       check_changed_title wiki_page;
       (* Write the updated or new page info to the page table. *)
-      !logger#log (Printf.sprintf "Got page titled %s\n" wiki_page.page_title);
+      !logger#debug 1 (Printf.sprintf "Got page titled %s\n" wiki_page.page_title);
       (* Write the new page to the page table. *)
       db#write_page wiki_page;
       (* Writes the revisions to the db. *)
@@ -565,10 +565,11 @@ let rec download_page_starting_with (db: Online_db.db) (title: string)
     match next_rev with
       | Some next_id -> begin
 	  if next_id = prev_last_rev then begin
-	    !logger#log (Printf.sprintf "Not making forward progress -- giving up");
+	    !logger#debug 1 (Printf.sprintf "Not making forward progress -- giving up on rev %d of page %s"
+                next_id title);
 	    raise (API_error_noretry "download_page_starting_with: no forward progress");
 	  end else begin
-	    !logger#log (Printf.sprintf "Loading next batch: %s -> %d\n" title next_id);
+	    !logger#debug 9 (Printf.sprintf "Loading next batch: %s -> %d\n" title next_id);
 	    download_page_starting_with db title next_id last_rev
 	  end
 	end
@@ -585,11 +586,12 @@ let rec download_page_starting_with_from_id (db: Online_db.db) (page_id: int)
 	match next_rev with
 	  | Some next_id -> begin
 	      if next_id = prev_last_rev then (
-		!logger#log (Printf.sprintf 
-		    "Not making forward progress -- giving up");
+		!logger#debug 1 (Printf.sprintf 
+		    "Not making forward progress -- giving up on rev %d of page %d"
+                    next_id page_id);
 		n_revs_downloaded
 	      ) else (
-		!logger#log (Printf.sprintf 
+		!logger#debug 9 (Printf.sprintf 
 		    "Loading next batch: %d -> %d\n" 
 		    page_id next_id);
 		download_page_starting_with_from_id db page_id next_id 
