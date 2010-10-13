@@ -257,9 +257,9 @@ class db :
 
     (* Methods on the standard tables. *)
 
-    (** [get_latest_rev_id_from_id page_id] returns the revision id of the 
-        most recent revision of page [page_id]. *)
-    method get_latest_rev_id_from_id : int -> int
+    (** [get_latest_rev_id_from_id page_id] returns the revision id of the most 
+	recent revision of page [page_id], be the revision colored or not. *)
+    method get_latest_rev_id_of_page : int -> int
 
     (* ================================================================ *)
     (* Revision methods.  We assume we have a lock on the page to which 
@@ -416,21 +416,6 @@ class db :
 
     (* removed old items from the q. *)
     method init_queue : bool -> unit
-
-  (* ================================================================ *)
-  (* Inter-Wiki Coordination. *)
-      
-    (** [aquire_reservations wikiname desired_allowance max_proc]
-	Returns the number of availible processors for the given wiki,
-	which is between 0 and desired_allowance.
-	Also reserves this for wikiname.
-     *)
-    method aquire_reservations : string -> int -> int -> int
-      
-    (** [release_reservation wikiname]
-	Marks that wikiname is done with one processing unit.
-     *)
-    method release_reservation : string -> unit
 
   end
 

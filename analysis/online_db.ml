@@ -559,8 +559,8 @@ object(self)
   (* Methods on the standard tables *)
 
   (** [get_latest_rev_id_from_id page_id] returns the revision id of the most 
-      recent revision of page [page_id], according. *)
-  method get_latest_rev_id_from_id(page_id: int) : int = 
+      recent revision of page [page_id], be the revision colored or not. *)
+  method get_latest_rev_id_of_page (page_id: int) : int = 
     let s = Printf.sprintf "SELECT max(A) FROM (SELECT max(revision_id) AS A FROM %swikitrust_revision WHERE page_id = %s UNION SELECT max(rev_id) AS A FROM %srevision WHERE rev_page = %s) AS  t1;"
         db_prefix (ml2int page_id) db_prefix (ml2int page_id) in 
     match fetch (self#db_exec mediawiki_dbh s) with 
@@ -903,7 +903,7 @@ object(self)
 	    ignore (self#db_exec mediawiki_dbh s)
 	  in
 	  if (List.length !results) > 0 then (
-	    let num_availible = self#aquire_reservations db_name 
+	    let num_availible = self#acquire_reservations db_name 
 	      (List.length !results) max_procs in	  
 	    assert (num_availible <= (List.length !results));
 	    results_arr := Array.sub (Array.of_list !results) 0 num_availible;
@@ -1014,26 +1014,21 @@ object(self)
       recomputation may take a very long time for large wikis. *)
   method delete_all () =
     let add_prefix cmd = Printf.sprintf cmd db_prefix in
-    match really with
-      true -> begin
-        ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_global"));
-        ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_page"));
-        ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_revision"));
-        ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_blob"));
-        ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_user")); 
-        ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_queue")); 
-	ignore (self#db_exec mediawiki_dbh (add_prefix "UPDATE %swikitrust_vote SET processed = FALSE")); 
-
-        (* Note that we do NOT delete the votes!! *)
-	(* We also delete the filesystem storage of signatures and
-	   colored revisions. *)
-	begin
-	  match colored_base_path with
-	    Some b -> ignore (Revision_store.delete_all b)
-	  | None -> ()
-	end
-      end
-    | false -> ()
+    ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_global"));
+    ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_page"));
+    ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_revision"));
+    ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_blob"));
+    ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_user")); 
+    ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_queue")); 
+    ignore (self#db_exec mediawiki_dbh (add_prefix "UPDATE %swikitrust_vote SET processed = FALSE")); 
+    (* Note that we do NOT delete the votes!! *)
+    (* We also delete the filesystem storage of signatures and
+       colored revisions. *)
+    begin
+      match colored_base_path with
+	Some b -> ignore (Revision_store.delete_all b)
+      | None -> ()
+    end
 
   method init_queue (really : bool) : unit =
     let s1 = Printf.sprintf
@@ -1044,15 +1039,15 @@ object(self)
   (* ================================================================ *)
   (* Inter-Wiki Coordination. *)
       
-  (** [get_avalible_procs wikiname desired_allowance max_proc]
+  (** [get_available_procs wikiname desired_allowance max_proc]
       Returns the number of availible processors for the given wiki,
       which is between 0 and min(desired_allowance,max_proc)
    *)
-  method aquire_reservations (wikiname : string) (desired_allowance : int)
-    (max_proc : int)
+  method private acquire_reservations 
+    (wikiname : string) (desired_allowance : int) (max_proc : int)
     : int =
     match global_dbh with
-    | Some dbh -> (
+    | Some dbh -> begin
 	(* mark that we are no longer waiting *)
 	let end_wait () =
 	  let s = Printf.sprintf 
@@ -1074,7 +1069,7 @@ object(self)
 	in
 	
 	ignore (self#db_exec dbh "START TRANSACTION");
-	(* Find out how many slots are availible. *)
+	(* Find out how many slots are available. *)
 	let s_run = Printf.sprintf 
 	  "SELECT count(wiki) FROM %swikitrust_running_wikis" db_prefix in
 	let s_wait = Printf.sprintf 
@@ -1087,14 +1082,14 @@ object(self)
 	let num_waiting = List.hd (Mysql.map (self#db_exec mediawiki_dbh 
 	  s_wait) get_num_wikis)
 	in
-	let availible = max_proc - (num_running + num_waiting) in
-	if availible <= 0 then begin
+	let available = max_proc - (num_running + num_waiting) in
+	if available <= 0 then begin
 	  (* Mark that we are waiting and bail *)
 	  add_line "wikitrust_waiting_wikis";
 	  ignore (self#db_exec dbh "COMMIT");
 	  0
 	end else begin
-	  let allowance = min desired_allowance availible in
+	  let allowance = min desired_allowance available in
 	  (* Do we have work left over? *)
 	  if allowance < desired_allowance then begin
 	    (* Mark that we are waiting *)
@@ -1112,13 +1107,13 @@ object(self)
 	  assert (allowance >= 0);
 	  allowance
 	end
-      )
+      end
     | None -> desired_allowance
   
   (** [release_reservation wikiname]
       Marks that wikiname is done with one processing unit.
    *)
-  method release_reservation (wikiname : string) : unit =
+  method private release_reservation (wikiname : string) : unit =
     match global_dbh with
     | Some dbh -> (
 	let s = Printf.sprintf 
@@ -1193,7 +1188,7 @@ end (* class db_mediawiki_api *)
     extensively.
 
     This mode supports the text cache, as in the MediaWiki mode. *)
- *)
+
 class db_exec_api
   (db_prefix : string)
   (mediawiki_dbh : Mysql.dbd)

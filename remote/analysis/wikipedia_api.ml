@@ -600,7 +600,7 @@ let rec download_page_starting_with_from_id (db: Online_db.db) (page_id: int)
 let download_page_from_id ?sid:(start_id=None) (db: Online_db.db) (page_id : int) : int =
   let lastid =
     try
-      (db#get_latest_rev_id_from_id page_id) + 1
+      (db#get_latest_rev_id_of_page page_id) + 1
     with Online_db.DB_Not_Found -> 0
   in
   let actual_lastid =
