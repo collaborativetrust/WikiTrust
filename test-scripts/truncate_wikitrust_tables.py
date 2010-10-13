@@ -68,7 +68,6 @@ curs.execute("delete from "+ini_config.get('db', 'prefix')+"wikitrust_revision")
 curs.execute("delete from "+ini_config.get('db', 'prefix')+"wikitrust_blob")
 curs.execute("delete from "+ini_config.get('db', 'prefix')+"wikitrust_user")
 curs.execute("delete from "+ini_config.get('db', 'prefix')+"wikitrust_queue")
-curs.execute("delete from "+ini_config.get('db', 'prefix')+"wikitrust_text_cache")
 
 connection.commit()
 

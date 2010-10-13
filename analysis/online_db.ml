@@ -471,7 +471,7 @@ object(self)
   (** [delete_page page_id] deletes all the information related to page_id
       in the system.  With an option, we can specify whether to delete also
       the information in the regular Mediawiki tables. *)
-  method delete_page (page_id: int) (delete_also_mediawiki: bool) = 
+  method delete_page (page_id: int) = begin
     (* First, deletes the information in the db. *)
     let s = Printf.sprintf
       "DELETE FROM %swikitrust_revision WHERE page_id = %s"
@@ -481,25 +481,16 @@ object(self)
       "DELETE FROM %swikitrust_page WHERE page_id = %s"
       db_prefix (ml2int page_id) in
     ignore(self#db_exec mediawiki_dbh s);
-    if delete_also_mediawiki then begin
-      let s = Printf.sprintf 
-	"DELETE FROM %spage WHERE page_id = %s" 
-	db_prefix (ml2int page_id) in
-      ignore(self#db_exec mediawiki_dbh s);
-      let s = Printf.sprintf 
-	"DELETE FROM %srevision WHERE rev_page = %s" 
-	db_prefix (ml2int page_id) in
-      ignore(self#db_exec mediawiki_dbh s)
-    end;
-    (* Deletes the cached revisions for the page. *)
+    (* in mediawiki API mode, we also control mediawiki tables... *)
+    let s = Printf.sprintf 
+      "DELETE FROM %spage WHERE page_id = %s" 
+      db_prefix (ml2int page_id) in
+    ignore(self#db_exec mediawiki_dbh s);
+    (* Deletes the cached revisions for the page; we only call
+	'delete_page' on error, so we really want to delete
+	the text cache as well. *)
     self#erase_cached_rev_text page_id true;
-    (* Then, deletes the information, if any, in the blob pages and 
-       in the disk cache. *)
-    begin
-      match rev_base_path with
-	Some b -> Filesystem_store.delete_revision b page_id None
-      | None -> ()
-    end;
+    (* Then, deletes the information, if any, in the blob pages *)
     begin
       match colored_base_path with
 	None -> begin
@@ -518,6 +509,7 @@ object(self)
 	  ignore(Revision_store.delete_all_page_blobs b page_id)
 	end
     end
+  end
 
   (* Chunk methods *)
 
@@ -1020,7 +1012,7 @@ object(self)
       votes are not deleted.  This enables the recomputation from
       scratch of all reputations and trust.  Careful!  The
       recomputation may take a very long time for large wikis. *)
-  method delete_all (really : bool) =
+  method delete_all () =
     let add_prefix cmd = Printf.sprintf cmd db_prefix in
     match really with
       true -> begin
@@ -1030,11 +1022,9 @@ object(self)
         ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_blob"));
         ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_user")); 
         ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_queue")); 
-        ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_text_cache")); 
 	ignore (self#db_exec mediawiki_dbh (add_prefix "UPDATE %swikitrust_vote SET processed = FALSE")); 
 
         (* Note that we do NOT delete the votes!! *)
-        ignore (self#db_exec mediawiki_dbh "COMMIT");
 	(* We also delete the filesystem storage of signatures and
 	   colored revisions. *)
 	begin
@@ -1043,7 +1033,7 @@ object(self)
 	  | None -> ()
 	end
       end
-    | false -> ignore (self#db_exec mediawiki_dbh "COMMIT")
+    | false -> ()
 
   method init_queue (really : bool) : unit =
     let s1 = Printf.sprintf
@@ -1188,94 +1178,6 @@ object(self)
 	  Filesystem_store.delete_revision b page_id None;
 	end
     end
-
-  (** [delete_page page_id] deletes all the information related to page_id
-      in the system.  With an option, we can specify whether to delete also
-      the information in the regular Mediawiki tables. *)
-  method delete_page (page_id: int) (delete_also_mediawiki: bool) = begin
-    (* TODO: delete_also_mediawiki isn't truly used; better to get
-	rid of it so we can call erase_cached_rev_text. *)
-    self#start_transaction;
-    (* First, deletes the information in the db. *)
-    let s = Printf.sprintf
-      "DELETE FROM %swikitrust_revision WHERE page_id = %s"
-      db_prefix (ml2int page_id) in
-    ignore(self#db_exec mediawiki_dbh s);
-    let s = Printf.sprintf 
-      "DELETE FROM %swikitrust_page WHERE page_id = %s"
-      db_prefix (ml2int page_id) in
-    ignore(self#db_exec mediawiki_dbh s);
-    (* in mediawiki API mode, we also control mediawiki tables... *)
-    let s = Printf.sprintf 
-      "DELETE FROM %spage WHERE page_id = %s" 
-      db_prefix (ml2int page_id) in
-    ignore(self#db_exec mediawiki_dbh s);
-    (* Deletes the cached revisions for the page; we only call
-	'delete_page' on error, so we really want to delete
-	the text cache as well. *)
-    self#erase_cached_rev_text page_id true;
-    (* Then, deletes the information, if any, in the blob pages *)
-    begin
-      match colored_base_path with
-	None -> begin
-	  (* The blobs are stored in the db. *)
-	  (* TODO: this is a hack!  It would be much better to
-	     store also the page_id in the wikitrust_blob table! *)
-	  let p0 = make_blob_key page_id 0 in
-	  let p1 = make_blob_key (page_id + 1) 0 in
-	  let s = Printf.sprintf
-	    "DELETE FROM %swikitrust_blob WHERE blob_id >= %s and blob_id < %s"
-	    db_prefix (ml2decimal p0) (ml2decimal p1) in
-	  ignore(self#db_exec mediawiki_dbh s)
-	end
-      | Some b -> begin
-	  (* The blobs are stored in the filesystem. *)
-	  ignore(Revision_store.delete_all_page_blobs b page_id)
-	end
-    end;
-    self#commit;
-  end
-
-  (** Deletes all WikiTrust data.  (Uncolored) revisions, pages, and
-      votes are not deleted.  This enables the recomputation from
-      scratch of all reputations and trust.  Careful!  The
-      recomputation may take a very long time for large wikis. *)
-  method delete_all (really : bool) = begin
-    self#start_transaction;
-    let add_prefix cmd = Printf.sprintf cmd db_prefix in
-    (match really with
-      true -> begin
-        ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_global"));
-        ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_page"));
-        ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_revision"));
-        ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_blob"));
-        ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_user")); 
-        ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %swikitrust_queue")); 
-        (* Note that we do NOT delete the votes!! *)
-	ignore (self#db_exec mediawiki_dbh (add_prefix "UPDATE %swikitrust_vote SET processed = FALSE")); 
-
-	(* We also delete the filesystem storage of signatures and
-	   colored revisions. *)
-	begin
-	  match colored_base_path with
-	    Some b -> ignore (Revision_store.delete_all b)
-	  | None -> ()
-	end;
-	(* And don't forget the revision cache. *)
-	if not keep_text_cache then begin
-	  match rev_base_path with
-	    Some b -> ignore (Filesystem_store.delete_all b)
-	  | None -> begin
-	    ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %stext")); 
-	    ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %srevision")); 
-	    ignore (self#db_exec mediawiki_dbh (add_prefix "TRUNCATE TABLE %spage")); 
-	  end
-        end;
-      end
-      | false -> ()
-    );
-    self#commit;
-  end
 
 end (* class db_mediawiki_api *)
 

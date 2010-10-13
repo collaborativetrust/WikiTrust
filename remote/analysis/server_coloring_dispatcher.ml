@@ -46,7 +46,8 @@ POSSIBILITY OF SUCH DAMAGE.
 
    Edits:
    * Insert the page in the wikitrust_queue table.
-   * Optionally, add the text to the wikitrust_text_cache table.
+   * Optionally, add the text to the text cache (in the revision and text
+     tables).
    
    Missing coloring:
    * Insert the page in the wikiturst_queue table.
@@ -234,8 +235,7 @@ let process_page (page_id: int) (page_title: string) =
         let got_it = child_db#get_page_lock page_id Online_command_line.lock_timeout in
         if got_it then begin
           try
-            child_db#delete_page page_id true;
-            child_db#commit;
+            child_db#delete_page page_id;
             child_db#release_page_lock page_id
           with e -> begin
             child_db#release_page_lock page_id;
@@ -306,7 +306,7 @@ let main_loop () =
   let db = create_db mediawiki_dbh global_dbh in
   begin
     db#init_queue true;
-    if !delete_all then db#delete_all true;
+    if !delete_all then db#delete_all ();
     while true do
       if (Hashtbl.length working_children) >= !max_concurrent_procs then begin
         (* Cleans up terminated children, if any *)

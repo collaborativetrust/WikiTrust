@@ -1015,23 +1015,6 @@ CREATE TABLE `wikitrust_revision` (
 SET character_set_client = @saved_cs_client;
 
 --
--- Table structure for table `wikitrust_text_cache`
---
-
-DROP TABLE IF EXISTS `wikitrust_text_cache`;
-SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8;
-CREATE TABLE `wikitrust_text_cache` (
-  `revision_id` int(11) NOT NULL,
-  `page_id` int(11) default NULL,
-  `time_string` binary(14) default NULL,
-  `revision_text` longtext NOT NULL,
-  PRIMARY KEY  (`revision_id`),
-  KEY `wikitrust_text_cache` (`revision_id`,`time_string`,`page_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=binary;
-SET character_set_client = @saved_cs_client;
-
---
 -- Table structure for table `wikitrust_user`
 --
 

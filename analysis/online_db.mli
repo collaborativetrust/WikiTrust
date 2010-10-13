@@ -219,10 +219,11 @@ class db :
 	in the MediaWiki tables *)
     method get_mwpage_id : string -> int list
 
-    (** [delete_page page_id delete_also_mediawiki] deletes all the information related to [page_id]
-	in the system.  If [delete_also_mediawiki] is true, deletes also the info on the page
-        in the normal Mediawiki tables. *)
-    method delete_page : int -> bool -> unit
+    (** [delete_page page_id delete_also_mediawiki] deletes all the
+	information related to [page_id] in the system.  If
+	[delete_also_mediawiki] is true, deletes also the info on the
+	page in the normal Mediawiki tables. *)
+    method delete_page : int -> unit
 
 
     (* Chunk methods *)
@@ -411,7 +412,7 @@ class db :
       
     (** Totally clear out the db structure -- THIS IS INTENDED ONLY FOR UNIT
 	TESTING *)
-    method delete_all : bool -> unit
+    method delete_all : unit -> unit
 
     (* removed old items from the q. *)
     method init_queue : bool -> unit

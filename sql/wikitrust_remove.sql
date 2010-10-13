@@ -48,7 +48,6 @@ DROP TABLE `wikitrust_global` ;
 DROP TABLE `wikitrust_page` ;
 DROP TABLE `wikitrust_queue` ;
 DROP TABLE `wikitrust_revision` ;
-DROP TABLE `wikitrust_text_cache` ;
 DROP TABLE `wikitrust_user` ;
 DROP TABLE `wikitrust_vote` ;
 DROP TABLE `wikitrust_running_wikis` ;

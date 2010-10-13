@@ -489,7 +489,7 @@ let store_wiki_revs  (db: Online_db.db) (wiki_page: wiki_page_t) (wiki_revs: wik
         if got_it = false then
           raise (API_error "store_wiki_revs: DB lock failed");
 	try
-	  db#delete_page page_id true;
+	  db#delete_page page_id;
 	  db#release_page_lock page_id
 	with e -> begin
 	  db#release_page_lock page_id;

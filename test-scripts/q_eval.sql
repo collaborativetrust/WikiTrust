@@ -4,7 +4,6 @@ DELETE FROM wikitrust_vote;
 DELETE FROM wikitrust_revision;
 DELETE FROM wikitrust_blob;
 DELETE FROM wikitrust_queue;
-DELETE FROM wikitrust_text_cache;
 DELETE FROM revision;
 DELETE FROM page;
 
