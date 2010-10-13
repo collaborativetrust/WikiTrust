@@ -147,18 +147,20 @@ in
     online_db object of the right type *)
 
 let create_db mediawiki_dbh global_dbh =
-  if !use_wikimedia_api then
-    begin
-      if !use_exec_api then
-        raise (Option_error "ExecAPI and MediawikiAPI are illegal together");
+  begin
+    if !use_wikimedia_api && !use_exec_api then
+      raise (Option_error "ExecAPI and MediawikiAPI are illegal together");
+    if (not !use_wikimedia_api) && (not !use_exec_api) then
+      raise (Option_error "One of ExecAPI or MediawikiAPI must be specified");
+    if !use_wikimedia_api then
       new Online_db.db_mediawiki_api !db_prefix mediawiki_dbh 
         global_dbh !mw_db_name !wt_db_rev_base_path !wt_db_blob_base_path 
-        !dump_db_calls !keep_cached_text;
-    end
-  else
-    Online_db.create_db !use_exec_api !db_prefix mediawiki_dbh 
-      global_dbh !mw_db_name !wt_db_rev_base_path !wt_db_blob_base_path 
-      !dump_db_calls !keep_cached_text
+        !dump_db_calls !keep_cached_text
+    else
+      Online_db.create_db !use_exec_api !db_prefix mediawiki_dbh 
+        global_dbh !mw_db_name !wt_db_rev_base_path !wt_db_blob_base_path 
+        !dump_db_calls !keep_cached_text
+  end
 in
 
 (**
