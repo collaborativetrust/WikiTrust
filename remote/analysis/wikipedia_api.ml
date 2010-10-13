@@ -146,25 +146,28 @@ let get_url (url: string) : string =
   call#set_request_header request_header;
   pipeline#add call;
   pipeline#run();
-  match call#status with
-    `Successful -> begin
+  begin
+    match call#status with
+      `Successful -> begin
 	try
 	  let encoding = call#response_header#field "Content-encoding" in
-	  let tmp_file = Tmpfile.new_tmp_file_name tmp_prefix in
-	  Std.output_file ~filename:tmp_file ~text:call#response_body#value;
+	  (* Writes the response to a temp file. *)
+	  let (temp_file_name, temp_file) = Filename.open_temp_file ~mode:[Open_binary] tmp_prefix ".gz" in
+	  output_string temp_file call#response_body#value;
+	  close_out temp_file;
 	  match encoding with
-	      "gzip" -> begin
-		let decoded_body = Filesystem_store.read_gzipped_file tmp_file in
-		Tmpfile.remove_tmp_file tmp_file;
-		match decoded_body with
-		    Some str -> str
-		  | None -> raise (API_error ("get_url: no body for " ^ url))
-	      end
-	    | _ -> raise (API_error ("get_url: unknown encoding for " ^ url))
+	    "gzip" -> begin
+	      let decoded_body = Filesystem_store.read_gzipped_file temp_file_name in
+	      Unix.unlink temp_file_name;
+	      match decoded_body with
+		Some str -> str
+	      | None -> raise (API_error ("get_url: no body for " ^ url))
+	    end
+	  | _ -> raise (API_error ("get_url: unknown encoding for " ^ url))
 	with Not_found -> call#response_body#value
       end
     | _ -> raise (API_error ("get_url: bad result from url " ^ url))
-
+  end
 
 type result_tree =
   | JSON of Json_type.t
