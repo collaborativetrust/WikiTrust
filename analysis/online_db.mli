@@ -1,6 +1,6 @@
 (*
 
-Copyright (c) 2008-09 The Regents of the University of California
+Copyright (c) 2008-2010 The Regents of the University of California
 All rights reserved.
 
 Authors: Luca de Alfaro, Ian Pye, B. Thomas Adler
@@ -389,9 +389,10 @@ class db :
       times the start / commit pair is used. *)
     method fetch_work_from_queue : int -> int -> int -> (int * string) list
 
-    (** [erase_cached_rev_text page_id] erases
-	the cached text of all revisions of [page_id]. *)
-    method erase_cached_rev_text : int -> unit
+    (** [erase_cached_rev_text page_id force] erases the cached text of all
+	revisions of [page_id].  Unless [force] is true, keep_text_cache
+	may turn this into a no-op. *)
+    method erase_cached_rev_text : int -> bool -> unit
 
     (* ================================================================ *)
     (* WikiMedia Api *)

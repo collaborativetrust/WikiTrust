@@ -33,7 +33,6 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
-
 open Online_types
 open Mysql
 open Sexplib.Conv
@@ -145,15 +144,14 @@ class db
 object(self)
 
   method private db_exec dbh s = 
-    if debug_mode then begin
-      !online_logger#log s;
-      !online_logger#log "\n";
-    end;
-    try 
-      Mysql.exec dbh s
-    with Mysql.Error e ->
-      !online_logger#log e;
-      raise DB_TXN_Bad
+    if debug_mode then !online_logger#log (s ^ "\n");
+    begin
+      try 
+	Mysql.exec dbh s
+      with Mysql.Error e ->
+	!online_logger#log e;
+	raise DB_TXN_Bad
+    end
 
   (* ================================================================ *)
   (* General methods *)
@@ -206,18 +204,21 @@ object(self)
 
   (** rollback a transaction. *)
   method rollback_transaction : unit =
+    !online_logger#log "ROLLBACK\n";
     ignore (self#db_exec mediawiki_dbh "ROLLBACK")
       
   (* Commits any changes to the db *)
   method commit : unit =
-    match Mysql.status mediawiki_dbh with 
-    | StatusError err ->
-        begin
-          !online_logger#log "COMMIT error encountered\n";
-          raise DB_TXN_Bad
-        end
-    | _ -> ()
-	
+    ignore (self#db_exec mediawiki_dbh "COMMIT");
+    begin
+      match Mysql.status mediawiki_dbh with 
+      | StatusError err ->
+          begin
+            !online_logger#log "COMMIT error encountered\n";
+            raise DB_TXN_Bad
+          end
+      | _ -> ()
+    end
 	
   (* ================================================================ *)
   (* Global methods. *)
@@ -225,7 +226,7 @@ object(self)
   (** [get_histogram] Returns a histogram showing the number of users 
       at each reputation level, and the median. *)
   method get_histogram : float array * float =
-    let s = Printf.sprintf "SELECT * FROM %swikitrust_global" db_prefix in
+    let s = Printf.sprintf "SELECT median, rep_0, rep_1, rep_2, rep_3, rep_4, rep_5, rep_6, rep_7, rep_8, rep_9 FROM %swikitrust_global" db_prefix in
     match fetch (self#db_exec mediawiki_dbh s) with
       None -> begin
 	(* No histogram is found.  It creates a default one, and returns it. *)
@@ -491,7 +492,7 @@ object(self)
       ignore(self#db_exec mediawiki_dbh s)
     end;
     (* Deletes the cached revisions for the page. *)
-    self#erase_cached_rev_text page_id;
+    self#erase_cached_rev_text page_id true;
     (* Then, deletes the information, if any, in the blob pages and 
        in the disk cache. *)
     begin
@@ -929,10 +930,16 @@ object(self)
 	  end
       end done; (* End of the multiple attempts at the transaction *)
     Array.to_list !results_arr
-      
-  (** [erase_cached_rev_text page_id rev_id rev_time_string] does nothing; 
-      it does something only in the subclass that uses the exec api. *)
-  method erase_cached_rev_text (page_id: int) : unit = ()
+
+  (** [erase_cached_rev_text page_id force] erases the cached text of all
+      revisions of [page_id].  Unless [force] is true, keep_text_cache
+      may turn this into a no-op. *)
+  method erase_cached_rev_text (page_id: int) (force: bool): unit =
+    (* In regular mode, we do not want to erase the revision text, 
+       as it is our only copy! *)
+    ()
+
+
 
   (* ================================================================ *)
   (* WikiMedia Api *)
@@ -958,9 +965,8 @@ object(self)
       ignore(self#db_exec mediawiki_dbh s)
 (*      self#init_page page.page_id (Some page.page_title) *)
 
-  (*
-    Actually puts the text in the db, or on the filesystem.
-  *)
+  (** Writes the text of a revision in the filesystem, or in the text
+      table of the database.  *)
   method private write_revision_text (rev : wiki_revision_t) =
     begin
       match rev_base_path with
@@ -1132,108 +1138,21 @@ object(self)
 	ignore (self#db_exec dbh s))
     | None -> ()
       
-end;; (* online_db *)
+end;; (* main online_db class *)
 
-(** This class extends the classical db class by using the executable api to 
-    get the data from the db. *)
-class db_exec_api
-  (db_prefix : string)
-  (mediawiki_dbh : Mysql.dbd)
-  (global_dbh : Mysql.dbd option)
-  (db_name: string)
-  (rev_base_path: string option)
-  (colored_base_path: string option)
-  (debug_mode : bool) 
-  (keep_text_cache : bool) =
-  
-object(self)
-  inherit db db_prefix mediawiki_dbh global_dbh db_name rev_base_path 
-    colored_base_path debug_mode keep_text_cache as super 
+(** This class extends the classical db class by expecting that
+    revision information is loaded via the 'dispatcher' using the
+    mediawiki API.  Among other things, this means that the mediawiki
+    tables are simply local copies of information stored elsewhere,
+    and these local copies may need to be updated or deleted if found
+    to be invalid.
 
-  (** Puts the text in the text cache, and the rest in the db using the 
-      super method *)
-  method private write_revision_text (rev : wiki_revision_t) =
-    begin
-      match rev_base_path with
-      | None -> (
- 	  let s = Printf.sprintf "INSERT INTO %swikitrust_text_cache (revision_id, page_id, time_string, revision_text) VALUES (%s, %s, %s, %s) ON DUPLICATE KEY UPDATE time_string = %s" db_prefix (ml2int rev.revision_id) (ml2int rev.revision_page) (ml2str rev.revision_timestamp) (ml2str rev.revision_content) (ml2str rev.revision_timestamp) in
-	  ignore (self#db_exec mediawiki_dbh s);
-	)
-      | Some b ->
-	  Filesystem_store.write_revision b 
-	    rev.revision_page rev.revision_id rev.revision_content;
-    end
+    On the text cache: In the Wikimedia API mode, we keep a text cache
+    of what we download via the API.  The cached text resides either in
+    the filesystem (preferred!), or in the [text] table, the same used
+    by the normal Mediawiki.  The metadata about the text is in the
+    Mediawiki [revision] and [page] table. *)
 
-  (** Reads an individual revision from the exec API. *)
-  method private exec_read_rev_text (rev_id : int) : string =
-    let cmdline = Printf.sprintf 
-      "%s/remote/analysis/read_rev_text -log_file /dev/null -rev_id %d -wiki_api %s"
-      !Online_command_line.wt_base
-      rev_id 
-      !Online_command_line.target_wikimedia
-    in
-    let s = try
-      get_cmd_output cmdline
-    with 
-    | DB_Exec_Error -> begin
-	Printf.eprintf "Error getting: %s\n" cmdline; 
-	""
-      end
-    in
-    s
-
-  (** [get_rev_text page_id text_id] returns the text associated with
-      text id [text_id].  This method first tries to read the revision
-      text from the cache.  If it does not succeed, it reads it from
-      the exec api.  *)
-  method read_rev_text (page_id: int) (rev_id: int) (text_id: int) : string =
-    match rev_base_path with 
-    | None -> begin
-	let s = Printf.sprintf 
-	  "SELECT revision_text FROM %swikitrust_text_cache WHERE revision_id = %s"
-	  db_prefix (ml2int rev_id) in 
-	let result = self#db_exec mediawiki_dbh s in
-	match Mysql.fetch result with 
-        | None -> self#exec_read_rev_text rev_id
-	| Some r -> not_null str2ml r.(0)
-      end
-    | Some b -> begin
-	let result = Filesystem_store.read_revision b page_id rev_id in
-	match result with 
-	| None -> self#exec_read_rev_text rev_id
-	| Some r -> r
-      end
-   
-  (** [erase_cached_rev_text page_id] erases
-      the cached text of all revisions of [page_id] *)
-  method erase_cached_rev_text (page_id: int) : unit =
-    if not keep_text_cache then begin
-      match rev_base_path with
-      | None -> begin
-	  let s = Printf.sprintf "DELETE FROM %swikitrust_text_cache WHERE page_id = %s" 
-	    db_prefix (ml2int page_id) in
-	  ignore (self#db_exec mediawiki_dbh s)
-	end
-      | Some b -> Filesystem_store.delete_revision b page_id None
-    end
-
-  (**  [fetch_all_revs_after] is like the superclass method, except that it
-       uses the exec api to read the revisions. *)
-  method fetch_all_revs_after (req_page_id: int option) 
-    (req_rev_id: int option) (timestamp : string) (rev_id: int) 
-    (max_revs_to_return: int) : revision_t list =  
-    (* For now it just uses the super method. *)
-    super#fetch_all_revs_after req_page_id req_rev_id timestamp 
-      rev_id max_revs_to_return
-
-end (* class db_exec_api *)
-
-(** This class extends the classical db class by
-    expecting that revision information is loaded
-    via the 'dispatcher' using the mediawiki API.
-    Practically, this means that we have more latitude
-    to delete article and revision information that
-    might be loaded into the mediawiki tables. *)
 class db_mediawiki_api
   (db_prefix : string)
   (mediawiki_dbh : Mysql.dbd)
@@ -1244,42 +1163,31 @@ class db_mediawiki_api
   (debug_mode : bool) 
   (keep_text_cache : bool) =
 object(self)
-  inherit db_exec_api db_prefix mediawiki_dbh global_dbh db_name rev_base_path 
+  inherit db db_prefix mediawiki_dbh global_dbh db_name rev_base_path 
     colored_base_path debug_mode keep_text_cache as super 
 
-  (* Commits any changes to the db *)
-  method commit : unit = begin
-    ignore (self#db_exec mediawiki_dbh "COMMIT");
-    match Mysql.status mediawiki_dbh with 
-    | StatusError err ->
-        begin
-          !online_logger#log "COMMIT error encountered\n";
-          raise DB_TXN_Bad
-        end
-    | _ -> ()
-  end
-
-  (** [erase_cached_rev_text page_id] erases
-      the cached text of all revisions of [page_id] *)
-  method private force_erase_cached_rev_text (page_id: int) : unit =
-    begin
-      (match rev_base_path with
+  (** [erase_cached_rev_text page_id force] erases the cached text of all
+      revisions of [page_id].  Unless [force] is true, keep_text_cache
+      may turn this into a no-op. *)
+  method erase_cached_rev_text (page_id: int) (force: bool): unit =
+    if force or not keep_text_cache then begin
+      match rev_base_path with
       | None -> begin
 	  let s = Printf.sprintf 
 	    "DELETE FROM %stext WHERE old_id IN (SELECT rev_text_id FROM %srevision WHERE rev_page = %s)" 
 	    db_prefix db_prefix (ml2int page_id) in
-	  ignore(self#db_exec mediawiki_dbh s)
+	  ignore(self#db_exec mediawiki_dbh s);
+	  let s = Printf.sprintf "DELETE FROM %srevision WHERE rev_page = %s" 
+	    db_prefix (ml2int page_id) in
+	  ignore (self#db_exec mediawiki_dbh s);
 	end
-      | Some b -> Filesystem_store.delete_revision b page_id None;
-      );
-      let s = Printf.sprintf "DELETE FROM %srevision WHERE rev_page = %s" 
-	db_prefix (ml2int page_id) in
-      ignore (self#db_exec mediawiki_dbh s);
+      | Some b -> begin
+	  let s = Printf.sprintf "DELETE FROM %srevision WHERE rev_page = %s" 
+	    db_prefix (ml2int page_id) in
+	  ignore (self#db_exec mediawiki_dbh s);
+	  Filesystem_store.delete_revision b page_id None;
+	end
     end
-
-  method erase_cached_rev_text (page_id: int) : unit =
-    if not keep_text_cache then
-	self#force_erase_cached_rev_text page_id
 
   (** [delete_page page_id] deletes all the information related to page_id
       in the system.  With an option, we can specify whether to delete also
@@ -1305,7 +1213,7 @@ object(self)
     (* Deletes the cached revisions for the page; we only call
 	'delete_page' on error, so we really want to delete
 	the text cache as well. *)
-    self#force_erase_cached_rev_text page_id;
+    self#erase_cached_rev_text page_id true;
     (* Then, deletes the information, if any, in the blob pages *)
     begin
       match colored_base_path with
@@ -1371,6 +1279,65 @@ object(self)
 
 end (* class db_mediawiki_api *)
 
+
+
+(** This class extends the classical db class by using the executable
+    api to get the data from the db.  This class is the placeholder
+    for integrating WikiTrust with a MediaWiki installation at the
+    WMF.  The idea is that the code of WT runs on a separate server,
+    and communicates with the main installation via a couple of
+    executables, which can be written e.g. in php, and which fetch the
+    data from the WMF setup.  Note that this code has never been used
+    extensively.
+
+    This mode supports the text cache, as in the MediaWiki mode. *)
+ *)
+class db_exec_api
+  (db_prefix : string)
+  (mediawiki_dbh : Mysql.dbd)
+  (global_dbh : Mysql.dbd option)
+  (db_name: string)
+  (rev_base_path: string option)
+  (colored_base_path: string option)
+  (debug_mode : bool) 
+  (keep_text_cache : bool) =
+  
+object(self)
+  inherit db_mediawiki_api db_prefix mediawiki_dbh global_dbh db_name rev_base_path 
+    colored_base_path debug_mode keep_text_cache as super 
+
+  (** Reads an individual revision from the exec API. *)
+  method private exec_read_rev_text (rev_id : int) : string =
+    let cmdline = Printf.sprintf 
+      "%s/remote/analysis/read_rev_text -log_file /dev/null -rev_id %d -wiki_api %s"
+      !Online_command_line.wt_base
+      rev_id 
+      !Online_command_line.target_wikimedia
+    in
+    let s = try
+      get_cmd_output cmdline
+    with 
+    | DB_Exec_Error -> begin
+	Printf.eprintf "Error getting: %s\n" cmdline; 
+	""
+      end
+    in
+    s
+
+  (** [fetch_all_revs_after] is like the superclass method, except that it
+      uses the exec api to read the revisions. 
+      TODO: If we ever were to integrate with WMF, we would need a call
+      to an executable here. *)
+  method fetch_all_revs_after (req_page_id: int option) 
+    (req_rev_id: int option) (timestamp : string) (rev_id: int) 
+    (max_revs_to_return: int) : revision_t list =  
+    (* For now it just uses the super method. *)
+    super#fetch_all_revs_after req_page_id req_rev_id timestamp 
+      rev_id max_revs_to_return
+
+end (* class db_exec_api *)
+
+
 (** [create_db use_exec_api db_prefix mediawiki_dbh db_name
     rev_base_path sig_base_path colored_base_path debug_mode] returns
     a db of the appropriate type, according to whether we are using
@@ -1394,4 +1361,6 @@ let create_db
     rev_base_path colored_base_path debug_mode keep_text_cache)
   else (new db db_prefix mediawiki_dbh global_dbh db_name rev_base_path 
     colored_base_path debug_mode keep_text_cache)
+
+
 

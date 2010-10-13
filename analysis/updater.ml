@@ -416,7 +416,7 @@ class updater
 	  let open_page_blob_id = writer#close in
 	  db#write_open_blob_id page_id open_page_blob_id;
 	  (* Delete the raw text from the cache *)
-	  db#erase_cached_rev_text page_id;
+	  db#erase_cached_rev_text page_id false;
 	  db#commit;
 	  db#release_page_lock page_id
 	with e -> begin
@@ -437,8 +437,8 @@ class updater
 	  (* Creates a feed for the page events. *)
 	  let feed = new Event_feed.event_feed db (Some page_id) None n_retries in
 	  self#process_page_feed feed;
-    (* Delete the raw text from the cache *)
-    db#erase_cached_rev_text page_id;
+	  (* Delete the raw text from the cache *)
+	  db#erase_cached_rev_text page_id false;
 	  db#release_page_lock page_id
 	with e -> begin
 	  db#release_page_lock page_id;
