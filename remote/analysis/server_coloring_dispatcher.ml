@@ -83,7 +83,7 @@ let global_db_port = ref 3306
 let set_global_db_port d = global_db_port := d
 let global_db_prefix = ref ""
 let set_global_db_prefix d = global_db_prefix := d
-let keep_cached_text = ref true
+let keep_cached_text = ref false
 
 (* Debugging *)
 let min_rev_id = ref None
@@ -205,7 +205,7 @@ let process_page (page_id: int) (page_title: string) =
   let times_tried = ref 0 in
   while !forever && (not !processed_well) && (!times_tried < !times_to_retry_trans) do
     times_tried := !times_tried + 1;
-    (try Printexc.print (fun () -> 
+    (try begin
       (* If I am using the WikiMedia API, I need to first download any new
          revisions of the page. *)
       if !use_wikimedia_api then 
@@ -219,7 +219,7 @@ let process_page (page_id: int) (page_title: string) =
 	   lock. *)
 	processor#update_page_fast page_id;
 	processed_well := true
-      ) () with
+    end with
     | Wikipedia_api.API_error_noretry e -> begin
 	!online_logger#log
             (Printf.sprintf "Wikipedia_api Error: %s\n   On %d %s\n   Exc %s\n" 
@@ -235,8 +235,9 @@ let process_page (page_id: int) (page_title: string) =
       )
     | e -> begin  (* Handle everything else generically here. *)
         !online_logger#log
-            (Printf.sprintf "Other Error: On %d %s\n   Exc %s\n"
-                    page_id page_title (Printexc.to_string e));
+            (Printf.sprintf "Other Error: On %d %s\n   Exc %s\n   Stack Trace:\n%s"
+                    page_id page_title (Printexc.to_string e)
+                    (Printexc.get_backtrace ()) );
         let got_it = child_db#get_page_lock page_id Online_command_line.lock_timeout in
         if got_it then begin
           try
@@ -333,6 +334,7 @@ let main_loop () =
   end
 in
 
+Printexc.record_backtrace true ;
 Sys.set_signal Sys.sigterm  (Sys.Signal_handle sig_handler) ;
 Sys.set_signal Sys.sigint   (Sys.Signal_handle sig_handler) ;
 Sys.set_signal Sys.sigusr1  (Sys.Signal_handle sig_handler) ;

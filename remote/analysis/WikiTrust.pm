@@ -127,7 +127,10 @@ sub secret_okay {
 
 # To fix atomicity errors, wrapping this in a procedure.
 sub mark_for_coloring {
-  my ($page, $page_title, $dbh) = @_;
+  my $page = shift @_;
+  my $page_title = shift @_;
+  my $dbh = shift @_;
+  my $priority = shift @_ || QUEUE_PRIORITY;
 
   die "Illegal page_id for '$page_title'" if $page <= 0 && $page_title eq '';
   confess "Illegal page_id for '$page_title'" if $page <= 0;
@@ -136,7 +139,7 @@ sub mark_for_coloring {
     "INSERT INTO wikitrust_queue (page_id, page_title, priority) VALUES (?, ?, ?)"
 	." ON DUPLICATE KEY UPDATE requested_on = now(), priority=? "
   ) || die $dbh->errstr;
-  $sth->execute($page, $page_title, QUEUE_PRIORITY, QUEUE_PRIORITY) || die $dbh->errstr;
+  $sth->execute($page, $page_title, $priority, $priority) || die $dbh->errstr;
 }
 
 sub handle_vote {
