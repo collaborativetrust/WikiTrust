@@ -99,6 +99,7 @@ let custom_line_format = [
   ("-global_db_host", Arg.String set_global_db_host, "<string>: All wiki DB host (default: localhost)");
   ("-global_db_port", Arg.Int set_global_db_port,    "<int>: All wiki DB port (default: 3306)");
   ("-min_rev_id", Arg.Int set_min_rev_id, "<int>: The earliest revision ID to download");
+  ("-keep_text_cache", Arg.Set keep_cached_text, ": Do not erase revision text downloaded from another MW instance.");
   ("-single_threaded_mode", Arg.Set single_threaded, "Run without forking -- for debugging");
 ] @ command_line_format
 
