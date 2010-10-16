@@ -66,6 +66,9 @@ exception Option_error of string;;
 let max_concurrent_procs = ref 1
 let set_max_concurrent_procs m = max_concurrent_procs := m 
 let sleep_time_sec = 2
+let forever = ref true
+let sig_handler = function _ -> forever := false
+
 
 (* All-wiki DB *)
 let global_db_user = ref "wikiuser"
@@ -147,18 +150,20 @@ in
     online_db object of the right type *)
 
 let create_db mediawiki_dbh global_dbh =
-  if !use_wikimedia_api then
-    begin
-      if !use_exec_api then
-        raise (Option_error "ExecAPI and MediawikiAPI are illegal together");
+  begin
+    if !use_wikimedia_api && !use_exec_api then
+      raise (Option_error "ExecAPI and MediawikiAPI are illegal together");
+    if (not !use_wikimedia_api) && (not !use_exec_api) then
+      raise (Option_error "One of ExecAPI or MediawikiAPI must be specified");
+    if !use_wikimedia_api then
       new Online_db.db_mediawiki_api !db_prefix mediawiki_dbh 
         global_dbh !mw_db_name !wt_db_rev_base_path !wt_db_blob_base_path 
-        !dump_db_calls !keep_cached_text;
-    end
-  else
-    Online_db.create_db !use_exec_api !db_prefix mediawiki_dbh 
-      global_dbh !mw_db_name !wt_db_rev_base_path !wt_db_blob_base_path 
-      !dump_db_calls !keep_cached_text
+        !dump_db_calls !keep_cached_text
+    else
+      Online_db.create_db !use_exec_api !db_prefix mediawiki_dbh 
+        global_dbh !mw_db_name !wt_db_rev_base_path !wt_db_blob_base_path 
+        !dump_db_calls !keep_cached_text
+  end
 in
 
 (**
@@ -198,7 +203,7 @@ let process_page (page_id: int) (page_title: string) =
   let child_db = create_db child_dbh child_global_dbh in
   let processed_well = ref false in
   let times_tried = ref 0 in
-  while (not !processed_well) && (!times_tried < !times_to_retry_trans) do
+  while !forever && (not !processed_well) && (!times_tried < !times_to_retry_trans) do
     times_tried := !times_tried + 1;
     (try Printexc.print (fun () -> 
       (* If I am using the WikiMedia API, I need to first download any new
@@ -307,7 +312,7 @@ let main_loop () =
   begin
     db#init_queue true;
     if !delete_all then db#delete_all ();
-    while true do
+    while !forever do
       if (Hashtbl.length working_children) >= !max_concurrent_procs then begin
         (* Cleans up terminated children, if any *)
         Hashtbl.iter check_subprocess_termination working_children
@@ -319,8 +324,17 @@ let main_loop () =
         dispatch_page pages_to_process
       end;
       Unix.sleep sleep_time_sec;
-    done 
+    done;
+    (* wait for remaining children before terminating *)
+    while (Hashtbl.length working_children) > 0 do
+      Hashtbl.iter check_subprocess_termination working_children;
+      Unix.sleep sleep_time_sec
+    done
   end
 in
 
-main_loop ()
+Sys.set_signal Sys.sigterm  (Sys.Signal_handle sig_handler) ;
+Sys.set_signal Sys.sigint   (Sys.Signal_handle sig_handler) ;
+Sys.set_signal Sys.sigusr1  (Sys.Signal_handle sig_handler) ;
+Sys.set_signal Sys.sighup   (Sys.Signal_handle sig_handler) ;
+main_loop () ;;
