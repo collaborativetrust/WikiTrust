@@ -19,7 +19,6 @@ use LWP::Simple;
 use File::Basename;
 
 use constant URL => ".collaborativetrust.com:81/WikiTrust/RemoteAPI?method=status";
-use constant SITES => qw( de fr it nl pl pt );
 
 my $cmd = shift @ARGV;
 
