@@ -1,7 +1,7 @@
 (*
 
 Copyright (c) 2008-2009 The Regents of the University of California
-Copyright (c) 2010 Google Inc.
+Copyright (c) Luca de Alfaro
 All rights reserved.
 
 Authors: Luca de Alfaro, Krishnendu Chatterjee
@@ -64,6 +64,8 @@ type running_page_info_t = {
 exception Missing_trust of rev_t
 (** This exception signals an internal error. *)
 exception Missing_work_revision
+(** This exception signals some db error. *)
+exception DB_error
 
 (* This flag causes debugging info to be printed *)
 let debug = true
@@ -77,7 +79,6 @@ class page
   (revision_id: int) 
   (work_revision_opt_init: rev_t option)
   (trust_coeff: trust_coeff_t) 
-  (n_retries: int) 
   (robots: Read_robots.robot_set_t)
   (running_page_info: running_page_info_t option)
 
@@ -152,6 +153,32 @@ class page
 	  (* Stores the revision as the working revision. *)
 	  work_revision_opt <- Some r
 	with Online_db.DB_Not_Found -> raise Missing_work_revision
+      end
+
+    (** This method starts a transaction, unless we are running in the fast
+	mode that updates several revisions of a page at once, where the
+	transaction control takes place in updater.ml. *)
+    method private start_transaction : unit =
+      begin
+	match running_page_info with
+	  None -> db#start_transaction
+	| Some _ -> ()
+      end
+
+    (** Same as above, for ending a transaction. *)
+    method private commit_transaction : unit =
+      begin
+	match running_page_info with
+	  None -> db#commit
+	| Some _ -> ()
+      end
+
+    (** Same as above, for rolling back a transaction. *)
+    method private rollback_transaction : unit =
+      begin
+	match running_page_info with
+	  None -> db#rollback_transaction
+	| Some _ -> ()
       end
 
     (** This method reads the past revisions from the online database, and
@@ -353,20 +380,15 @@ class page
       let f uid = function 
 	  (old_r, Some r, uname) ->  if abs_float (r -. old_r) > 0.001 then begin 
 	    (* Writes the reputation change to disk, as a small transaction *)
-	    let n_attempts = ref 0 in 
-	    while !n_attempts < n_retries do 
-	      begin 
-		try begin 
-		  db#start_transaction;
-		  db#inc_rep uid (r -. old_r) uname;
-		  db#commit;
-		  n_attempts := n_retries
-		end with _ -> begin 
-		  (* Roll back *)
-		  db#rollback_transaction;
-		  n_attempts := !n_attempts + 1
-		end
-	      end done (* End of the multiple attempts at the transaction *)
+	    try begin 
+	      self#start_transaction;
+	      db#inc_rep uid (r -. old_r) uname;
+	      self#commit_transaction;
+	    end with _ -> begin 
+	      (* Roll back *)
+	      self#rollback_transaction;
+	      raise DB_error
+	    end
 	  end
 	| (_, None, _) -> ()
       in Hashtbl.iter f rep_cache
@@ -1403,7 +1425,6 @@ class page
 	end (* If the voter is not a bot *)
       end (* if oldest_judged_idx > 0 , and method compute_edit_inc *)
 
-
     (** This method computes the trust of the revision 0, given that
         the edit distances from previous revisions are known.  The
         method is as follows: it compares the newest revision 0 with
@@ -1418,7 +1439,6 @@ class page
       (* Keep track of whether the revision needs coloring, and of how
 	 many tries we have made *)
       let done_something = ref true in 
-      let n_attempts = ref 0 in 
 
       begin (* match *)
 	match work_revision_opt with
@@ -1426,10 +1446,9 @@ class page
 	| Some r -> if r#needs_coloring then begin
 	    (* This is the main transaction body.  We do in this body the
 	       computation that needs to be consistent for a page. *)
-	    while !n_attempts < n_retries do begin 
-	      try begin 
-		
-		db#start_transaction;
+	    begin try 
+	      begin
+		self#start_transaction;
 		
 		(* Reads the page information, unless we are using
 		   the running information. *)
@@ -1468,7 +1487,7 @@ class page
 		(* Percolates back the trust that has been computed. *)
 		!Online_log.online_logger#log "\n   Percolating back trust...";
 		self#percolate_back_trust;
-
+		
 		(* We now process the reputation update. *)
 		!Online_log.online_logger#log "\n   Computing edit incs...";
 		self#compute_edit_inc;
@@ -1478,8 +1497,7 @@ class page
 		self#insert_revision_in_lists;
 		
 		(* We write back to disk the information of all revisions *)
-		!Online_log.online_logger#log 
-		  "   Writing the quality information...";
+		!Online_log.online_logger#log "   Writing the quality information...";
 		let f r = r#write_quality_to_db in 
 		Vec.iter f revs;
 		!Online_log.online_logger#log " done.\n";
@@ -1500,38 +1518,33 @@ class page
 		      running_info.run_sigs <- page_sigs;
 		    end
 		end;
-
+		
 		(* Commits the transaction. *)
-		db#commit;
-		n_attempts := n_retries
-	      end (* try: this is the end of the main transaction *)
-	      with Online_db.DB_TXN_Bad -> begin 
+		self#commit_transaction;
+	      end (* try begin: this is the end of the main transaction *)
+	    with Online_db.DB_TXN_Bad -> 
+	      begin 
 		(* Roll back *)
-		db#rollback_transaction;
-		n_attempts := !n_attempts + 1
+		self#rollback_transaction;
+		raise DB_error
 	      end
-	    end done; (* End of the multiple attempts at the transaction *)
+	    end; (* This is the begin...end enclosing the try construct. *)
 	    (* We write to disk all reputation changes *)
 	    !Online_log.online_logger#log "   Writing the reputations...\n";
 	    self#write_all_reps;
 	    !Online_log.online_logger#log "   All done!\n";
 	    (* Writes the new histogram *)
 	    if histogram_updated then begin 
-	      let n_attempts = ref 0 in 
-	      while !n_attempts < n_retries do 
-		begin 
-		  try begin 
-		    db#start_transaction;
-		    db#write_histogram delta_hist new_hi_median;
-		    db#commit;
-		    histogram_updated <- false;
-		    n_attempts := n_retries
-		  end with Online_db.DB_TXN_Bad -> begin 
-		    (* Roll back *)
-		    db#rollback_transaction;
-		    n_attempts := !n_attempts + 1
-		  end
-		end done
+	      try begin 
+		self#start_transaction;
+		db#write_histogram delta_hist new_hi_median;
+		self#commit_transaction;
+		histogram_updated <- false;
+	      end with Online_db.DB_TXN_Bad -> begin 
+		(* Roll back *)
+		self#rollback_transaction;
+		raise DB_error
+	      end
 	    end (* Histogram updated *)
 	      
 	  end else begin 
@@ -1557,91 +1570,88 @@ class page
       (* Keeps track of whether we have done any work *)
       let done_something = ref false in 
 
-      (* Start of transaction, retrying many times if needed *)
-      let n_attempts = ref 0 in 
-      while !n_attempts < n_retries do 
-	begin 
-	  try 
-	    db#start_transaction;
-	    !Online_log.online_logger#log "Start vote for revision...\n";
-	    (* Reads the page information, unless we are using
-	       the running information. *)
-	    begin
-	      match running_page_info with
-		None -> begin
-		  (* Reads from disk. *)
-		  page_sigs <- db#read_page_sigs page_id; 
-		  (* We don't need to read the deleted chunks list. *)
-		  begin try
-		    let (pinfo, bid) = db#read_page_info page_id in
-		    page_info <- pinfo;
-		    open_page_blob_id <- bid;
-		  with Online_db.DB_Not_Found -> begin
-		    db#init_page page_id None;
-		    open_page_blob_id <- blob_locations.initial_location;
-		  end end
-		end
-	      | Some running_info -> begin
-		  (* Uses the running information. *)
-		  page_info <- running_info.run_page_info;
-		  page_sigs <- running_info.run_sigs;
-		  del_chunks_list <- running_info.run_chunks;
-		end
-	    end;
+      (* Start of transaction *)
+      begin 
+	try 
+	  self#start_transaction;
+	  !Online_log.online_logger#log "Start vote for revision...\n";
+	  (* Reads the page information, unless we are using
+	     the running information. *)
+	  begin
+	    match running_page_info with
+	      None -> begin
+		(* Reads from disk. *)
+		page_sigs <- db#read_page_sigs page_id; 
+		(* We don't need to read the deleted chunks list. *)
+		begin try
+		  let (pinfo, bid) = db#read_page_info page_id in
+		  page_info <- pinfo;
+		  open_page_blob_id <- bid;
+		with Online_db.DB_Not_Found -> begin
+		  db#init_page page_id None;
+		  open_page_blob_id <- blob_locations.initial_location;
+		end end
+	      end
+	    | Some running_info -> begin
+		(* Uses the running information. *)
+		page_info <- running_info.run_page_info;
+		page_sigs <- running_info.run_sigs;
+		del_chunks_list <- running_info.run_chunks;
+	      end
+	  end;
 
-	    (* Reads the previous revisions. *)
-	    self#read_page_revisions_vote; 
-	    (* Increases the trust of the revision, and writes the 
-	       results back to disk *)
-	    self#vote_for_trust voter_id voter_name; 
-	    (* Inserts the revision in the list of high rep or high
-	       trust revisions, and deletes old signatures *)
-	    self#insert_revision_in_lists;
+	  (* Reads the previous revisions. *)
+	  self#read_page_revisions_vote; 
+	  (* Increases the trust of the revision, and writes the 
+	     results back to disk *)
+	  self#vote_for_trust voter_id voter_name; 
+	  (* Inserts the revision in the list of high rep or high
+	     trust revisions, and deletes old signatures *)
+	  self#insert_revision_in_lists;
 
-	    (* We write to disk the page information. *)
-	    (* Updates the running page information. *)
-	    begin
-	      match running_page_info with 
-		None -> begin
-		  (* We write to disk the page information *)
-		  db#write_page_info page_id page_info;
-		  (* No need to write the deleted chunks. *)
-		  db#write_page_sigs page_id page_sigs;
-		end
-	      | Some running_info -> begin
-		  (* We update the running page info. *)
-		  running_info.run_page_info <- page_info;
-		  (* No need to update the deleted chunks. *)
-		  running_info.run_sigs <- page_sigs;
-		end
-	    end;
+	  (* We write to disk the page information. *)
+	  (* Updates the running page information. *)
+	  begin
+	    match running_page_info with 
+	      None -> begin
+		(* We write to disk the page information *)
+		db#write_page_info page_id page_info;
+		(* No need to write the deleted chunks. *)
+		db#write_page_sigs page_id page_sigs;
+	      end
+	    | Some running_info -> begin
+		(* We update the running page info. *)
+		running_info.run_page_info <- page_info;
+		(* No need to update the deleted chunks. *)
+		running_info.run_sigs <- page_sigs;
+	      end
+	  end;
 
-	    (* We mark the vote as processed. *)
+	  (* We mark the vote as processed. *)
+	  db#mark_vote_as_processed revision_id voter_name;
+
+	  (* Commits *)
+	  self#commit_transaction;
+	  done_something := true;
+	  !Online_log.online_logger#log (Printf.sprintf 
+	    "\n\nUser %d voted for revision %d of page %d" 
+	    voter_id revision_id page_id);
+	  !Online_log.online_logger#flush; 
+	  
+	with 
+	  Online_db.DB_TXN_Bad | Online_db.DB_Not_Found -> begin 
+	    self#rollback_transaction;
+	    raise DB_error
+	  end 
+	| Missing_work_revision -> begin
+	    (* In this case, we also mark the vote as processed,
+	       since it would not be useful to try again. *)
 	    db#mark_vote_as_processed revision_id voter_name;
-
-	    (* Commits *)
-	    db#commit;
-	    n_attempts := n_retries;
-	    done_something := true;
 	    !Online_log.online_logger#log (Printf.sprintf 
-	      "\n\nUser %d voted for revision %d of page %d" 
-	      voter_id revision_id page_id);
-	    !Online_log.online_logger#flush; 
-	    
-	  with 
-	    Online_db.DB_TXN_Bad | Online_db.DB_Not_Found -> begin 
-	      db#rollback_transaction;
-	      n_attempts := !n_attempts + 1
-	    end 
-	  | Missing_work_revision -> begin
-	      (* In this case, we also mark the vote as processed,
-		 since it would not be useful to try again. *)
-	      db#mark_vote_as_processed revision_id voter_name;
-	      !Online_log.online_logger#log (Printf.sprintf 
-		"\nVote by %d on revision %d of page %d not processed: no colored text for page"
-		voter_id revision_id page_id)
-	    end
-	end done; (* End of the multiple attempts at the transaction *)
+	      "\nVote by %d on revision %d of page %d not processed: no colored text for page"
+	      voter_id revision_id page_id)
+	  end
+      end;
       (* Returns whether we have done something *)
       !done_something
       (* End of vote method *)

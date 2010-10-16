@@ -1,8 +1,7 @@
 #!/usr/bin/python
 
 """
-Copyright (c) 2009 Luca de Alfaro
-Copyright (c) 2010 Google Inc.
+Copyright (c) 2009-2010 Luca de Alfaro
 All rights reserved.
 
 Authors: Luca de Alfaro
