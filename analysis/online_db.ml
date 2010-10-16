@@ -472,7 +472,6 @@ object(self)
       in the system.  With an option, we can specify whether to delete also
       the information in the regular Mediawiki tables. *)
   method delete_page (page_id: int) = begin
-    (* TODO: should we obtain a page lock here? *)
     (* First, deletes the information in the db. *)
     let s = Printf.sprintf
       "DELETE FROM %swikitrust_revision WHERE page_id = %s"
