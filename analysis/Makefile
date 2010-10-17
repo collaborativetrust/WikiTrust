@@ -73,10 +73,10 @@ OCAMLOPT_FLAGS=$(INCLUDES) $(PROFILE)
 
 # Evalwiki does the batch evaluation
 
-OUR_LIB_OBJS = textbuf.cmo text.cmo prioq.cmo filesystem_store.cmo \
+OUR_LIB_OBJS = online_log.cmo textbuf.cmo text.cmo prioq.cmo filesystem_store.cmo \
 	coda.cmo editlist.cmo chdiff.cmo compute_edlist.cmo timeconv.cmo \
 	read_robots.cmo eval_defs.cmo author_sig.cmo online_types.cmo \
-	revision_store.cmo online_log.cmo online_command_line.cmo \
+	revision_store.cmo online_command_line.cmo \
 	online_db.cmo revision_writer.cmo \
 	rephist.cmo revision.cmo prune_analysis.cmo reputation_analysis.cmo \
 	compute_trust.cmo compute_robust_trust.cmo trust_analysis.cmo \
@@ -89,10 +89,10 @@ OUR_LIB_OBJS = textbuf.cmo text.cmo prioq.cmo filesystem_store.cmo \
 	online_revision.cmo db_page.cmo online_page.cmo event_feed.cmo  \
 	updater.cmo
 
-OUR_OPT_LIB_OBJS = textbuf.cmx text.cmx prioq.cmx filesystem_store.cmx \
+OUR_OPT_LIB_OBJS = online_log.cmx textbuf.cmx text.cmx prioq.cmx filesystem_store.cmx \
 	coda.cmx editlist.cmx chdiff.cmx compute_edlist.cmx timeconv.cmx \
 	read_robots.cmx eval_defs.cmx author_sig.cmx online_types.cmx \
-	revision_store.cmx online_log.cmx online_command_line.cmx \
+	revision_store.cmx online_command_line.cmx \
 	online_db.cmx revision_writer.cmx \
 	rephist.cmx revision.cmx prune_analysis.cmx reputation_analysis.cmx \
 	compute_trust.cmx compute_robust_trust.cmx trust_analysis.cmx \
@@ -107,12 +107,12 @@ OUR_OPT_LIB_OBJS = textbuf.cmx text.cmx prioq.cmx filesystem_store.cmx \
 
 # Generate_Reputation computes the reputation histories
 
-OUR_GENERATE_REPUTATION_OBJS = timeconv.cmo textbuf.cmo text.cmo \
+OUR_GENERATE_REPUTATION_OBJS = online_log.cmo timeconv.cmo textbuf.cmo text.cmo \
 	read_robots.cmo \
 	eval_defs.cmo rephist.cmo evaltypes.cmo wikidata.cmo \
 	computestats.cmo computerep.cmo generate_reputation.cmo 
 
-OUR_OPT_GENERATE_REPUTATION_OBJS = timeconv.cmx textbuf.cmx text.cmx \
+OUR_OPT_GENERATE_REPUTATION_OBJS = online_log.cmx timeconv.cmx textbuf.cmx text.cmx \
 	read_robots.cmx \
 	eval_defs.cmx rephist.cmx evaltypes.cmx wikidata.cmx \
 	computestats.cmx computerep.cmx generate_reputation.cmx 
@@ -124,19 +124,19 @@ OUR_OPT_SPLITWIKI_OBJS = splitwiki.cmx
 OUR_EXTRACTWIKI_OBJS = extract_wiki_subset.cmo
 OUR_OPT_EXTRACTWIKI_OBJS = extract_wiki_subset.cmx
 
-CHDIFF_OBJS = textbuf.cmo text.cmo prioq.cmo coda.cmo editlist.cmo chdiff.cmo
+CHDIFF_OBJS = online_log.cmo textbuf.cmo text.cmo prioq.cmo coda.cmo editlist.cmo chdiff.cmo
 
-EDITLIST_OBJS = textbuf.cmo text.cmo prioq.cmo coda.cmo editlist.cmo \
+EDITLIST_OBJS = online_log.cmo textbuf.cmo text.cmo prioq.cmo coda.cmo editlist.cmo \
 	chdiff.cmo compute_edlist.cmo
 
-TEXT_OBJS = textbuf.cmo text.cmo
-TEXT_OPT_OBJS = textbuf.cmx text.cmx
+TEXT_OBJS = online_log.cmo textbuf.cmo text.cmo
+TEXT_OPT_OBJS = online_log.cmx textbuf.cmx text.cmx
 
 TIMECONV_OBJS = timeconv.cmo
 
 FILESYSTEMSTORE_OBJS = filesystem_store.cmo
 
-REVISION_STORE_OBJS = eval_defs.cmo author_sig.cmo editlist.cmo \
+REVISION_STORE_OBJS = online_log.cmo eval_defs.cmo author_sig.cmo editlist.cmo \
 	online_types.cmo revision_store.cmo
 
 wikitrust_lib.cma: $(OUR_LIB_OBJS)

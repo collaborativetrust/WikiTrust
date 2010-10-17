@@ -46,6 +46,10 @@ exception Text_error
 
 (* This is the default size of a text array. *)
 let default_text_size = 5000
+(* If a piece of text is larger than this number of characters,
+   it considers it as empty.  This prevents wasting too much time
+   due to vandalism. *)
+let max_article_size = 1000000
 
 (* This is the type of the returned tokenized string.
    The string is just that, the string.  After a revision is split
@@ -854,14 +858,25 @@ let split_into_words_seps_and_info (disarm: bool) (rearm: bool) (text_v: string 
     * (string array) (* author *)
     * (int array)    (* sep index *)
     * (sep_t array)  (* seps *) = 
-  (* DynArrays cannot grow too large.  So, from text_v, which is a string Vec.t,
+
+  (* Measures the maximum article size, and truncates it to 0 if it is too long,
+     as it is vandalism. *)
+  let f t n = n + String.length t in 
+  let article_size = Vec.fold f text_v 0 in
+  !Online_log.online_logger#log (Printf.sprintf "\n  Text length: %d " article_size);
+  let text_v_analyze = 
+    if article_size > max_article_size 
+    then Vec.singleton ""
+    else text_v
+  in
+
+  (* DynArrays cannot grow too large.  So, from text_v_analyze, which is a string Vec.t,
      we construct a (piece_t DynArraytt) Vec.t, by transforming each string into
      a piece_t DynArray.t via split_string_preserving_markup.  Of course it
      would be better to go directly to a DynArray.t, but DynArrays are poorly implemented,
      and they run out of stack space when concatenating too large ones. *)
   let f t = split_string_preserving_markup disarm rearm t in
-  let pieces_dynarray_v = Vec.map f text_v in
-
+  let pieces_dynarray_v = Vec.map f text_v_analyze in
 
   (* From piece_dynarray_v, makes: 
      word_v : vector of words
