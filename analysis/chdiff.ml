@@ -126,18 +126,21 @@ let find_two_words (w1: word) (w2: word) (a: word array) : int option =
   end done;
   if !found then (Some !i) else None
 
-let rec rev_elist = function
-    [] -> []
-  | Ins (i, n) :: l -> Del (i, n) :: rev_elist l
-  | Del (i, n) :: l -> Ins (i, n) :: rev_elist l
-  | Mov (i, j, n) :: l -> Mov (j, i, n) :: rev_elist l
-
-let rec dezero = function
-    [] -> []
-  | Ins (_, 0) :: l -> dezero l
-  | Del (_, 0) :: l -> dezero l
-  | Mov (_, _, 0) :: l -> dezero l
-  | el :: l -> el :: dezero l
+let rev_elist l = 
+  let f = function
+      Ins (i, n) -> Del (i, n)
+    | Del (i, n) -> Ins (i, n)
+    | Mov (i, j, n) -> Mov (j, i, n)
+  in (List.rev (List.rev_map f l))
+ 
+let dezero l = 
+  let rec dezero_f accu = function
+      [] -> accu
+    | Ins (_, 0) :: l -> dezero_f accu l
+    | Del (_, 0) :: l -> dezero_f accu l
+    | Mov (_, _, 0) :: l -> dezero_f accu l
+    | el :: l -> dezero_f (el :: accu) l
+  in List.rev (dezero_f [] l)
 
 let single_word_edit_diff (w: word) (words2: word array) : edit list =
   let l2 = Array.length words2 in
