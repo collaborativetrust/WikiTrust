@@ -1,7 +1,7 @@
 (*
 
 Copyright (c) 2007-2008 The Regents of the University of California
-Copyright (c) 2010 Google Inc.
+Copyright (c) 2010 Luca de Alfaro
 All rights reserved.
 
 Authors: Luca de Alfaro

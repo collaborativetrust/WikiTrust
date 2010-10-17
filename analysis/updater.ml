@@ -117,7 +117,7 @@ class updater
 		  !Online_log.online_logger#log (Printf.sprintf 
 		    "\nEvaluating revision %d of page %d\n" rev_id page_id);
 		  let page = new Online_page.page db page_id rev_id (Some r) 
-		    trust_coeff n_retries robots None in
+		    trust_coeff robots None in
 		  n_processed_events <- n_processed_events + 1;
 		  if page#eval 
 		  then !Online_log.online_logger#log (Printf.sprintf 
@@ -160,7 +160,7 @@ class updater
 	      voter_id revision_id page_id); 
 	    n_processed_events <- n_processed_events + 1;
 	    let page = new Online_page.page db page_id revision_id 
-	      None trust_coeff n_retries robots None in
+	      None trust_coeff robots None in
 	    if page#vote voter_id voter_name 
 	    then
 	      !Online_log.online_logger#log (Printf.sprintf 
@@ -359,6 +359,8 @@ class updater
 	    Online_page.run_page_info = pinfo;
 	    Online_page.run_writer = writer;
 	  } in 
+	  (* Starts the db transaction *)
+	  db#start_transaction;
 	  (* Loops over the feed and processes it. *)
 	  let do_more = ref true in 
 	  while !do_more && (max_events_to_process = 0 or 
@@ -375,7 +377,7 @@ class updater
 		      !Online_log.online_logger#log (Printf.sprintf 
 			"\nEvaluating revision %d of page %d\n" rev_id page_id);
 		      let page = new Online_page.page db page_id rev_id (Some r)
-			trust_coeff n_retries robots (Some running_info) in
+			trust_coeff robots (Some running_info) in
 		      n_processed_events <- n_processed_events + 1;
 		      if page#eval 
 		      then !Online_log.online_logger#log (Printf.sprintf 
@@ -394,7 +396,7 @@ class updater
 			    "\nEvaluating vote by %d on revision %d of page %d" 
 			    voter_id rev_id page_id); 
 			  let page = new Online_page.page db page_id rev_id None
-			    trust_coeff n_retries robots (Some running_info) in
+			    trust_coeff robots (Some running_info) in
 			  n_processed_events <- n_processed_events + 1;
 			  if page#vote voter_id voter_name 
 			  then 

@@ -216,9 +216,10 @@ python truncate_wikitrust_keep_user.py
 # Launch the dispatcher
 ./dispatcher -db_user wikiuser -db_name wikidb -db_pass localwiki \
   -use_wikimedia_api -blob_base_path ~/wiki-data/enwork/blobtree \
-  -robots ~/wiki-data/wp_bots.txt   -log_file /tmp/dispatcher.log \
-  -use_exec_api -wiki_api http://en.wikipedia.org/w/api.php \
-  -wikitrust_base ~/WikiTrust -keep_cached_text \
+  -robots ~/wiki-data/wp_bots.txt \
+  -sync_log -log_file /tmp/dispatcher.log \
+  -wiki_api http://en.wikipedia.org/w/api.php \
+  -wikitrust_base ~/WikiTrust -debug_level 10 \
   -concur_procs 2  -rev_base_path ~/wiki-data/enwork/rev_cache
 
 # Or, with debugger on:
@@ -231,15 +232,19 @@ ocamldebug -I `ocamlfind query unix` -I `ocamlfind query str` \
     ./dispatcher -db_user wikiuser -db_name wikidb -db_pass localwiki \
     -use_wikimedia_api -blob_base_path ~/wiki-data/enwork/blobtree \
     -robots ~/wiki-data/wp_bots.txt \
-    -log_file /tmp/dispatcher.log \
+    -sync_log -log_file /tmp/dispatcher.log \
     -use_exec_api -wiki_api http://en.wikipedia.org/w/api.php \
-    -wikitrust_base ~/WikiTrust -keep_cached_text \
+    -wikitrust_base ~/WikiTrust \
     -concur_procs 2  -rev_base_path ~/wiki-data/enwork/rev_cache
 
 
-# Put some data in it. 
+# Put some data in it.  For the Italian one:
 INSERT INTO wikitrust_queue (page_id, page_title) VALUES (556792, "Moncalieri");
 INSERT INTO wikitrust_queue (page_id, page_title) VALUES (38166, "Chieri");
+
+# For the English one:
+INSERT INTO wikitrust_queue (page_id, page_title) VALUES (22544, "Ostrich");
+
 
 # Look at some revisions via:
 ./read_revision  -db_user wikiuser -db_name wikidb -db_pass localwiki \
