@@ -213,6 +213,10 @@ cat ~/wiki-data/user_reputations.txt | ~/WikiTrust/analysis/load_reputations \
 # Truncate wikitrust tables preserving reputation.
 python truncate_wikitrust_keep_user.py
 
+# Remove also the revision and page tables (in mysql):
+truncate revision;
+truncate page;
+
 # Launch the dispatcher
 ./dispatcher -db_user wikiuser -db_name wikidb -db_pass localwiki \
   -use_wikimedia_api -blob_base_path ~/wiki-data/enwork/blobtree \
@@ -235,7 +239,8 @@ ocamldebug -I `ocamlfind query unix` -I `ocamlfind query str` \
   -sync_log -log_file /tmp/dispatcher.log \
   -wiki_api http://en.wikipedia.org/w/api.php \
   -wikitrust_base ~/WikiTrust -debug_level 10 \
-  -concur_procs 2  -rev_base_path ~/wiki-data/enwork/rev_cache
+  -concur_procs 1  -rev_base_path ~/wiki-data/enwork/rev_cache \
+  -single_threaded_mode
 
 # Put some data in it.  For the Italian one:
 INSERT INTO wikitrust_queue (page_id, page_title) VALUES (556792, "Moncalieri");
