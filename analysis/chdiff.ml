@@ -395,7 +395,7 @@ let edit_diff (words1: word array) (words2: word array) : edit list =
     | Del (k, n) -> Del (k + front_prefix_len, n)
     | Mov (j, k, n) -> Mov (j + front_prefix_len, k + front_prefix_len, n)
   in 
-  let dlist' = dezero (List.map f dlist) in
+  let dlist' = dezero (List.rev (List.rev_map f dlist)) in
   (* Tacks on initial and final diff *)
   begin
     match (front_prefix_len, rear_prefix_len) with
@@ -726,7 +726,7 @@ let text_tracking
     | Mmov (k, c, j, 0, n) -> Mmov (k, c, j + front_prefix_len, 0, n)
     | Mmov (k, c, j, d, n) -> Mmov (k, c, j, d, n)
   in 
-  let mlist' = List.map f mlist in
+  let mlist' = List.rev (List.rev_map f mlist) in
   (* Now tacks on the additional Mmov for initial and final part. *)
   begin
     match (front_prefix_len, rear_prefix_len) with
