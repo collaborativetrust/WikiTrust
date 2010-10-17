@@ -130,6 +130,7 @@ EDITLIST_OBJS = textbuf.cmo text.cmo prioq.cmo coda.cmo editlist.cmo \
 	chdiff.cmo compute_edlist.cmo
 
 TEXT_OBJS = textbuf.cmo text.cmo
+TEXT_OPT_OBJS = textbuf.cmx text.cmx
 
 TIMECONV_OBJS = timeconv.cmo
 
@@ -199,6 +200,10 @@ chdiff: $(CHDIFF_OBJS)
 
 text:   $(TEXT_OBJS)
 	$(OCAMLC) -linkpkg -o text $(OCAML_CFLAGS) $(TEXT_OBJS)
+
+textopt: $(TEXT_OPT_OBJS)
+	$(OCAMLOPT) -linkpkg -o text $(OCAMLOPT_FLAGS) $(OUR_OPTLD_ADD) $(TEXT_OPT_OBJS)
+
 
 # this is used to test the edit list algorithms.
 

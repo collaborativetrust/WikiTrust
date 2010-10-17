@@ -845,16 +845,16 @@ let split_into_words_seps_and_info (disarm: bool) (rearm: bool) (text_v: string 
     * (string array) (* author *)
     * (int array)    (* sep index *)
     * (sep_t array)  (* seps *) = 
-  (* First, constructs a piece_t Dynarray.t containing the split text,
-     called piece_v *)
-  let piece_v = DynArray.make default_text_size in
-  (* f is iterated on text_v *)
-  let f t = 
-    let w = split_string_preserving_markup disarm rearm t in
-    DynArray.append w piece_v
-  in Vec.iter f text_v;
+  (* DynArrays cannot grow too large.  So, from text_v, which is a string Vec.t,
+     we construct a (piece_t DynArraytt) Vec.t, by transforming each string into
+     a piece_t DynArray.t via split_string_preserving_markup.  Of course it
+     would be better to go directly to a DynArray.t, but DynArrays are poorly implemented,
+     and they run out of stack space when concatenating too large ones. *)
+  let f t = split_string_preserving_markup disarm rearm t in
+  let pieces_dynarray_v = Vec.map f text_v in
 
-  (* From piece_v, makes: 
+
+  (* From piece_dynarray_v, makes: 
      word_v : vector of words
      word_trust_v : vector of word trusts 
      word_origin_v : vector of word origins
@@ -869,14 +869,17 @@ let split_into_words_seps_and_info (disarm: bool) (rearm: bool) (text_v: string 
   let trust = ref 0.0 in 
   let word_idx = ref 0 in 
   let sep_idx = ref 0 in 
-  let word_v = DynArray.make default_text_size in
-  let word_trust_v = DynArray.make default_text_size in
-  let word_origin_v = DynArray.make default_text_size in
-  let word_author_v = DynArray.make default_text_size in
-  let word_index_v = DynArray.make default_text_size in
-  let sep_v = DynArray.make default_text_size in
-  (* This function is iterated on the vector of piece_t *)
-  (* For each relevant string s, puts in word_v a "viword": a visible
+
+  let word_v = ref Vec.empty in
+  let word_trust_v = ref Vec.empty in
+  let word_origin_v = ref Vec.empty in
+  let word_author_v = ref Vec.empty in
+  let word_index_v = ref Vec.empty in
+  let sep_v = ref Vec.empty in
+  (* This function is iterated on each piece_t.  
+     This will require a double iteraction: first on the Vec, then on the Dynarray.
+     The function does as follows:
+     For each relevant string s, puts in word_v a "viword": a visible
      piece of text.  The intent is to ensure that any change to a
      viword corresponds to a change in the visible layout, and vice
      versa, any change in the visible layout must be caused by a
@@ -884,145 +887,145 @@ let split_into_words_seps_and_info (disarm: bool) (rearm: bool) (text_v: string 
      - cannot change things that are visible to the reputation system but not 
        to other authors (it could allow them to gain reputation unjustifiably) 
      - cannot vandalize a page without getting some effect to their
-       reputation.  *)
-  let h (s: piece_t) = 
+       reputation. *)
+  let h (s: piece_t) : unit = 
     match s with 
       WS_title_start s -> begin 
-	DynArray.add sep_v (Title_start (s, !word_idx));
+	sep_v := Vec.append (Title_start (s, !word_idx)) !sep_v;
 	(* for a title start, the viword is just s; no whitespace involved *)
-	DynArray.add word_v s;
-	DynArray.add word_trust_v !trust;
-	DynArray.add word_origin_v !origin;
-	DynArray.add word_author_v !author;
-	DynArray.add word_index_v !sep_idx;
+	word_v := Vec.append s !word_v;
+	word_trust_v := Vec.append !trust !word_trust_v;
+	word_origin_v := Vec.append !origin !word_origin_v;
+	word_author_v := Vec.append !author !word_author_v;
+	word_index_v := Vec.append !sep_idx !word_index_v;
 	word_idx := !word_idx + 1;
 	sep_idx  := !sep_idx  + 1
       end
     | WS_title_end s -> begin 
-	DynArray.add sep_v (Title_end (s, !word_idx));
+	sep_v := Vec.append (Title_end (s, !word_idx)) !sep_v;
 	(* for a title end, the viword is obtained by removing
 	   whitespace and adding a '\n' for uniqueness *)
-	DynArray.add word_v ((strip_ws_end s) ^ "\n");
-	DynArray.add word_trust_v !trust;
-	DynArray.add word_origin_v !origin;
-	DynArray.add word_author_v !author;
-	DynArray.add word_index_v !sep_idx;
+	word_v := Vec.append ((strip_ws_end s) ^ "\n") !word_v;
+	word_trust_v := Vec.append !trust !word_trust_v;
+	word_origin_v := Vec.append !origin !word_origin_v;
+	word_author_v := Vec.append !author !word_author_v;
+	word_index_v := Vec.append !sep_idx !word_index_v;
 	word_idx := !word_idx + 1;
 	sep_idx  := !sep_idx  + 1
       end
     | WS_bullet s -> begin 
-	DynArray.add sep_v (Bullet (s, !word_idx));
+	sep_v := Vec.append (Bullet (s, !word_idx)) !sep_v;
 	(* the viword is obtained by removing whitespace. *)
-	DynArray.add word_v (strip_ws_end s);
-	DynArray.add word_trust_v !trust;
-	DynArray.add word_origin_v !origin;
-	DynArray.add word_author_v !author;
-	DynArray.add word_index_v !sep_idx;
+	word_v := Vec.append (strip_ws_end s) !word_v;
+	word_trust_v := Vec.append !trust !word_trust_v;
+	word_origin_v := Vec.append !origin !word_origin_v;
+	word_author_v := Vec.append !author !word_author_v;
+	word_index_v := Vec.append !sep_idx !word_index_v;
 	word_idx := !word_idx + 1;
 	sep_idx  := !sep_idx  + 1
       end
     | WS_par_break s -> begin 
 	(* this is a sep but no word *)
-	DynArray.add sep_v (Par_break s);
+	sep_v := Vec.append (Par_break s) !sep_v;
 	sep_idx  := !sep_idx  + 1
       end
     | WS_indent s -> begin 
-	DynArray.add sep_v (Bullet (s, !word_idx));
+	sep_v := Vec.append (Bullet (s, !word_idx)) !sep_v;
 	(* the viword is just the original string s *)
-	DynArray.add word_v s;
-	DynArray.add word_trust_v !trust;
-	DynArray.add word_origin_v !origin;
-	DynArray.add word_author_v !author;
-	DynArray.add word_index_v !sep_idx;
+	word_v := Vec.append s !word_v;
+	word_trust_v := Vec.append !trust !word_trust_v;
+	word_origin_v := Vec.append !origin !word_origin_v;
+	word_author_v := Vec.append !author !word_author_v;
+	word_index_v := Vec.append !sep_idx !word_index_v;
 	word_idx := !word_idx + 1;
 	sep_idx  := !sep_idx  + 1
       end
     | WS_space s -> begin 
 	(* this is a sep but no word *)
-	DynArray.add sep_v (Space s);
+	sep_v := Vec.append (Space s) !sep_v;
 	sep_idx  := !sep_idx  + 1
       end
     | WS_newline s -> begin 
 	(* this is a sep but no word *)
-	DynArray.add sep_v (Newline s);
+	sep_v := Vec.append (Newline s) !sep_v;
 	sep_idx  := !sep_idx  + 1
       end
     | WS_table_line s -> begin 
-	DynArray.add sep_v (Table_line (s, !word_idx));
+	sep_v := Vec.append (Table_line (s, !word_idx)) !sep_v;
 	(* the viword is the original string s normalized for whitespace *)
-	DynArray.add word_v (normalize_ws s);
-	DynArray.add word_trust_v !trust;
-	DynArray.add word_origin_v !origin;
-	DynArray.add word_author_v !author;
-	DynArray.add word_index_v !sep_idx;
+	word_v := Vec.append (normalize_ws s) !word_v;
+	word_trust_v := Vec.append !trust !word_trust_v;
+	word_origin_v := Vec.append !origin !word_origin_v;
+	word_author_v := Vec.append !author !word_author_v;
+	word_index_v := Vec.append !sep_idx !word_index_v;
 	word_idx := !word_idx + 1;
 	sep_idx  := !sep_idx  + 1
       end
     | WS_table_caption s -> begin 
-	DynArray.add sep_v (Table_caption (s, !word_idx));
+	sep_v := Vec.append (Table_caption (s, !word_idx)) !sep_v;
 	(* the viword is \n|+ *)
-	DynArray.add word_v "\n|+";
-	DynArray.add word_trust_v !trust;
-	DynArray.add word_origin_v !origin;
-	DynArray.add word_author_v !author;
-	DynArray.add word_index_v !sep_idx;
+	word_v := Vec.append "\n|+" !word_v;
+	word_trust_v := Vec.append !trust !word_trust_v;
+	word_origin_v := Vec.append !origin !word_origin_v;
+	word_author_v := Vec.append !author !word_author_v;
+	word_index_v := Vec.append !sep_idx !word_index_v;
 	word_idx := !word_idx + 1;
 	sep_idx  := !sep_idx  + 1
       end
     | WS_table_cell s -> begin 
-	DynArray.add sep_v (Table_cell (s, !word_idx));
+	sep_v := Vec.append (Table_cell (s, !word_idx)) !sep_v;
 	(* the viword is the original string s, with whitespace normalized *)
-	DynArray.add word_v (normalize_ws s);
-	DynArray.add word_trust_v !trust;
-	DynArray.add word_origin_v !origin;
-	DynArray.add word_author_v !author;
-	DynArray.add word_index_v !sep_idx;
+	word_v := Vec.append (normalize_ws s) !word_v;
+	word_trust_v := Vec.append !trust !word_trust_v;
+	word_origin_v := Vec.append !origin !word_origin_v;
+	word_author_v := Vec.append !author !word_author_v;
+	word_index_v := Vec.append !sep_idx !word_index_v;
 	word_idx := !word_idx + 1;
 	sep_idx  := !sep_idx  + 1
       end
     | TXT_tag s -> begin 
-	DynArray.add sep_v (Tag (s, !word_idx));
+	sep_v := Vec.append (Tag (s, !word_idx)) !sep_v;
 	(* the viword is just the original string s, with whitespace
 	   normalized *)
-	DynArray.add word_v (normalize_ws s);
-	DynArray.add word_trust_v !trust;
-	DynArray.add word_origin_v !origin;
-	DynArray.add word_author_v !author;
-	DynArray.add word_index_v !sep_idx;
+	word_v := Vec.append (normalize_ws s) !word_v;
+	word_trust_v := Vec.append !trust !word_trust_v;
+	word_origin_v := Vec.append !origin !word_origin_v;
+	word_author_v := Vec.append !author !word_author_v;
+	word_index_v := Vec.append !sep_idx !word_index_v;
 	word_idx := !word_idx + 1;
 	sep_idx  := !sep_idx  + 1
       end
     | TXT_redirect s -> begin 
-	DynArray.add sep_v (Redirect (s, !word_idx));
+	sep_v := Vec.append (Redirect (s, !word_idx)) !sep_v;
 	(* the viword is just the original string s, with whitespace
 	   normalized *)
-	DynArray.add word_v (normalize_ws s);
-	DynArray.add word_trust_v !trust;
-	DynArray.add word_origin_v !origin;
-	DynArray.add word_author_v !author;
-	DynArray.add word_index_v !sep_idx;
+	word_v := Vec.append (normalize_ws s) !word_v;
+	word_trust_v := Vec.append !trust !word_trust_v;
+	word_origin_v := Vec.append !origin !word_origin_v;
+	word_author_v := Vec.append !author !word_author_v;
+	word_index_v := Vec.append !sep_idx !word_index_v;
 	word_idx := !word_idx + 1;
 	sep_idx  := !sep_idx  + 1
       end
     | TXT_armored_char s -> begin 
-	DynArray.add sep_v (Armored_char (s, !word_idx));
+	sep_v := Vec.append (Armored_char (s, !word_idx)) !sep_v;
 	(* the viword is just the original string s *)
-	DynArray.add word_v s;
-	DynArray.add word_trust_v !trust;
-	DynArray.add word_origin_v !origin;
-	DynArray.add word_author_v !author;
-	DynArray.add word_index_v !sep_idx;
+	word_v := Vec.append s !word_v;
+	word_trust_v := Vec.append !trust !word_trust_v;
+	word_origin_v := Vec.append !origin !word_origin_v;
+	word_author_v := Vec.append !author !word_author_v;
+	word_index_v := Vec.append !sep_idx !word_index_v;
 	word_idx := !word_idx + 1;
 	sep_idx  := !sep_idx  + 1
       end
     | TXT_word s -> begin 
-	DynArray.add sep_v (Word (s, !word_idx));
+	sep_v := Vec.append (Word (s, !word_idx)) !sep_v;
 	(* the viword is the renormalized, lowercase word *)
-	DynArray.add word_v (renormalize_word s);
-	DynArray.add word_trust_v !trust;
-	DynArray.add word_origin_v !origin;
-	DynArray.add word_author_v !author;
-	DynArray.add word_index_v !sep_idx;
+	word_v := Vec.append (renormalize_word s) !word_v;
+	word_trust_v := Vec.append !trust !word_trust_v;
+	word_origin_v := Vec.append !origin !word_origin_v;
+	word_author_v := Vec.append !author !word_author_v;
+	word_index_v := Vec.append !sep_idx !word_index_v;
 	word_idx := !word_idx + 1;
 	sep_idx  := !sep_idx  + 1
       end
@@ -1034,14 +1037,17 @@ let split_into_words_seps_and_info (disarm: bool) (rearm: bool) (text_v: string 
       end
     | TXT_splittable _ -> ()
   in 
-  DynArray.iter h piece_v; 
+  (* The function g iterates h on a DynArray. *)
+  let g (sa: piece_t DynArray.t) : unit = DynArray.iter h sa in
+  (* Finally, what we need to do is Vec.iter of g on pieces_dynarray_v *)
+  Vec.iter g pieces_dynarray_v;
   (* Creates the output *)
-  let word_a = DynArray.to_array word_v in 
-  let trust_a = DynArray.to_array word_trust_v in 
-  let origin_a = DynArray.to_array word_origin_v in 
-  let author_a = DynArray.to_array word_author_v in
-  let word_index_a = DynArray.to_array word_index_v in 
-  let sep_a = DynArray.to_array sep_v in 
+  let word_a = Vec.to_array !word_v in 
+  let trust_a = Vec.to_array !word_trust_v in 
+  let origin_a = Vec.to_array !word_origin_v in 
+  let author_a = Vec.to_array !word_author_v in
+  let word_index_a = Vec.to_array !word_index_v in 
+  let sep_a = Vec.to_array !sep_v in 
   (* And returns the whole *)
   (word_a, trust_a, origin_a, author_a, word_index_a, sep_a);;
 
@@ -1133,7 +1139,7 @@ end;;
 (* This code can be used to test the text splitting on very large
    pieces of text, to figure out where it breaks. *)
 if false then begin 
-  let f = open_in "../test-data/polish.txt" in 
+  let f = open_in "../test-data/000002468868_000037419197.txt" in 
   let buf = ref (Textbuf.empty) in 
   let read_more = ref true in 
   while !read_more do begin 
@@ -1145,7 +1151,6 @@ if false then begin
   end done;
   let text = Textbuf.get !buf in 
   let (word_v, trust_v, orig_v, auth_v, _, sep_v) = split_into_words_seps_and_info true false text in 
-  Printf.printf "Found %d words.\n" (Array.length word_v);
-  print_seps sep_v
+  Printf.printf "Found %d words.\n" (Array.length word_v)
 
 end;;
