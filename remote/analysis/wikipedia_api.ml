@@ -361,8 +361,9 @@ let fetch_page_and_revs_after_json (selector : string) : result_tree =
       )
   ) with
   | Failure e -> (
-      Printf.eprintf "JSON Error: %s\nOn %s\nExc %s\n" e url
-	(Printexc.to_string (Failure e));
+      Printf.eprintf "JSON Error: %s\nOn %s\nExc %s\nBacktrace: %s" e url
+	(Printexc.to_string (Failure e))
+        (Printexc.get_backtrace ());
       raise (API_error_noretry e) 
     )
       (* this means that there are certain revs we can not download -- 
