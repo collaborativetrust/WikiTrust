@@ -46,6 +46,10 @@ exception Text_error
 
 (* This is the default size of a text array. *)
 let default_text_size = 5000
+(* If a piece of text is larger than this number of characters,
+   it considers it as empty.  This prevents wasting too much time
+   due to vandalism. *)
+let max_article_size = 1000000
 
 (* This is the type of the returned tokenized string.
    The string is just that, the string.  After a revision is split
@@ -94,6 +98,15 @@ type piece_t =   WS_title_start of string
 let sep_regexp = Str.regexp "[.,;:=?!-]*\\([][(){}<>'#* \t\n\"|]\\|^\\|$\\)+[.,;:=?!-]*"
 (* a word has to contain at least an alpha or number *)
 let in_word_regexp = Str.regexp ".*[a-zA-Z0-9]"
+
+(* This is an abbreviation that will be useful later *)
+type dynarray_tuple_t = 
+    (word DynArray.t)   (* words *)
+    * (float DynArray.t)  (* trust *)
+    * (int DynArray.t)    (* origin *)
+    * (string DynArray.t) (* author *)
+    * (int DynArray.t)    (* sep index *)
+    * (sep_t DynArray.t)  (* seps *)
 
 
 (* **************************************************************** *)
@@ -845,16 +858,27 @@ let split_into_words_seps_and_info (disarm: bool) (rearm: bool) (text_v: string 
     * (string array) (* author *)
     * (int array)    (* sep index *)
     * (sep_t array)  (* seps *) = 
-  (* First, constructs a piece_t Dynarray.t containing the split text,
-     called piece_v *)
-  let piece_v = DynArray.make default_text_size in
-  (* f is iterated on text_v *)
-  let f t = 
-    let w = split_string_preserving_markup disarm rearm t in
-    DynArray.append w piece_v
-  in Vec.iter f text_v;
 
-  (* From piece_v, makes: 
+  (* Measures the maximum article size, and truncates it to 0 if it is too long,
+     as it is vandalism. *)
+  let f t n = n + String.length t in 
+  let article_size = Vec.fold f text_v 0 in
+  !Online_log.online_logger#log (Printf.sprintf "\n  Text length: %d " article_size);
+  let text_v_analyze = 
+    if article_size > max_article_size 
+    then Vec.singleton ""
+    else text_v
+  in
+
+  (* DynArrays cannot grow too large.  So, from text_v_analyze, which is a string Vec.t,
+     we construct a (piece_t DynArraytt) Vec.t, by transforming each string into
+     a piece_t DynArray.t via split_string_preserving_markup.  Of course it
+     would be better to go directly to a DynArray.t, but DynArrays are poorly implemented,
+     and they run out of stack space when concatenating too large ones. *)
+  let f t = split_string_preserving_markup disarm rearm t in
+  let pieces_dynarray_v = Vec.map f text_v_analyze in
+
+  (* From piece_dynarray_v, makes: 
      word_v : vector of words
      word_trust_v : vector of word trusts 
      word_origin_v : vector of word origins
@@ -869,181 +893,238 @@ let split_into_words_seps_and_info (disarm: bool) (rearm: bool) (text_v: string 
   let trust = ref 0.0 in 
   let word_idx = ref 0 in 
   let sep_idx = ref 0 in 
-  let word_v = DynArray.make default_text_size in
-  let word_trust_v = DynArray.make default_text_size in
-  let word_origin_v = DynArray.make default_text_size in
-  let word_author_v = DynArray.make default_text_size in
-  let word_index_v = DynArray.make default_text_size in
-  let sep_v = DynArray.make default_text_size in
-  (* This function is iterated on the vector of piece_t *)
-  (* For each relevant string s, puts in word_v a "viword": a visible
-     piece of text.  The intent is to ensure that any change to a
-     viword corresponds to a change in the visible layout, and vice
-     versa, any change in the visible layout must be caused by a
-     viword change.  In this way, authors: 
-     - cannot change things that are visible to the reputation system but not 
+
+  (* The function g iterates h on a DynArray.t, obtaining a tuple 
+     (word_a, trust_a, origin_a, author_a, word_index_a, sep_a)
+     of DynArrays. *)
+
+  let g (da : piece_t DynArray.t) : dynarray_tuple_t =
+    let word_a = DynArray.make default_text_size in
+    let word_trust_a = DynArray.make default_text_size in
+    let word_origin_a = DynArray.make default_text_size in
+    let word_author_a = DynArray.make default_text_size in
+    let word_index_a = DynArray.make default_text_size in
+    let sep_a = DynArray.make default_text_size in
+    (* This function is iterated on the piece_t *)
+    (* For each relevant string s, puts in word_a a "viword": a visible
+       piece of text.  The intent is to ensure that any change to a
+       viword corresponds to a change in the visible layout, and vice
+       versa, any change in the visible layout must be caused by a
+       viword change.  In this way, authors: 
+       - cannot change things that are visible to the reputation system but not 
        to other authors (it could allow them to gain reputation unjustifiably) 
-     - cannot vandalize a page without getting some effect to their
+       - cannot vandalize a page without getting some effect to their
        reputation.  *)
-  let h (s: piece_t) = 
-    match s with 
-      WS_title_start s -> begin 
-	DynArray.add sep_v (Title_start (s, !word_idx));
-	(* for a title start, the viword is just s; no whitespace involved *)
-	DynArray.add word_v s;
-	DynArray.add word_trust_v !trust;
-	DynArray.add word_origin_v !origin;
-	DynArray.add word_author_v !author;
-	DynArray.add word_index_v !sep_idx;
-	word_idx := !word_idx + 1;
-	sep_idx  := !sep_idx  + 1
-      end
-    | WS_title_end s -> begin 
-	DynArray.add sep_v (Title_end (s, !word_idx));
-	(* for a title end, the viword is obtained by removing
-	   whitespace and adding a '\n' for uniqueness *)
-	DynArray.add word_v ((strip_ws_end s) ^ "\n");
-	DynArray.add word_trust_v !trust;
-	DynArray.add word_origin_v !origin;
-	DynArray.add word_author_v !author;
-	DynArray.add word_index_v !sep_idx;
-	word_idx := !word_idx + 1;
-	sep_idx  := !sep_idx  + 1
-      end
-    | WS_bullet s -> begin 
-	DynArray.add sep_v (Bullet (s, !word_idx));
-	(* the viword is obtained by removing whitespace. *)
-	DynArray.add word_v (strip_ws_end s);
-	DynArray.add word_trust_v !trust;
-	DynArray.add word_origin_v !origin;
-	DynArray.add word_author_v !author;
-	DynArray.add word_index_v !sep_idx;
-	word_idx := !word_idx + 1;
-	sep_idx  := !sep_idx  + 1
-      end
-    | WS_par_break s -> begin 
-	(* this is a sep but no word *)
-	DynArray.add sep_v (Par_break s);
-	sep_idx  := !sep_idx  + 1
-      end
-    | WS_indent s -> begin 
-	DynArray.add sep_v (Bullet (s, !word_idx));
-	(* the viword is just the original string s *)
-	DynArray.add word_v s;
-	DynArray.add word_trust_v !trust;
-	DynArray.add word_origin_v !origin;
-	DynArray.add word_author_v !author;
-	DynArray.add word_index_v !sep_idx;
-	word_idx := !word_idx + 1;
-	sep_idx  := !sep_idx  + 1
-      end
-    | WS_space s -> begin 
-	(* this is a sep but no word *)
-	DynArray.add sep_v (Space s);
-	sep_idx  := !sep_idx  + 1
-      end
-    | WS_newline s -> begin 
-	(* this is a sep but no word *)
-	DynArray.add sep_v (Newline s);
-	sep_idx  := !sep_idx  + 1
-      end
-    | WS_table_line s -> begin 
-	DynArray.add sep_v (Table_line (s, !word_idx));
-	(* the viword is the original string s normalized for whitespace *)
-	DynArray.add word_v (normalize_ws s);
-	DynArray.add word_trust_v !trust;
-	DynArray.add word_origin_v !origin;
-	DynArray.add word_author_v !author;
-	DynArray.add word_index_v !sep_idx;
-	word_idx := !word_idx + 1;
-	sep_idx  := !sep_idx  + 1
-      end
-    | WS_table_caption s -> begin 
-	DynArray.add sep_v (Table_caption (s, !word_idx));
-	(* the viword is \n|+ *)
-	DynArray.add word_v "\n|+";
-	DynArray.add word_trust_v !trust;
-	DynArray.add word_origin_v !origin;
-	DynArray.add word_author_v !author;
-	DynArray.add word_index_v !sep_idx;
-	word_idx := !word_idx + 1;
-	sep_idx  := !sep_idx  + 1
-      end
-    | WS_table_cell s -> begin 
-	DynArray.add sep_v (Table_cell (s, !word_idx));
-	(* the viword is the original string s, with whitespace normalized *)
-	DynArray.add word_v (normalize_ws s);
-	DynArray.add word_trust_v !trust;
-	DynArray.add word_origin_v !origin;
-	DynArray.add word_author_v !author;
-	DynArray.add word_index_v !sep_idx;
-	word_idx := !word_idx + 1;
-	sep_idx  := !sep_idx  + 1
-      end
-    | TXT_tag s -> begin 
-	DynArray.add sep_v (Tag (s, !word_idx));
-	(* the viword is just the original string s, with whitespace
-	   normalized *)
-	DynArray.add word_v (normalize_ws s);
-	DynArray.add word_trust_v !trust;
-	DynArray.add word_origin_v !origin;
-	DynArray.add word_author_v !author;
-	DynArray.add word_index_v !sep_idx;
-	word_idx := !word_idx + 1;
-	sep_idx  := !sep_idx  + 1
-      end
-    | TXT_redirect s -> begin 
-	DynArray.add sep_v (Redirect (s, !word_idx));
-	(* the viword is just the original string s, with whitespace
-	   normalized *)
-	DynArray.add word_v (normalize_ws s);
-	DynArray.add word_trust_v !trust;
-	DynArray.add word_origin_v !origin;
-	DynArray.add word_author_v !author;
-	DynArray.add word_index_v !sep_idx;
-	word_idx := !word_idx + 1;
-	sep_idx  := !sep_idx  + 1
-      end
-    | TXT_armored_char s -> begin 
-	DynArray.add sep_v (Armored_char (s, !word_idx));
-	(* the viword is just the original string s *)
-	DynArray.add word_v s;
-	DynArray.add word_trust_v !trust;
-	DynArray.add word_origin_v !origin;
-	DynArray.add word_author_v !author;
-	DynArray.add word_index_v !sep_idx;
-	word_idx := !word_idx + 1;
-	sep_idx  := !sep_idx  + 1
-      end
-    | TXT_word s -> begin 
-	DynArray.add sep_v (Word (s, !word_idx));
-	(* the viword is the renormalized, lowercase word *)
-	DynArray.add word_v (renormalize_word s);
-	DynArray.add word_trust_v !trust;
-	DynArray.add word_origin_v !origin;
-	DynArray.add word_author_v !author;
-	DynArray.add word_index_v !sep_idx;
-	word_idx := !word_idx + 1;
-	sep_idx  := !sep_idx  + 1
-      end
-	(* I store the new word trust, origin, and author *)
-    | INFO_trust (x, k, a) -> begin 
-	trust := x;
-	origin := k;
-	author := a
-      end
-    | TXT_splittable _ -> ()
+    let h (s: piece_t) : unit = 
+      match s with 
+	WS_title_start s -> begin 
+	  DynArray.add sep_a (Title_start (s, !word_idx));
+	  (* for a title start, the viword is just s; no whitespace involved *)
+	  DynArray.add word_a s;
+	  DynArray.add word_trust_a !trust;
+	  DynArray.add word_origin_a !origin;
+	  DynArray.add word_author_a !author;
+	  DynArray.add word_index_a !sep_idx;
+	  word_idx := !word_idx + 1;
+	  sep_idx  := !sep_idx  + 1
+	end
+      | WS_title_end s -> begin 
+	  DynArray.add sep_a (Title_end (s, !word_idx));
+	  (* for a title end, the viword is obtained by removing
+	     whitespace and adding a '\n' for uniqueness *)
+	  DynArray.add word_a ((strip_ws_end s) ^ "\n");
+	  DynArray.add word_trust_a !trust;
+	  DynArray.add word_origin_a !origin;
+	  DynArray.add word_author_a !author;
+	  DynArray.add word_index_a !sep_idx;
+	  word_idx := !word_idx + 1;
+	  sep_idx  := !sep_idx  + 1
+	end
+      | WS_bullet s -> begin 
+	  DynArray.add sep_a (Bullet (s, !word_idx));
+	  (* the viword is obtained by removing whitespace. *)
+	  DynArray.add word_a (strip_ws_end s);
+	  DynArray.add word_trust_a !trust;
+	  DynArray.add word_origin_a !origin;
+	  DynArray.add word_author_a !author;
+	  DynArray.add word_index_a !sep_idx;
+	  word_idx := !word_idx + 1;
+	  sep_idx  := !sep_idx  + 1
+	end
+      | WS_par_break s -> begin 
+	  (* this is a sep but no word *)
+	  DynArray.add sep_a (Par_break s);
+	  sep_idx  := !sep_idx  + 1
+	end
+      | WS_indent s -> begin 
+	  DynArray.add sep_a (Bullet (s, !word_idx));
+	  (* the viword is just the original string s *)
+	  DynArray.add word_a s;
+	  DynArray.add word_trust_a !trust;
+	  DynArray.add word_origin_a !origin;
+	  DynArray.add word_author_a !author;
+	  DynArray.add word_index_a !sep_idx;
+	  word_idx := !word_idx + 1;
+	  sep_idx  := !sep_idx  + 1
+	end
+      | WS_space s -> begin 
+	  (* this is a sep but no word *)
+	  DynArray.add sep_a (Space s);
+	  sep_idx  := !sep_idx  + 1
+	end
+      | WS_newline s -> begin 
+	  (* this is a sep but no word *)
+	  DynArray.add sep_a (Newline s);
+	  sep_idx  := !sep_idx  + 1
+	end
+      | WS_table_line s -> begin 
+	  DynArray.add sep_a (Table_line (s, !word_idx));
+	  (* the viword is the original string s normalized for whitespace *)
+	  DynArray.add word_a (normalize_ws s);
+	  DynArray.add word_trust_a !trust;
+	  DynArray.add word_origin_a !origin;
+	  DynArray.add word_author_a !author;
+	  DynArray.add word_index_a !sep_idx;
+	  word_idx := !word_idx + 1;
+	  sep_idx  := !sep_idx  + 1
+	end
+      | WS_table_caption s -> begin 
+	  DynArray.add sep_a (Table_caption (s, !word_idx));
+	  (* the viword is \n|+ *)
+	  DynArray.add word_a "\n|+";
+	  DynArray.add word_trust_a !trust;
+	  DynArray.add word_origin_a !origin;
+	  DynArray.add word_author_a !author;
+	  DynArray.add word_index_a !sep_idx;
+	  word_idx := !word_idx + 1;
+	  sep_idx  := !sep_idx  + 1
+	end
+      | WS_table_cell s -> begin 
+	  DynArray.add sep_a (Table_cell (s, !word_idx));
+	  (* the viword is the original string s, with whitespace normalized *)
+	  DynArray.add word_a (normalize_ws s);
+	  DynArray.add word_trust_a !trust;
+	  DynArray.add word_origin_a !origin;
+	  DynArray.add word_author_a !author;
+	  DynArray.add word_index_a !sep_idx;
+	  word_idx := !word_idx + 1;
+	  sep_idx  := !sep_idx  + 1
+	end
+      | TXT_tag s -> begin 
+	  DynArray.add sep_a (Tag (s, !word_idx));
+	  (* the viword is just the original string s, with whitespace
+	     normalized *)
+	  DynArray.add word_a (normalize_ws s);
+	  DynArray.add word_trust_a !trust;
+	  DynArray.add word_origin_a !origin;
+	  DynArray.add word_author_a !author;
+	  DynArray.add word_index_a !sep_idx;
+	  word_idx := !word_idx + 1;
+	  sep_idx  := !sep_idx  + 1
+	end
+      | TXT_redirect s -> begin 
+	  DynArray.add sep_a (Redirect (s, !word_idx));
+	  (* the viword is just the original string s, with whitespace
+	     normalized *)
+	  DynArray.add word_a (normalize_ws s);
+	  DynArray.add word_trust_a !trust;
+	  DynArray.add word_origin_a !origin;
+	  DynArray.add word_author_a !author;
+	  DynArray.add word_index_a !sep_idx;
+	  word_idx := !word_idx + 1;
+	  sep_idx  := !sep_idx  + 1
+	end
+      | TXT_armored_char s -> begin 
+	  DynArray.add sep_a (Armored_char (s, !word_idx));
+	  (* the viword is just the original string s *)
+	  DynArray.add word_a s;
+	  DynArray.add word_trust_a !trust;
+	  DynArray.add word_origin_a !origin;
+	  DynArray.add word_author_a !author;
+	  DynArray.add word_index_a !sep_idx;
+	  word_idx := !word_idx + 1;
+	  sep_idx  := !sep_idx  + 1
+	end
+      | TXT_word s -> begin 
+	  DynArray.add sep_a (Word (s, !word_idx));
+	  (* the viword is the renormalized, lowercase word *)
+	  DynArray.add word_a (renormalize_word s);
+	  DynArray.add word_trust_a !trust;
+	  DynArray.add word_origin_a !origin;
+	  DynArray.add word_author_a !author;
+	  DynArray.add word_index_a !sep_idx;
+	  word_idx := !word_idx + 1;
+	  sep_idx  := !sep_idx  + 1
+	end
+	  (* I store the new word trust, origin, and author *)
+      | INFO_trust (x, k, a) -> begin 
+	  trust := x;
+	  origin := k;
+	  author := a
+	end
+      | TXT_splittable _ -> ()
+    in 
+    DynArray.iter h da;
+    (word_a, word_trust_a, word_origin_a, word_author_a, word_index_a, sep_a)
+  in
+
+  (* We now map g onto pieces_dynarray_v. *)
+  let dynarrays_v : (dynarray_tuple_t Vec.t) ref = ref Vec.empty in
+  for i = 0 to (Vec.length pieces_dynarray_v - 1) do begin
+    let piece = Vec.get i pieces_dynarray_v in
+    dynarrays_v := Vec.append (g piece) !dynarrays_v 
+  end done;
+
+  (* Now, we must form real arrays from the concatenation of the elements of dynarrays_v. 
+     The various elements of dynarrays_v have different lengths.  
+     So, we measure the length of the arrays we must create for the concatenations,
+     via a visit to the tree. *)
+  let visitor_count_empty = (0, 0, 0, 0, 0, 0) in
+  let visitor_count_post count_left d count_right : int * int * int * int * int * int = 
+    let (l1, l2, l3, l4, l5, l6) = count_left in
+    let (r1, r2, r3, r4, r5, r6) = count_right in
+    let (d1, d2, d3, d4, d5, d6) = d in
+    let s1 = l1 + r1 + (DynArray.length d1) in 
+    let s2 = l2 + r2 + (DynArray.length d2) in 
+    let s3 = l3 + r3 + (DynArray.length d3) in 
+    let s4 = l4 + r4 + (DynArray.length d4) in 
+    let s5 = l5 + r5 + (DynArray.length d5) in 
+    let s6 = l6 + r6 + (DynArray.length d6) in 
+    (s1, s2, s3, s4, s5, s6)
   in 
-  DynArray.iter h piece_v; 
-  (* Creates the output *)
-  let word_a = DynArray.to_array word_v in 
-  let trust_a = DynArray.to_array word_trust_v in 
-  let origin_a = DynArray.to_array word_origin_v in 
-  let author_a = DynArray.to_array word_author_v in
-  let word_index_a = DynArray.to_array word_index_v in 
-  let sep_a = DynArray.to_array sep_v in 
-  (* And returns the whole *)
-  (word_a, trust_a, origin_a, author_a, word_index_a, sep_a);;
+  let (count_word, count_trust, count_origin, count_author, count_word_index, count_sep) = 
+    Vec.visit_post visitor_count_empty visitor_count_post !dynarrays_v in
+  (* Creates the arrays to hold the result. *)
+  let word_result_a = Array.make count_word "" in
+  let trust_result_a = Array.make count_trust 0. in
+  let origin_result_a = Array.make count_origin 0 in
+  let author_result_a = Array.make count_author "" in
+  let word_index_result_a = Array.make count_word_index 0 in
+  let sep_result_a = Array.make count_sep (Space " ") in (* arbitrary of course *)
+  (* Fills the arrays. *)
+  let word_idx = ref 0 in
+  let trust_idx = ref 0 in
+  let origin_idx = ref 0 in
+  let author_idx = ref 0 in
+  let word_index_idx = ref 0 in
+  let sep_idx = ref 0 in
+  (* This function is iterated on dynarrays_v, filling the actual vectors. *)
+  let fill_in_result (dt: dynarray_tuple_t) : unit = 
+    let (word_a, trust_a, origin_a, author_a, word_index_a, sep_a) = dt in
+    let fill_in_dyn result_a dyn_a counter =
+      DynArray.iter (function d -> 
+	begin Array.set result_a !counter d; counter := !counter + 1 end) dyn_a in
+    fill_in_dyn word_result_a word_a word_idx;
+    fill_in_dyn trust_result_a trust_a trust_idx;
+    fill_in_dyn origin_result_a origin_a origin_idx;
+    fill_in_dyn author_result_a author_a author_idx;
+    fill_in_dyn word_index_result_a word_index_a word_index_idx;
+    fill_in_dyn sep_result_a sep_a sep_idx
+  in 
+  Vec.iter fill_in_result !dynarrays_v;
+  (* Finally, returns the created arrays. *)
+  (word_result_a, trust_result_a, origin_result_a, 
+  author_result_a, word_index_result_a, sep_result_a);;
 
 
 (* **************************************************************** *)
@@ -1133,7 +1214,7 @@ end;;
 (* This code can be used to test the text splitting on very large
    pieces of text, to figure out where it breaks. *)
 if false then begin 
-  let f = open_in "../test-data/polish.txt" in 
+  let f = open_in "../test-data/000002468868_000037419197.txt" in 
   let buf = ref (Textbuf.empty) in 
   let read_more = ref true in 
   while !read_more do begin 
@@ -1144,8 +1225,10 @@ if false then begin
     with End_of_file -> read_more := false
   end done;
   let text = Textbuf.get !buf in 
-  let (word_v, trust_v, orig_v, auth_v, _, sep_v) = split_into_words_seps_and_info true false text in 
+  let (word_v, trust_v, orig_v, auth_v, index_v, sep_v) = 
+    split_into_words_seps_and_info true false text in 
   Printf.printf "Found %d words.\n" (Array.length word_v);
   print_seps sep_v
+  
 
 end;;

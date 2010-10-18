@@ -213,6 +213,10 @@ cat ~/wiki-data/user_reputations.txt | ~/WikiTrust/analysis/load_reputations \
 # Truncate wikitrust tables preserving reputation.
 python truncate_wikitrust_keep_user.py
 
+# Remove also the revision and page tables (in mysql):
+truncate revision;
+truncate page;
+
 # Launch the dispatcher
 ./dispatcher -db_user wikiuser -db_name wikidb -db_pass localwiki \
   -use_wikimedia_api -blob_base_path ~/wiki-data/enwork/blobtree \
@@ -230,13 +234,13 @@ ocamldebug -I `ocamlfind query unix` -I `ocamlfind query str` \
     -I `ocamlfind query mysql` -I `ocamlfind query sexplib` \
     -I ../../analysis \
     ./dispatcher -db_user wikiuser -db_name wikidb -db_pass localwiki \
-    -use_wikimedia_api -blob_base_path ~/wiki-data/enwork/blobtree \
-    -robots ~/wiki-data/wp_bots.txt \
-    -sync_log -log_file /tmp/dispatcher.log \
-    -use_exec_api -wiki_api http://en.wikipedia.org/w/api.php \
-    -wikitrust_base ~/WikiTrust \
-    -concur_procs 2  -rev_base_path ~/wiki-data/enwork/rev_cache
-
+  -use_wikimedia_api -blob_base_path ~/wiki-data/enwork/blobtree \
+  -robots ~/wiki-data/wp_bots.txt \
+  -sync_log -log_file /tmp/dispatcher.log \
+  -wiki_api http://en.wikipedia.org/w/api.php \
+  -wikitrust_base ~/WikiTrust -debug_level 10 \
+  -concur_procs 1  -rev_base_path ~/wiki-data/enwork/rev_cache \
+  -single_threaded_mode
 
 # Put some data in it.  For the Italian one:
 INSERT INTO wikitrust_queue (page_id, page_title) VALUES (556792, "Moncalieri");
@@ -244,6 +248,7 @@ INSERT INTO wikitrust_queue (page_id, page_title) VALUES (38166, "Chieri");
 
 # For the English one:
 INSERT INTO wikitrust_queue (page_id, page_title) VALUES (22544, "Ostrich");
+INSERT INTO wikitrust_queue (page_id, page_title) VALUES (2468868, "Colin Cowherd");
 
 
 # Look at some revisions via:

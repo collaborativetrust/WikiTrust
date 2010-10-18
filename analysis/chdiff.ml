@@ -126,18 +126,21 @@ let find_two_words (w1: word) (w2: word) (a: word array) : int option =
   end done;
   if !found then (Some !i) else None
 
-let rec rev_elist = function
-    [] -> []
-  | Ins (i, n) :: l -> Del (i, n) :: rev_elist l
-  | Del (i, n) :: l -> Ins (i, n) :: rev_elist l
-  | Mov (i, j, n) :: l -> Mov (j, i, n) :: rev_elist l
-
-let rec dezero = function
-    [] -> []
-  | Ins (_, 0) :: l -> dezero l
-  | Del (_, 0) :: l -> dezero l
-  | Mov (_, _, 0) :: l -> dezero l
-  | el :: l -> el :: dezero l
+let rev_elist l = 
+  let f = function
+      Ins (i, n) -> Del (i, n)
+    | Del (i, n) -> Ins (i, n)
+    | Mov (i, j, n) -> Mov (j, i, n)
+  in (List.rev (List.rev_map f l))
+ 
+let dezero l = 
+  let rec dezero_f accu = function
+      [] -> accu
+    | Ins (_, 0) :: l -> dezero_f accu l
+    | Del (_, 0) :: l -> dezero_f accu l
+    | Mov (_, _, 0) :: l -> dezero_f accu l
+    | el :: l -> dezero_f (el :: accu) l
+  in List.rev (dezero_f [] l)
 
 let single_word_edit_diff (w: word) (words2: word array) : edit list =
   let l2 = Array.length words2 in
@@ -395,7 +398,7 @@ let edit_diff (words1: word array) (words2: word array) : edit list =
     | Del (k, n) -> Del (k + front_prefix_len, n)
     | Mov (j, k, n) -> Mov (j + front_prefix_len, k + front_prefix_len, n)
   in 
-  let dlist' = dezero (List.map f dlist) in
+  let dlist' = dezero (List.rev (List.rev_map f dlist)) in
   (* Tacks on initial and final diff *)
   begin
     match (front_prefix_len, rear_prefix_len) with
@@ -726,7 +729,7 @@ let text_tracking
     | Mmov (k, c, j, 0, n) -> Mmov (k, c, j + front_prefix_len, 0, n)
     | Mmov (k, c, j, d, n) -> Mmov (k, c, j, d, n)
   in 
-  let mlist' = List.map f mlist in
+  let mlist' = List.rev (List.rev_map f mlist) in
   (* Now tacks on the additional Mmov for initial and final part. *)
   begin
     match (front_prefix_len, rear_prefix_len) with
