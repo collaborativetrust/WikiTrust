@@ -338,6 +338,4 @@ in
 Printexc.record_backtrace true ;
 Sys.set_signal Sys.sigterm  (Sys.Signal_handle sig_handler) ;
 Sys.set_signal Sys.sigint   (Sys.Signal_handle sig_handler) ;
-Sys.set_signal Sys.sigusr1  (Sys.Signal_handle sig_handler) ;
-Sys.set_signal Sys.sighup   (Sys.Signal_handle sig_handler) ;
 main_loop () ;;
