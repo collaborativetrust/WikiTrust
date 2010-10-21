@@ -1,6 +1,6 @@
 <?php
 
-$SERVER = "http://toolserver.org/~ipye/GetNewTitles.php?";
+$SERVER = "http://toolserver.org/~ipye/GetNewTitles.php?max=8000&";
 $mwdb = $argv[1];
 $wikidb = $argv[2];
 $wikiuser = $argv[3];
