@@ -186,7 +186,7 @@ class page
     method private read_page_revisions_edit : unit = 
       (* Reads the most recent revisions *)
       (* This is a hashtable from revision id to revision, for the
-         revisions that have been read from disc.  This hash table
+         revisions that have been read from disk.  This hash table
          contains all revisions, whether it is the last in a block by
          the same author, or not. *)
       let revid_to_rev: (int, rev_t) Hashtbl.t = 
@@ -303,6 +303,13 @@ class page
          read the normal text; for the others, the colored text. 
 	 If it does not find the information for old revisions, 
          it just disregards it. *)
+      let pages_in_sigs_l = List.rev (List.sort compare (db#list_pages_in_sigs page_sigs)) in
+      let rec f = function
+	  [] -> " "
+	| el :: l -> string_of_int(el) ^ " " ^ (f l)
+      in 
+      let pages_in_sigs_s = f pages_in_sigs_l in
+      !Online_log.online_logger#log ("\n  Pages in Sigs: " ^ pages_in_sigs_s);
       let revs_to_read = revs in
       for i = 0 to n_revs - 1 do begin 
 	let r = Vec.get i revs_to_read in
@@ -318,8 +325,9 @@ class page
 	    (* If the revision is recent, it complains. *)
 	    if i < 3 
 	    then begin
-	      Printf.eprintf "Missing text trust for revision %d; the current revision is %d\n"
-		r#get_id revision_id;
+	      !Online_log.online_logger#log (Printf.sprintf 
+		"\nMissing text trust for revision %d; the current revision is %d\n"
+		r#get_id revision_id);
 	      raise (Missing_trust r)
 	    end else begin
 	      (* Removes the revision from consideration. *)

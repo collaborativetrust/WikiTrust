@@ -1,6 +1,7 @@
 (*
 
 Copyright (c) 2008 The Regents of the University of California
+Copyright (c) 2010 Luca de Alfaro
 All rights reserved.
 
 Authors: Luca de Alfaro, Ian Pye 
@@ -51,8 +52,8 @@ class page
   (* I read all colored revisions of the page prior or equal to the timestamp *)
   let rev_id = r#get_id in
   let page_id = r#get_page_id in
-  let timestamp = r#get_timestamp in
-  let revs_init = db#fetch_col_revs page_id timestamp rev_id n_revs_to_fetch in
+  let time_string = r#get_time_string in
+  let revs_init = db#fetch_col_revs page_id time_string rev_id n_revs_to_fetch in
 
   object (self)
 
@@ -64,9 +65,12 @@ class page
        starting from the revision id that was given as input. *)
     method get_rev : Online_revision.revision option =
       begin 
-	match Mysql.fetch revs with 
-	  None -> None
-	| Some row -> Some (Online_revision.make_revision_from_cursor row db)
+	match revs with
+	  [] -> None
+	| rr :: rest -> begin
+	    revs <- rest;
+	    Some (Online_revision.make_revision rr db)
+	  end
       end
 
   end (* End page *)

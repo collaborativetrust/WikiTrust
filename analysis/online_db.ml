@@ -1,6 +1,7 @@
 (*
 
-Copyright (c) 2008-2010 The Regents of the University of California
+Copyright (c) 2008-2009 The Regents of the University of California
+Copyright (c) 2010 Luca de Alfaro
 All rights reserved.
 
 Authors: Luca de Alfaro, Ian Pye, B. Thomas Adler
@@ -67,6 +68,22 @@ type revision_t = {
   rev_user_text: string; 
   rev_is_minor: bool;
 } 
+
+(* Proper chronological ordering for revision_t *)
+let revision_t_asc_cron (r1: revision_t) (r2: revision_t) : int =
+  compare (r1.rev_timestamp, r1.rev_id) (r2.rev_timestamp, r2.rev_id)
+let revision_t_desc_cron x y = - revision_t_asc_cron x y
+
+(* When we read the revisions from disk, we ask for them to be sorted
+   in order of timestamp, but what we really need is a (timestamp,
+   rev_id) order.  Thus, we ask for extra revisions, to compensate for the
+   fact that there can be multiple revisions with the same timestamp.
+   If we wish to have n revisions, we will ask the db for 
+   n * num_max_same_timestamp + num_extra_revisions revisions, so that
+   even if the db query is sorted by timestamp, we will be able to have
+   a long enough final answer. *)
+let num_max_same_timestamp = 2
+let num_extra_revisions = 5
 
 let set_is_minor ism = match ism with
   | 0 -> false
@@ -274,17 +291,24 @@ object(self)
       revision id of the most recent revision that has been colored.
       If [req_page_id] specifies a page, then only that page is considered.
       Raises DB_Not_Found if no revisions have been colored. *)
-      (* FIX: look at al the LIMIT 1 and see if you can use max instead. *)
   method fetch_last_colored_rev_time (req_page_id: int option) : (string * int) = 
     let wr = match req_page_id with
 	None -> ""
       | Some p_id ->  Printf.sprintf "WHERE page_id = %s" (ml2int p_id) 
     in 
-    let s = Printf.sprintf "SELECT time_string, revision_id FROM %swikitrust_revision %s ORDER BY time_string DESC, revision_id DESC LIMIT 1" db_prefix wr in
-    match fetch (self#db_exec mediawiki_dbh s) with
-      None -> raise DB_Not_Found
-    | Some row -> (not_null str2ml row.(0), not_null int2ml row.(1)) 
-	
+    (* gets some extra revisions to account for possible 
+       timestamp collisions. *)
+    let s = Printf.sprintf "SELECT revision_id, page_id, text_id, time_string, user_id, username, is_minor FROM %swikitrust_revision %s ORDER BY time_string DESC LIMIT %s" db_prefix wr (ml2int num_extra_revisions) in
+    let rev_list = Mysql.map 
+      (self#db_exec mediawiki_dbh s) rev_row2revision_t in
+    (* Sorts the list in descending order *)
+    let sorted_rev_list = List.sort revision_t_desc_cron rev_list in
+    if (List.length sorted_rev_list) = 0 
+    then raise DB_Not_Found
+    else begin
+      let r = List.hd sorted_rev_list in
+      (r.rev_timestamp, r.rev_id)
+    end
 	
   (** [fetch_all_revs_after req_page_id req_rev_id timestamp rev_id
       limit] returns all revs created after the given [timestamp], or
@@ -308,11 +332,31 @@ object(self)
       | None -> ""
       | Some r_id -> Printf.sprintf "rev_id = %s OR" (ml2int r_id)
     in
-    let s = Printf. sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit FROM %srevision WHERE %s rev_timestamp > %s %s ORDER BY rev_timestamp ASC, rev_id ASC LIMIT %s" 
+    let n_revs_to_request = max_revs_to_return * num_max_same_timestamp +
+      num_extra_revisions in 
+    let s = Printf. sprintf "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit FROM %srevision WHERE %s rev_timestamp >= %s %s ORDER BY rev_timestamp ASC LIMIT %s" 
       db_prefix
-      rr (ml2str timestamp) wr (ml2int max_revs_to_return) in
-    Mysql.map (self#db_exec mediawiki_dbh s) rev_row2revision_t
-      
+      rr (ml2str timestamp) wr (ml2int n_revs_to_request) in
+    let rev_list = Mysql.map 
+      (self#db_exec mediawiki_dbh s) rev_row2revision_t in
+    (* Sorts the list *)
+    let sorted_rev_list = List.sort revision_t_asc_cron rev_list in
+    (* Now we must go over the list, and: 
+       * Discard any element that is smaller than or equal to 
+         (timestamp, rev_id).
+     * Keep only max_revs_to_return revisions. *)
+    (* This function is folded on sorted_rev_list to compute the answer. *)
+    let f (res_l, k) el =
+      if k = 0 
+      then (res_l, k)
+      else begin
+	if (el.rev_timestamp, el.rev_id) <= (timestamp, rev_id)
+	then (res_l, k)
+	else (res_l @ [el], k - 1)
+      end
+    in let (truncated_list, _) = 
+      List.fold_left f ([], max_revs_to_return) sorted_rev_list in
+    truncated_list
 
   (** [fetch_all_revs req_page_id max_revs_to_return] returns a list
       of revisions in the database, in ascending order of timestamp,
@@ -323,9 +367,24 @@ object(self)
 	None -> ""
       | Some p_id -> Printf.sprintf "WHERE rev_page = %s" (ml2int p_id) 
     in
-    let s = Printf.sprintf  "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit FROM %srevision %s ORDER BY rev_timestamp ASC, rev_id ASC LIMIT %s" 
-      db_prefix wr (ml2int max_revs_to_return) in
-    Mysql.map (self#db_exec mediawiki_dbh s) rev_row2revision_t
+    let n_revs_to_request = max_revs_to_return * num_max_same_timestamp +
+      num_extra_revisions in 
+    let s = Printf.sprintf  "SELECT rev_id, rev_page, rev_text_id, rev_timestamp, rev_user, rev_user_text, rev_minor_edit FROM %srevision %s ORDER BY rev_timestamp ASC LIMIT %s" 
+      db_prefix wr (ml2int n_revs_to_request) in
+    let rev_list = Mysql.map 
+      (self#db_exec mediawiki_dbh s) rev_row2revision_t in
+    (* Sorts the list *)
+    let sorted_rev_list = List.sort revision_t_asc_cron rev_list in
+    (* Now we must go over the list, and: 
+     * Keep only max_revs_to_return revisions. *)
+    (* This function is folded on sorted_rev_list to compute the answer. *)
+    let f (res_l, k) el = 
+      if k = 0 
+      then (res_l, k)
+      else (res_l @ [el], k - 1)
+    in let (truncated_list, _) = 
+      List.fold_left f ([], max_revs_to_return) sorted_rev_list in
+    truncated_list
 
 
   (** [fetch_unprocessed_votes req_page_id n_events] returns at most
@@ -445,10 +504,30 @@ object(self)
       [page_id] with time prior or equal to [timestamp].  The ordering
       goes backward in time.  This function is used to read the
       colored revisions that precede a given one. *)
-  method fetch_col_revs (page_id : int) (timestamp: timestamp_t) (rev_id: int) (fetch_limit: int): Mysql.result =
-    let s = Printf.sprintf "SELECT revision_id, page_id, text_id, time_string, user_id, username, is_minor FROM %swikitrust_revision WHERE page_id = %s AND time_string < %s ORDER BY time_string DESC, revision_id DESC LIMIT %s" db_prefix (ml2int page_id) (ml2timestamp timestamp) (ml2int fetch_limit) in 
-    self#db_exec mediawiki_dbh s
-
+  method fetch_col_revs (page_id : int) (time_string: string) (rev_id: int) (fetch_limit: int): revision_t list =
+    let n_revs_to_get = fetch_limit * num_max_same_timestamp +
+      num_extra_revisions in 
+    let s = Printf.sprintf "SELECT revision_id, page_id, text_id, time_string, user_id, username, is_minor FROM %swikitrust_revision WHERE page_id = %s AND time_string <= %s ORDER BY time_string DESC LIMIT %s" db_prefix (ml2int page_id) (ml2str time_string) (ml2int n_revs_to_get) in 
+    let rev_list = Mysql.map 
+      (self#db_exec mediawiki_dbh s) rev_row2revision_t in
+    (* Sorts the list in descending order *)
+    let sorted_rev_list = List.sort revision_t_desc_cron rev_list in
+    (* Now we must go over the list, and: 
+       * Discard any element that is greater than or equal to 
+         (timestamp, rev_id).
+     * Keep only fetch_limit revisions. *)
+    (* This function is folded on sorted_rev_list to compute the answer. *)
+    let f (res_l, k) el =
+      if k = 0 
+      then (res_l, k)
+      else begin
+	if (el.rev_timestamp, el.rev_id) >= (time_string, rev_id)
+	then (res_l, k)
+	else (res_l @ [el], k - 1)
+      end
+    in let (truncated_list, _) = 
+      List.fold_left f ([], fetch_limit) sorted_rev_list in
+    truncated_list
 
   (** [get_mwpage_title page_id]
       Returns the (list) of titles associated with page_id
@@ -555,6 +634,10 @@ object(self)
     (* Creates a single string for the sigs. *)
     let sig_string = string_of__of__sexp_of sexp_of_page_sig_disk_t sigs in
     self#write_blob page_id blob_locations.sig_location sig_string
+
+  (** [list_pages_in_sigs page_sigs] returns the list of page ids in the page sigs. *)
+  method list_pages_in_sigs (sigs: page_sig_t) : int list = 
+    let (l, _) = List.split sigs in l
 
   (* Methods on the standard tables *)
 

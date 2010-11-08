@@ -249,6 +249,7 @@ INSERT INTO wikitrust_queue (page_id, page_title) VALUES (38166, "Chieri");
 # For the English one:
 INSERT INTO wikitrust_queue (page_id, page_title) VALUES (22544, "Ostrich");
 INSERT INTO wikitrust_queue (page_id, page_title) VALUES (2468868, "Colin Cowherd");
+INSERT INTO wikitrust_queue (page_id, page_title) VALUES (805725, "WHDH (TV)");
 
 
 # Look at some revisions via:

@@ -205,10 +205,10 @@ class db :
     method read_page_info : int -> Online_types.page_info_t * int
 
     (** [fetch_col_revs page_id timestamp rev_id fetch_limit] returns a
-	cursor that points to at most [fetch_limit] colored revisions of page
+	list of at most [fetch_limit] colored revisions of page
 	[page_id] with time and revision immediately preceding 
         [timestamp], and [rev_id]. *)
-    method fetch_col_revs : int -> timestamp_t -> int -> int -> Mysql.result
+    method fetch_col_revs : int -> string -> int -> int -> revision_t list
 
     (** [get_mwpage_title page_id]
 	Returns the (list) of titles associated with page_id
@@ -254,6 +254,9 @@ class db :
     (** [write_page_sigs page_id sigs] writes that the sigs 
 	page [page_id] are [sigs]. *)
     method write_page_sigs : int -> page_sig_t -> unit
+
+      (** [list_pages_in_sigs page_sigs] returns the list of page ids in the page sigs. *)
+    method list_pages_in_sigs: page_sig_t -> int list
 
     (* Methods on the standard tables. *)
 
