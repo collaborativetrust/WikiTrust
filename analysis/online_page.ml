@@ -286,11 +286,11 @@ class page
       let l123 = merge_unique (l1, merge_unique (l2, l3)) in
       revs <- Vec.of_list (remove_duplicates (most_recent_rev :: l123));
       
-      let print_revision_vec (r: rev_t) : unit = !Online_log.online_logger#log (Printf.sprintf "%d " r#get_id) in 
-      !Online_log.online_logger#log "\n  Recent    revisions: "; Vec.iter print_revision_vec recent_revs;
-      !Online_log.online_logger#log "\n  Hi-trust  revisions: "; Vec.iter print_revision_vec hi_trust_revs;
-      !Online_log.online_logger#log "\n  Hi-rep    revisions: "; Vec.iter print_revision_vec hi_rep_revs;
-      !Online_log.online_logger#log "\n  Total     revisions: "; Vec.iter print_revision_vec revs;
+      let print_revision_vec (r: rev_t) : unit = !Online_log.online_logger#debug 7 (Printf.sprintf "%d " r#get_id) in 
+      !Online_log.online_logger#debug 7 "\n  Recent    revisions: "; Vec.iter print_revision_vec recent_revs;
+      !Online_log.online_logger#debug 7 "\n  Hi-trust  revisions: "; Vec.iter print_revision_vec hi_trust_revs;
+      !Online_log.online_logger#debug 7 "\n  Hi-rep    revisions: "; Vec.iter print_revision_vec hi_rep_revs;
+      !Online_log.online_logger#debug 7 "\n  Total     revisions: "; Vec.iter print_revision_vec revs;
       
       (* Sets the current time *)
       let n_revs = Vec.length revs in 
@@ -309,7 +309,7 @@ class page
 	| el :: l -> string_of_int(el) ^ " " ^ (f l)
       in 
       let pages_in_sigs_s = f pages_in_sigs_l in
-      !Online_log.online_logger#log ("\n  Pages in Sigs: " ^ pages_in_sigs_s);
+      !Online_log.online_logger#debug 7 ("\n  Pages in Sigs: " ^ pages_in_sigs_s);
       let revs_to_read = revs in
       for i = 0 to n_revs - 1 do begin 
 	let r = Vec.get i revs_to_read in
@@ -855,7 +855,7 @@ class page
            (b) one of the revisions even before (indicating a reversion, 
                essentially). *)
         let d_prev = Hashtbl.find edit_dist (rev1_id, rev0_id) in 
-	!Online_log.online_logger#log (Printf.sprintf 
+	!Online_log.online_logger#debug 7 (Printf.sprintf 
 	  "\nDistances to previous revisions: %.1f" d_prev);
         let close_idx = ref 1 in 
         let closest_d = ref d_prev in 
@@ -863,12 +863,12 @@ class page
           let revi = Vec.get i revs in 
           let revi_id = revi#get_id in 
           let d = Hashtbl.find edit_dist (revi_id, rev0_id) in
-	  !Online_log.online_logger#log (Printf.sprintf " ; %d %.1f" i d);
+	  !Online_log.online_logger#debug 7 (Printf.sprintf " ; %d %.1f" i d);
           (* We consider a revision to be a better candidate than the
              immediately preceding revision as the source of the most
              recent revision if it is no farther away. *)
           if d < d_prev && d < !closest_d then begin
-	    !Online_log.online_logger#log (Printf.sprintf " * %d " i);
+	    !Online_log.online_logger#debug 7 (Printf.sprintf " * %d " i);
             close_idx := i; 
             closest_d := d
           end
@@ -1208,7 +1208,7 @@ class page
 	    (* Increments the histogram according to the work of the judge *)
 	    let slot = max 0 (min 9 (int_of_float rev2_weight)) in 
 	    histogram.(slot) <- histogram.(slot) +. !min_dist_to_2; 
-	    !Online_log.online_logger#log (Printf.sprintf 
+	    !Online_log.online_logger#debug 7 (Printf.sprintf 
 	      "\n Incrementing histogram slot %d by %f" 
 	      slot !min_dist_to_2);
 	    let new_hi_median' = 
@@ -1333,7 +1333,7 @@ class page
 			if (q <= trust_coeff.nix_threshold)
 			then Printf.sprintf "\n\nRevision %d has been nixed due to quality" rev1_id
 			else Printf.sprintf "\n\nRevision %d has been nixed due to too frequent edits" rev1_id
-		      in !Online_log.online_logger#log s
+		      in !Online_log.online_logger#debug 7 s
 		    end
 		  end;
 
@@ -1408,21 +1408,21 @@ class page
 		  rev1#note_reputation_inc (new_rep -. rev1_rep); 
 
 		  (* For logging purposes, produces the Edit_inc line *)
-		  !Online_log.online_logger#log (Printf.sprintf 
+		  !Online_log.online_logger#debug 7 (Printf.sprintf 
 		    "\n\nEditInc %10.0f PageId: %d Inc: %.4f Capd_inc: %.4f q: %.4f Delta: %.2f" 
 		    (* time and page id *)
 		    rev2_time page_id rep_inc (new_rep -. rev1_rep) q delta);
 		  (* revision and user ids *)
-		  !Online_log.online_logger#log (Printf.sprintf 
+		  !Online_log.online_logger#debug 7 (Printf.sprintf 
 		    "\n  rev_c2: %d uid_c2: %d uname_c2: %S rev_c2_rep: %.3f" 
 		    r_c2_id r_c2_uid r_c2_username r_c2_rep); 
-		  !Online_log.online_logger#log (Printf.sprintf 
+		  !Online_log.online_logger#debug 7 (Printf.sprintf 
 		    "\n  rev1: %d uid1: %d uname1: %S r1_rep: %.3f Nixed: %B" 
 		    rev1_id rev1_uid rev1_uname rev1_rep rev1#get_nix); 
-		  !Online_log.online_logger#log (Printf.sprintf 
+		  !Online_log.online_logger#debug 7 (Printf.sprintf 
 		    "\n  rev2: %d uid2: %d uname2: %S r2_rep: %.3f w2_renorm: %.3f" 
 		    rev2_id rev2_uid rev2_uname rev2_rep renorm_w); 
-		  !Online_log.online_logger#log (Printf.sprintf 
+		  !Online_log.online_logger#debug 7 (Printf.sprintf 
 		    "\n  d_c1_1: %.2f d_c2_1: %.2f d_c2_2: %.2f d12: %.2f rev_1_to_2_time: %.3f\n"
 		    delta d_c2_1 d_c2_2 d12 
 		    ((rev2_time -. rev1_time) /. (3600. *. 24.))) 
@@ -1486,18 +1486,18 @@ class page
 		self#read_page_revisions_edit; 
 		
 		(* Computes the edit distances *)
-		!Online_log.online_logger#log "\n   Computing edit lists...";
+		!Online_log.online_logger#debug 7 "\n   Computing edit lists...";
 		self#compute_edit_lists; 
 		(* Computes, and writes to disk, the trust of the
 		   newest revision *)
-		!Online_log.online_logger#log "\n   Computing trust...";
+		!Online_log.online_logger#debug 7 "\n   Computing trust...";
 		self#compute_trust;
 		(* Percolates back the trust that has been computed. *)
-		!Online_log.online_logger#log "\n   Percolating back trust...";
+		!Online_log.online_logger#debug 7 "\n   Percolating back trust...";
 		self#percolate_back_trust;
 		
 		(* We now process the reputation update. *)
-		!Online_log.online_logger#log "\n   Computing edit incs...";
+		!Online_log.online_logger#debug 7 "\n   Computing edit incs...";
 		self#compute_edit_inc;
 		
 		(* Inserts the revision in the list of high rep or high
@@ -1505,10 +1505,10 @@ class page
 		self#insert_revision_in_lists;
 		
 		(* We write back to disk the information of all revisions *)
-		!Online_log.online_logger#log "   Writing the quality information...";
+		!Online_log.online_logger#debug 7 "   Writing the quality information...";
 		let f r = r#write_quality_to_db in 
 		Vec.iter f revs;
-		!Online_log.online_logger#log " done.\n";
+		!Online_log.online_logger#debug 7 " done.\n";
 		
 		(* Updates the running page information. *)
 		begin
@@ -1538,9 +1538,9 @@ class page
 	      end
 	    end; (* This is the begin...end enclosing the try construct. *)
 	    (* We write to disk all reputation changes *)
-	    !Online_log.online_logger#log "   Writing the reputations...\n";
+	    !Online_log.online_logger#debug 7 "   Writing the reputations...\n";
 	    self#write_all_reps;
-	    !Online_log.online_logger#log "   All done!\n";
+	    !Online_log.online_logger#debug 7 "   All done!\n";
 	    (* Writes the new histogram *)
 	    if histogram_updated then begin 
 	      try begin 
@@ -1582,7 +1582,7 @@ class page
       begin 
 	try 
 	  self#start_transaction;
-	  !Online_log.online_logger#log "Start vote for revision...\n";
+	  !Online_log.online_logger#debug 7 "Start vote for revision...\n";
 	  (* Reads the page information, unless we are using
 	     the running information. *)
 	  begin
@@ -1641,7 +1641,7 @@ class page
 	  (* Commits *)
 	  self#commit_transaction;
 	  done_something := true;
-	  !Online_log.online_logger#log (Printf.sprintf 
+	  !Online_log.online_logger#debug 7 (Printf.sprintf 
 	    "\n\nUser %d voted for revision %d of page %d" 
 	    voter_id revision_id page_id);
 	  !Online_log.online_logger#flush; 
@@ -1655,7 +1655,7 @@ class page
 	    (* In this case, we also mark the vote as processed,
 	       since it would not be useful to try again. *)
 	    db#mark_vote_as_processed revision_id voter_name;
-	    !Online_log.online_logger#log (Printf.sprintf 
+	    !Online_log.online_logger#debug 7 (Printf.sprintf 
 	      "\nVote by %d on revision %d of page %d not processed: no colored text for page"
 	      voter_id revision_id page_id)
 	  end
