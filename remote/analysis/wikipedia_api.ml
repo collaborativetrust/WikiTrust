@@ -535,7 +535,7 @@ let store_wiki_revs  (db: Online_db.db) (wiki_page: wiki_page_t) (wiki_revs: wik
 	    delete_oldpage wpage.page_id;
 	    (* We need to throw an exception here, because we need to
 	     * re-download the revisions of this page from the begining. *)
-	    raise (API_error "store_wiki_revs: title changed");
+	    raise (API_error "store_wiki_revs: pageid changed");
 	  end
 	in
 	List.iter same_id old_pageids
