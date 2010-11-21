@@ -863,7 +863,7 @@ let split_into_words_seps_and_info (disarm: bool) (rearm: bool) (text_v: string 
      as it is vandalism. *)
   let f t n = n + String.length t in 
   let article_size = Vec.fold f text_v 0 in
-  !Online_log.online_logger#log (Printf.sprintf "\n  Text length: %d " article_size);
+  !Online_log.online_logger#debug 7 (Printf.sprintf "\n  Text length: %d " article_size);
   let text_v_analyze = 
     if article_size > max_article_size 
     then Vec.singleton ""

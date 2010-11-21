@@ -114,15 +114,15 @@ class updater
 	    begin 
 	      begin (* try ... with ... *)
 		try 
-		  !Online_log.online_logger#log (Printf.sprintf 
+		  !Online_log.online_logger#debug 7 (Printf.sprintf 
 		    "\nEvaluating revision %d of page %d\n" rev_id page_id);
 		  let page = new Online_page.page db page_id rev_id (Some r) 
 		    trust_coeff robots None in
 		  n_processed_events <- n_processed_events + 1;
 		  if page#eval 
-		  then !Online_log.online_logger#log (Printf.sprintf 
+		  then !Online_log.online_logger#debug 7 (Printf.sprintf 
 		    "\nDone revision %d of page %d\n" rev_id page_id)
-		  else !Online_log.online_logger#log (Printf.sprintf 
+		  else !Online_log.online_logger#debug 7 (Printf.sprintf 
 		    "\nRevision %d of page %d was already done\n" 
 		    rev_id page_id);
 		with Online_page.Missing_trust r' -> 
@@ -155,7 +155,7 @@ class updater
       if max_events_to_process = 0 or 
 	n_processed_events < max_events_to_process then 
 	  begin 
-	    !Online_log.online_logger#log (Printf.sprintf
+	    !Online_log.online_logger#debug 7 (Printf.sprintf
 	      "\nEvaluating vote by %d on revision %d of page %d" 
 	      voter_id revision_id page_id); 
 	    n_processed_events <- n_processed_events + 1;
@@ -163,7 +163,7 @@ class updater
 	      None trust_coeff robots None in
 	    if page#vote voter_id voter_name 
 	    then
-	      !Online_log.online_logger#log (Printf.sprintf 
+	      !Online_log.online_logger#debug 7 (Printf.sprintf 
 		"\nDone processing vote by %d on revision %d of page %d"
 		voter_id revision_id page_id)
 	    else 
@@ -266,7 +266,7 @@ class updater
 		else Hashtbl.add tried page_id ();
 	      end; (* not got it *)
 	      let t_end = Unix.gettimeofday () in 
-	      !Online_log.online_logger#log (Printf.sprintf "\nAnalysis took %f seconds.\n" (t_end -. t_start));
+	      !Online_log.online_logger#debug 7 (Printf.sprintf "\nAnalysis took %f seconds.\n" (t_end -. t_start));
 	      flush stdout
 	    end (* event that needs processing *)
 	end done (* Loop as long as we need to do events *)
@@ -374,15 +374,15 @@ class updater
 		  match event with
 		  | Event_feed.Revision_event r -> begin
 		      let rev_id = r#get_id in
-		      !Online_log.online_logger#log (Printf.sprintf 
+		      !Online_log.online_logger#debug 7 (Printf.sprintf 
 			"\nEvaluating revision %d of page %d\n" rev_id page_id);
 		      let page = new Online_page.page db page_id rev_id (Some r)
 			trust_coeff robots (Some running_info) in
 		      n_processed_events <- n_processed_events + 1;
 		      if page#eval 
-		      then !Online_log.online_logger#log (Printf.sprintf 
+		      then !Online_log.online_logger#debug 7 (Printf.sprintf 
 			"\nDone revision %d of page %d\n" rev_id page_id)
-		      else !Online_log.online_logger#log (Printf.sprintf 
+		      else !Online_log.online_logger#debug 7 (Printf.sprintf 
 			"\nRevision %d of page %d was already done\n" 
 			rev_id page_id)
 		    end
@@ -392,7 +392,7 @@ class updater
 			   reputation 0, so we don't care. *)
 			None -> ()
 		      | Some voter_id -> begin
-			  !Online_log.online_logger#log (Printf.sprintf
+			  !Online_log.online_logger#debug 7 (Printf.sprintf
 			    "\nEvaluating vote by %d on revision %d of page %d" 
 			    voter_id rev_id page_id); 
 			  let page = new Online_page.page db page_id rev_id None
@@ -400,7 +400,7 @@ class updater
 			  n_processed_events <- n_processed_events + 1;
 			  if page#vote voter_id voter_name 
 			  then 
-			    !Online_log.online_logger#log (Printf.sprintf 
+			    !Online_log.online_logger#debug 7 (Printf.sprintf 
 			      "\nDone processing vote by %d on revision %d of page %d"
 			      voter_id rev_id page_id)
 			  else 
