@@ -46,6 +46,7 @@ our %methods = (
 our $cache = undef;	# will get initialized when needed
 
 sub cmdline {
+    *CGI::no_cache = sub {};
     my $cgi = CGI->new();
     foreach my $arg (@ARGV) {
 	my ($var, $val) = split(/=/, $arg);
@@ -191,7 +192,7 @@ sub get_median {
 
 sub util_getPageDirname {
   my ($pageid) = @_;
-  my $path = $ENV{WT_BLOB_PATH};
+  my $path = $ENV{WT_BLOB_PATH} || die "WT_BLOB_PATH undefined";
   return undef if !defined $path;
   my $page_str = sprintf("%012d", $pageid);
   for (my $i = 0; $i <= 3; $i++){
@@ -431,7 +432,8 @@ sub handle_deletepage {
   my $sth = $dbh->prepare ("SELECT page_title FROM wikitrust_page WHERE page_id = ?") 
     || die $dbh->errstr;
   $sth->execute($page) || die $dbh->errstr;
-  if (my $title = $sth->fetchrow_hashref()){
+  my $title = $sth->fetchrow_hashref();
+  if (defined $title) {
     $page_title = $title->{page_title} if $title->{page_title} ne '';
   }
 
