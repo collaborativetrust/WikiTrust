@@ -37,6 +37,7 @@ our %methods = (
 	'miccheck' => \&handle_miccheck,
 	'delete' => \&handle_deletepage,
 	'vandalism' => \&handle_vandalism,
+	'vandalismZD' => \&handle_vandalismZD,
 	'rawvandalism' => \&handle_rawvandalism,
 	'quality' => \&handle_vandalism,
 	'rawquality' => \&handle_rawvandalism,
@@ -133,7 +134,8 @@ sub mark_for_coloring {
   my $dbh = shift @_;
   my $priority = shift @_ || QUEUE_PRIORITY;
 
-  die "Illegal page_id for '$page_title'" if $page <= 0 && $page_title eq '';
+  die "Illegal page_id $page for '$page_title'"
+	if $page <= 0 && $page_title eq '';
   confess "Illegal page_id for '$page_title'" if $page <= 0;
 
   my $sth = $dbh->prepare(
@@ -426,6 +428,9 @@ sub handle_deletepage {
   $r->no_cache(1);
   $r->content_type('text/plain; charset=utf-8');
  
+  die "Illegal page_id $page for '$page_title'"
+	if $page <= 0;
+
   # Get the page_title.
   # We need to make sure we get the actual page title, as this is currently the only
   # way to get the page_title entry column wikitrust_page to be correct.
@@ -582,8 +587,8 @@ sub handle_rawvandalism {
 # Input is the quality data for a revision.
 sub vandalismModel {
     my $q = shift @_;
-    my $total = 0.0;
-    if ($q->{Min_quality} < -0.0662) {
+    my $total = 0.134;
+    if ($q->{Min_quality} < -0.662) {
 	$total += 0.891;
 	if ($q->{L_delta_hist0} < 0.347) {
 	    $total += -0.974;
@@ -599,7 +604,7 @@ sub vandalismModel {
 	$total += -1.203;
     }
     if ($q->{Reputation} < 0.049) {
-	$total += 0.3358;
+	$total += 0.358;
 	if ($q->{P_prev_hist5} < 0.01) {
 	    $total += 0.519;
 	} else {
@@ -630,6 +635,66 @@ sub vandalismModel {
     return $prob;
 }
 
+# Returns the probability that a revision is vandalism.
+# > 50% = vandalism, < 50% = regular
+# Input is the quality data for a revision.
+sub vandalismZdModel {
+    my $q = shift @_;
+    my $total = 0.134;
+    if ($q->{L_delta_hist0} < 0.347) {
+	$total += -1.018;
+	if ($q->{Hist0} < 0.5) {
+	    $total += -0.113;
+	} else {
+	    $total += 0.528;
+	}
+    } else {
+	$total += 0.766;
+	if ($q->{L_delta_hist3} < 0.347) {
+	    $total += 0.026;
+	    if ($q->{L_delta_hist4} < 0.347) {
+		$total += 0.1;
+	    } else {
+		$total += -0.751;
+	    }
+	} else {
+	    $total += -0.962;
+	}
+	if ($q->{P_prev_hist0} < 0.004) {
+	    $total += 0.094;
+	} else {
+	    $total += -0.493;
+	}
+    }
+    if ($q->{Anon} == JSON::true) {
+	$total += -0.576;
+    } else {
+	$total += 0.312;
+    }
+    if ($q->{P_prev_hist9} < 0.115) {
+	$total += -0.333;
+    } else {
+	$total += 0.182;
+	if ($q->{Hist7} < 1.5) {
+	    $total += 1.217;
+	} else {
+	    $total += -0.029;
+	}
+    }
+    if ($q->{Delta} < 2.901) {
+	$total += -0.251;
+    } else {
+	$total += 0.182;
+    }
+    if ($q->{Comment_len} < 18.5) {
+	$total += 0.123;
+    } else {
+	$total += -0.229;
+    }
+    my $prob = 1/(1+exp(-$total));
+    return $prob;
+}
+
 
 sub handle_vandalism {
     my ($dbh, $cgi, $r) = @_;
@@ -643,6 +708,39 @@ sub handle_vandalism {
 
     my $q = getQualityData($page_title, $page, $rev, $dbh);
     my $prob = vandalismModel($q);
+
+    $r->content_type('text/plain');
+    $r->headers_out->{'Cache-Control'} = "max-age=" . 3*60;
+    $r->print($prob);
+    return Apache2::Const::OK;
+}
+
+sub handle_vandalismZD {
+    my ($dbh, $cgi, $r) = @_;
+    my ($rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
+
+    if ($rev <= 0) {
+      $r->content_type('text/plain');
+      $r->print('Need to specify a revid.');
+      return Apache2::Const::OK;
+    }
+
+    my $q = getQualityData($page_title, $page, $rev, $dbh);
+
+    # the ZD model needs comment_len
+    my $sth = $dbh->prepare ("SELECT comment FROM "
+      . "revision WHERE "
+      . "revid = ? LIMIT 1") || die $dbh->errstr;
+    $sth->execute($rev) || die $dbh->errstr;
+    my $ans = $sth->fetchrow_hashref();
+    if (defined $ans->{comment}) {
+	$q->{Comment_len} = length($ans->{comment});
+warn "comment: ".$ans->{comment}."\n";
+    } else {
+	$q->{Comment_len} = 0;
+    }
+
+    my $prob = vandalismZdModel($q);
 
     $r->content_type('text/plain');
     $r->headers_out->{'Cache-Control'} = "max-age=" . 3*60;
@@ -904,7 +1002,7 @@ sub handle_selection {
 sub selectionModel {
     my $q = shift @_;
     my $total = 0.134;
-    if ($q->{Min_quality} < -0.0662) {
+    if ($q->{Min_quality} < -0.662) {
 	$total += 0.891;
 	if ($q->{L_delta_hist0} < 0.347) {
 	    $total += -0.974;
