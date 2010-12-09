@@ -164,7 +164,7 @@ let write_revision (base_name: string) (page_id: int) (rev_id: int) (s: string) 
   (* Makes the directories *)
   let make_dir (d: string) = 
     begin try 
-      Unix.mkdir d 0o755
+      Unix.mkdir d 0o775
     with Unix.Unix_error (Unix.EEXIST, _, _) -> () end
   in List.iter make_dir dir_l;
   (* Writes the revision *)

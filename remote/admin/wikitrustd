@@ -34,6 +34,6 @@ for wiki in `ls /etc/wikitrust/wikis_enabled.d`; do
   chmod a+w $ERROR_FILE
   #newgrp www-data
   umask 002
-  nohup $USER "$DISPATCHER -db_user $DB_USER -db_name $DB_NAME -db_pass $DB_PASS -db_host $DB_HOST -log_file $LOG_FILE $OTHER_OPTIONS &" >> $LOG_FILE 2>> $ERROR_FILE < /dev/null
+  nohup $USER "umask 002; $DISPATCHER -db_user $DB_USER -db_name $DB_NAME -db_pass $DB_PASS -db_host $DB_HOST -log_file $LOG_FILE $OTHER_OPTIONS &" >> $LOG_FILE 2>> $ERROR_FILE < /dev/null
 done
 
