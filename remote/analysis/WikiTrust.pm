@@ -728,14 +728,13 @@ sub handle_vandalismZD {
     my $q = getQualityData($page_title, $page, $rev, $dbh);
 
     # the ZD model needs comment_len
-    my $sth = $dbh->prepare ("SELECT comment FROM "
+    my $sth = $dbh->prepare ("SELECT rev_comment FROM "
       . "revision WHERE "
-      . "revid = ? LIMIT 1") || die $dbh->errstr;
+      . "rev_id = ? LIMIT 1") || die $dbh->errstr;
     $sth->execute($rev) || die $dbh->errstr;
     my $ans = $sth->fetchrow_hashref();
-    if (defined $ans->{comment}) {
-	$q->{Comment_len} = length($ans->{comment});
-warn "comment: ".$ans->{comment}."\n";
+    if (defined $ans->{rev_comment}) {
+	$q->{Comment_len} = length($ans->{rev_comment});
     } else {
 	$q->{Comment_len} = 0;
     }
