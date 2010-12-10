@@ -1059,20 +1059,20 @@ object(self)
   method write_revision (rev : wiki_revision_t) = 
     self#write_revision_text rev;
     (* And then the revision metadata. *)
-    let s = Printf.sprintf "INSERT INTO %srevision (rev_id, rev_page, rev_text_id, rev_comment, rev_user, rev_user_text, rev_timestamp, rev_minor_edit, rev_deleted, rev_len, rev_parent_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE rev_len = %s" 
-      db_prefix 
-      (ml2int rev.revision_id) 
-      (ml2int rev.revision_page) 
-      (ml2int rev.revision_id) 
-      (ml2str "") 
-      (ml2int rev.revision_user) 
-      (ml2str rev.revision_user_text) 
-      (ml2str rev.revision_timestamp) 
-      (if rev.revision_minor_edit then "true" else "false") 
-      (if rev.revision_deleted then "true" else "false") 
-      (ml2int rev.revision_len) 
-      (ml2int rev.revision_parent_id) 
-      (ml2int rev.revision_len) 
+    let s = Printf.sprintf "INSERT INTO %srevision (rev_id, rev_page, rev_text_id, rev_comment, rev_user, rev_user_text, rev_timestamp, rev_minor_edit, rev_deleted, rev_len, rev_parent_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE rev_page = %s"
+      db_prefix
+      (ml2int rev.revision_id)
+      (ml2int rev.revision_page)
+      (ml2int rev.revision_id)
+      (ml2str "")
+      (ml2int rev.revision_user)
+      (ml2str rev.revision_user_text)
+      (ml2str rev.revision_timestamp)
+      (if rev.revision_minor_edit then "true" else "false")
+      (if rev.revision_deleted then "true" else "false")
+      (ml2int rev.revision_len)
+      (ml2int rev.revision_parent_id)
+      (ml2int rev.revision_page)
     in
     ignore (self#db_exec mediawiki_dbh s)
 
