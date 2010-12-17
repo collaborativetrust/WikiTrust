@@ -50,7 +50,11 @@ POSSIBILITY OF SUCH DAMAGE.
      tables).
    
    Missing coloring:
-   * Insert the page in the wikiturst_queue table.
+   * Insert the page in the wikitrust_queue table.
+
+   Delete a page:
+   * Insert the page in the wikitrust_queue table; use the
+     special page title "XXX DELETE ME".
 
    Debug:
    ocamldebug -I `ocamlfind query mysql` -I `ocamlfind query sexplib` -I 'ocamlfind query vec' -I ../../analysis -I ../../batch/analysis [other options]
@@ -202,6 +206,10 @@ let process_page (page_id: int) (page_title: string) =
     | None -> None
   in 
   let child_db = create_db child_dbh child_global_dbh in
+  (* first, delete the page id if requested; will recolor, as well *)
+  if page_title = "XXX DELETE ME" then
+    child_db#delete_page page_id;
+
   let processed_well = ref false in
   let times_tried = ref 0 in
   while !forever && (not !processed_well) && (!times_tried < !times_to_retry_trans) do
@@ -312,7 +320,7 @@ in
 let main_loop () =
   let db = create_db mediawiki_dbh global_dbh in
   begin
-    db#init_queue true;
+    (* db#init_queue true; *)
     if !delete_all then db#delete_all ();
     while !forever do
       if (Hashtbl.length working_children) >= !max_concurrent_procs then begin

@@ -939,7 +939,7 @@ object(self)
   (** [mark_page_to_process page_id page_title] specifies that a page
       must be brought up to date, due to a vote or a new revision. *)
   method mark_page_to_process (page_id : int) (page_title : string) : unit =
-    let s = Printf.sprintf "INSERT INTO %swikitrust_queue (revision_id, page_id) VALUES (%s, %s) ON DUPLICATE KEY UPDATE requested_on = now(), processed = false" db_prefix (ml2int page_id) (ml2str page_title) in
+    let s = Printf.sprintf "INSERT INTO %swikitrust_queue (revision_id, page_id) VALUES (%s, %s) ON DUPLICATE KEY UPDATE requested_on = now()" db_prefix (ml2int page_id) (ml2str page_title) in
     ignore (self#db_exec mediawiki_dbh s)
 
   (** [mark_page_as_processed page_id] marks that a page has been processed. *)
@@ -974,7 +974,7 @@ object(self)
       begin 
 	try 
 	  self#start_transaction;
-	  let s = Printf.sprintf "SELECT page_id, page_title FROM %swikitrust_queue WHERE processed = 'unprocessed' ORDER BY priority DESC LIMIT %s" 
+	  let s = Printf.sprintf "SELECT page_id, page_title FROM %swikitrust_queue WHERE processed = 'unprocessed' AND priority > 0 ORDER BY priority DESC LIMIT %s" 
 	    db_prefix (ml2int max_to_get) in
 	  let get_id row : int = (not_null int2ml row.(0)) in
 	  let get_title row : string = ExtString.String.map (fun c -> if c = '_' then ' ' else c)

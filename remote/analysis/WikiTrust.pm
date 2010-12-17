@@ -431,72 +431,12 @@ sub handle_deletepage {
   die "Illegal page_id $page for '$page_title'"
 	if $page <= 0;
 
-  # Get the page_title.
-  # We need to make sure we get the actual page title, as this is currently the only
-  # way to get the page_title entry column wikitrust_page to be correct.
-  my $sth = $dbh->prepare ("SELECT page_title FROM wikitrust_page WHERE page_id = ?") 
-    || die $dbh->errstr;
-  $sth->execute($page) || die $dbh->errstr;
-  my $title = $sth->fetchrow_hashref();
-  if (defined $title) {
-    $page_title = $title->{page_title} if $title->{page_title} ne '';
-  }
-
-  # Get the title from the q, if its not in the wikitrust_page table
-  if (!$page_title){
-    $sth = $dbh->prepare ("SELECT page_title FROM wikitrust_queue WHERE page_id = ?") 
-      || die $dbh->errstr;
-    $sth->execute($page) || die $dbh->errstr;
-    if (my $title = $sth->fetchrow_hashref()){
-      $page_title = $title->{page_title} if $title->{page_title} ne '';
-    }
-  }
+  my $priority = $cgi->param('priority');
+  $priority = QUEUE_PRIORITY if !defined $priority;
 
   # If the right password and page_title are set.
-  if(secret_okay($cgi)){
-    $dbh->begin_work() || die $dbh->errstr;
-    try {
-      # Delete the revisions.
-      $sth = $dbh->prepare ("DELETE FROM wikitrust_revision WHERE page_id = ?") 
-	|| die $dbh->errstr;
-      $sth->execute($page) || die $dbh->errstr;
-
-      $sth = $dbh->prepare ("DELETE FROM revision WHERE rev_page = ?") 
-	|| die $dbh->errstr;
-      $sth->execute($page) || die $dbh->errstr;
-
-      # And delete the page
-      $sth = $dbh->prepare ("DELETE FROM wikitrust_page WHERE page_id = ?") 
-	|| die $dbh->errstr;
-      $sth->execute($page) || die $dbh->errstr;
- 
-      $sth = $dbh->prepare ("DELETE FROM page WHERE page_id = ?") 
-	|| die $dbh->errstr;
-      $sth->execute($page) || die $dbh->errstr;
- 
-      # Clean up the queue
-      $sth = $dbh->prepare ("DELETE FROM wikitrust_queue WHERE page_id = ?")
-	|| die $dbh->errstr;
-      $sth->execute($page) || die $dbh->errstr;
-
-      my $page_path = util_getPageDirname($page);
-      if (-e $page_path) {
-	rmtree($page_path) || die "unable to delete $page_path: $!";
-      }
-
-
-      $dbh->commit() || die $dbh->errstr;
-
-
-      mark_for_coloring($page, $page_title, $dbh);
-
-      $r->print("$page_title is being re-colored.");
-    } otherwise {
-      $dbh->rollback();
-      my $E = shift;
-      print STDERR $E;
-      $r->print("DB error: $E");
-    };
+  if (secret_okay($cgi)) {
+    mark_for_coloring($page, 'XXX DELETE ME', $dbh, $priority);
   } else {
     $r->print("Incorrect password or missing page_id.");
   }

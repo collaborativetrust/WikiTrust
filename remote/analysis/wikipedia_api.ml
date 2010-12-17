@@ -124,7 +124,7 @@ let handle_invalid_utf8 substrs =
   else u
 
 (* match all of the \uffff style of utf8 chars *)
-let utf_regex = Pcre.regexp ~flags:[] ((Pcre.quote "\\") ^ "u(.?){4}")
+let utf_regex = Pcre.regexp ~flags:[] ((Pcre.quote "\\") ^ "u[0-9a-fA-F]{4}")
 
 (** [api_ts2mw_ts timestamp] maps the Wikipedias api timestamp to our internal one.
 *)
@@ -344,7 +344,7 @@ let fetch_page_and_revs_after_json (selector : string) : result_tree =
     ^ "info&format=json&inprop=&rvprop=ids|flags|timestamp|user|size|comment|"
     ^ "content&"
     (* ^ "rvexpandtemplates=1&"   -- even =0 triggers template expansion! *)
-    ^ "&" ^ selector in
+    ^ selector in
   !logger#debug 5 (Printf.sprintf "getting url: %s\n" url);
   let res = get_url url in
   try (
