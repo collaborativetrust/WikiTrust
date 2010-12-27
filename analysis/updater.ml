@@ -422,6 +422,9 @@ class updater
 	  db#commit;
 	  db#release_page_lock page_id
 	with e -> begin
+          (* We might have started a transaction; undo it so we don't
+           * affect later DB calls in the same process. *)
+	  db#rollback_transaction;
 	  db#release_page_lock page_id;
 	  raise e
 	end
