@@ -69,7 +69,7 @@ exception Option_error of string;;
 
 let max_concurrent_procs = ref 1
 let set_max_concurrent_procs m = max_concurrent_procs := m 
-let sleep_time_sec = 2
+let sleep_time_sec = 1
 let forever = ref true
 let sig_handler = function _ -> forever := false
 
@@ -207,8 +207,10 @@ let process_page (page_id: int) (page_title: string) =
   in 
   let child_db = create_db child_dbh child_global_dbh in
   (* first, delete the page id if requested; will recolor, as well *)
-  if page_title = "XXX DELETE ME" then
+  if page_title = "XXX DELETE ME" then begin
     child_db#delete_page page_id;
+    forever := false;
+  end;
 
   let processed_well = ref false in
   let times_tried = ref 0 in

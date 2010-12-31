@@ -25,6 +25,7 @@ api:
 
 dispatcher:
 	mkdir -p $(WIKITRUST_DIR)/bin
+	mv $(WIKITRUST_DIR)/bin/dispatcher $(WIKITRUST_DIR)/bin/dispatcher.old
 	cp -a $(TOP)/remote/analysis/dispatcher $(WIKITRUST_DIR)/bin/
 	cp -a $(TOP)/remote/admin/wikitrust $(WIKITRUST_DIR)/bin/
 	cp -a $(TOP)/remote/admin/wikitrustd $(WIKITRUST_DIR)/bin/
