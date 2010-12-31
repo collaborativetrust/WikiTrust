@@ -177,23 +177,25 @@ in
    This function cleans out the hashtable working_children, removing all of the 
    entries which correspond to child processes which have stopped working.
 *)
-let check_subprocess_termination (page_id: int) ((process_id: int), (started_on: float)) = 
-    let stat = Unix.waitpid [Unix.WNOHANG] process_id in
-    begin
-      match (stat) with
-        (* Process not yet done. *)
-      | (0,_) -> () 
-        (* Otherwise, remove the process. *)
-        (* TODO(Luca): release the db lock! *)
-      | (_, Unix.WEXITED s) 
-      | (_, Unix.WSIGNALED s) 
-      | (_, Unix.WSTOPPED s) -> begin
-          !online_logger#debug 1
-            (Printf.sprintf "Child %d finished.\n" process_id);
-          flush_all ();
-          Hashtbl.remove working_children page_id
-      end
+let check_subprocess_termination (flags:Unix.wait_flag list) (process_id: int) =
+    let (pid, status) = Unix.waitpid flags process_id in
+    if pid = 0 then () (* Process not yet done. *)
+    else begin
+      let msg =
+	match (status) with
+	| Unix.WEXITED s -> Printf.sprintf "exited with code %d" s
+	| Unix.WSIGNALED s -> Printf.sprintf "killed with signal %d" s
+	| Unix.WSTOPPED s -> Printf.sprintf "stopped with signal %d" s
+      in
+      !online_logger#debug 1
+	  (Printf.sprintf "Child %d finished, %s\n" pid msg);
+      flush_all ();
+      Hashtbl.remove working_children pid
     end
+in
+
+let check_subprocess_byhash (page_id: int) ((process_id: int), (started_on: float)) = 
+    check_subprocess_termination [Unix.WNOHANG] process_id
 in
 
 (** [process_page page_id] is a child process that processes a page
@@ -278,8 +280,6 @@ in
     page_title)] to process, this function starts a new process which
     brings the page up to date.  *)
 let dispatch_page (pages : (int * string) list) =
-  (* Remove any finished processes from the list of active child processes. *)
-  Hashtbl.iter check_subprocess_termination working_children;
   (* [launch_processing page]
      Given a page_id, forks a child which brings the page up to date. *)
   let launch_processing (page_id, page_title) = begin
@@ -326,21 +326,23 @@ let main_loop () =
     if !delete_all then db#delete_all ();
     while !forever do
       if (Hashtbl.length working_children) >= !max_concurrent_procs then begin
-        (* Cleans up terminated children, if any *)
-        Hashtbl.iter check_subprocess_termination working_children
+	(* Wait until a child terminates. *)
+        check_subprocess_termination [] (-1)
       end else begin
-        let pages_to_process = db#fetch_work_from_queue
-          (max (!max_concurrent_procs - Hashtbl.length working_children) 0) 
-          !times_to_retry_trans !max_concurrent_procs
-        in
-        dispatch_page pages_to_process
-      end;
-      Unix.sleep sleep_time_sec;
+	let pages_to_process = db#fetch_work_from_queue
+	  (max (!max_concurrent_procs - Hashtbl.length working_children) 0) 
+	  !times_to_retry_trans !max_concurrent_procs
+	in
+        Hashtbl.iter check_subprocess_byhash working_children;
+	dispatch_page pages_to_process;
+	(* And sleep for a bit to give time for more stuff to get in queue *)
+	Unix.sleep sleep_time_sec;
+	()
+      end
     done;
     (* wait for remaining children before terminating *)
     while (Hashtbl.length working_children) > 0 do
-      Hashtbl.iter check_subprocess_termination working_children;
-      Unix.sleep sleep_time_sec
+      check_subprocess_termination [] (-1)
     done
   end
 in
