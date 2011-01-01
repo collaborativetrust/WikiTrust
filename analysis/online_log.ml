@@ -59,7 +59,9 @@ class logger
 
     (** [debug] is a conditional print based on the current debugging level *)
     method debug (level: int) (s: string) : unit =
-      if level <= !debug_level then self#log s;
+      let now = Printf.sprintf "%f: " (Unix.gettimeofday ()) in
+      if level <= !debug_level then
+	self#log (now ^ s);
 
   end
 
