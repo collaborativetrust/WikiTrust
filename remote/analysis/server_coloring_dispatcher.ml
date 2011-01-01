@@ -171,6 +171,7 @@ let create_db mediawiki_dbh global_dbh =
   end
 in
 
+
 (**
    [check_subprocess_termination page_id process_id]
    Wait for the process to stop before accepting more.
@@ -178,7 +179,19 @@ in
    entries which correspond to child processes which have stopped working.
 *)
 let check_subprocess_termination (flags:Unix.wait_flag list) (process_id: int) =
-    let (pid, status) = Unix.waitpid flags process_id in
+    let num_flags = List.length flags in
+    !online_logger#debug 9
+      (Printf.sprintf "Dispatcher waiting for pid %d, %d flags\n"
+	process_id num_flags);
+    let (pid, status) =
+      try Unix.waitpid flags process_id
+      with Unix.Unix_error _ -> begin
+	!online_logger#debug 9
+	  (Printf.sprintf "waitpid error with %d children, %d flags\n"
+	  (Hashtbl.length working_children) num_flags);
+	(0, (Unix.WEXITED 0))
+      end
+    in
     if pid = 0 then () (* Process not yet done. *)
     else begin
       let msg =
@@ -187,10 +200,15 @@ let check_subprocess_termination (flags:Unix.wait_flag list) (process_id: int) =
 	| Unix.WSIGNALED s -> Printf.sprintf "killed with signal %d" s
 	| Unix.WSTOPPED s -> Printf.sprintf "stopped with signal %d" s
       in
+      let find_page page_id (tpid, tdate) prev_page =
+	if tpid = pid then page_id else prev_page
+      in
+      let pageid = Hashtbl.fold find_page working_children 0 in
+      Hashtbl.remove working_children pageid;
       !online_logger#debug 1
-	  (Printf.sprintf "Child %d finished, %s\n" pid msg);
+	  (Printf.sprintf "Child %d finished, %s; %d children left\n"
+	  pid msg (Hashtbl.length working_children));
       flush_all ();
-      Hashtbl.remove working_children pid
     end
 in
 
@@ -286,19 +304,20 @@ let dispatch_page (pages : (int * string) list) =
     if !single_threaded then process_page page_id page_title else begin
     (* If the page is currently being processed, does nothing. *)
     if not (Hashtbl.mem working_children page_id) then begin
+      flush_all ();
       let new_pid = Unix.fork () in
       match new_pid with 
       | 0 -> begin
 	  !online_logger#debug 1 (Printf.sprintf 
-            "I'm the child: Running on page %s\n" page_title); 
+            "I'm the child: Running on page %s (%d)\n" page_title page_id); 
 	  process_page page_id page_title;
 	  !online_logger#debug 1 (Printf.sprintf 
-            "I'm the child: Finished on page %s\n" page_title); 
+            "I'm the child: Finished on page %s (%d)\n" page_title page_id); 
 	  exit 0;
 	end
       | _ -> begin
 	  !online_logger#debug 1
-                 (Printf.sprintf "Parent of pid %d\n" new_pid);  
+	     (Printf.sprintf "Parent of pid %d, page %d\n" new_pid page_id);  
 	  Hashtbl.add working_children page_id ((new_pid), (Unix.time ()));
           Hashtbl.add working_pid2page_id new_pid (page_id, page_title) 
 	end
@@ -306,6 +325,42 @@ let dispatch_page (pages : (int * string) list) =
   end
   end in
   List.iter launch_processing pages
+in
+
+(**
+  * fetch_work () - local caching of work queue from DB.
+  * We need to cache the work from the DB, because when there
+  * are too many entries in the DB it takes 10+ seconds for the
+  * DB to respond.
+  *)
+let work_queue = ref [] in
+let fetch_work db =
+  let rec workHead size head tail =
+    if size = 0 then begin
+      work_queue := tail;
+      head
+    end else begin
+      match tail with
+	| [] -> begin
+		  work_queue := tail;
+		  head;
+		end;
+	| hd::tl -> workHead (size-1) (hd::head) tl
+    end
+  in
+  let slots = max
+	  (!max_concurrent_procs - Hashtbl.length working_children) 0
+  in
+  !online_logger#debug 9
+    (Printf.sprintf "dispatcher: %d slots available\n" slots);
+  if !forever && ((List.length !work_queue) < slots) then begin
+    let more_work = db#fetch_work_from_queue
+      (10 * !max_concurrent_procs)
+      !times_to_retry_trans !max_concurrent_procs
+    in
+    work_queue := List.append !work_queue more_work;
+  end;
+  workHead slots [] !work_queue
 in
 
 
@@ -324,25 +379,21 @@ let main_loop () =
   begin
     (* db#init_queue true; *)
     if !delete_all then db#delete_all ();
-    while !forever do
+    while !forever || ((List.length !work_queue) > 0) do
       if (Hashtbl.length working_children) >= !max_concurrent_procs then begin
 	(* Wait until a child terminates. *)
-        check_subprocess_termination [] (-1)
+        check_subprocess_termination [] 0
       end else begin
-	let pages_to_process = db#fetch_work_from_queue
-	  (max (!max_concurrent_procs - Hashtbl.length working_children) 0) 
-	  !times_to_retry_trans !max_concurrent_procs
-	in
         Hashtbl.iter check_subprocess_byhash working_children;
-	dispatch_page pages_to_process;
+	dispatch_page (fetch_work db);
 	(* And sleep for a bit to give time for more stuff to get in queue *)
-	Unix.sleep sleep_time_sec;
-	()
-      end
+	if (Hashtbl.length working_children) < !max_concurrent_procs then
+	  Unix.sleep sleep_time_sec;
+      end;
     done;
     (* wait for remaining children before terminating *)
     while (Hashtbl.length working_children) > 0 do
-      check_subprocess_termination [] (-1)
+      check_subprocess_termination [] 0
     done
   end
 in
