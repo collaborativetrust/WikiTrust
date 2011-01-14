@@ -211,7 +211,7 @@ sub util_getRevFilename {
   my $blob_str = sprintf("%09d", $blobid);
 
   if ($blobid >= 1000){
-    $path .= "/" . sprintf("%06d", $blobid);
+    $path .= "/" . sprintf("%06d", int($blobid / 1000));
   }
   my $page_str = sprintf("%012d", $pageid);
   $path .= "/" . $page_str . "_" . $blob_str . ".gz";
