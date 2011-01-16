@@ -227,10 +227,8 @@ let process_page (page_id: int) (page_title: string) =
   in 
   let child_db = create_db child_dbh child_global_dbh in
   (* first, delete the page id if requested; will recolor, as well *)
-  if page_title = "XXX DELETE ME" then begin
+  if page_title = "XXX DELETE ME" then
     child_db#delete_page page_id;
-    forever := false;
-  end;
 
   let processed_well = ref false in
   let times_tried = ref 0 in
