@@ -85,7 +85,7 @@ sub handler {
     $result = $func->($dbh, $cgi, $r);
   } otherwise {
     my $E = shift;
-    print STDERR $E;
+    print STDERR $E if $E !~ m/^No info on/;
     $r->no_cache(1);
     $r->content_type('text/plain; charset=utf-8');
     $r->print('EERROR detected.  Try again in a moment, or report an error on the WikiTrust bug tracker.');
