@@ -126,6 +126,10 @@ OUR_OPT_EXTRACTWIKI_OBJS = extract_wiki_subset.cmx
 
 CHDIFF_OBJS = online_log.cmo textbuf.cmo text.cmo prioq.cmo coda.cmo editlist.cmo chdiff.cmo
 
+CODA_OBJS = prioq.cmo coda.cmo
+
+PRIOQ_OBJS = prioq.cmo
+
 EDITLIST_OBJS = online_log.cmo textbuf.cmo text.cmo prioq.cmo coda.cmo editlist.cmo \
 	chdiff.cmo compute_edlist.cmo
 
@@ -195,6 +199,16 @@ extract_wiki_subsetopt:  $(OUR_OPT_EXTRACTWIKI_OBJS)
 
 chdiff: $(CHDIFF_OBJS)
 	$(OCAMLC) -linkpkg -o chdiff $(OCAML_CFLAGS) $(CHDIFF_OBJS)
+
+# coda is used to order matches, and this is used to test it.
+
+coda: $(CODA_OBJS)
+	$(OCAMLC) -linkpkg -o coda $(OCAML_CFLAGS) $(CODA_OBJS)
+
+# prioq is used to order matches, and this is used to test it.
+
+prioq: $(PRIOQ_OBJS)
+	$(OCAMLC) -linkpkg -o prioq $(OCAML_CFLAGS) $(PRIOQ_OBJS)
 
 # text is used to split text into words, and this is used to test it. 
 

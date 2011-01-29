@@ -67,17 +67,44 @@ let min_dead_copy_amount = 3
 module Heap = Coda.PriorityQueue
 type match_quality_t = Coda.match_quality_t
 
-(* Quality functions for matches *)
+(* Quality functions for matches.
+   * l is the length of the match.
+   * len1 and len2 are the two lengths (in number of words) of the pieces
+        being compared.
+   * i1 and i2 are the two starting points. 
+   * ch1_idx is the chunk number. 
+   The lower the quality, the more the match is considered, as elements are
+   removed starting from the lowest from the priority queue.
+
+   The rationale behind the computation is as follows. 
+
+   First, we need to match for longest-len first, otherwise, the algorithm
+   may not work -- it is a loop invariant that when we process a match
+   of length l, all matches of length greater than l have been taken care
+   of (otherwise, we would not know if a match is a proper substring of
+   a match yet to be found; see code). 
+
+   Second, for the length of the match being the same, we prefer matches
+   with deleted chunks. 
+
+   Third, for matches that are the same length, and come from the same
+   chunk (typically, the live chunk), we prefer the matches to come
+   from similar positions in the string.
+
+*)
 
 let quality (l: int) (i1: int) (len1: int) (i2: int) (len2: int) (ch1_idx: int) 
     : match_quality_t = 
-  let i1' = (float_of_int (i1 + l)) /. 2. in 
+  let i1' = (float_of_int (2 * i1 + l)) /. 2. in 
   let len1' = float_of_int len1 in 
-  let i2' = (float_of_int (i2 + l)) /. 2. in 
+  let i2' = (float_of_int (2 * i2 + l)) /. 2. in 
   let len2' = float_of_int len2 in 
   let q = abs_float ((i1' /. len1') -. (i2' /. len2'))
   in 
-  (l, ch1_idx, q)
+  (* Debug *)
+  (* Printf.printf "Quality of (%d %d %d %d %d %d) is: (%d %d %f)\n" 
+     l i1 len1 i2 len2 ch1_idx l ch1_idx q; *)
+  (-l, -ch1_idx, q)
 
 let print_chunks (waa: word array array) = 
   let f ws = begin
@@ -236,6 +263,12 @@ let edit_diff_internal (words1: word array) (words2: word array) (index2: index_
       let m = Heap.take heap in
       match_id := !match_id + 1; 
       let (l, i1, i2) = m.Heap.contents in 
+
+      (* Debug:
+      let (dbg_l, dbg_c, dbg_q) = m.Heap.priority in
+      Printf.printf "Removed (%d %d %d) with priority (%d %d %f)\n" 
+	l i1 i2 dbg_l dbg_c dbg_q;
+       *)
       (* Checks whether it has been matched.  As we pull out 
 	 longest matches first (in each chunk), we can just
 	 check the endpoints. *)
@@ -886,6 +919,24 @@ if false then
       let w1 = Text.split_into_words false false (Vec.singleton t1) in 
       let w2 = Text.split_into_words false false (Vec.singleton t2) in 
       let e = edit_diff w1 w2 in 
+      Text.print_words w1; 
+      print_string "\n";
+      Text.print_words w2;  
+      print_diff e
+    in
+    
+    test_edit_diff ts1 ts2
+  end;;
+
+(** This tests the core only. *)
+if false then 
+  begin 
+    let ts1 = "a b c d e o o o o o a b c d e" in 
+    let ts2 = "a b c d e q q a b c d e q q q q a b c d e" in 
+    let test_edit_diff t1 t2 = 
+      let w1 = Text.split_into_words false false (Vec.singleton t1) in 
+      let w2 = Text.split_into_words false false (Vec.singleton t2) in 
+      let e = edit_diff_core w1 w2 in 
       Text.print_words w1; 
       print_string "\n";
       Text.print_words w2;  

@@ -1,6 +1,7 @@
 (*
 
 Copyright (c) 2007-2008 The Regents of the University of California
+Copyright (c) 2011 Luca de Alfaro
 All rights reserved.
 
 Authors: Luca de Alfaro
@@ -46,16 +47,17 @@ module Make (A : sig type t val compare : t -> t -> int end) =
       mutable contents:'a 
     }
     type 'a t = { 
-      mutable n:int;
-      mutable a:'a elt option array;
+      mutable n: int;  (* number of elements in the queue *)
+      mutable a:'a elt option array;  (* array used to store the queue *)
     } 
 	
+    (* returns whether x is smaller than y. *)
     let lt x y =
-      match (x,y) with
-      | (None,None) -> false
-      | (Some(x),None) -> true
-      | (None,Some(x)) -> false
-      | (Some(x),Some(y)) -> A.compare x.priority y.priority = -1
+      match (x, y) with
+      | (None, None) -> false
+      | (Some(x), None) -> true
+      | (None, Some(x)) -> false
+      | (Some(x), Some(y)) -> A.compare x.priority y.priority = -1
       
     let create () = { n = 0; a = Array.create 256 None }
 	
@@ -86,42 +88,56 @@ module Make (A : sig type t val compare : t -> t -> int end) =
     let child_1 i = i * 2 + 2
     let parent i = (i - 1) / 2
       
-    let rec percolate_up q i =
+    (* percolate_down percolates the element at position i down 
+       towards the root of the funnel, if required.
+       Smaller elements percolate down. *)
+    let rec percolate_down q i =
       if i > 0 && (lt q.a.(i) q.a.(parent i)) then
 	begin
 	  array_swap q i (parent i);
-	  percolate_up q (parent i)
+	  percolate_down q (parent i)
 	end
 	  
     (** Internal *)	
-    let rec percolate_down q i =
+    (* This function is used when the root is removed
+       (from the bottom of the funnel). 
+       The element needs to percolate up the funnel,
+       each time swapping with the smallest of the two
+       children, until it is smaller than both children. *)
+    let rec percolate_up q i =
       let swap_and_percolate j =
 	begin
 	  array_swap q i j;
-	  percolate_down q j
+	  percolate_up q j
 	end
       in
-      if child_1 i < q.n then
-	begin
-	  if lt q.a.(child_0 i) q.a.(child_1 i) then
-	    swap_and_percolate (child_0 i)
-	  else
-	    swap_and_percolate (child_1 i)
+      let i0 = child_0 i in
+      let i1 = child_1 i in
+      if i1 < q.n then begin
+	(* If there is a child_1, then there is also a child_0. *)
+	if (lt q.a.(i0) q.a.(i)) or (lt q.a.(i1) q.a.(i)) then begin
+	  (* We need to do a swap. *)
+	  if lt q.a.(i0) q.a.(i1) 
+	  then swap_and_percolate i0
+	  else swap_and_percolate i1
 	end
-      else
-	if child_0 i < q.n then
-	  swap_and_percolate (child_0 i)
-	else
-	  ()
-	    
+      end else begin
+	(* no child_1 *)
+	if i0 < q.n then begin
+	  (* there is a child_0, but no child_1 *)
+	  if lt q.a.(i0) q.a.(i) then swap_and_percolate i0
+	end
+      end
+	
     let add q x p =
       let n = q.n in
       if n = Array.length q.a then
-	  q.a <- Array.append q.a (Array.create 256 None);
+	(* We double the length of the array each time. *)
+	q.a <- Array.append q.a (Array.create n None);
       let c = { priority = p; contents = x } in
       q.a.(n) <- Some c;
       q.n <- n + 1;
-      percolate_up q n;
+      percolate_down q n;
       c
 	
     let take q =
@@ -135,11 +151,41 @@ module Make (A : sig type t val compare : t -> t -> int end) =
 	then
 	  begin
       	    array_swap q 0 (n - 1);
-	    percolate_down q 0
+	    percolate_up q 0
 	  end;
 	match r with
 	| Some(x) -> x
 	| None -> raise (Invalid_argument "malformed queue")
 	    
+  end;;
+
+
+(* Unit tests *)
+
+module type E = 
+  sig
+    type t = int
+    val compare: t -> t -> int
   end
 
+module M: E = struct 
+  type t = int
+  let compare = compare
+end
+
+module P = Make (M)
+
+if false then begin
+  let heap = P.create() in
+  ignore (P.add heap 3 3);
+  ignore (P.add heap 4 4);
+  ignore (P.add heap 5 5);
+  ignore (P.add heap 1 1);
+  ignore (P.add heap 2 2);
+  ignore (P.add heap 7 7);
+  while (not (P.is_empty heap)) do begin
+    let m = P.take heap in
+    let i = m.P.contents in
+    Printf.printf "Taken: %d\n" i
+  end done
+end

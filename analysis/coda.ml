@@ -35,8 +35,6 @@ POSSIBILITY OF SUCH DAMAGE.
 
 TYPE_CONV_PATH "UCSC_WIKI_RESEARCH"
 
-(* The match quality is a tuple: match length, chunk index 
-   (the lower the better), and a floating-point "quality". *)
 type match_quality_t = int * int * float
 
 module type Elqt = 
@@ -47,22 +45,27 @@ module type Elqt =
 
 module OrderedMatch: Elqt = struct 
   type t = int * int * float
-  let compare (el1: match_quality_t) (el2: match_quality_t) : int = 
-    let (l1, c1, q1) = el1 in 
-    let (l2, c2, q2) = el2 in 
-    (* The longer, the better *)
-    if l1 < l2 then 1
-    else if l1 > l2 then -1
-      (* The lower chunk, the better *)
-    else if c1 < c2 then -1
-    else if c1 > c2 then 1
-      (* The lower the mismatch, the better *)
-    else if q1 < q2 then -1
-    else if q1 > q2 then 1
-    else 0
+  let compare = compare
 end;;
 
 (* In the other code, do: 
    module Heap = Queue.PriorityQueue *)
 
 module PriorityQueue = Prioq.Make (OrderedMatch);;
+
+(* Unit testing *)
+
+if false then begin
+  let heap = PriorityQueue.create() in
+  ignore (PriorityQueue.add heap 1 (1, 2, 3.0));
+  ignore (PriorityQueue.add heap 2 (1, 2, 4.0));
+  ignore (PriorityQueue.add heap 3 (1, 2, 5.0));
+  ignore (PriorityQueue.add heap 4 (1, 2, 1.0));
+  ignore (PriorityQueue.add heap 5 (1, 2, 2.0));
+  ignore (PriorityQueue.add heap 6 (2, 2, 3.0));
+  while (not (PriorityQueue.is_empty heap)) do begin
+    let m = PriorityQueue.take heap in
+    let i = m.PriorityQueue.contents in
+    Printf.printf "Taken: %d\n" i
+  end done
+end
