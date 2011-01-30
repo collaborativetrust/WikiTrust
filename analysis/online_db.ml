@@ -160,15 +160,31 @@ class db
   
 object(self)
 
-  method private db_exec dbh s = 
+  method private db_exec dbh s : Mysql.result = 
     if debug_mode then !online_logger#log (s ^ "\n");
-    begin
+    let result = begin
       try 
 	Mysql.exec dbh s
       with Mysql.Error e ->
 	!online_logger#log e;
 	raise DB_TXN_Bad
-    end
+    end in
+    begin
+    match Mysql.status dbh with
+      | Mysql.StatusError e -> begin
+	  !online_logger#log "Mysql status error";
+	  let errstr = Mysql.errmsg dbh in
+	  match errstr with
+	  | Some msg -> !online_logger#log msg
+	  | None -> !online_logger#log "(no message)"
+	  ;
+	  raise DB_TXN_Bad
+	end
+      | Mysql.StatusOK -> ()
+      | Mysql.StatusEmpty -> ()
+    end;
+    result
+
 
   (* ================================================================ *)
   (* General methods *)

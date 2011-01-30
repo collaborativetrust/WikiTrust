@@ -227,8 +227,10 @@ let process_page (page_id: int) (page_title: string) =
   in 
   let child_db = create_db child_dbh child_global_dbh in
   (* first, delete the page id if requested; will recolor, as well *)
-  if page_title = "XXX DELETE ME" then
+  if page_title = "XXX DELETE ME" then begin
     child_db#delete_page page_id;
+    !online_logger#debug 3 (Printf.sprintf "Deleting pageId %d\n" page_id);
+  end;
 
   let processed_well = ref false in
   let times_tried = ref 0 in
@@ -246,6 +248,9 @@ let process_page (page_id: int) (page_title: string) =
 	!robots in
 	(* Brings the page up to date.  This will take care also of the page 
 	   lock. *)
+	!online_logger#debug 3
+	  (Printf.sprintf "Processing pageId %d on try %d\n"
+	  page_id !times_tried);
 	processor#update_page_fast page_id;
 	processed_well := true
     end with
