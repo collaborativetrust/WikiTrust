@@ -66,10 +66,12 @@ in
 let dump_rev (r: wiki_revision_t) =
   (* TODO(Bo): Need to cache results from get_remote_user_id *)
   let uid = Wikipedia_api.get_remote_user_id r.revision_user_text in
+  let tf = Timeconv.time_string_to_float r.revision_timestamp in
+  let (yy, mm, dd, h, m, s) = Timeconv.float_to_time tf in 
   begin
     print_endline "<revision>";
     Printf.printf "  <id>%d</id>\n" r.revision_id;
-    Printf.printf "  <timestamp>%s</timestamp>\n" r.revision_timestamp;
+    Printf.printf "  <timestamp>%d-%d-%dT%d:%d:%dZ</timestamp>\n" yy mm dd h m s;
     print_endline "  <contributor>";
     if uid <> 0 then begin
       Printf.printf "  <username>%s</username>\n" (xmlEscape r.revision_user_text);
