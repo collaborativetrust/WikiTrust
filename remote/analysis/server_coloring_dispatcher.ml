@@ -297,6 +297,10 @@ let process_page (page_id: int) (page_title: string) =
 in
 
 
+(* A queue of pages we've cached from the database that
+ * need processing.  Used in next two functions. *)
+let work_queue = ref [] in
+
 (** [dispatch_page pages] -> unit.  Given a list [pages] of [(page_id,
     page_title)] to process, this function starts a new process which
     brings the page up to date.  *)
@@ -324,7 +328,11 @@ let dispatch_page (pages : (int * string) list) =
 	  Hashtbl.add working_children page_id ((new_pid), (Unix.time ()));
           Hashtbl.add working_pid2page_id new_pid (page_id, page_title) 
 	end
-    end  (* if the page is already begin processed *)
+    end else begin
+      (* The page is already being processed (but probably
+       * finished).  Throw it back on the queue. *)
+      work_queue := ((page_id,page_title)::!work_queue);
+    end
   end
   end in
   List.iter launch_processing pages
@@ -336,7 +344,6 @@ in
   * are too many entries in the DB it takes 10+ seconds for the
   * DB to respond.
   *)
-let work_queue = ref [] in
 let fetch_work db =
   let rec workHead size head tail =
     if size = 0 then begin
@@ -354,8 +361,6 @@ let fetch_work db =
   let slots = max
 	  (!max_concurrent_procs - Hashtbl.length working_children) 0
   in
-  !online_logger#debug 9
-    (Printf.sprintf "dispatcher: %d slots available\n" slots);
   if !forever && ((List.length !work_queue) < slots) then begin
     let more_work = db#fetch_work_from_queue
       (10 * !max_concurrent_procs)
