@@ -1099,19 +1099,6 @@ object(self)
     in
     ignore (self#db_exec mediawiki_dbh s)
 
-  (** [write_wikitrust_page_title page_title] updates the wikitrust_page 
-      table with the given page title. *)
-  method private write_wikitrust_page_title (page_id : int) 
-    (page_title : string) 
-    : unit =
-    (* And then the revision metadata. *)
-    let s = Printf.sprintf "UPDATE %swikitrust_page SET page_title = %s WHERE page_id = %s" 
-      db_prefix 
-      (ml2str page_title) 
-      (ml2int page_id) 
-    in
-      ignore (self#db_exec mediawiki_dbh s)
-
   (* ================================================================ *)
 
   (** Deletes all WikiTrust data.  (Uncolored) revisions, pages, and
