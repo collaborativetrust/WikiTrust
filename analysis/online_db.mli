@@ -210,6 +210,9 @@ class db :
         [timestamp], and [rev_id]. *)
     method fetch_col_revs : int -> string -> int -> int -> revision_t list
 
+    (** [set_mwpage_title page_id page_title]
+	Updates the page_title of a page in the mediawiki table *)
+    method set_mwpage_title : int -> string -> unit
     (** [get_mwpage_title page_id]
 	Returns the (list) of titles associated with page_id
 	in the MediaWiki tables *)

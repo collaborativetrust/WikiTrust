@@ -55,6 +55,16 @@ POSSIBILITY OF SUCH DAMAGE.
  * search could find matching titles.  But our timing showed that our
  * LIKE query was a bit slow, so that we decided that we needed to
  * be definitive in the format here.
+ *
+ * We visited with Daniel Kinzler (31-Jan-2011), who explained that page_ids
+ * were actually definitive.  When a page_title changes, it is because the
+ * user interface supports renaming a page, and we should just assume
+ * that the revision history stays the same.  Since this seems to
+ * happen so often, this is a good answer for us.
+ * When the page_id changes, Daniel explained that most likely
+ * it is two pages being merged, where someone is trying to preserve
+ * the whole revision history.  In this case, deleting the revs
+ * and re-downloading does seem appropriate.
  *)
 
 open Online_types;;
@@ -516,10 +526,7 @@ let store_wiki_revs  (db: Online_db.db) (wiki_page: wiki_page_t) (wiki_revs: wik
 	  if t <> wpage.page_title then begin
 	    !logger#log (Printf.sprintf "Page %d changed title: '%s' -> '%s'.\n"
 		   wpage.page_id t wpage.page_title);
-	    delete_oldpage wpage.page_id;
-	    (* We need to throw an exception here, because we need to
-	     * re-download the revisions of this page from the begining. *)
-	    raise (API_error "store_wiki_revs: title changed");
+	    db#set_mwpage_title wpage.page_id wpage.page_title
 	  end
 	in
 	List.iter same_title old_titles
