@@ -516,10 +516,7 @@ sub handle_rawvandalism {
 	delete $q->{$_};
     }
 
-    $r->content_type('application/json');
-    $r->headers_out->{'Cache-Control'} = "max-age=" . 10*60;
-    $r->print(encode_json($q));
-    return Apache2::Const::OK;
+    return printJson($cgi, $r, $q, 10*60);
 }
 
 # Returns the probability that a revision is vandalism.
@@ -929,10 +926,7 @@ sub handle_selection {
 	};
     }
 
-    $r->content_type('application/json');
-    $r->headers_out->{'Cache-Control'} = "max-age=" . 30*60;
-    $r->print(encode_json(\@result));
-    return Apache2::Const::OK;
+    return printJson($cgi, $r, \@result, 30*60);
 }
 
 # Returns the probability that a revision is not vandalism.
@@ -1013,5 +1007,16 @@ sub selection_arraySort {
     return 0;
 }
 
+sub printJson {
+    my ($cgi, $r, $obj, $expire) = @_;
+    $r->content_type('application/json');
+    $r->headers_out->{'Cache-Control'} = "max-age=" . $expire;
+    my $callback = $cgi->param('callback');
+    $callback = undef if $callback !~ m/^\w+$/;
+    $r->print($callback."(") if $callback;
+    $r->print(encode_json($obj));
+    $r->print(")") if $callback;
+    return Apache2::Const::OK;
+}
 
 1;
