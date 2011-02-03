@@ -30,6 +30,7 @@ our %methods = (
 	'edit' => \&handle_edit,
 	'vote' => \&handle_vote,
 	'gettext' => \&handle_gettext,
+	'wikimarkup' => \&handle_wikimarkup,
 	'wikiorhtml' => \&handle_wikiorhtml,
 	'sharehtml' => \&handle_sharehtml,
 	'stats' => \&handle_stats,
@@ -314,6 +315,24 @@ sub handle_gettext {
   $r->content_type('text/plain; charset=utf-8');
   $r->print($result);
   return Apache2::Const::OK;
+}
+
+sub handle_wikimarkup {
+  my ($dbh, $cgi, $r) = @_;
+  my ($rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
+  my $result = util_ColorIfAvailable($dbh, $page, $rev, $page_title);
+  my $json = {};
+  my $cache = 60;
+  if ($result eq NOT_FOUND_TEXT_TOKEN) {
+    $cache = 60;
+    $json->{error} = $result;
+  } else {
+    $cache = 5 * 24 * 60 * 60;
+    my @data = split(/,/, $result, 2);
+    $json->{toptrust} = $data[0];
+    $json->{text} = $data[1];
+  }
+  return printJson($cgi, $r, $json, $cache);
 }
 
 sub handle_wikiorhtml {
