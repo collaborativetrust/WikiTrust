@@ -549,8 +549,9 @@ object(self)
       Updates the page_title of an existing page *)
   method set_mwpage_title (page_id : int) (page_title: string) : unit =
     let s = Printf.sprintf "UPDATE %spage SET page_title = %s WHERE page_id = %s"
-	db_prefix (ml2int page_id) (ml2str page_title)
+	db_prefix (ml2str page_title) (ml2int page_id)
     in ignore (self#db_exec mediawiki_dbh s)
+
 
   (** [get_mwpage_title page_id]
       Returns the (list) of titles associated with page_id
