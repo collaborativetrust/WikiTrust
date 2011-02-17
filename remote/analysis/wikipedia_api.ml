@@ -308,12 +308,12 @@ let process_page ((key, page): (string * result_tree))
   let redirect_attr = get_property page "redirect" empty_string in
   let api_pageid = int_of_string (get_property page "pageid" err_get_property) in
   let api_title = underscores2spaces (get_title page) in
-  let w_page = {
+  let w_page = begin try {
     page_id = api_pageid;
     page_namespace = int_of_string (get_property page "ns" err_get_property);
     page_title = api_title;
     page_restrictions = "";
-    page_counter = int_of_string (get_property page "counter" err_get_property);
+    page_counter = begin try int_of_string (get_property page "counter" err_get_property) with int_of_string -> 0 end;
     page_is_redirect = if redirect_attr = "" then false
                        else true;
     page_is_new = false;
@@ -322,7 +322,10 @@ let process_page ((key, page): (string * result_tree))
     page_touched = api_ts2mw_ts (get_property page "touched" err_get_property);
     page_latest = int_of_string (get_property page "lastrevid" err_get_property);
     page_len = int_of_string (get_property page "length" err_get_property)
-  } in
+  }
+  with e -> begin raise (API_error_noretry "page parsing error") end
+  end
+  in
   let rev_container = get_child page "revisions" in
   match rev_container with
       None -> (w_page, [])
