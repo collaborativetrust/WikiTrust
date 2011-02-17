@@ -276,7 +276,7 @@ let process_rev ((key, rev) : (string * result_tree)) : wiki_revision_t =
   let zero key msg = "0" in
   let revid = int_of_string (get_property rev "revid" err_get_property) in
   let minor_attr = get_property rev "minor" empty_string in
-  let r = {
+  let r = begin try {
     revision_id = revid;
     revision_page = 0;
     revision_text_id = revid;
@@ -290,6 +290,8 @@ let process_rev ((key, rev) : (string * result_tree)) : wiki_revision_t =
     revision_parent_id = 0;
     revision_content = get_text rev;
   }
+  with e -> begin raise (API_error_noretry "revision parsing error") end
+  end
   in r
 
 let check_for_download_error ((key, page): (string * result_tree)) =
