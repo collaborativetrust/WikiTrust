@@ -93,6 +93,7 @@ let keep_cached_text = ref false
 let min_rev_id = ref None
 let set_min_rev_id m = min_rev_id := Some m
 let single_threaded = ref false
+let max_processing_time = ref 0.0
 
 let custom_line_format = [
   ("-concur_procs", Arg.Int set_max_concurrent_procs, "<int>: Number of pages to process in parellel.");
@@ -200,15 +201,29 @@ let check_subprocess_termination (flags:Unix.wait_flag list) (process_id: int) =
 	| Unix.WSIGNALED s -> Printf.sprintf "killed with signal %d" s
 	| Unix.WSTOPPED s -> Printf.sprintf "stopped with signal %d" s
       in
-      let find_page page_id (tpid, tdate) prev_page =
-	if tpid = pid then page_id else prev_page
-      in
-      let pageid = Hashtbl.fold find_page working_children 0 in
-      Hashtbl.remove working_children pageid;
-      !online_logger#debug 1
-	  (Printf.sprintf "Child %d finished, %s; %d children left\n"
-	  pid msg (Hashtbl.length working_children));
-      flush_all ();
+      try begin
+	let find_page page_id (tpid, tdate) prev_ans =
+	  if tpid = pid then (page_id, tdate) else prev_ans
+	in
+	let (pageid, started_on) = Hashtbl.fold find_page working_children (0, 0.0) in
+	if pageid = 0 then raise Not_found;
+	Hashtbl.remove working_children pageid;
+	!online_logger#debug 2
+	    (Printf.sprintf "Child %d finished, %s; %d children left\n"
+	    pid msg (Hashtbl.length working_children));
+	let endtime = Unix.gettimeofday () in
+	let difftime = endtime -. started_on in
+	if difftime > !max_processing_time then begin
+	    max_processing_time := difftime;
+	    !online_logger#debug 1
+		(Printf.sprintf "reaper: new maxtime = %f.\n" difftime);
+	end;
+	flush_all ();
+      end with
+      | Not_found -> begin
+	  !online_logger#log
+	      (Printf.sprintf "reaper: pid %d not in working_children .\n" pid);
+      end;
     end
 in
 
@@ -292,7 +307,7 @@ let process_page (page_id: int) (page_title: string) =
   child_db#mark_page_as_processed page_id;
   child_db#close; (* Release any locks still held. *)
   (* End of page processing. *)
-  !online_logger#debug 1
+  !online_logger#debug 3
       (Printf.sprintf "Done with %s.\n" page_title);
 in
 
@@ -315,17 +330,17 @@ let dispatch_page (pages : (int * string) list) =
       let new_pid = Unix.fork () in
       match new_pid with 
       | 0 -> begin
-	  !online_logger#debug 1 (Printf.sprintf 
+	  !online_logger#debug 3 (Printf.sprintf 
             "I'm the child: Running on page %s (%d)\n" page_title page_id); 
 	  process_page page_id page_title;
-	  !online_logger#debug 1 (Printf.sprintf 
+	  !online_logger#debug 3 (Printf.sprintf 
             "I'm the child: Finished on page %s (%d)\n" page_title page_id); 
 	  exit 0;
 	end
       | _ -> begin
-	  !online_logger#debug 1
+	  !online_logger#debug 3
 	     (Printf.sprintf "Parent of pid %d, page %d\n" new_pid page_id);  
-	  Hashtbl.add working_children page_id ((new_pid), (Unix.time ()));
+	  Hashtbl.add working_children page_id ((new_pid), (Unix.gettimeofday ()));
           Hashtbl.add working_pid2page_id new_pid (page_id, page_title) 
 	end
     end else begin
@@ -384,10 +399,12 @@ in
 *)
 let main_loop () =
   let db = create_db mediawiki_dbh global_dbh in
+  let maxtime = ref 0. in
   begin
     (* db#init_queue true; *)
     if !delete_all then db#delete_all ();
     while !forever || ((List.length !work_queue) > 0) do
+      let starttime = Unix.gettimeofday () in
       if (Hashtbl.length working_children) >= !max_concurrent_procs then begin
 	(* Wait until a child terminates. *)
         check_subprocess_termination [] 0
@@ -398,6 +415,13 @@ let main_loop () =
 	(* And sleep for a bit to give time for more stuff to get in queue *)
 	if (List.length worktodo) < 1 then
 	  Unix.sleep sleep_time_sec;
+      end;
+      let endtime = Unix.gettimeofday () in
+      let difftime = endtime -. starttime in
+      if difftime > !maxtime then begin
+          maxtime := difftime;
+          !online_logger#debug 1
+              (Printf.sprintf "main loop: new maxtime = %f.\n" difftime);
       end;
     done;
     (* wait for remaining children before terminating *)

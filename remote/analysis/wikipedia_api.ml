@@ -561,7 +561,7 @@ let store_wiki_revs  (db: Online_db.db) (wiki_page: wiki_page_t) (wiki_revs: wik
       check_bad_namespace wiki_page;
       check_changed_title wiki_page;
       (* Write the updated or new page info to the page table. *)
-      !logger#debug 1 (Printf.sprintf "Got page titled %s\n" wiki_page.page_title);
+      !logger#debug 3 (Printf.sprintf "Got page titled %s\n" wiki_page.page_title);
       (* Write the new page to the page table. *)
       db#write_page wiki_page;
       (* Writes the revisions to the db. *)
