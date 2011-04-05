@@ -94,7 +94,6 @@ let min_rev_id = ref None
 let set_min_rev_id m = min_rev_id := Some m
 let single_threaded = ref false
 let maxtime_reaper = ref 0.0
-let maxtime_mysql = ref 0.0
 let maxtime_mainloop = ref 0.0
 let maxtime_launcher = ref 0.0
 
