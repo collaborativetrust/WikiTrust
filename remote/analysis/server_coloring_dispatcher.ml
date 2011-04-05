@@ -393,9 +393,10 @@ let main_loop () =
         check_subprocess_termination [] 0
       end else begin
         Hashtbl.iter check_subprocess_byhash working_children;
-	dispatch_page (fetch_work db);
+	let worktodo = fetch_work db in
+	dispatch_page worktodo;
 	(* And sleep for a bit to give time for more stuff to get in queue *)
-	if (Hashtbl.length working_children) < !max_concurrent_procs then
+	if (List.length worktodo) < 1 then
 	  Unix.sleep sleep_time_sec;
       end;
     done;
