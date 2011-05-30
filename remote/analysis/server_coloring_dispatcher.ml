@@ -71,7 +71,7 @@ let max_concurrent_procs = ref 1
 let set_max_concurrent_procs m = max_concurrent_procs := m 
 let sleep_time_sec = 1
 let forever = ref true
-let sig_handler = function _ -> forever := false
+let sig_finish = function _ -> forever := false
 
 
 (* All-wiki DB *)
@@ -96,6 +96,15 @@ let single_threaded = ref false
 let maxtime_reaper = ref 0.0
 let maxtime_mainloop = ref 0.0
 let maxtime_launcher = ref 0.0
+let maxtime_fetchwork = ref 0.0
+let maxtime_subprocess = ref 0.0
+let sig_profileclean = function _ -> begin
+    maxtime_reaper := 0.0;
+    maxtime_mainloop := 0.0;
+    maxtime_launcher := 0.0;
+    maxtime_fetchwork := 0.0;
+    maxtime_subprocess := 0.0;
+end
 
 let custom_line_format = [
   ("-concur_procs", Arg.Int set_max_concurrent_procs, "<int>: Number of pages to process in parellel.");
@@ -390,11 +399,13 @@ let fetch_work db =
 	  (!max_concurrent_procs - Hashtbl.length working_children) 0
   in
   if !forever && ((List.length !work_queue) < slots) then begin
+    let starttime = Unix.gettimeofday () in
     let more_work = db#fetch_work_from_queue
       (10 * !max_concurrent_procs)
       !times_to_retry_trans !max_concurrent_procs
     in
     work_queue := List.append !work_queue more_work;
+    profiling "fetchwork" starttime maxtime_fetchwork;
   end;
   workHead slots [] !work_queue
 in
@@ -421,7 +432,9 @@ let main_loop () =
 	(* Wait until a child terminates. *)
         check_subprocess_termination [] 0
       end else begin
+        let starttime = Unix.gettimeofday () in
         Hashtbl.iter check_subprocess_byhash working_children;
+        profiling "check_subprocess" starttime maxtime_subprocess;
 	let worktodo = fetch_work db in
 	dispatch_page worktodo;
 	(* And sleep for a bit to give time for more stuff to get in queue *)
@@ -438,6 +451,7 @@ let main_loop () =
 in
 
 Printexc.record_backtrace true ;
-Sys.set_signal Sys.sigterm  (Sys.Signal_handle sig_handler) ;
-Sys.set_signal Sys.sigint   (Sys.Signal_handle sig_handler) ;
+Sys.set_signal Sys.sigterm  (Sys.Signal_handle sig_finish) ;
+Sys.set_signal Sys.sigint   (Sys.Signal_handle sig_finish) ;
+Sys.set_signal Sys.sigusr1  (Sys.Signal_handle sig_profileclean) ;
 main_loop () ;;
