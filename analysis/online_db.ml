@@ -1009,15 +1009,14 @@ object(self)
 	    let s = Printf.sprintf "UPDATE %swikitrust_queue SET processed = 'processing' WHERE page_id = %s" db_prefix (ml2int page_id) in
 	    ignore (self#db_exec mediawiki_dbh s)
 	  in
-	  if (List.length !results) > 0 then (
+	  if (List.length !results) > 0 then begin
 	    let num_availible = self#acquire_reservations db_name 
 	      (List.length !results) max_procs in	  
 	    assert (num_availible <= (List.length !results));
 	    results_arr := Array.sub (Array.of_list !results) 0 num_availible;
 	    Array.iter mark_as_processing !results_arr
-	  ) else (
-	    results_arr := Array.of_list !results
-	  );
+	  end else
+	    results_arr := Array.of_list !results;
 	  (* We need to end this loop. *)
           self#commit;
           n_attempts := n_retries   
@@ -1162,7 +1161,7 @@ object(self)
 	  ignore (self#db_exec dbh s)
 	in
 	
-	ignore (self#db_exec dbh "START TRANSACTION");
+	(* No nesting: ignore (self#db_exec dbh "START TRANSACTION"); *)
 	(* Find out how many slots are available. *)
 	let s_run = Printf.sprintf 
 	  "SELECT count(wiki) FROM %swikitrust_running_wikis" db_prefix in
@@ -1180,7 +1179,7 @@ object(self)
 	if available <= 0 then begin
 	  (* Mark that we are waiting and bail *)
 	  add_line "wikitrust_waiting_wikis";
-	  ignore (self#db_exec dbh "COMMIT");
+	  (* No nesting: ignore (self#db_exec dbh "COMMIT"); *)
 	  0
 	end else begin
 	  let allowance = min desired_allowance available in
@@ -1197,7 +1196,7 @@ object(self)
 	    add_line "wikitrust_running_wikis";
 	  done;
 	  (* And return the number we can do *)
-	  ignore (self#db_exec dbh "COMMIT");
+	  (* No nesting: ignore (self#db_exec dbh "COMMIT"); *)
 	  assert (allowance >= 0);
 	  allowance
 	end
