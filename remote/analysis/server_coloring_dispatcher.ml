@@ -144,12 +144,6 @@ let global_db = {
   Mysql.dbuser = Some !global_db_user;
 }
 
-(* Sets up the db *)
-let mediawiki_dbh = Mysql.connect mediawiki_db in 
-let global_dbh = match !global_db_name with
-  | Some _ -> Some (Mysql.connect global_db) 
-  | None -> None
-in 
 let trust_coeff = Online_types.get_default_coeff in
 
 (* Delay throttling code.
@@ -326,7 +320,7 @@ let process_page (page_id: int) (page_title: string) =
         page_id page_title);
   (* Marks the page as processed. *)
   child_db#mark_page_as_processed page_id;
-  child_db#close; (* Release any locks still held. *)
+  child_db#close; (* close dbh *)
   (* End of page processing. *)
   !online_logger#debug 3
       (Printf.sprintf "Done with %s.\n" page_title);
@@ -422,17 +416,18 @@ in
    Get the max of 1 + slack.
 
 *)
-let main_loop () =
-  let db = create_db mediawiki_dbh global_dbh in
+let main_loop db =
+  let counter = ref 0 in
   begin
     (* db#init_queue true; *)
     if !delete_all then db#delete_all ();
-    while !forever || ((List.length !work_queue) > 0) do
+    while (!forever || ((List.length !work_queue) > 0)) && !counter < 1000 do
       let starttime = Unix.gettimeofday () in
-      if (Hashtbl.length working_children) >= !max_concurrent_procs then begin
+      if (Hashtbl.length working_children) >= !max_concurrent_procs
+	|| !counter >= 1000 then
 	(* Wait until a child terminates. *)
         check_subprocess_termination [] 0
-      end else begin
+      else begin
         let starttime = Unix.gettimeofday () in
         Hashtbl.iter check_subprocess_byhash working_children;
         profiling "check_subprocess" starttime maxtime_subprocess;
@@ -443,16 +438,30 @@ let main_loop () =
 	  Unix.sleep sleep_time_sec;
       end;
       profiling "mainloop" starttime maxtime_mainloop;
+      counter := !counter + 1
     done;
     (* wait for remaining children before terminating *)
     while (Hashtbl.length working_children) > 0 do
       check_subprocess_termination [] 0
     done
-  end
+  end;
+  db#close;
 in
 
 Printexc.record_backtrace true ;
 Sys.set_signal Sys.sigterm  (Sys.Signal_handle sig_finish) ;
 Sys.set_signal Sys.sigint   (Sys.Signal_handle sig_finish) ;
 Sys.set_signal Sys.sigusr1  (Sys.Signal_handle sig_profileclean) ;
-main_loop () ;;
+while !forever do
+  begin
+    let mediawiki_dbh = Mysql.connect mediawiki_db in 
+    let global_dbh = match !global_db_name with
+      | Some _ -> Some (Mysql.connect global_db) 
+      | None -> None
+    in 
+    let db = create_db mediawiki_dbh global_dbh in
+    main_loop db ;
+    db#close ;
+  end
+done;;
+
