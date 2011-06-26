@@ -1000,7 +1000,6 @@ object(self)
     : (int * string) list =
     let n_attempts = ref 0 in 
     let results = ref [] in
-    let results_arr = ref [|(0,"")|] in
 let profiling funcName starttime maxtime =
 let endtime = Unix.gettimeofday () in
 let difftime = endtime -. starttime in
@@ -1025,8 +1024,18 @@ profiling "transaction" started1 maxtime_transaction;
 let started2 = Unix.gettimeofday () in
 	  results := Mysql.map (self#db_exec mediawiki_dbh s) get_pair;
 profiling "select" started2 maxtime_select;
-	  let mark_as_processing (page_id, _) = 
-	    let s = Printf.sprintf "UPDATE %swikitrust_queue SET processed = 'processing' WHERE page_id = %s" db_prefix (ml2int page_id) in
+	  let rec sublist b e l =
+	    (* http://stackoverflow.com/questions/2710233/how-to-get-a-sub-list-from-a-list-in-ocaml *)
+	    match l with
+	    | [] -> failwith "sublist"
+	    | h::t ->
+	      let tail = if e=0 then [] else sublist (b-1) (e-1) t in
+	      if b > 0 then tail else h :: tail
+	  in
+	  let get_pageids (page_id, _) = ml2int page_id in
+	  let mark_as_processing page_ids = 
+	    let idlist = String.concat ", " page_ids in
+	    let s = Printf.sprintf "UPDATE %swikitrust_queue SET processed = 'processing' WHERE page_id IN (%s)" db_prefix idlist in
 	    ignore (self#db_exec mediawiki_dbh s)
 	  in
 	  if (List.length !results) > 0 then begin
@@ -1036,13 +1045,10 @@ let started3 = Unix.gettimeofday () in
 	    assert (num_availible <= (List.length !results));
 profiling "reserve" started3 maxtime_reserve;
 let started3a = Unix.gettimeofday () in
-	    results_arr := Array.sub (Array.of_list !results) 0 num_availible;
-	    Array.iter mark_as_processing !results_arr;
+	    results := sublist 0 (num_availible-1) !results ;
+	    let page_ids = List.map get_pageids !results in
+	    mark_as_processing page_ids ;
 profiling "update" started3a maxtime_update;
-	  end else begin
-let started4 = Unix.gettimeofday () in
-	    results_arr := Array.of_list !results;
-profiling "array" started4 maxtime_array;
 	  end;
 	  (* We need to end this loop. *)
 let started5 = Unix.gettimeofday () in
@@ -1050,14 +1056,15 @@ let started5 = Unix.gettimeofday () in
 profiling "commit" started5 maxtime_commit;
           n_attempts := n_retries   
 	with 
-	| _ -> begin 
+	| exc -> begin 
 	    (* Roll back *)
 	    self#rollback_transaction;
 	    !online_logger#debug 1 "db#fetchwork: rolling back!";
-	    n_attempts := !n_attempts + 1
+	    n_attempts := !n_attempts + 1;
+	    if !n_attempts >= n_retries then raise exc
 	  end
       end done; (* End of the multiple attempts at the transaction *)
-    Array.to_list !results_arr
+    !results
 
   (** [erase_cached_rev_text page_id force] erases the cached text of all
       revisions of [page_id].  Unless [force] is true, keep_text_cache
