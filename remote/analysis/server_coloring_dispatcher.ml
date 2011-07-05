@@ -454,6 +454,8 @@ Sys.set_signal Sys.sigint   (Sys.Signal_handle sig_finish) ;
 Sys.set_signal Sys.sigusr1  (Sys.Signal_handle sig_profileclean) ;
 while !forever do
   begin
+    !online_logger#debug 1
+	  (Printf.sprintf "New DB handles\n");
     let mediawiki_dbh = Mysql.connect mediawiki_db in 
     let global_dbh = match !global_db_name with
       | Some _ -> Some (Mysql.connect global_db) 
@@ -462,6 +464,12 @@ while !forever do
     let db = create_db mediawiki_dbh global_dbh in
     main_loop db ;
     db#close ;
+    if true && !forever then begin
+      !online_logger#debug 1
+	(Printf.sprintf "Restarting dispatcher: %s\n" Sys.executable_name);
+      flush_all ();
+      Unix.execv Sys.executable_name Sys.argv;
+    end
   end
 done;;
 
