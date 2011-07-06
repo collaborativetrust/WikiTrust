@@ -371,12 +371,12 @@ let dispatch_page (pages : (int * string) list) =
 in
 
 (**
-  * fetch_work () - local caching of work queue from DB.
+  * fetch_work - local caching of work queue from DB.
   * We need to cache the work from the DB, because when there
   * are too many entries in the DB it takes 10+ seconds for the
   * DB to respond.
   *)
-let fetch_work db =
+let fetch_work db read_from_db =
   let rec workHead size head tail =
     if size = 0 then begin
       work_queue := tail;
@@ -393,7 +393,7 @@ let fetch_work db =
   let slots = max
 	  (!max_concurrent_procs - Hashtbl.length working_children) 0
   in
-  if !forever && ((List.length !work_queue) < slots) then begin
+  if read_from_db && ((List.length !work_queue) < slots) then begin
     let starttime = Unix.gettimeofday () in
     let more_work = db#fetch_work_from_queue
       (10 * !max_concurrent_procs)
@@ -417,21 +417,24 @@ in
 
 *)
 let main_loop db =
+  let max_counter = 10000 in
   let counter = ref 0 in
   begin
     (* db#init_queue true; *)
     if !delete_all then db#delete_all ();
-    while (!forever || ((List.length !work_queue) > 0)) && !counter < 1000 do
+    while (!forever && !counter < max_counter)
+	|| (List.length !work_queue) > 0
+    do
       let starttime = Unix.gettimeofday () in
-      if (Hashtbl.length working_children) >= !max_concurrent_procs
-	|| !counter >= 1000 then
+      if (Hashtbl.length working_children) >= !max_concurrent_procs then
 	(* Wait until a child terminates. *)
         check_subprocess_termination [] 0
       else begin
         let starttime = Unix.gettimeofday () in
         Hashtbl.iter check_subprocess_byhash working_children;
         profiling "check_subprocess" starttime maxtime_subprocess;
-	let worktodo = fetch_work db in
+	let read_from_db = !forever && !counter < max_counter in
+	let worktodo = fetch_work db read_from_db in
 	dispatch_page worktodo;
 	(* And sleep for a bit to give time for more stuff to get in queue *)
 	if (List.length worktodo) < 1 then
@@ -464,7 +467,7 @@ while !forever do
     let db = create_db mediawiki_dbh global_dbh in
     main_loop db ;
     db#close ;
-    if true && !forever then begin
+    if !forever then begin
       !online_logger#debug 1
 	(Printf.sprintf "Restarting dispatcher: %s\n" Sys.executable_name);
       flush_all ();
