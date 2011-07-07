@@ -448,7 +448,6 @@ let main_loop db =
       check_subprocess_termination [] 0
     done
   end;
-  db#close;
 in
 
 Printexc.record_backtrace true ;
