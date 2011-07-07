@@ -48,7 +48,7 @@ POSSIBILITY OF SUCH DAMAGE.
    * Insert the page in the wikitrust_queue table.
    * Optionally, add the text to the text cache (in the revision and text
      tables).
-   
+
    Missing coloring:
    * Insert the page in the wikitrust_queue table.
 
@@ -68,7 +68,7 @@ open Online_log;;
 exception Option_error of string;;
 
 let max_concurrent_procs = ref 1
-let set_max_concurrent_procs m = max_concurrent_procs := m 
+let set_max_concurrent_procs m = max_concurrent_procs := m
 let sleep_time_sec = 1
 let forever = ref true
 let sig_finish = function _ -> forever := false
@@ -147,11 +147,11 @@ let global_db = {
 let trust_coeff = Online_types.get_default_coeff in
 
 (* Delay throttling code.
-   There are two types of throttle delay: a second each time we are multiples 
+   There are two types of throttle delay: a second each time we are multiples
    of an int, or a number of seconds before each revision. *)
 let each_event_delay = int_of_float !color_delay in
-let every_n_events_delay = 
-  let frac = !color_delay -. (floor !color_delay) in 
+let every_n_events_delay =
+  let frac = !color_delay -. (floor !color_delay) in
     if frac > 0.001
     then Some (max 1 (int_of_float (1. /. frac)))
     else None
@@ -168,12 +168,12 @@ let create_db mediawiki_dbh global_dbh =
     if (not !use_wikimedia_api) && (not !use_exec_api) then
       raise (Option_error "One of ExecAPI or MediawikiAPI must be specified");
     if !use_wikimedia_api then
-      new Online_db.db_mediawiki_api !db_prefix mediawiki_dbh 
-        global_dbh !mw_db_name !wt_db_rev_base_path !wt_db_blob_base_path 
+      new Online_db.db_mediawiki_api !db_prefix mediawiki_dbh
+        global_dbh !mw_db_name !wt_db_rev_base_path !wt_db_blob_base_path
         !dump_db_calls !keep_cached_text
     else
-      Online_db.create_db !use_exec_api !db_prefix mediawiki_dbh 
-        global_dbh !mw_db_name !wt_db_rev_base_path !wt_db_blob_base_path 
+      Online_db.create_db !use_exec_api !db_prefix mediawiki_dbh
+        global_dbh !mw_db_name !wt_db_rev_base_path !wt_db_blob_base_path
         !dump_db_calls !keep_cached_text
   end
 in
@@ -197,7 +197,7 @@ in
 (**
    [check_subprocess_termination page_id process_id]
    Wait for the process to stop before accepting more.
-   This function cleans out the hashtable working_children, removing all of the 
+   This function cleans out the hashtable working_children, removing all of the
    entries which correspond to child processes which have stopped working.
 *)
 let check_subprocess_termination (flags:Unix.wait_flag list) (process_id: int) =
@@ -242,19 +242,19 @@ let check_subprocess_termination (flags:Unix.wait_flag list) (process_id: int) =
     end
 in
 
-let check_subprocess_byhash (page_id: int) ((process_id: int), (started_on: float)) = 
+let check_subprocess_byhash (page_id: int) ((process_id: int), (started_on: float)) =
     check_subprocess_termination [Unix.WNOHANG] process_id
 in
 
 (** [process_page page_id] is a child process that processes a page
     with [page_id] as id. *)
-let process_page (page_id: int) (page_title: string) = 
+let process_page (page_id: int) (page_title: string) =
   (* Every child has their own db. *)
-  let child_dbh = Mysql.connect mediawiki_db in 
+  let child_dbh = Mysql.connect mediawiki_db in
   let child_global_dbh = match !global_db_name with
-    | Some _ -> Some (Mysql.connect global_db) 
+    | Some _ -> Some (Mysql.connect global_db)
     | None -> None
-  in 
+  in
   let child_db = create_db child_dbh child_global_dbh in
   (* first, delete the page id if requested; will recolor, as well *)
   if page_title = "XXX DELETE ME" then begin
@@ -269,14 +269,14 @@ let process_page (page_id: int) (page_title: string) =
     (try begin
       (* If I am using the WikiMedia API, I need to first download any new
          revisions of the page. *)
-      if !use_wikimedia_api then 
+      if !use_wikimedia_api then
         ignore( Wikipedia_api.download_page_from_id ~sid:!min_rev_id child_db page_id);
-  
+
       (* Creates a new updater. *)
       let processor = new Updater.updater child_db
-	trust_coeff !times_to_retry_trans each_event_delay every_n_events_delay 
+	trust_coeff !times_to_retry_trans each_event_delay every_n_events_delay
 	!robots in
-	(* Brings the page up to date.  This will take care also of the page 
+	(* Brings the page up to date.  This will take care also of the page
 	   lock. *)
 	!online_logger#debug 3
 	  (Printf.sprintf "Processing pageId %d on try %d\n"
@@ -286,15 +286,15 @@ let process_page (page_id: int) (page_title: string) =
     end with
     | Wikipedia_api.API_error_noretry e -> begin
 	!online_logger#log
-            (Printf.sprintf "Wikipedia_api Error: %s\n   On %d %s\n   Exc %s\n" 
-              e page_id page_title (Printexc.to_string (Wikipedia_api.API_error_noretry 
+            (Printf.sprintf "Wikipedia_api Error: %s\n   On %d %s\n   Exc %s\n"
+              e page_id page_title (Printexc.to_string (Wikipedia_api.API_error_noretry
               e)));
 	times_tried := !times_to_retry_trans;
       end
     | Wikipedia_api.API_error e -> (
 	!online_logger#log
-            (Printf.sprintf "Wikipedia_api Error: %s\n   On %d %s\n   Exc %s\n" 
-              e page_id page_title (Printexc.to_string (Wikipedia_api.API_error 
+            (Printf.sprintf "Wikipedia_api Error: %s\n   On %d %s\n   Exc %s\n"
+              e page_id page_title (Printexc.to_string (Wikipedia_api.API_error
               e)));
       )
     | e -> begin  (* Handle everything else generically here. *)
@@ -343,20 +343,20 @@ let dispatch_page (pages : (int * string) list) =
     if not (Hashtbl.mem working_children page_id) then begin
       flush_all ();
       let new_pid = Unix.fork () in
-      match new_pid with 
+      match new_pid with
       | 0 -> begin
-	  !online_logger#debug 3 (Printf.sprintf 
-            "I'm the child: Running on page %s (%d)\n" page_title page_id); 
+	  !online_logger#debug 3 (Printf.sprintf
+            "I'm the child: Running on page %s (%d)\n" page_title page_id);
 	  process_page page_id page_title;
-	  !online_logger#debug 3 (Printf.sprintf 
-            "I'm the child: Finished on page %s (%d)\n" page_title page_id); 
+	  !online_logger#debug 3 (Printf.sprintf
+            "I'm the child: Finished on page %s (%d)\n" page_title page_id);
 	  exit 0;
 	end
       | _ -> begin
 	  !online_logger#debug 3
-	     (Printf.sprintf "Parent of pid %d, page %d\n" new_pid page_id);  
+	     (Printf.sprintf "Parent of pid %d, page %d\n" new_pid page_id);
 	  Hashtbl.add working_children page_id ((new_pid), (Unix.gettimeofday ()));
-          Hashtbl.add working_pid2page_id new_pid (page_id, page_title) 
+          Hashtbl.add working_pid2page_id new_pid (page_id, page_title)
 	end
     end else begin
       (* The page is already being processed (but probably
@@ -406,13 +406,13 @@ let fetch_work db read_from_db =
 in
 
 
-(* 
+(*
    [main_loop]
    Poll to see if there is work to be done in the database table;
-   if there is work to be done, does it. 
+   if there is work to be done, does it.
 
    Need to assign 1 proc for each wiki
-   Use this, but also get the list of availible spaces not used 
+   Use this, but also get the list of availible spaces not used
    Get the max of 1 + slack.
 
 *)
@@ -459,11 +459,11 @@ while !forever do
   begin
     !online_logger#debug 1
 	  (Printf.sprintf "New DB handles\n");
-    let mediawiki_dbh = Mysql.connect mediawiki_db in 
+    let mediawiki_dbh = Mysql.connect mediawiki_db in
     let global_dbh = match !global_db_name with
-      | Some _ -> Some (Mysql.connect global_db) 
+      | Some _ -> Some (Mysql.connect global_db)
       | None -> None
-    in 
+    in
     let db = create_db mediawiki_dbh global_dbh in
     main_loop db ;
     db#close ;
