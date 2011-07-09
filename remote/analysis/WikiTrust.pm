@@ -31,6 +31,7 @@ our %methods = (
 	'vote' => \&handle_vote,
 	'gettext' => \&handle_gettext,
 	'wikimarkup' => \&handle_wikimarkup,
+	'json:wikiorhtml' => \&handle_wikiorhtml_json,
 	'wikiorhtml' => \&handle_wikiorhtml,
 	'sharehtml' => \&handle_sharehtml,
 	'stats' => \&handle_stats,
@@ -318,21 +319,85 @@ sub handle_gettext {
 }
 
 sub handle_wikimarkup {
-  my ($dbh, $cgi, $r) = @_;
+  my ($dbh, $cgi, $r, $cacheChecker) = @_;
   my ($rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
-  my $result = util_ColorIfAvailable($dbh, $page, $rev, $page_title);
-  my $json = {};
-  my $cache = 60;
-  if ($result eq NOT_FOUND_TEXT_TOKEN) {
-    $cache = 60;
-    $json->{error} = $result;
-  } else {
-    $cache = 5 * 24 * 60 * 60;
+  my @handlers;	    # functions that try to handle this request
+  push @handlers, sub {
+    # Error checker
+    my ($json, $rev) = @_;
+    if (exists $ENV{WT_MESSAGE}) {
+      $json->{error} = $ENV{WT_MESSAGE};
+      return 10*60;
+    } else {
+      return 0;
+    }
+  };
+  push @handlers, $cacheChecker if defined $cacheChecker;
+  push @handlers, sub {
+    # Gather some fields that are in common for both cache and wiki case
+    my ($json, $rev) = @_;
+    # The WikiPraise project asked for:
+    # timestamp, flag if user is anonymous, flag if it is a minor change
+    my @fields = qw( time_string user_id username is_minor );
+    my $sth = $dbh->prepare ("SELECT ".join(', ', @fields)." FROM "
+      . "wikitrust_revision WHERE "
+      . "revision_id = ? "
+      . "LIMIT 1") || die $dbh->errstr;
+    $sth->execute($rev) || die $dbh->errstr;
+    my $ans = $sth->fetchrow_hashref();
+    $ans = { } if !defined $ans;
+    $json->{Anon} = ($ans->{user_id} == 0 ? JSON::true : JSON::false);
+    foreach my $k (keys %$ans) {
+      $json->{$k} = $ans->{$k};
+    }
+    return 0;		# continue processing!
+  };
+  push @handlers, sub {
+    # Fetch wiki markup
+    my ($json, $rev) = @_;
+    my $result = util_ColorIfAvailable($dbh, $page, $rev, $page_title);
+    if ($result eq NOT_FOUND_TEXT_TOKEN) {
+      $json->{error} = $result;
+      return 60;
+    }
     my @data = split(/,/, $result, 2);
     $json->{toptrust} = $data[0];
     $json->{text} = $data[1];
+    return 5 * 24 * 60 * 60;
+  };
+  push @handlers, sub {
+    # Backup error handler
+    my ($json, $rev) = @_;
+    $json->{error} = "No handlers can process this request!";
+    return 60;
+  };
+
+  my $json = {};
+  my $cache = 0;
+  while ($cache == 0) {
+    my $handler = shift @handlers;
+    $cache = $handler->($json, $rev);
   }
   return printJson($cgi, $r, $json, $cache);
+}
+
+# Creates a "handler" that can fetch data from the cache,
+# and passes of the real work to wikimarkup.
+# This is to support the WikiPraise project.
+sub handle_wikiorhtml_json {
+  my ($dbh, $cgi, $r) = @_;
+  my $htmlFetcher = sub {
+    my ($json, $rev) = @_;
+    my $cache = util_getCache();
+    my $data = $cache->get($rev);
+    if (defined $data && ref $data eq 'HASH') {
+      $json->{html} = $data->{html};
+      return 30*24*60*60;
+    } else {
+      return 0;
+    }
+  };
+  return handle_wikimarkup($dbh, $cgi, $r, $htmlFetcher);
 }
 
 sub handle_wikiorhtml {
