@@ -85,13 +85,6 @@ let revision_t_desc_cron x y = - revision_t_asc_cron x y
 let num_max_same_timestamp = 2
 let num_extra_revisions = 5
 
-let maxtime_transaction = ref 0.0
-let maxtime_select = ref 0.0
-let maxtime_reserve = ref 0.0
-let maxtime_update = ref 0.0
-let maxtime_array = ref 0.0
-let maxtime_commit = ref 0.0
-
 let set_is_minor ism = match ism with
   | 0 -> false
   | 1 -> true
@@ -1000,30 +993,17 @@ object(self)
     : (int * string) list =
     let n_attempts = ref 0 in 
     let results = ref [] in
-let profiling funcName starttime maxtime =
-let endtime = Unix.gettimeofday () in
-let difftime = endtime -. starttime in
-if difftime > !maxtime then begin
-maxtime := difftime;
-!online_logger#debug 1
-  (Printf.sprintf "%s: new maxtime = %f.\n" funcName difftime);
-end;
-in
     while !n_attempts < n_retries do 
       begin 
 	try 
-let started1 = Unix.gettimeofday () in
 	  self#start_transaction;
-profiling "transaction" started1 maxtime_transaction;
 	  let s = Printf.sprintf "SELECT page_id, page_title FROM %swikitrust_queue WHERE processed = 'unprocessed' AND priority > 0 ORDER BY priority DESC LIMIT %s" 
 	    db_prefix (ml2int max_to_get) in
 	  let get_id row : int = (not_null int2ml row.(0)) in
 	  let get_title row : string = ExtString.String.map (fun c -> if c = '_' then ' ' else c)
               (not_null str2ml row.(1)) in
 	  let get_pair row = (get_id row, get_title row) in  
-let started2 = Unix.gettimeofday () in
 	  results := Mysql.map (self#db_exec mediawiki_dbh s) get_pair;
-profiling "select" started2 maxtime_select;
 	  let rec sublist b e l =
 	    (* http://stackoverflow.com/questions/2710233/how-to-get-a-sub-list-from-a-list-in-ocaml *)
 	    match l with
@@ -1039,27 +1019,20 @@ profiling "select" started2 maxtime_select;
 	    ignore (self#db_exec mediawiki_dbh s)
 	  in
 	  if (List.length !results) > 0 then begin
-let started3 = Unix.gettimeofday () in
 	    let num_availible = self#acquire_reservations db_name 
 	      (List.length !results) max_procs in	  
 	    assert (num_availible <= (List.length !results));
-profiling "reserve" started3 maxtime_reserve;
-let started3a = Unix.gettimeofday () in
 	    results := sublist 0 (num_availible-1) !results ;
 	    let page_ids = List.map get_pageids !results in
 	    mark_as_processing page_ids ;
-profiling "update" started3a maxtime_update;
 	  end;
 	  (* We need to end this loop. *)
-let started5 = Unix.gettimeofday () in
           self#commit;
-profiling "commit" started5 maxtime_commit;
           n_attempts := n_retries   
 	with 
 	| exc -> begin 
 	    (* Roll back *)
 	    self#rollback_transaction;
-	    !online_logger#debug 1 "db#fetchwork: rolling back!";
 	    n_attempts := !n_attempts + 1;
 	    if !n_attempts >= n_retries then raise exc
 	  end
@@ -1389,13 +1362,5 @@ let create_db
   else (new db db_prefix mediawiki_dbh global_dbh db_name rev_base_path 
     colored_base_path debug_mode keep_text_cache)
 
-
-let profileclean () =
-  maxtime_transaction := 0.0;
-  maxtime_select := 0.0;
-  maxtime_reserve := 0.0;
-  maxtime_update := 0.0;
-  maxtime_array := 0.0;
-  maxtime_commit := 0.0
 
 

@@ -104,7 +104,6 @@ let sig_profileclean = function _ -> begin
     maxtime_launcher := 0.0;
     maxtime_fetchwork := 0.0;
     maxtime_subprocess := 0.0;
-    Online_db.profileclean ();
 end
 
 let custom_line_format = [

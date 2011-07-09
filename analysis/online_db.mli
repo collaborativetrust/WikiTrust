@@ -457,5 +457,3 @@ val create_db :
   bool ->             (* debug_mode *)
   bool ->             (* keep text cache *)
   db
-
-val profileclean: unit -> unit
