@@ -1096,10 +1096,10 @@ sub printJson {
     $r->content_type('application/json');
     $r->headers_out->{'Cache-Control'} = "max-age=" . $expire;
     my $callback = $cgi->param('callback');
-    $callback = undef if $callback !~ m/^\w+$/;
-    $r->print($callback."(") if $callback;
+    $callback = undef if !defined $callback || $callback !~ m/^\w+$/;
+    $r->print($callback."(") if defined $callback;
     $r->print(encode_json($obj));
-    $r->print(")") if $callback;
+    $r->print(")") if defined $callback;
     return Apache2::Const::OK;
 }
 
