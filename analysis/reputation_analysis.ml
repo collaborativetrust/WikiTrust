@@ -400,9 +400,10 @@ class page
                 (* If revisions 0 and 1 are consecutive, computes the 
                    contribution to the longevity of revision 1 *)
                 if 1 = rev1_idx then begin 
+                  let normalize x = max (min x 1.0) (-. 1.0) in
                   let qual = (d02 -. d12) /. d01 in 
                   n_judges_1 := !n_judges_1 + 1; 
-                  tot_qual_1 := !tot_qual_1 +. qual
+                  tot_qual_1 := !tot_qual_1 +. (normalize qual)
                 end
               end
             end done; (* for rev2_idx *)
