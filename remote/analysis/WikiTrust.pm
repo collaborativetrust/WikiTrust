@@ -31,7 +31,6 @@ our %methods = (
 	'vote' => \&handle_vote,
 	'gettext' => \&handle_gettext,
 	'wikimarkup' => \&handle_wikimarkup,
-	'json:wikiorhtml' => \&handle_wikiorhtml_json,
 	'wikiorhtml' => \&handle_wikiorhtml,
 	'sharehtml' => \&handle_sharehtml,
 	'stats' => \&handle_stats,
@@ -69,11 +68,14 @@ sub handler {
     { RaiseError => 1, AutoCommit => 1 }
   );
 
+  my $format = $cgi->param('format') || 'text';
   my $result = "";
   try {
     my ($pageid, $title, $revid, $time, $username, $method);
     $method = $cgi->param('method');
     if (!$method) {
+      # Special defaults to handle original PHP code.
+      # TODO: get rid of this and fix mediawiki extension.
       $method = 'gettext';
       if ($cgi->param('vote')) {
         $method = 'vote';
@@ -87,10 +89,19 @@ sub handler {
     $result = $func->($dbh, $cgi, $r);
   } otherwise {
     my $E = shift;
-    print STDERR $E if $E !~ m/^No info on/;
-    $r->no_cache(1);
-    $r->content_type('text/plain; charset=utf-8');
-    $r->print('EERROR detected.  Try again in a moment, or report an error on the WikiTrust bug tracker.');
+    print STDERR $E if $E !~ m/^No info on/ && $E ne NOT_FOUND_TEXT_TOKEN;
+    if ($format eq 'json') {
+      my $json = { 'error' => $E };
+      $result = printJson($cgi, $r, $json, 1);
+    } else {
+      $r->no_cache(1);
+      $r->content_type('text/plain; charset=utf-8');
+      $msg = 'ERROR detected.  Please try again in a moment, or open a ticket in the WikiTrust bug tracker.';
+      $msg = $E if $E eq NOT_FOUND_TEXT_TOKEN || $E =~ m/^MSG/;
+      $msg =~ s/^MSG //;
+      $r->print("E$msg");
+      $result = Apache2::Const::OK;
+    }
   };
   return $result;
 }
@@ -99,6 +110,7 @@ sub get_stdargs {
     my $cgi = shift @_;
     my ($pageid, $title, $revid, $time, $username);
     my $method = $cgi->param('method');
+    my $format = $cgi->param('format') || 'text';
     if (!$method) {
 	# old parameter names
 	$pageid = $cgi->param('page') || 0;
@@ -114,7 +126,7 @@ sub get_stdargs {
 	$time = $cgi->param('time') || timestamp();
 	$username = $cgi->param('username') || '';
     }
-    return ($revid, $pageid, $username, $time, $title);
+    return ($format, $revid, $pageid, $username, $time, $title);
 }
 
 sub timestamp {
@@ -147,10 +159,14 @@ sub mark_for_coloring {
   $sth->execute($page, $page_title, $priority, $priority) || die $dbh->errstr;
 }
 
+##
+# Intended to be called by mediawiki extension when a user votes
+# for a revision.  Not currently used.
 sub handle_vote {
   my ($dbh, $cgi, $r) = @_;
-  my ($rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
+  my ($format, $rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
 
+  die "Only know 'text' format" if $format ne 'text';
   die "Illegal page_id from user '$user'" if $page <= 0;
   die "Illegal rev_id from user '$user'" if $rev <= 0;
 
@@ -278,9 +294,13 @@ sub fetch_colored_markup {
   return $result;
 }
 
+##
+# Intended to be called by mediawiki PHP code when an
+# edit is made.  Result is 'text' since JSON is harder in PHP..
 sub handle_edit {
   my ($dbh, $cgi, $r) = @_;
-  my ($rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
+  my ($format, $rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
+  die "Only know 'text' format" if $format ne 'text';
   # since we still need to download actual text,
   # it's safe to not verify the submitter
   mark_for_coloring($page, $page_title, $dbh);
@@ -304,9 +324,13 @@ sub util_ColorIfAvailable {
   return $result;
 }
 
+##
+# Original code for fetching colored text.
+# Only 'RemoteMode' of mediawiki extension uses this.
+# TODO: Let's cleanup and delete this.
 sub handle_gettext {
   my ($dbh, $cgi, $r) = @_;
-  my ($rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
+  my ($format, $rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
   my $result = util_ColorIfAvailable($dbh, $page, $rev, $page_title);
   if ($result eq NOT_FOUND_TEXT_TOKEN) {
     $r->headers_out->{'Cache-Control'} = "max-age=" . 60;
@@ -318,15 +342,17 @@ sub handle_gettext {
   return Apache2::Const::OK;
 }
 
+##
+# Gets only the raw wiki markup.
 sub handle_wikimarkup {
   my ($dbh, $cgi, $r, $cacheChecker) = @_;
-  my ($rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
+  my ($format, $rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
   my @handlers;	    # functions that try to handle this request
   push @handlers, sub {
     # Error checker
     my ($json, $rev) = @_;
     if (exists $ENV{WT_MESSAGE}) {
-      $json->{error} = $ENV{WT_MESSAGE};
+      $json->{error} = 'MSG '.$ENV{WT_MESSAGE};
       return 10*60;
     } else {
       return 0;
@@ -336,8 +362,10 @@ sub handle_wikimarkup {
   push @handlers, sub {
     # Gather some fields that are in common for both cache and wiki case
     my ($json, $rev) = @_;
+    return 0 if $format eq 'text';	# can't return all this!
     # The WikiPraise project asked for:
     # timestamp, flag if user is anonymous, flag if it is a minor change
+    # TODO: they might not need this any longer
     my @fields = qw( time_string user_id username is_minor );
     my $sth = $dbh->prepare ("SELECT ".join(', ', @fields)." FROM "
       . "wikitrust_revision WHERE "
@@ -358,12 +386,16 @@ sub handle_wikimarkup {
     my $result = util_ColorIfAvailable($dbh, $page, $rev, $page_title);
     if ($result eq NOT_FOUND_TEXT_TOKEN) {
       $json->{error} = $result;
-      return 60;
+      # Hopefully the text will be processed soon, so cache
+      # the error for only ten seconds.
+      return 10;
     }
     my @data = split(/,/, $result, 2);
     $json->{toptrust} = $data[0];
-    $json->{text} = $data[1];
-    return 5 * 24 * 60 * 60;
+    $json->{wikimarkup} = $data[1];
+    # Only cache the wikimarkup for a minute, because
+    # we hope to get back HTML which will render much faster.
+    return 60;
   };
   push @handlers, sub {
     # Backup error handler
@@ -378,13 +410,29 @@ sub handle_wikimarkup {
     my $handler = shift @handlers;
     $cache = $handler->($json, $rev);
   }
-  return printJson($cgi, $r, $json, $cache);
+  if ($format eq 'text') {
+    die $json->{error} if exists $json->{error};
+    $r->headers_out->{'Cache-Control'} = "max-age=" . $cache;
+    $r->content_type('text/plain; charset=utf-8');
+    if (exists $json->{html}) {
+      $r->print('H');
+      $r->print($json->{html});
+    } elsif (exists $json->{wikimarkup}) {
+      $r->print('W');
+      $r->print($json->{wikimarkup});
+    } else {
+      die "No error/html/wikimarkup?";
+    }
+  } else {
+    return printJson($cgi, $r, $json, $cache);
+  }
 }
 
 # Creates a "handler" that can fetch data from the cache,
 # and passes of the real work to wikimarkup.
-# This is to support the WikiPraise project.
-sub handle_wikiorhtml_json {
+# This is the normal endpoint for the Firefox plugin and
+# the WikiPraise project.
+sub handle_wikiorhtml {
   my ($dbh, $cgi, $r) = @_;
   my $htmlFetcher = sub {
     my ($json, $rev) = @_;
@@ -394,45 +442,15 @@ sub handle_wikiorhtml_json {
       $json->{html} = $data->{html};
       return 30*24*60*60;
     } else {
-      return 0;
+      return 0;		# continue processing
     }
   };
   return handle_wikimarkup($dbh, $cgi, $r, $htmlFetcher);
 }
 
-sub handle_wikiorhtml {
-  my ($dbh, $cgi, $r) = @_;
-  if (exists $ENV{WT_MESSAGE}) {
-    # send a message to users
-    $r->headers_out->{'Cache-Control'} = "max-age=" . 10*60;
-    $r->content_type('text/plain; charset=utf-8');
-    $r->print('E');
-    $r->print($ENV{WT_MESSAGE});
-    return Apache2::Const::OK;
-  }
-  my ($rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
-  my $cache = util_getCache();
-  my $data = $cache->get($rev);
-  if (defined $data && ref $data eq 'HASH') {
-    $r->headers_out->{'Cache-Control'} = "max-age=" . 30*24*60*60;
-    $r->content_type('text/plain; charset=utf-8');
-    $r->print('H');
-    $r->print($data->{html});
-    return Apache2::Const::OK;
-  }
-
-  my $result = util_ColorIfAvailable($dbh, $page, $rev, $page_title);
-  if ($result eq NOT_FOUND_TEXT_TOKEN) {
-    $r->headers_out->{'Cache-Control'} = "max-age=" . 15;
-  } else {
-    $r->headers_out->{'Cache-Control'} = "max-age=" . 30;
-  }
-  $r->content_type('text/plain; charset=utf-8');
-  $r->print('W');
-  $r->print($result);
-  return Apache2::Const::OK;
-}
-
+##
+# This is a debugging endpoint for the WikiTrust developers.
+# TODO: delete this if it is no longer being used.
 sub handle_stats {
   my ($dbh, $cgi, $r) = @_;
 
@@ -465,9 +483,12 @@ sub handle_stats {
   return Apache2::Const::OK;
 }
 
-# miccheck: Called by the plugin to see if this language is
-# actually implemented.  Basically, it tests that the DNS
-# is configured and working correctly from user to us.
+##
+# Called by the Firefox plugin to see if this language is
+# actually implemented; that is, "de.collaborativetrust.com"
+# doesn't exist in DNS unless we support 'dewiki' for the WikiTrust
+# project, and this allows the plugin to know whether to show a tab
+# when in dewiki... which is why we cache for so long.
 sub handle_miccheck {
   my ($dbh, $cgi, $r) = @_;
 
@@ -477,6 +498,8 @@ sub handle_miccheck {
   return Apache2::Const::OK;
 }
 
+##
+# Used by munin to track how deep the queue is.
 sub handle_status {
   my ($dbh, $cgi, $r) = @_;
 
@@ -508,10 +531,11 @@ sub handle_status {
 sub handle_deletepage {
   my ($dbh, $cgi, $r) = @_;
 
-  my ($rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
+  my ($format, $rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
   $r->no_cache(1);
   $r->content_type('text/plain; charset=utf-8');
  
+  throw Error::Simple("Only know 'text' format") if $format ne 'text';
   die "Illegal page_id $page for '$page_title'"
 	if $page <= 0;
 
@@ -538,16 +562,16 @@ sub util_getCache {
 	};
 }
 
+##
+# This is a callback from the firefox plugin to us,
+# to provide us with the HTMLified version of the wikimarkup.
 sub handle_sharehtml {
     my ($dbh, $cgi, $r) = @_;
 
     my $myhtml = $cgi->param('myhtml') || '';
     my $revid = $cgi->param('revid') || 0;
-    if (($myhtml eq '') || ($revid <= 0)) {
-      $r->content_type('text/plain');
-      $r->print('Thanks, but no thanks.');
-      return Apache2::Const::OK;
-    }
+    die "MSG Thanks, but no thanks.\n"
+	if ($myhtml eq '') || ($revid <= 0);
 
     my $c = $r->connection;
     my $remoteip = $c->remote_ip();
@@ -582,13 +606,10 @@ warn "Received share from $remoteip (proxy = $proxyip)";
 
 sub handle_rawvandalism {
     my ($dbh, $cgi, $r) = @_;
-    my ($rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
+    my ($format, $rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
 
-    if ($rev <= 0) {
-      $r->content_type('text/plain');
-      $r->print('Need to specify a revid.');
-      return Apache2::Const::OK;
-    }
+    throw Error::Simple('Need to specify a revid.') if $rev <= 0;
+    throw Error::Simple("Only know 'json' format") if $format ne 'json';
 
     my $q = getQualityData($page_title, $page, $rev, $dbh);
     # Remove fields that aren't helpful in machine learning
@@ -716,35 +737,36 @@ sub vandalismZdModel {
     return $prob;
 }
 
-
+##
+# This code returns the probability that a revision is vandalism.
+# It is used by the Firefox plugin to color the RecentChanges page.
 sub handle_vandalism {
     my ($dbh, $cgi, $r) = @_;
-    my ($rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
+    my ($format, $rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
 
-    if ($rev <= 0) {
-      $r->content_type('text/plain');
-      $r->print('Need to specify a revid.');
-      return Apache2::Const::OK;
-    }
+    throw Error::Simple("Need to specify a revid.") if $rev <= 0;
 
     my $q = getQualityData($page_title, $page, $rev, $dbh);
     my $prob = vandalismModel($q);
 
-    $r->content_type('text/plain');
-    $r->headers_out->{'Cache-Control'} = "max-age=" . 3*60;
-    $r->print($prob);
-    return Apache2::Const::OK;
+    if ($format eq 'text') {
+      $r->content_type('text/plain');
+      $r->headers_out->{'Cache-Control'} = "max-age=" . 3*60;
+      $r->print($prob);
+      return Apache2::Const::OK;
+    } elsif ($format eq 'json') {
+      my $json = { $rev => $prob };
+      return printJson($cgi, $r, $json, 3*60);
+    } else {
+      die "Unknown format $format";
+    }
 }
 
 sub handle_vandalismZD {
     my ($dbh, $cgi, $r) = @_;
-    my ($rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
+    my ($format, $rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
 
-    if ($rev <= 0) {
-      $r->content_type('text/plain');
-      $r->print('Need to specify a revid.');
-      return Apache2::Const::OK;
-    }
+    throw Error::Simple("Need to specify a revid.") if $rev <= 0;
 
     my $q = getQualityData($page_title, $page, $rev, $dbh);
 
@@ -762,10 +784,17 @@ sub handle_vandalismZD {
 
     my $prob = vandalismZdModel($q);
 
-    $r->content_type('text/plain');
-    $r->headers_out->{'Cache-Control'} = "max-age=" . 3*60;
-    $r->print($prob);
-    return Apache2::Const::OK;
+    if ($format eq 'text') {
+      $r->content_type('text/plain');
+      $r->headers_out->{'Cache-Control'} = "max-age=" . 3*60;
+      $r->print($prob);
+      return Apache2::Const::OK;
+    } elsif ($format eq 'json') {
+      my $json = { $rev => $prob };
+      return printJson($cgi, $r, $json, 3*60);
+    } else {
+      die "Unknown format $format";
+    }
 }
 
 sub getSubfield {
@@ -933,19 +962,18 @@ sub getQualityData {
     return $ans;
 }
 
+##
+# Implements the revision selection API used to select
+# the best most recent revision.
 sub handle_selection {
     my ($dbh, $cgi, $r) = @_;
-    my ($rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
+    my ($format, $rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
+
+    throw Error::Simple("MSG No revid allowed.") if $rev > 0;
 
     my $num_winners_to_return = $cgi->param('winners') || 3;
     my $inv_discount_base = $cgi->param('invDiscountBase') || 200;
 
-
-    if ($rev > 0) {
-      $r->content_type('text/plain');
-      $r->print('No revid allowed.');
-      return Apache2::Const::OK;
-    }
 
     my $sth = $dbh->prepare ("SELECT revision_id FROM " .
 	    "wikitrust_revision WHERE " .
@@ -1010,7 +1038,17 @@ sub handle_selection {
 	};
     }
 
-    return printJson($cgi, $r, \@result, 30*60);
+    if ($format eq 'json') {
+      return printJson($cgi, $r, \@result, 30*60);
+    } elsif ($format eq 'text') {
+      $r->content_type('text/plain');
+      $r->headers_out->{'Cache-Control'} = "max-age=" . 30*60;
+      $r->print(join("\n", map { $_->{'Revision_id'} } @result));
+      return Apache2::Const::OK;
+    } else {
+      die "Unknown format $format";
+    }
+
 }
 
 # Returns the probability that a revision is not vandalism.
@@ -1093,6 +1131,7 @@ sub selection_arraySort {
 
 sub printJson {
     my ($cgi, $r, $obj, $expire) = @_;
+    $r->no_cache(1) if $expire == 0;
     $r->content_type('application/json');
     $r->headers_out->{'Cache-Control'} = "max-age=" . $expire;
     my $callback = $cgi->param('callback');
