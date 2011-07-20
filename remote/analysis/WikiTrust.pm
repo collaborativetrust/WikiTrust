@@ -89,15 +89,15 @@ sub handler {
     $result = $func->($dbh, $cgi, $r);
   } otherwise {
     my $E = shift;
-    print STDERR $E if $E !~ m/^No info on/ && $E ne NOT_FOUND_TEXT_TOKEN;
+    print STDERR $E if $E !~ m/^No info on/ && $E !~ m/^TEXT_NOT_FOUND/;
     if ($format eq 'json') {
       my $json = { 'error' => $E };
       $result = printJson($cgi, $r, $json, 1);
     } else {
       $r->no_cache(1);
       $r->content_type('text/plain; charset=utf-8');
-      $msg = 'ERROR detected.  Please try again in a moment, or open a ticket in the WikiTrust bug tracker.';
-      $msg = $E if $E eq NOT_FOUND_TEXT_TOKEN || $E =~ m/^MSG/;
+      my $msg = 'ERROR detected.  Please try again in a moment, or open a ticket in the WikiTrust bug tracker.';
+      $msg = $E if $E =~ m/^TEXT_NOT_FOUND/ || $E =~ m/^MSG/;
       $msg =~ s/^MSG //;
       $r->print("E$msg");
       $result = Apache2::Const::OK;
@@ -411,15 +411,17 @@ sub handle_wikimarkup {
     $cache = $handler->($json, $rev);
   }
   if ($format eq 'text') {
-    die $json->{error} if exists $json->{error};
+    throw Error::Simple($json->{error}) if exists $json->{error};
     $r->headers_out->{'Cache-Control'} = "max-age=" . $cache;
     $r->content_type('text/plain; charset=utf-8');
     if (exists $json->{html}) {
       $r->print('H');
       $r->print($json->{html});
+      return Apache2::Const::OK;
     } elsif (exists $json->{wikimarkup}) {
       $r->print('W');
       $r->print($json->{wikimarkup});
+      return Apache2::Const::OK;
     } else {
       die "No error/html/wikimarkup?";
     }
