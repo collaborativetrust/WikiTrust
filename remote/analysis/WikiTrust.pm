@@ -309,7 +309,7 @@ sub handle_edit {
   return Apache2::Const::OK;
 }
 
-sub util_ColorIfAvailable { 
+sub util_ColorIfAvailable {
   my ($dbh, $page, $rev, $page_title) = @_;
   my $result = fetch_colored_markup($page, $rev, $dbh);
   if ($result eq NOT_FOUND_TEXT_TOKEN){
@@ -317,7 +317,8 @@ sub util_ColorIfAvailable {
     # we mark it for coloring,
     # and it wait a bit, in the hope that it got colored.
     mark_for_coloring($page, $page_title, $dbh);
-    sleep(SLEEP_TIME);
+# TODO: this should normally be uncommented --thumper!
+#    sleep(SLEEP_TIME);
     # Tries again to get it, to see if it has been colored.
     $result = fetch_colored_markup($page, $rev, $dbh);
   }
@@ -374,6 +375,7 @@ sub handle_wikimarkup {
     $sth->execute($rev) || die $dbh->errstr;
     my $ans = $sth->fetchrow_hashref();
     $ans = { } if !defined $ans;
+    $ans->{user_id} = 0 if !exists $ans->{user_id};
     $json->{Anon} = ($ans->{user_id} == 0 ? JSON::true : JSON::false);
     foreach my $k (keys %$ans) {
       $json->{$k} = $ans->{$k};
@@ -536,7 +538,7 @@ sub handle_deletepage {
   my ($format, $rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
   $r->no_cache(1);
   $r->content_type('text/plain; charset=utf-8');
- 
+
   throw Error::Simple("Only know 'text' format") if $format ne 'text';
   die "Illegal page_id $page for '$page_title'"
 	if $page <= 0;
