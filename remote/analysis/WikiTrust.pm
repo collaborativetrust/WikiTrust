@@ -374,7 +374,15 @@ sub handle_wikimarkup {
       . "LIMIT 1") || die $dbh->errstr;
     $sth->execute($rev) || die $dbh->errstr;
     my $ans = $sth->fetchrow_hashref();
-    $ans = { } if !defined $ans;
+    if (!defined $ans) {
+      $json->{error} = "Revision found in wikitrust revision.";
+      # Return a 'caching' value so that we don't make an
+      # extra query to the db for text that doesn't exist,
+      # but don't forget that we should add this page to the queue.
+      mark_for_coloring($page, $page_title, $dbh);
+      return 10;
+    }
+
     $ans->{user_id} = 0 if !exists $ans->{user_id};
     $json->{Anon} = ($ans->{user_id} == 0 ? JSON::true : JSON::false);
     foreach my $k (keys %$ans) {
