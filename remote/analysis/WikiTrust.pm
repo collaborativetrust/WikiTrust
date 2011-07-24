@@ -310,17 +310,21 @@ sub handle_edit {
 }
 
 sub util_ColorIfAvailable {
-  my ($dbh, $page, $rev, $page_title) = @_;
+  my ($dbh, $page, $rev, $page_title, $priority) = @_;
+  # Note that $priority might be unset, but mark_for_coloring()
+  # checks that and will assign a default.
   my $result = fetch_colored_markup($page, $rev, $dbh);
   if ($result eq NOT_FOUND_TEXT_TOKEN){
     # If the revision is not found among the colored ones,
     # we mark it for coloring,
     # and it wait a bit, in the hope that it got colored.
-    mark_for_coloring($page, $page_title, $dbh);
-# TODO: this should normally be uncommented --thumper!
-#    sleep(SLEEP_TIME);
-    # Tries again to get it, to see if it has been colored.
-    $result = fetch_colored_markup($page, $rev, $dbh);
+    mark_for_coloring($page, $page_title, $dbh, $priority);
+    if ($priority > 1) {
+      # Tries again to get it, to see if it has been colored,
+      # but only if this is not a lowest-priority request.
+      sleep(SLEEP_TIME);
+      $result = fetch_colored_markup($page, $rev, $dbh);
+    }
   }
   return $result;
 }
@@ -348,7 +352,29 @@ sub handle_gettext {
 sub handle_wikimarkup {
   my ($dbh, $cgi, $r, $cacheChecker) = @_;
   my ($format, $rev, $page, $user, $time, $page_title) = get_stdargs($cgi);
-  my @handlers;	    # functions that try to handle this request
+  my $priority = QUEUE_PRIORITY;
+  my @handlers;     # functions that try to handle this request
+  push @handlers, sub {
+    my ($json, $rev) = @_;
+    # Did the caller specify a priority?
+    if ($cgi->param('priority')) {
+      $priority = $cgi->param('priority');
+      if ($priority < 1 || $priority > 10) {
+        $json->{error} = 'Priority is out of range.';
+        return 600;
+      }
+      return 0;
+    }
+    # Otherwise, let's set some smarter defaults.
+    if ($format eq 'text') {
+      $priority = QUEUE_PRIORITY;
+    } else {
+      # JSON callers get the lowest priority, because
+      # they are probably not real-time requests.
+      $priority = 1;
+    }
+    return 0;
+  };
   push @handlers, sub {
     # Error checker
     my ($json, $rev) = @_;
@@ -375,11 +401,11 @@ sub handle_wikimarkup {
     $sth->execute($rev) || die $dbh->errstr;
     my $ans = $sth->fetchrow_hashref();
     if (!defined $ans) {
-      $json->{error} = "Revision found in wikitrust revision.";
+      $json->{error} = "Revision not found in wikitrust_revision.";
       # Return a 'caching' value so that we don't make an
       # extra query to the db for text that doesn't exist,
       # but don't forget that we should add this page to the queue.
-      mark_for_coloring($page, $page_title, $dbh);
+      mark_for_coloring($page, $page_title, $dbh, $priority);
       return 10;
     }
 
@@ -405,7 +431,7 @@ sub handle_wikimarkup {
     $json->{wikimarkup} = $data[1];
     # Only cache the wikimarkup for a minute, because
     # we hope to get back HTML which will render much faster.
-    return 60;
+    return 300;
   };
   push @handlers, sub {
     # Backup error handler
