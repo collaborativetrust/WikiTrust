@@ -870,10 +870,12 @@ sub getQualityData {
       . "revision_id = ?") || die $dbh->errstr;
     $sth->execute($rev_id) || die $dbh->errstr;
     if ($sth->rows() == 0 && defined $page_id && $page_id != 0) {
-	# let's try to color, and then try again...
+	# let's mark for coloring
 	mark_for_coloring($page_id, $page_title, $dbh);
-	sleep(SLEEP_TIME);
-	$sth->execute($rev_id) || die $dbh->errstr;
+        # but don't wait around for non-realtime users
+        # old code:
+        # sleep(SLEEP_TIME);
+        # $sth->execute($rev_id) || die $dbh->errstr;
     }
 
     my $ans = $sth->fetchrow_hashref();
