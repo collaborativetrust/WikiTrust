@@ -207,6 +207,7 @@ sub get_median {
   if (my $ref = $dbh->selectrow_hashref($sql)){
     $median = $$ref{'median'};
   }
+  die "Bad median [$median]" if $median !~ m/^[\d\.]+$/;
   return $median;
 }
 
@@ -456,6 +457,7 @@ sub handle_wikimarkup {
       return Apache2::Const::OK;
     } elsif (exists $json->{wikimarkup}) {
       $r->print('W');
+      $r->print($json->{toptrust}.",");
       $r->print($json->{wikimarkup});
       return Apache2::Const::OK;
     } else {
