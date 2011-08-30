@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 """
-Copyright (c) 2010 Luca de Alfaro.
+Copyright (c) 2010-11 Luca de Alfaro.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -31,13 +31,14 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
 """
 
-import MySQLdb
-import sys
-import os
-import ConfigParser
-import time
 import calendar
+import ConfigParser
 import math
+import MySQLdb
+import os
+import random
+import sys
+import time
 
 ## const globals
 DB_ENGINE = "mysql"
@@ -405,6 +406,104 @@ def select_recent_spam(page_id):
         ret.append((title, rev_id, rev_date))
   return ret
 
+
+def list_recent_revisions(page_id, n_revisions):
+  """Returns a list of recent revisions for a page, up to a specified maximum."""
+  curs.execute("select revision_id from " +
+               ini_config.get('db', 'prefix') + 
+               "wikitrust_revision where page_id = %s order by time_string desc limit %s",
+               (page_id, n_revisions))
+  return curs.fetchall()
+
+
+def is_page_ok(page_id, min_revisions, min_length):
+  """Checks whether a page has at least a given number of revisions and length."""
+  # Just to be safe
+  min_revisions = max(1, min_revisions)
+  curs.execute("select count(*) from " +
+               ini_config.get('db', 'prefix') +
+               "wikitrust_revision where page_id = %s", (page_id,))
+  n_revisions = int(row[0])
+  if n_revisions < min_revisions:
+    return false
+  curs.execute("select rev_len from " +
+               ini_config.get('db', 'prefix') + 
+               "revision where rev_page = %s order by rev_timestamp desc limit %s",
+               (page_id, min_revisions))
+  len_list = cursor.fetchall()
+  avg_length = sum([int(l[0]) for l in len_list]) / (1.0 * min_revisions)
+  return avg_length >= min_length
   
 
-  
+def get_random_page_id(min_revisions=0, min_length=5):
+  """Returns a random page_id from the Wikipedia."""
+  while True do:
+    r = random.random()
+    curs.execute("select page_id from " +
+                 ini_config.get('db', 'prefix') + 
+                 "page where page_random > %s order by page_random asc",
+                 (r, ))
+    row = curs.fetchone()
+    if len(row) == 0:
+      continue
+    page_id = int(row[0])
+    # Eliminates pages with too few revisions or too short.
+    if not is_page_ok(page_id, min_revisions, min_length):
+      continue
+    return page_id
+
+
+def compute_quality_stats(page_id, num_revisions):
+  """Computes quality statistics for the most recent num_revisions of
+  a page."""
+  curs.execute("select revision_id from " +
+               ini_config.get('db', 'prefix') + 
+               "wikitrust_revision where page_id = %s order by time_string desc limit %s",
+               (page_id, num_revisions + 1))
+  rev_list = [int(r[0]) for r in curs.fetchall()]
+  n_vandalism = 0.0
+  n_neg_qual = 0.0
+  n_reverts = 0.0
+  total_quality = 0.0
+  total_text = 0.0
+  total_untrusted_text = 0.0
+  total_trust = 0.0
+  total_reputation = 0.0
+  n_revisions = 1.0 * len(rev_list - 1)
+  # We start the analysis from 1, because we don't have information on
+  # the very latest revision.
+  for revision_id in rev_list[1:]:
+    d = classify(revision_id)
+    if d["Quality"] < 0.5:
+      n_vandalism += 1.0
+    if d["Avg_quality"] < 0.0:
+      n_neg_quality += 1.0
+    if d["Avg_quality"] < 0.7:
+      n_reverts += 1.0
+    total_quality += d["Avg_quality"]
+    total_text += d["Curr_length"]
+    for i in range(10):
+      n = "Hist" + str (i)
+      total_trust += i * d[n]
+    for i in range(4):
+      n = "Hist" + str (i)
+      total_untrusted_text += d[n]
+    total_reputation += math.log(1.0 + d["Reputation"])
+  # Produces the output.
+  out = {}
+  out["Page_id"] = page_id
+  out["Average_length"] = total_text / n_revisions
+  out["Frac_vandalism"] = n_vandalism / n_revisions
+  out["Frac_neg_qual"] = n_neg_qual / n_revisions
+  out["Frac_reverts"] = n_reverts / n_revisions
+  out["Avg_quality"] = total_quality / n_revisions
+  out["Avg_untrusted_text"] = total_untrusted_text / n_revisions
+  out["Frac_untrusted_text"] = total_untrusted_text / total_text
+  out["Average_trust"] = total_trust / total_text
+  out["Average_reputation"] = total_reputation / n_revisions
+  return out
+                                 
+    
+
+    
+    
