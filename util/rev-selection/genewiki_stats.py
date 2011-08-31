@@ -33,7 +33,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
 import sys
 import csv
-from revision_selection import classify, is_page_ok, get_random_page_id
+from revision_selection import compute_quality_stats, is_page_ok, get_random_page_id
 
 def usage():
     print """cat <datafile> | ./genewiki_stats.py 50 > outfile.csv
@@ -50,9 +50,10 @@ MIN_PAGE_LENGTH = 200
 MIN_PAGE_REVISIONS = 20
 
 # csv file initialization
-fieldnames = ("Page_id", "Is_genewiki", "Average_length", "Frac_vandalism",
+fieldnames = ("Average_length", "Frac_vandalism",
               "Frac_neg_qual", "Frac_reverts", "Avg_quality", "Avg_untrusted_text",
-              "Frac_untrusted_text", "Average_trust", "Average_reputation")
+              "Frac_untrusted_text", "Average_trust", "Average_reputation",
+              "Is_genewiki", )
 
 writer = csv.DictWriter(sys.stdout, fieldnames=fieldnames,delimiter='\t',
                         quoting=csv.QUOTE_MINIMAL)
@@ -89,5 +90,5 @@ for i in range(n_genewiki_pages_analyzed):
     page_id = get_random_page_id(min_revisions=MIN_PAGE_REVISIONS,
                                  min_length=MIN_PAGE_LENGTH)
     out = compute_quality_stats(page_id, num_revisions)
-    out["Is_genewiki"] = 1
+    out["Is_genewiki"] = 0
     write_row(out)
