@@ -471,10 +471,12 @@ def compute_quality_stats(page_id, num_revisions):
   n_neg_quality = 0.0
   n_reverts = 0.0
   total_quality = 0.0
+  total_delta = 0.0
   total_text = 0.0
   total_untrusted_text = 0.0
   total_trust = 0.0
   total_reputation = 0.0
+  total_delta_times_quality = 0.0
   n_revisions = 1.0 * (len(rev_list) - 1)
   # We start the analysis from 1, because we don't have information on
   # the very latest revision.
@@ -487,6 +489,8 @@ def compute_quality_stats(page_id, num_revisions):
     if d["Avg_quality"] < -0.7:
       n_reverts += 1.0
     total_quality += d["Avg_quality"]
+    total_delta += d["Delta"]
+    total_delta_times_quality += d["Avg_quality"] * d["Delta"]
     total_text += d["Curr_length"]
     for i in range(10):
       n = "Hist" + str (i)
@@ -502,7 +506,9 @@ def compute_quality_stats(page_id, num_revisions):
   out["Frac_vandalism"] = n_vandalism / n_revisions
   out["Frac_neg_qual"] = n_neg_quality / n_revisions
   out["Frac_reverts"] = n_reverts / n_revisions
-  out["Avg_quality"] = total_quality / n_revisions
+  out["Avg_edit_quality"] = total_quality / n_revisions
+  out["Avg_delta"] = total_delta / n_revisions
+  out["Avg_change_quality"] = total_delta_times_quality / (0.01 + total_delta)
   out["Avg_untrusted_text"] = total_untrusted_text / n_revisions
   out["Frac_untrusted_text"] = total_untrusted_text / total_text
   out["Average_trust"] = total_trust / total_text

@@ -47,15 +47,16 @@ num_revisions = int(sys.argv[1])
 
 # Minimum page requirements to avoid redirects and too-short pages.
 MIN_PAGE_LENGTH = 200
-MIN_PAGE_REVISIONS = 20
+MIN_PAGE_REVISIONS = 50
 
 # csv file initialization
-fieldnames = ("Average_length", "Frac_vandalism",
-              "Frac_neg_qual", "Frac_reverts", "Avg_quality", "Avg_untrusted_text",
-              "Frac_untrusted_text", "Average_trust", "Average_reputation",
+fieldnames = ("Average_length", "Frac_vandalism", "Frac_neg_qual", "Frac_reverts", 
+              "Avg_delta", "Avg_edit_quality", "Avg_change_quality", 
+              "Avg_untrusted_text", "Frac_untrusted_text", 
+              "Average_trust", "Average_reputation",
               "Is_genewiki", )
 
-writer = csv.DictWriter(sys.stdout, fieldnames=fieldnames,delimiter='\t',
+writer = csv.DictWriter(sys.stdout, fieldnames=fieldnames,delimiter=',',
                         quoting=csv.QUOTE_MINIMAL)
 headers = dict( (n,n) for n in fieldnames )
 writer.writerow(headers)
@@ -65,6 +66,7 @@ def write_row(out):
     for f in fieldnames:
         row[f] = out.get(f, None)
     writer.writerow(row)
+    sys.stdout.flush()
 
 def truncate(x, n):
     k = 10 ** n
@@ -72,13 +74,13 @@ def truncate(x, n):
 
 # We keep track of how many GeneWiki pages we analyze, so that we analyze a similar number
 # of other pages.
-n_genewiki_pages_analyzed = 0
+genewiki_pages_analyzed = set()
 for l in sys.stdin:
     try:
         ll = l.split('\t')
         page_id = int(ll[0])
         if is_page_ok(page_id, MIN_PAGE_REVISIONS, MIN_PAGE_LENGTH):
-            n_genewiki_pages_analyzed += 1
+            genewiki_pages_analyzed.add(page_id)
             out = compute_quality_stats(page_id, num_revisions)
             out["Is_genewiki"] = 1
             write_row(out)
@@ -86,9 +88,12 @@ for l in sys.stdin:
         pass
     
 # Now analyzes the same number of general pages.
-for i in range(n_genewiki_pages_analyzed):
-    page_id = get_random_page_id(min_revisions=MIN_PAGE_REVISIONS,
-                                 min_length=MIN_PAGE_LENGTH)
+for i in range(len(genewiki_pages_analyzed)):
+    while True:
+        page_id = get_random_page_id(min_revisions=MIN_PAGE_REVISIONS,
+                                     min_length=MIN_PAGE_LENGTH)
+        if page_id not in genewiki_pages_analyzed:
+            break
     out = compute_quality_stats(page_id, num_revisions)
     out["Is_genewiki"] = 0
     write_row(out)
