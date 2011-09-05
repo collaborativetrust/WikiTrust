@@ -47,13 +47,19 @@ num_revisions = int(sys.argv[1])
 
 # Minimum page requirements to avoid redirects and too-short pages.
 MIN_PAGE_LENGTH = 200
-MIN_PAGE_REVISIONS = 50
+MIN_PAGE_REVISIONS = 7
 
 # csv file initialization
-fieldnames = ("Average_length", "Frac_vandalism", "Frac_neg_qual", "Frac_reverts", 
-              "Avg_delta", "Avg_edit_quality", "Avg_change_quality", 
-              "Avg_untrusted_text", "Frac_untrusted_text", 
-              "Average_trust", "Average_reputation",
+fieldnames = ("TAvg_length", "EAvg_length", 
+              "TFrac_vandalism", "EFrac_vandalism", 
+              "TFrac_neg_qual", "EFrac_neg_qual", 
+              "TFrac_reverts", "EFrac_reverts", 
+              "Avg_delta", 
+              "TAvg_edit_quality", "EAvg_edit_quality",
+              "Avg_change_quality",
+              "TFrac_untrusted_text", "EFrac_untrusted_text", 
+              "TAvg_trust", "EAvg_trust", 
+              "TAvg_reputation","EAvg_reputation",
               "Is_genewiki", )
 
 writer = csv.DictWriter(sys.stdout, fieldnames=fieldnames,delimiter=',',

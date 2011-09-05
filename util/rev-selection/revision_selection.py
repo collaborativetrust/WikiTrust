@@ -467,52 +467,103 @@ def compute_quality_stats(page_id, num_revisions):
                "wikitrust_revision where page_id = %s order by time_string desc limit %s",
                (page_id, num_revisions + 1))
   rev_list = [int(r[0]) for r in curs.fetchall()]
+  total_time = 0.001
+  n_revisions = 0.0
+  total_length = 0.0
+  time_total_length = 0.0
   n_vandalism = 0.0
+  time_n_vandalism = 0.0
   n_neg_quality = 0.0
+  time_n_neg_quality = 0.0
   n_reverts = 0.0
-  total_quality = 0.0
+  time_n_reverts = 0.0
   total_delta = 0.0
-  total_text = 0.0
+  total_quality = 0.0
+  time_total_quality = 0.0
   total_untrusted_text = 0.0
+  time_total_untrusted_text = 0.0
   total_trust = 0.0
+  time_total_trust = 0.0
   total_reputation = 0.0
+  time_total_reputation = 0.0
   total_delta_times_quality = 0.0
-  n_revisions = 1.0 * (len(rev_list) - 1)
   # We start the analysis from 1, because we don't have information on
   # the very latest revision.
   for revision_id in rev_list[1:]:
+    n_revisions += 1.0
     d = classify(revision_id)
+    curr_time = time_of_date(d["Timestamp"])
+    next_time = time_of_date(d["Next_timestamp"])
+    time_delta = next_time - curr_time
+    total_time += time_delta
+    # Length.
+    total_length += d["Curr_length"]
+    time_total_length += d["Curr_length"] * time_delta
+    # Fraction negative quality and vandalism.
     if d["Quality"] < 0.4:
       n_vandalism += 1.0
+      time_n_vandalism += time_delta
     if d["Avg_quality"] < 0.0:
       n_neg_quality += 1.0
+      time_n_neg_quality += time_delta
     if d["Avg_quality"] < -0.7:
       n_reverts += 1.0
-    total_quality += d["Avg_quality"]
+      time_n_reverts += time_delta
+    # Average delta (no time average makes sense, due to vandalism reverts).
     total_delta += d["Delta"]
+    # Edit quality.
+    total_quality += d["Avg_quality"]
+    time_total_quality += d["Avg_quality"] * time_delta
     total_delta_times_quality += d["Avg_quality"] * d["Delta"]
-    total_text += d["Curr_length"]
+    # Average trust.
+    this_total_trust = 0.0
     for i in range(10):
       n = "Hist" + str (i)
-      total_trust += i * d[n]
+      this_total_trust += i * d[n]
+    total_trust += this_total_trust
+    time_total_trust += this_total_trust / (d["Curr_length"] + 0.1) * time_delta
+    # Total untrusted text.
+    this_untrusted = 0
     for i in range(4):
       n = "Hist" + str (i)
-      total_untrusted_text += d[n]
-    total_reputation += math.log(1.0 + d["Reputation"])
+      this_untrusted += d[n]
+    total_untrusted_text += this_untrusted
+    time_total_untrusted_text += this_untrusted * time_delta
+    # Total reputation.
+    log_rep = math.log(1.0 + d["Reputation"])
+    total_reputation += log_rep
+    time_total_reputation += log_rep * time_delta
   # Produces the output.
   out = {}
   out["Page_id"] = page_id
-  out["Average_length"] = total_text / n_revisions
-  out["Frac_vandalism"] = n_vandalism / n_revisions
-  out["Frac_neg_qual"] = n_neg_quality / n_revisions
-  out["Frac_reverts"] = n_reverts / n_revisions
-  out["Avg_edit_quality"] = total_quality / n_revisions
+
+  out["EAvg_length"] = total_length / n_revisions
+  out["TAvg_length"] = time_total_length / total_time
+
+  out["EFrac_vandalism"] = n_vandalism / n_revisions
+  out["TFrac_vandalism"] = time_n_vandalism / total_time
+
+  out["EFrac_neg_qual"] = n_neg_quality / n_revisions
+  out["TFrac_neg_qual"] = time_n_neg_quality / total_time
+
+  out["EFrac_reverts"] = n_reverts / n_revisions
+  out["TFrac_reverts"] = time_n_reverts / total_time
+
   out["Avg_delta"] = total_delta / n_revisions
+
+  out["EAvg_edit_quality"] = total_quality / n_revisions
+  out["TAvg_edit_quality"] = time_total_quality / total_time
+
   out["Avg_change_quality"] = total_delta_times_quality / (0.01 + total_delta)
-  out["Avg_untrusted_text"] = total_untrusted_text / n_revisions
-  out["Frac_untrusted_text"] = total_untrusted_text / total_text
-  out["Average_trust"] = total_trust / total_text
-  out["Average_reputation"] = total_reputation / n_revisions
+
+  out["EFrac_untrusted_text"] = total_untrusted_text / total_length
+  out["TFrac_untrusted_text"] = total_untrusted_text / total_time
+
+  out["EAvg_trust"] = total_trust / total_length
+  out["Tavg_trust"] = time_total_trust / total_time
+
+  out["EAvg_reputation"] = total_reputation / n_revisions
+  out["TAvg_reputation"] = time_total_reputation / total_time
   return out
                                  
     
