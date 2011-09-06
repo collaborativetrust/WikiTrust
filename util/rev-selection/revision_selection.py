@@ -385,7 +385,7 @@ def select_recent_spam(page_id):
   curs.execute("select page_title from " +
                ini_config.get('db', 'prefix') +
                'wikitrust_page where page_id = %s', (page_id,))
-  title = curs.fetchone()
+  title = curs.fetchone()[0]
   if title != None and not (':' in title):
     # Ok, it is a proper page.
     # Reads the last revision.
@@ -459,9 +459,15 @@ def get_random_page_id(min_revisions=0, min_length=5):
     return page_id
 
 
-def compute_quality_stats(page_id, num_revisions):
+def compute_quality_stats(page_id, num_revisions, detailed_file=None, header_line=True):
   """Computes quality statistics for the most recent num_revisions of
   a page."""
+  # Reads the page title.
+  curs.execute("select page_title from " +
+               ini_config.get('db', 'prefix') +
+               'wikitrust_page where page_id = %s', (page_id,))
+  page_title = curs.fetchone()[0]
+  # Reads the revision data.
   curs.execute("select revision_id from " +
                ini_config.get('db', 'prefix') + 
                "wikitrust_revision where page_id = %s order by time_string desc limit %s",
@@ -492,6 +498,16 @@ def compute_quality_stats(page_id, num_revisions):
   for revision_id in rev_list[1:]:
     n_revisions += 1.0
     d = classify(revision_id)
+    d["Page_title"] = page_title
+    d["Page_id"] = page_id
+    d["Revision_id"] = revision_id
+    if detailed_file != None:
+      ks = d.keys()
+      ks.sort()
+      if header_line:
+        detailed_file.writerow(ks)
+        header_line = False
+      detailed_file.writerow([d[k] for k in ks])
     curr_time = time_of_date(d["Timestamp"])
     next_time = time_of_date(d["Next_timestamp"])
     time_delta = next_time - curr_time
@@ -536,6 +552,7 @@ def compute_quality_stats(page_id, num_revisions):
   # Produces the output.
   out = {}
   out["Page_id"] = page_id
+  out["Page_title"] = page_title
 
   out["EAvg_length"] = total_length / n_revisions
   out["TAvg_length"] = time_total_length / total_time
