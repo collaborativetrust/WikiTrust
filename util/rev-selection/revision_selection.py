@@ -560,7 +560,7 @@ def compute_quality_stats(page_id, num_revisions):
   out["TFrac_untrusted_text"] = total_untrusted_text / total_time
 
   out["EAvg_trust"] = total_trust / total_length
-  out["Tavg_trust"] = time_total_trust / total_time
+  out["TAvg_trust"] = time_total_trust / total_time
 
   out["EAvg_reputation"] = total_reputation / n_revisions
   out["TAvg_reputation"] = time_total_reputation / total_time
