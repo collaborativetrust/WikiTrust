@@ -88,7 +88,7 @@ for l in sys.stdin:
         if is_page_ok(page_id, MIN_PAGE_REVISIONS, MIN_PAGE_LENGTH):
             genewiki_pages_analyzed.add(page_id)
             out = compute_quality_stats(page_id, num_revisions)
-            out["Is_genewiki"] = 1
+            out["Is_genewiki"] = True
             write_row(out)
     except ValueError:
         pass
@@ -101,5 +101,5 @@ for i in range(len(genewiki_pages_analyzed)):
         if page_id not in genewiki_pages_analyzed:
             break
     out = compute_quality_stats(page_id, num_revisions)
-    out["Is_genewiki"] = 0
+    out["Is_genewiki"] = False
     write_row(out)
