@@ -459,14 +459,33 @@ def get_random_page_id(min_revisions=0, min_length=5):
     return page_id
 
 
-def compute_quality_stats(page_id, num_revisions, detailed_file=None, header_line=True):
+def get_page_id_from_title(page_title):
+  curs.execute("select page_id from " +
+               ini_config.get('db', 'prefix') +
+               'page where page_title = %s', (page_title,))
+  try:
+    page_id = int(curs.fetchone()[0])
+  except ValueError:
+    sys.stderr.write("**Error for '" + page_title + "'\n")
+    page_id = None
+  except TypeError:
+    sys.stderr.write("**Error for '" + page_title + "'\n")
+    page_id = None
+  return page_id
+
+
+def compute_quality_stats(page_id,  num_revisions, 
+                          page_title=None,
+                          detailed_file=None, header_line=False):
   """Computes quality statistics for the most recent num_revisions of
   a page."""
-  # Reads the page title.
-  curs.execute("select page_title from " +
-               ini_config.get('db', 'prefix') +
-               'wikitrust_page where page_id = %s', (page_id,))
-  page_title = curs.fetchone()[0]
+  # If the page title is not known, reads it.
+  if page_title == None:
+    curs.execute("select page_title from " +
+                 ini_config.get('db', 'prefix') +
+                 'page where page_id = %s', (page_id,))
+    page_title = curs.fetchone()[0]
+
   # Reads the revision data.
   curs.execute("select revision_id from " +
                ini_config.get('db', 'prefix') + 

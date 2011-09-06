@@ -34,6 +34,7 @@ POSSIBILITY OF SUCH DAMAGE.
 import sys
 import csv
 from revision_selection import compute_quality_stats, is_page_ok, get_random_page_id
+from revision_selection import get_page_id_from_title
 
 def usage():
     print """cat <datafile> | ./genewiki_stats.py 50 [detailed_file.csv] > outfile.csv
@@ -93,11 +94,13 @@ genewiki_pages_analyzed = set()
 first_line = True
 for l in sys.stdin:
     try:
-        ll = l.split('\t')
-        page_id = int(ll[0])
-        if is_page_ok(page_id, MIN_PAGE_REVISIONS, MIN_PAGE_LENGTH):
+        ll = l[:-1].split('\t')
+        page_title = ll[1]
+        page_id = get_page_id_from_title(page_title)
+        if page_id != None and is_page_ok(page_id, MIN_PAGE_REVISIONS, MIN_PAGE_LENGTH):
             genewiki_pages_analyzed.add(page_id)
             out = compute_quality_stats(page_id, num_revisions,
+                                        page_title=page_title,
                                         detailed_file=detailed_file,
                                         header_line=first_line)
             first_line = False
@@ -115,8 +118,7 @@ for i in range(len(genewiki_pages_analyzed)):
         if page_id not in genewiki_pages_analyzed:
             break
     out = compute_quality_stats(page_id, num_revisions,
-                                detailed_file=detailed_file,
-                                header_line=False)
+                                detailed_file=detailed_file)
     out["Is_genewiki"] = False
     out["Page_id"] = page_id
     write_row(out)
