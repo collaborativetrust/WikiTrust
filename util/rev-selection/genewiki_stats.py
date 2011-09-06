@@ -50,17 +50,19 @@ MIN_PAGE_LENGTH = 200
 MIN_PAGE_REVISIONS = 7
 
 # csv file initialization
-fieldnames = ("TAvg_length", "EAvg_length", 
-              "TFrac_vandalism", "EFrac_vandalism", 
-              "TFrac_neg_qual", "EFrac_neg_qual", 
-              "TFrac_reverts", "EFrac_reverts", 
-              "Avg_delta", 
-              "TAvg_edit_quality", "EAvg_edit_quality",
-              "Avg_change_quality",
-              "TFrac_untrusted_text", "EFrac_untrusted_text", 
-              "TAvg_trust", "EAvg_trust", 
-              "TAvg_reputation","EAvg_reputation",
-              "Is_genewiki", )
+fieldnames = (
+    "Page_id",
+    "TAvg_length", "EAvg_length", 
+    "TFrac_vandalism", "EFrac_vandalism", 
+    "TFrac_neg_qual", "EFrac_neg_qual", 
+    "TFrac_reverts", "EFrac_reverts", 
+    "Avg_delta", 
+    "TAvg_edit_quality", "EAvg_edit_quality",
+    "Avg_change_quality",
+    "TFrac_untrusted_text", "EFrac_untrusted_text", 
+    "TAvg_trust", "EAvg_trust", 
+    "TAvg_reputation","EAvg_reputation",
+    "Is_genewiki", )
 
 writer = csv.DictWriter(sys.stdout, fieldnames=fieldnames,delimiter=',',
                         quoting=csv.QUOTE_MINIMAL)
@@ -89,6 +91,7 @@ for l in sys.stdin:
             genewiki_pages_analyzed.add(page_id)
             out = compute_quality_stats(page_id, num_revisions)
             out["Is_genewiki"] = True
+            out["Page_id"] = page_id
             write_row(out)
     except ValueError:
         pass
@@ -102,4 +105,5 @@ for i in range(len(genewiki_pages_analyzed)):
             break
     out = compute_quality_stats(page_id, num_revisions)
     out["Is_genewiki"] = False
+    out["Page_id"] = page_id
     write_row(out)
