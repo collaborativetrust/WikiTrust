@@ -46,7 +46,8 @@ if len(sys.argv) < 2 or len(sys.argv) > 3:
 num_revisions = int(sys.argv[1])
 if len(sys.argv) == 3:
     detailed_file = csv.writer(open(sys.argv[2], 'wb'), delimiter=',',
-                               quotechar='"', quoting=csv.QUOTE_NONNUMERIC)
+                               escapechar = '\\', quotechar='"', doublequote=False, 
+                               quoting=csv.QUOTE_NONNUMERIC)
 else:
     detailed_file = None
 
@@ -70,7 +71,8 @@ fieldnames = (
     "Is_genewiki", )
 
 writer = csv.DictWriter(sys.stdout, fieldnames=fieldnames,delimiter=',',
-                        quotechar = '"', quoting=csv.QUOTE_NONNUMERIC)
+                        escapechar = '\\', quotechar='"', doublequote=False, 
+                        quoting=csv.QUOTE_NONNUMERIC)
 headers = dict( (n,n) for n in fieldnames )
 writer.writerow(headers)
 
