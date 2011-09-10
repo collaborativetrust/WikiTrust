@@ -36,11 +36,12 @@ POSSIBILITY OF SUCH DAMAGE.
 TYPE_CONV_PATH "UCSC_WIKI_RESEARCH"
 
 open Eval_defs
+open Sexplib.Conv
 
 (** Type of author signature *)
 type packed_author_signature_t = int with sexp
 type unpacked_author_signature_t = int * int * int
-type author_signature_t = int 
+type author_signature_t = int
 
 let mask = 0o1777
 let offset = 10
@@ -54,42 +55,42 @@ let empty_sigs = 0
 let sexp_of_sigs = Sexplib.Conv.sexp_of_int
 let sigs_of_sexp = Sexplib.Conv.int_of_sexp
  *)
-let sexp_of_sigs x = 
-  let s = Printf.sprintf "%x" x in 
+let sexp_of_sigs x =
+  let s = Printf.sprintf "%x" x in
   Sexplib.Conv.sexp_of_string s
 
-let sigs_of_sexp x = 
-  let s = Sexplib.Conv.string_of_sexp x in 
-  let get_sig y = y in 
-  Scanf.sscanf s "%x" get_sig 
+let sigs_of_sexp x =
+  let s = Sexplib.Conv.string_of_sexp x in
+  let get_sig y = y in
+  Scanf.sscanf s "%x" get_sig
 
 
-let pack (a0: int) (a1: int) (a2: int) : packed_author_signature_t = 
+let pack (a0: int) (a1: int) (a2: int) : packed_author_signature_t =
   a0 lor ((a1 lor (a2 lsl offset)) lsl offset)
 
-let unpack (p: packed_author_signature_t) : unpacked_author_signature_t = 
+let unpack (p: packed_author_signature_t) : unpacked_author_signature_t =
   let a0 = p  land mask in
-  let b1 = p  lsr offset in 
-  let a1 = b1 land mask in 
-  let b2 = b1 lsr offset in 
-  let a2 = b2 land mask in 
+  let b1 = p  lsr offset in
+  let a1 = b1 land mask in
+  let b2 = b1 lsr offset in
+  let a2 = b2 land mask in
   (a0, a1, a2)
 
-(** [is_author_in_sigs id w sigs] returns [true] if author [id] is in the signatures [sigs] of 
+(** [is_author_in_sigs id w sigs] returns [true] if author [id] is in the signatures [sigs] of
     word [w], and returns [false] otherwise. *)
-let is_author_in_sigs (id: int) (w: string) (sigs: packed_author_signature_t) : bool = 
-  if is_anonymous id then true 
-  else 
-    let (a0, a1, a2) = unpack sigs in 
-    let h = hash (id, w) in 
+let is_author_in_sigs (id: int) (w: string) (sigs: packed_author_signature_t) : bool =
+  if is_anonymous id then true
+  else
+    let (a0, a1, a2) = unpack sigs in
+    let h = hash (id, w) in
     (h = a0 || h = a1 || h = a2)
 
-(** [add_author id word sigs] adds author id to the signatures [sigs] for word [word], 
-    and returns the new signature.  It assumes that the author was not already in the 
+(** [add_author id word sigs] adds author id to the signatures [sigs] for word [word],
+    and returns the new signature.  It assumes that the author was not already in the
     list. *)
-let add_author (id: int) (w: string) (sigs: packed_author_signature_t) : packed_author_signature_t = 
-  if is_anonymous id then sigs 
-  else 
-    let (a0, a1, a2) = unpack sigs in 
-    let h = hash (id, w) in 
+let add_author (id: int) (w: string) (sigs: packed_author_signature_t) : packed_author_signature_t =
+  if is_anonymous id then sigs
+  else
+    let (a0, a1, a2) = unpack sigs in
+    let h = hash (id, w) in
     pack h a0 a1

@@ -33,49 +33,52 @@ POSSIBILITY OF SUCH DAMAGE.
 
  *)
 
+
 TYPE_CONV_PATH "UCSC_WIKI_RESEARCH"
+
+open Sexplib.Conv
 
 (* editlist.ml : this file contains the types related to edit lists *)
 
-type edit = 
+type edit =
     Ins of int * int  (* Ins (i, l) means add l words at position i *)
   | Del of int * int  (* Del (i, l) means delete l words from position i *)
       (* Mov (i, j, l) means move l words from pos i to pos l *)
-  | Mov of int * int * int 
-with sexp 
+  | Mov of int * int * int
+with sexp
 
 (* same as edit, but for the case when the lhs and rhs are lists of chunks *)
-type medit = 
+type medit =
     (* Mins (i, l) means insert l words at pos i of chunk 0 *)
-    Mins of int * int 
+    Mins of int * int
       (* Mdel (i, k, l) means del l words at pos i of chunk k *)
-  | Mdel of int * int * int 
+  | Mdel of int * int * int
       (* Mmov (i, k, j, n, l) means mov l words from pos i of chunk k
 	 to pos j of chunk n *)
-  | Mmov of int * int * int * int * int 
+  | Mmov of int * int * int * int * int
 
 
 (** Useful for debugging purposes *)
-let rec diff_to_string l : string = 
-  match l with 
+let rec diff_to_string l : string =
+  match l with
     d :: l' ->
       begin
-	let s = match d with 
-	    Ins (i, l) -> Printf.sprintf "Ins(%d, %d) " i l 
-	  | Del (i, l) -> Printf.sprintf "Del(%d, %d) " i l 
-	  | Mov (i, j, l) -> Printf.sprintf "Mov(%d, %d, %d) " i j l 
+	let s = match d with
+	    Ins (i, l) -> Printf.sprintf "Ins(%d, %d) " i l
+	  | Del (i, l) -> Printf.sprintf "Del(%d, %d) " i l
+	  | Mov (i, j, l) -> Printf.sprintf "Mov(%d, %d, %d) " i j l
 	in s ^ diff_to_string l'
       end
   | [] -> "";;
 
-let rec mdiff_to_string l : string = 
-  match l with 
+let rec mdiff_to_string l : string =
+  match l with
     d :: l' ->
-      begin 
-	let s = match d with 
-	    Mins (i, l) -> Printf.sprintf "Ins(%d, 0) %d " i l 
-	  | Mdel (i, k, l) -> Printf.sprintf "Del(%d, %d) %d " i k l 
-	  | Mmov (i, k, j, n, l) -> Printf.sprintf "Mov(%d, %d) (%d, %d) %d " i k j n l 
+      begin
+	let s = match d with
+	    Mins (i, l) -> Printf.sprintf "Ins(%d, 0) %d " i l
+	  | Mdel (i, k, l) -> Printf.sprintf "Del(%d, %d) %d " i k l
+	  | Mmov (i, k, j, n, l) -> Printf.sprintf "Mov(%d, %d) (%d, %d) %d " i k j n l
 	in s ^ mdiff_to_string l'
       end
   | [] -> "";;
@@ -103,7 +106,7 @@ let create_index (g: graph) : index =
   let h : index = Hashtbl.create 10 in
   (* Function f is iterated on the elements of the graph. *)
   let f (i: int) = function
-      Del (n, k) -> begin 
+      Del (n, k) -> begin
 	Hashtbl.add h (false, n) i;
 	Hashtbl.add h (false, n + k - 1) i
       end
@@ -127,7 +130,7 @@ let compute_edges (g: graph) (h: index) (len_lhs: int) (len_rhs: int) : unit =
   let add_edge i j = begin
     g_edges.(i) <- j :: g_edges.(i);
     g_edges.(j) <- i :: g_edges.(j)
-  end in 
+  end in
   (* The function f is iterated on the elements of the graph,
      and connects them to other elements, using the index
      to find them. *)
@@ -139,7 +142,7 @@ let compute_edges (g: graph) (h: index) (len_lhs: int) (len_rhs: int) : unit =
 	     the other side. *)
 	  if Hashtbl.mem h (true, 0) then begin
 	    let j = Hashtbl.find h (true, 0) in
-	    match g_elements.(j) with 
+	    match g_elements.(j) with
 	      Ins (0, _) -> add_edge i j;
 	    | _ -> ()
 	  end
@@ -149,7 +152,7 @@ let compute_edges (g: graph) (h: index) (len_lhs: int) (len_rhs: int) : unit =
 	    let j = Hashtbl.find h (false, n - 1) in
 	    match g_elements.(j) with
 	      Del _ -> add_edge i j;
-	    | Mov (n', m', k') -> 
+	    | Mov (n', m', k') ->
 		(* Finds what ends at the bottom of the Mov on the right. *)
 		if m' + k' < len_rhs then begin
 		  if Hashtbl.mem h (true, m' + k') then begin
@@ -192,7 +195,7 @@ let compute_edges (g: graph) (h: index) (len_lhs: int) (len_rhs: int) : unit =
 	  end
 	end
       end
-    | Ins (n, _) -> 
+    | Ins (n, _) ->
 	if n > 0 then begin
 	  if Hashtbl.mem h (true, n - 1) then begin
 	    let j = Hashtbl.find h (true, n - 1) in
@@ -269,101 +272,101 @@ let contribution_insdel edits : float =
   (* Measures the contribution. *)
   measure_insdel g h
 
-  
+
 let contribution_mov edits l : float =
   let rec filter_mov (el: edit list) : (int * int * int) list =
-    match el with 
+    match el with
       [] -> []
     | e :: l -> begin
-	match e with 
+	match e with
 	  Mov (i, j, m) -> (i, j, m) :: (filter_mov l)
-	| Ins (i, len) 
+	| Ins (i, len)
 	| Del (i, len) -> filter_mov l
       end
   in
-  let mov_l = filter_mov edits in 
+  let mov_l = filter_mov edits in
   (* Computes the contribution of movs *)
   (* Makes an array of the moves *)
-  let a = Array.of_list mov_l in 
+  let a = Array.of_list mov_l in
   (* comparison for sorting *)
-  let cmp m1 m2 = 
-    let (i1, j1, l1) = m1 in 
-    let (i2, j2, l2) = m2 in 
-    let d = i1 - i2 in 
+  let cmp m1 m2 =
+    let (i1, j1, l1) = m1 in
+    let (i2, j2, l2) = m2 in
+    let d = i1 - i2 in
     if d > 0 then 1
-    else if d < 0 then -1 
+    else if d < 0 then -1
     else 0
   in
   (* sorts the array *)
   Array.sort cmp a;
-  (* now we sort it wrt the move destination, 
+  (* now we sort it wrt the move destination,
      adding contributions as we go along *)
-  let tot_mov = ref 0 in 
+  let tot_mov = ref 0 in
   (* sorts between lower_b and upper_b *)
-  let lower_b = ref 0 in 
-  let upper_b = ref ((Array.length a) - 1) in 
-  while !upper_b > !lower_b do 
-    begin 
+  let lower_b = ref 0 in
+  let upper_b = ref ((Array.length a) - 1) in
+  while !upper_b > !lower_b do
+    begin
       (* first, we go up *)
-      let change = ref 0 in 
-      for i = !lower_b to !upper_b - 1 do 
+      let change = ref 0 in
+      for i = !lower_b to !upper_b - 1 do
 	begin
-	  let (i1, j1, l1) = a.(i) in 
-	  let (i2, j2, l2) = a.(i+1) in 
-	  if j2 < j1 then 
+	  let (i1, j1, l1) = a.(i) in
+	  let (i2, j2, l2) = a.(i+1) in
+	  if j2 < j1 then
 	    begin
 	      (* swaps, and takes cost into consideration *)
-	      let m = a.(i) in 
+	      let m = a.(i) in
 	      a.(i) <- a.(i+1);
-	      a.(i+1) <- m; 
-	      tot_mov := !tot_mov + l1 * l2; 
+	      a.(i+1) <- m;
+	      tot_mov := !tot_mov + l1 * l2;
 	      (* keeps track of the upper change in sort order *)
 	      change := i
 	    end
 	end
-      done; 
-      upper_b := !change; 
+      done;
+      upper_b := !change;
       (* then we go down *)
-      change := !upper_b; 
-      for i = !upper_b downto !lower_b + 1 do 
-	begin 
-	  let (i2, j2, l2) = a.(i) in 
-	  let (i1, j1, l1) = a.(i-1) in 
-	  if j2 < j1 then 
+      change := !upper_b;
+      for i = !upper_b downto !lower_b + 1 do
+	begin
+	  let (i2, j2, l2) = a.(i) in
+	  let (i1, j1, l1) = a.(i-1) in
+	  if j2 < j1 then
 	    begin
 	      (* swaps, and takes cost into consideration *)
-	      let m = a.(i) in 
+	      let m = a.(i) in
 	      a.(i) <- a.(i-1);
-	      a.(i-1) <- m; 
-	      tot_mov := !tot_mov + l1 * l2; 
+	      a.(i-1) <- m;
+	      tot_mov := !tot_mov + l1 * l2;
 	      (* keeps track of the upper change in sort order *)
 	      change := i
 	    end
 	end
-      done; 
-      lower_b := !change; 
+      done;
+      lower_b := !change;
     end
   done;
   (* computes the distance *)
-  let mov' = float_of_int !tot_mov in 
-  let len' = (if l = 0 then 1.0 else float_of_int l) in 
+  let mov' = float_of_int !tot_mov in
+  let len' = (if l = 0 then 1.0 else float_of_int l) in
   (mov' /. len');;
 
-let edit_distance (edits: edit list) (l: int) : float = 
+let edit_distance (edits: edit list) (l: int) : float =
   let id_contr = contribution_insdel edits in
   let mov_contr = contribution_mov edits l in
   id_contr +. mov_contr
 
 
 (** Unit test for edit distance *)
-if false then begin 
+if false then begin
   let e = [Mov (0, 0, 2); Mov (6, 4, 3); Del (2, 4); Ins (2, 2)] in
   print_string (string_of_float (edit_distance e 20));
   print_newline ();
   let e = [Del (0, 2); Mov (2, 0, 3); Ins (3, 3)] in
   print_string (string_of_float (edit_distance e 20));
   print_newline ();
-  let e = [Del (0, 2); Del (4, 2); Del (6, 1); Del (11, 3); Mov (2, 0, 2); Mov (7, 2, 2); 
+  let e = [Del (0, 2); Del (4, 2); Del (6, 1); Del (11, 3); Mov (2, 0, 2); Mov (7, 2, 2);
            Mov (9, 9, 2); Ins(4, 2); Ins (6, 3); Ins (11, 3)] in
   print_string (string_of_float (edit_distance e 20));
   print_newline ();
