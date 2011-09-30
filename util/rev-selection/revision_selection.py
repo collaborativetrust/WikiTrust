@@ -487,10 +487,17 @@ def compute_quality_stats(page_id,  num_revisions,
     page_title = curs.fetchone()[0]
 
   # Reads the revision data.
-  curs.execute("select revision_id from " +
-               ini_config.get('db', 'prefix') + 
-               "wikitrust_revision where page_id = %s order by time_string desc limit %s",
-               (page_id, num_revisions + 1))
+  if num_revisions = 0:
+    # We read all revisions.
+    curs.execute("select revision_id from " +
+                 ini_config.get('db', 'prefix') + 
+                 "wikitrust_revision where page_id = %s order by time_string desc",
+                 (page_id, ))
+  else:
+    curs.execute("select revision_id from " +
+                 ini_config.get('db', 'prefix') + 
+                 "wikitrust_revision where page_id = %s order by time_string desc limit %s",
+                 (page_id, num_revisions + 1))
   rev_list = [int(r[0]) for r in curs.fetchall()]
   total_time = 0.001
   n_revisions = 0.0
