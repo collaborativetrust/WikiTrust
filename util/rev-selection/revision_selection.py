@@ -521,7 +521,7 @@ def compute_quality_stats(page_id,  num_revisions,
   total_delta_times_quality = 0.0
   # We start the analysis from 1, because we don't have information on
   # the very latest revision.
-  for revision_id in rev_list[1:]:
+  for revision_id in rev_list[1:-1]:
     n_revisions += 1.0
     d = classify(revision_id)
     d["Page_title"] = page_title

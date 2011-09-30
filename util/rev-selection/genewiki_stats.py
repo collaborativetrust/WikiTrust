@@ -37,7 +37,7 @@ from revision_selection import compute_quality_stats, is_page_ok, get_random_pag
 from revision_selection import get_page_id_from_title
 
 def usage():
-    print """cat <datafile> | ./genewiki_stats.py <n_revisions> <multiplier> [detailed_file.csv] > outfile.csv
+    print """cat <datafile> | ./genewiki_stats.py <n_revisions> <multiplier> <min_revisions> [detailed_file.csv] > outfile.csv
     where <n_revisions> is the number of revisions to analyze for each article, and 
     <multiplier> is the ratio between the number of non-genewiki and genewiki pages."""
 
@@ -47,8 +47,9 @@ if len(sys.argv) < 3 or len(sys.argv) > 4:
 
 num_revisions = int(sys.argv[1])
 multiplier = float(sys.argv[2])
-if len(sys.argv) == 4:
-    detailed_file = csv.writer(open(sys.argv[3], 'wb'), delimiter=',',
+min_revisions = int(sys.argv[3])
+if len(sys.argv) == 5:
+    detailed_file = csv.writer(open(sys.argv[4], 'wb'), delimiter=',',
                                escapechar = '\\', quotechar='"', doublequote=False, 
                                quoting=csv.QUOTE_NONNUMERIC)
 else:
@@ -56,7 +57,6 @@ else:
 
 # Minimum page requirements to avoid redirects and too-short pages.
 MIN_PAGE_LENGTH = 200
-MIN_PAGE_REVISIONS = 7
 
 # csv file initialization
 fieldnames = (
@@ -99,7 +99,7 @@ for l in sys.stdin:
         ll = l[:-1].split('\t')
         page_title = ll[1]
         page_id = get_page_id_from_title(page_title)
-        if page_id != None and is_page_ok(page_id, MIN_PAGE_REVISIONS, MIN_PAGE_LENGTH):
+        if page_id != None and is_page_ok(page_id, min_revisions, MIN_PAGE_LENGTH):
             genewiki_pages_analyzed.add(page_id)
             out = compute_quality_stats(page_id, num_revisions,
                                         page_title=page_title,
@@ -115,7 +115,7 @@ for l in sys.stdin:
 # Now analyzes the same number of general pages.
 for i in xrange(int(multiplier * len(genewiki_pages_analyzed))):
     while True:
-        page_id = get_random_page_id(min_revisions=MIN_PAGE_REVISIONS,
+        page_id = get_random_page_id(min_revisions=min_revisions,
                                      min_length=MIN_PAGE_LENGTH)
         if page_id not in genewiki_pages_analyzed:
             break
