@@ -487,7 +487,7 @@ def compute_quality_stats(page_id,  num_revisions,
     page_title = curs.fetchone()[0]
 
   # Reads the revision data.
-  if num_revisions = 0:
+  if num_revisions == 0:
     # We read all revisions.
     curs.execute("select revision_id from " +
                  ini_config.get('db', 'prefix') + 
