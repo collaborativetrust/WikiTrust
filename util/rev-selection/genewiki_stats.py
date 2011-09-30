@@ -41,7 +41,7 @@ def usage():
     where <n_revisions> is the number of revisions to analyze for each article, and 
     <multiplier> is the ratio between the number of non-genewiki and genewiki pages."""
 
-if len(sys.argv) < 3 or len(sys.argv) > 4:
+if len(sys.argv) < 4 or len(sys.argv) > 5:
     usage()
     sys.exit(2)
 
