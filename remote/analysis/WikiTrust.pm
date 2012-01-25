@@ -91,7 +91,7 @@ sub handler {
     my $E = shift;
     print STDERR $E if $E !~ m/^No info on/ && $E !~ m/^TEXT_NOT_FOUND/;
     if ($format eq 'json') {
-      my $json = { 'error' => $E };
+      my $json = { 'error' => $E->text };
       $result = printJson($cgi, $r, $json, 1);
     } else {
       $r->no_cache(1);
