@@ -125,12 +125,12 @@ let api_tz_re = Str.regexp "\\([0-9][0-9][0-9][0-9]\\)-\\([0-9][0-9]\\)-\\([0-9]
 let ip_re = Str.regexp "^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$"
 
 (* return the \u encoding of a utf8 char if its valid, "" otherwise.  *)
-let handle_invalid_utf8 substrs = 
-  let u = (Pcre.get_substrings ?full_match:(Some true) substrs).(0) in 
+let handle_invalid_utf8 substrs =
+  let u = (Pcre.get_substrings ?full_match:(Some true) substrs).(0) in
   let m = Printf.sprintf "0x%s" (String.sub u 2 4) in
   let p = int_of_string m in
-  if p <= 0xffff then 
-    if (p >= 0xd800 && p < 0xe000) || (p >= 0xfffe) then "" else u  
+  if p <= 0xffff then
+    if (p >= 0xd800 && p < 0xe000) || (p >= 0xfffe) then "" else u
   else u
 
 (* match all of the \uffff style of utf8 chars *)
@@ -364,7 +364,7 @@ let fetch_page_and_revs_after_json (selector : string) : result_tree =
   let res = get_url url in
   try (
     (* Make sure res is properly encoded *)
-    try 
+    try
       let api = Json_io.json_of_string res in
       (* logger#log (Printf.sprintf "result: %s\n" res); *)
       JSON api
@@ -379,9 +379,9 @@ let fetch_page_and_revs_after_json (selector : string) : result_tree =
       Printf.eprintf "JSON Error: %s\nOn %s\nExc %s\nBacktrace: %s" e url
 	(Printexc.to_string (Failure e))
         (Printexc.get_backtrace ());
-      raise (API_error_noretry e) 
+      raise (API_error_noretry e)
     )
-      (* this means that there are certain revs we can not download -- 
+      (* this means that there are certain revs we can not download --
 	 example itwiki-Roma page. *)
 
 (**
@@ -409,7 +409,7 @@ let fetch_page_and_revs_after (selector : string)
       let nextrevopt = match nextrevprop with
 	| None -> None
 	| Some rev_cont ->
-	    let next_rev_id = int_of_string (get_property rev_cont "rvstartid" err_get_property) in
+	    let next_rev_id = int_of_string (get_property rev_cont "rvcontinue" err_get_property) in
 	    Some next_rev_id
       in (page_info, rev_info, nextrevopt)
     end
@@ -422,7 +422,7 @@ let get_user_id (user_name: string) (db: Online_db.db) : int =
   try
     if Str.string_match ip_re user_name 0 then 0
     else db#get_user_id user_name
-  with 
+  with
   | Online_db.DB_Not_Found -> (
       try
 	db#write_user_id user_name
@@ -455,7 +455,7 @@ let get_remote_user_id (user_name: string) : int =
    a group of revisions of the given page (usually something like
    50 revisions, see the Wikimedia API) from the Wikimedia API,
    and returns:
-   - the page structure 
+   - the page structure
    - a list of revision structures
    - an optional id of the next revision to read.  Is None, then
      all revisions of the page have been read.
@@ -490,6 +490,7 @@ let rec get_revs_from_api
   match resultopt with
   | Some res -> res
   | None -> begin
+      !logger#debug 9 (Printf.sprintf "Error getting revs for page '%s', sleeping\n" error_page_ident);
       Unix.sleep retry_delay_sec;
       get_revs_from_api selector last_id (rev_lim / 2);
     end
@@ -599,15 +600,15 @@ let rec download_page_starting_with_from_id (db: Online_db.db) (page_id: int)
 	match next_rev with
 	  | Some next_id -> begin
 	      if next_id = prev_last_rev then (
-		!logger#debug 1 (Printf.sprintf 
+		!logger#debug 1 (Printf.sprintf
 		    "Not making forward progress -- giving up on rev %d of page %d"
                     next_id page_id);
 		n_revs_downloaded
 	      ) else (
-		!logger#debug 9 (Printf.sprintf 
-		    "Loading next batch: %d -> %d\n" 
+		!logger#debug 9 (Printf.sprintf
+		    "Loading next batch: %d -> %d\n"
 		    page_id next_id);
-		download_page_starting_with_from_id db page_id next_id 
+		download_page_starting_with_from_id db page_id next_id
 		  last_rev (n_revs_downloaded + n_new_revs_downloaded)
 	      )
 	    end

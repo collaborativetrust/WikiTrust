@@ -105,6 +105,7 @@ let sig_profileclean = function _ -> begin
     maxtime_fetchwork := 0.0;
     maxtime_subprocess := 0.0;
 end
+let set_debug_level l = Online_log.debug_level := l
 
 let custom_line_format = [
   ("-concur_procs", Arg.Int set_max_concurrent_procs, "<int>: Number of pages to process in parellel.");
@@ -117,6 +118,7 @@ let custom_line_format = [
   ("-min_rev_id", Arg.Int set_min_rev_id, "<int>: The earliest revision ID to download");
   ("-keep_text_cache", Arg.Set keep_cached_text, ": Do not erase revision text downloaded from another MW instance.");
   ("-single_threaded_mode", Arg.Set single_threaded, "Run without forking -- for debugging");
+  ("-debug_level", Arg.Int set_debug_level, "<int>: Level of debug reporting (default: 0)");
 ] @ command_line_format
 
 let _ = Arg.parse custom_line_format noop "Usage: dispatcher";;
