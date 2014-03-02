@@ -80,6 +80,7 @@ let mediawiki_db = {
   dbport = Some !mw_db_port;
   dbpwd  = Some !mw_db_pass;
   dbuser = Some !mw_db_user;
+  dbsocket = None;
 }
 
 (* Extracts page, revision, and user id, complaining if they are not there. *)

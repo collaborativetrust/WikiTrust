@@ -132,6 +132,7 @@ let mediawiki_db = {
   Mysql.dbport = Some !mw_db_port;
   Mysql.dbpwd  = Some !mw_db_pass;
   Mysql.dbuser = Some !mw_db_user;
+  Mysql.dbsocket = None;
 }
 
 (* Prepares the global (all-wiki) database connection information *)
@@ -141,6 +142,7 @@ let global_db = {
   Mysql.dbport = Some !global_db_port;
   Mysql.dbpwd  = Some !global_db_pass;
   Mysql.dbuser = Some !global_db_user;
+  Mysql.dbsocket = None;
 }
 
 let trust_coeff = Online_types.get_default_coeff in
