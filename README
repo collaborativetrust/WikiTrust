@@ -82,8 +82,8 @@ the packages:
 2) This step involves compiling WikiTrust from source code, and is of
    course always needed, for all usage modes U1), U2), and U3).
 
-   First, use the package manager of linux to install the
-   development library for mysql.   On Ubuntu, this is package
+   First, use the package manager of linux to install the development
+   library for mysql.  On Ubuntu or Debian, this is package
    libmysqlclient16-dev
 
 2a) You need to install some packages for Ocaml.  There are two ways. 
@@ -105,40 +105,40 @@ the packages:
 
           godi-extlib
           godi-findlib
-	  godi-json-static
-	  godi-json-wheel
+          godi-json-static
+          godi-json-wheel
           godi-ocaml-mysql
-	  godi-ocamlnet
-	  godi-pcre
-	  godi-sexplib
-	  godi-type-conv
-	  godi-xml-light
-	  godi-zip
+          godi-ocamlnet
+          godi-pcre
+          godi-sexplib
+          godi-type-conv
+          godi-xml-light
+          godi-zip
 
    2a2) If you do not wish to use godi, you can get the above packages
         either from their source, or from the linux distribution you
-        are using.  For Ubuntu, you can use the following packages:
+        are using.  For Ubuntu or Debian, you can use the following
+        packages:
 
           ocaml (version 3.10.0 or greater)
           ocaml-base
           ocaml-native-compilers
+          libextlib-ocaml-dev
           ocaml-findlib
+          libjson-static-camlp4-dev
+          libjson-wheel-ocaml-dev
           libmysql-ocaml
           libmysql-ocaml-dev
-          libextlib-ocaml-dev
           python-mysqldb
-	  libxml-light-ocaml-dev
-	  libzip-ocaml	
-	  libzip-ocaml-dev
-	  libpcre-ocaml-dev
-
-        You also need to install these two packages:
-
-          type-conv
-	  sexplib
-
-        Which are available from
-        http://www.janestcapital.com/ocaml/index.html .
+          libocamlnet-ocaml
+          libocamlnet-ocaml-bin
+          libocamlnet-ocaml-dev
+	      libpcre-ocaml-dev
+          libsexplib-camlp4-dev
+          libtype-conv-camlp4-dev
+          libxml-light-ocaml-dev
+          libzip-ocam
+          libzip-ocaml-dev
 
 2b) You need to obtain OcamlLdaLibs.  You can get it from 
     http://github.com/collaborativetrust/OcamlLdaLibs

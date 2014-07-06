@@ -50,6 +50,7 @@ let mediawiki_db = {
   Mysql.dbport = Some !mw_db_port;
   Mysql.dbpwd  = Some !mw_db_pass;
   Mysql.dbuser = Some !mw_db_user;
+  Mysql.dbsocket = None;
 }
 
 (* Sets up the db *)

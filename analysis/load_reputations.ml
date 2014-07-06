@@ -88,6 +88,7 @@ let mediawiki_db = {
   Mysql.dbport = Some !mw_db_port;
   Mysql.dbpwd  = Some !mw_db_pass;
   Mysql.dbuser = Some !mw_db_user;
+  Mysql.dbsocket = None;
 } in
 let mediawiki_dbh = Mysql.connect mediawiki_db in 
 let db = Online_db.create_db !use_exec_api !db_prefix mediawiki_dbh None 
